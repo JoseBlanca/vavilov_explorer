@@ -256,6 +256,12 @@ The table is held in the backend as a list of columns. Each column has:
 - a type, and the values, with missing values marked separately from the
   values themselves.
 
+The first column names the individuals, whatever its header says. Its
+values are text as written, so `001` stays `001`. Every row has a name,
+and no name is in two rows. An imported file with a row whose first cell
+is empty, or with a name in two rows, is refused, and the message names
+the line and the name. The first column's type cannot be changed.
+
 The types are numeric, integer, text, boolean and categorical. A
 categorical column holds, for each row, a code that points into an
 ordered list of levels, the names of the categories, plus a missing
@@ -278,8 +284,10 @@ undone like any other edit.
 
 The type of each column is guessed on import (section 7), and the guess
 will sometimes be wrong. Numeric codes of populations such as 1, 2 and 3
-are a common case. The dropdown on top of each column lets the user change
-the type.
+are a common case, and so is a classification of 20 populations or more,
+which the guess takes for text (`table_io-needs.md`, section 3). The
+dropdown on top of each column but the first lets the user change the
+type.
 
 The dropdown offers every type, but enables only the conversions that
 lose no value for this column:
@@ -322,7 +330,8 @@ feature. Vavilov Explorer uses the library crate natively, with every
 feature, and not the WebAssembly package. popnei_web installs the
 `xlsx_rs` package from a GitHub release by its URL, so the first
 `table_io` release is published under the new name and popnei_web
-changes its URL in the same step.
+changes its URL in the same step. What Vavilov Explorer needs of
+`table_io`, in detail, is in `table_io-needs.md`.
 
 Polars was considered for the table and not taken. Its Rust version does
 not read xlsx, so an Excel reader is needed anyway, and type guessing of
@@ -345,7 +354,8 @@ A `.vav` file is a zip archive, as an xlsx is, with two files in it:
 - `project.json`: what Parquet cannot hold, which is a version of the
   format, each column's id, which text columns are categorical, with the
   order of their levels and their colours, the active classification,
-  and the layout of the windows (section 2.4).
+  the layout of the windows (section 2.4), and the decimal mark of the
+  import, by which a later change of type reads the values.
 
 No fact is stored in both files. The types Parquet can hold, numeric,
 integer, text and boolean, are read from Parquet, and `project.json`
