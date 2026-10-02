@@ -14,10 +14,12 @@ name = "vavilov_explorer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2", features = ["isolation"] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# "isolation": the isolation pattern of tauri.conf.json needs it, although
+# Tauri's guide says no feature is required (spikes/windowing/README.md).
+tauri = { version = "2", features = ["isolation"] }
 
 # https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
@@ -26,3 +28,34 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+# The lint table of .claude/skills/coding/rust.md, whose reasons are there.
+# It moves to the workspace's Cargo.toml when the core crate is added.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "deny"
+
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+[lints.clippy]
+arithmetic_side_effects = "deny"
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
+cast_lossless = "deny"
+fallible_impl_from = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+indexing_slicing = "deny"
+float_cmp = "deny"
+wildcard_enum_match_arm = "deny"
+fn_params_excessive_bools = "deny"
+match_same_arms = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+allow_attributes_without_reason = "deny"

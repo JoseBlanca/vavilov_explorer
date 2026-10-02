@@ -12,10 +12,10 @@ name = "windowing_spike_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2", features = ["isolation"] }
 
 [dependencies]
-tauri = { version = "=2.12.1", features = [] }
+tauri = { version = "=2.12.1", features = ["isolation"] }
 # The embedded WebDriver server of WebdriverIO, only in a build made with
 # `--features wdio` for the WebDriver check (README.md).
 tauri-plugin-wdio-webdriver = { version = "=1.4.0", optional = true }

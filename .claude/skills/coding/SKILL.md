@@ -175,29 +175,24 @@ setup of the core crate makes a Cargo workspace at the root of the
 repository, with `src-tauri` and `crates/*` as its members, and from then
 on they run at the root. All of them run for every change to the
 code; a change to documents alone needs none. A command or a layer that
-does not exist yet is reported as not there, not as passed: the format
-and lint scripts and the core crate are added by the first setup commit.
+does not exist yet is reported as not there, not as passed.
 Report what each command printed when it failed and that it passed when
 it passed. `--fix` of ESLint and `--write` of Prettier change files, and
 their changes are read before they are committed.
 
 ## Not set up yet
 
-The skills describe the project as it is meant to be. These parts do not
-exist yet, and are made by the first setup commit, before any feature
-code, each checked by the commands above:
+The skills describe the project as it is meant to be. The setup commit of
+2 October 2026 made the tooling: exact npm versions, the compiler options,
+ESLint, Prettier, the content security policy, the isolation pattern, the
+Rust lint table and the harness in two engines. These parts come with the
+first code that needs them:
 
-- `.npmrc` with `save-exact=true`, and the exact versions in
-  `package.json`;
-- the compiler options of `typescript.md`, `eslint.config.js`, Prettier's
-  configuration and `.prettierignore`, and the scripts `lint`,
-  `format:check`;
-- in `tauri.conf.json`, the content security policy, `withGlobalTauri`
-  off, and the isolation pattern with its isolation application, checked
-  with a raw payload and a channel (`tauri.md`);
-- the lint table of `rust.md` and `clippy.toml`;
-- in the e2e harness, Chromium beside WebKit and the port from `E2E_PORT`
-  (`testing.md`).
+- the core crate `crates/vavilov-core` and the Cargo workspace at the
+  root, which takes the lint table from `src-tauri/Cargo.toml`;
+- the folders of `src/` (`backend`, `state`, `plots`, `windows`), whose
+  import rules `eslint.config.js` already holds;
+- the harness's several pages and the test-only backend (`testing.md`).
 
 Until a part exists, a session follows the rule and reports the check as
 not there.

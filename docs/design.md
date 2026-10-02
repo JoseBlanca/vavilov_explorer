@@ -579,7 +579,10 @@ Raised on 2 October 2026 while the skills of the project were written
   (`.claude/skills/coding/typescript.md`, "The engines").
 - Tauri's isolation pattern is used, which Tauri recommends against a
   malicious frontend dependency; it is reconsidered only if it causes
-  problems in real work, such as the hover's latency or raw payloads.
+  problems in real work. Measured afterwards with the windowing spike: the
+  hover and a selection are as fast as without it, a payload of 100 kB
+  takes 26 to 30 ms instead of 2 to 3, and a raw response of 600 kB about
+  60 ms instead of 2 to 3 (`spikes/windowing/README.md`).
 - Light and dark follow the system's appearance, and the app has a
   setting of its own, system, light or dark, so that a user can choose a
   mode for Vavilov Explorer other than the system's. The setting belongs

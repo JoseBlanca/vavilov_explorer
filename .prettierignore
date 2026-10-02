@@ -1,0 +1,13 @@
+# The documents and the skills are prose wrapped by hand (the writing skill).
+*.md
+docs/
+.claude/
+# Throwaway experiments, generated files and outputs.
+spikes/
+dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/
+e2e/output/
+tmp/
+package-lock.json

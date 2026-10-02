@@ -46,14 +46,22 @@ follows:
   it reaches the backend; it guards against a malicious frontend
   dependency. In `tauri.conf.json`, `app.security.pattern` is
   `{ "use": "isolation", "options": { "dir": "../isolation" } }`, and
-  `isolation/index.html` defines `window.__TAURI_ISOLATION_HOOK__`, which
-  returns the payload it is given. Its script is inline and not an ES
-  module, because on Windows a module does not load in the sandboxed
-  frame (Tauri's guide). It is reconsidered only if it causes problems in
-  real work: the hover's latency, which the windowing spike measured
-  without it, and raw payloads, whose passage through the isolation
-  application has not been tried, are the first things to check when it
-  is set up.
+  `isolation/index.js`, at the root of the repository, sets
+  `__TAURI_ISOLATION_HOOK__`, which returns the payload it is given. It is
+  a plain script and not an ES module, because on Windows a module does
+  not load in the sandboxed frame (Tauri's guide). Both `tauri` and
+  `tauri-build` need their cargo feature `isolation`, although the guide
+  says no feature is required: without it the isolation code is not
+  compiled, and the build script refuses the configuration.
+- **What isolation costs**, measured with the windowing spike on the
+  owner's Mac on 2 October 2026 (`spikes/windowing/README.md`): the hover
+  and a selection of 6 kB take as long as without it, 2 and 4 to 5 ms; a
+  payload of 100 kB takes 26 to 30 ms instead of 2 to 3, and a command's
+  raw response of 600 kB about 60 ms instead of 2 to 3. Every message still
+  arrives as an `ArrayBuffer`, in order. So a large payload is drawn a
+  frame or more later than a small one. The owner decided to keep it
+  unless it causes problems in real work; a bulk transfer the user waits
+  on, a column of a large table, is where to look first.
 
 ## Commands
 

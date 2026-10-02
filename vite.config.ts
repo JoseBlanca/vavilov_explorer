@@ -1,37 +1,18 @@
-/// <reference types="vitest/config" />
-import { defineConfig } from "vite";
-import { configDefaults } from "vitest/config";
-// @ts-expect-error type error without @types/node package
-import process from "node:process";
-const host = process.env.TAURI_DEV_HOST;
+import { configDefaults, defineConfig } from "vitest/config";
 
 // https://vite.dev/config/
-export default defineConfig(() => ({
-
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent Vite from obscuring rust errors
+export default defineConfig({
+  // Keep Rust's errors visible in the terminal of `npm run tauri dev`.
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
   server: {
+    // Tauri's devUrl (src-tauri/tauri.conf.json) expects this port.
     port: 1420,
     strictPort: true,
-    host: host || false,
-    hmr: host
-      ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
-      : undefined,
-    watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
-    },
+    watch: { ignored: ["**/src-tauri/**", "**/spikes/**"] },
   },
   // The spikes are throwaway experiments with runners of their own; their
   // WebDriver tests are not Vitest tests.
   test: {
     exclude: [...configDefaults.exclude, "spikes/**"],
   },
-}));
+});

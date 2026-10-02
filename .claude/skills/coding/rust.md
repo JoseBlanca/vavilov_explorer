@@ -199,10 +199,10 @@ allow-dbg-in-tests = true
 ```
 
 With `-D warnings`, an `#[expect]` on a line where the lint does not fire
-is an error, which keeps the expects honest. The `.expect()` of
-`tauri::Builder::run`, which the template has, is the one place where the
-app may stop with a message, when Tauri itself cannot start; it carries
-an `#[expect(clippy::expect_used, reason = ...)]`.
+is an error, which keeps the expects honest. Not even the start of the
+app panics: `run()` returns Tauri's error, and `main` prints it and exits
+with a failure code. Until the core crate is added the table is in
+`src-tauri/Cargo.toml` as `[lints.rust]` and `[lints.clippy]`.
 
 ## Tests
 

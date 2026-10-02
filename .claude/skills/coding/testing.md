@@ -58,11 +58,10 @@ seconds, and when it fails says only that something on the path broke.
 
 `e2e/harness.mjs` runs the real frontend in Playwright, with only Tauri's
 IPC replaced. WebKit stands for macOS and Linux, Chromium for WebView2 on
-Windows. Today the harness imports WebKit alone; the setup commit adds
-Chromium, and then both run, since a page can work in one and not the
-other. It also makes the harness take its port, 1430, from `E2E_PORT`
-when that is set, so that reviewers in parallel worktrees do not
-collide.
+Windows; both run, since a page can work in one and not the other:
+`launch({ engine })` opens one, and a test loops over `ENGINES`. The
+harness takes its port, 1430, from `E2E_PORT` when that is set, so that
+reviewers in parallel worktrees do not collide.
 
 Today the harness opens one page and answers each command with a fixed
 value the test gives. The design extends it (`docs/design.md`, section

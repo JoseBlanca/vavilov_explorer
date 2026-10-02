@@ -28,6 +28,10 @@ npm run tauri build -- --debug --features wdio && npx wdio run wdio.conf.mjs   #
 Results are appended as JSON lines to `results.jsonl`, or to the path in
 `SPIKE_RESULTS`.
 
+Since 2 October 2026 the spike runs with Tauri's isolation pattern and the
+content security policy of the app; the first results below were measured
+without either, the section on isolation with both.
+
 The benchmark: `view-1` makes one change per animation frame, 600 hovers,
 then 120 selections, then 60 changes of every individual's population.
 Each change carries the time `view-1` made it. Both views record when the
@@ -74,6 +78,33 @@ largest maximum of the three.
   debug build.
 - In the debug build, "received" was about 1 ms higher at the median than
   in the release build, and the hover's maximum was 14 to 15 ms.
+
+### With Tauri's isolation pattern
+
+Run on 2 October 2026 on the same Mac, after the owner decided to use the
+isolation pattern (`docs/design.md`, section 12): three release runs with
+`app.security.pattern` set to isolation, its isolation application in
+`isolation/` passing every message on unchanged, and the cargo feature
+`isolation` of `tauri`, which the isolation code needs although Tauri's
+guide says no feature is required. Received, median / 95th percentile /
+maximum in ms, `view-2`:
+
+| change | without isolation | with isolation |
+|---|---|---|
+| hover, 32 bytes | 1 / 2 / 4 | 2 / 3–6 / 8–21 |
+| selection, 6,274 bytes | 2–3 / 4–8 / 13 | 4–5 / 4–7 / 5–8 |
+| populations, 100,024 bytes | 2–3 / 3–4 / 9 | 26–30 / 28–33 / 29–37 |
+| the 600 kB of positions, a command's raw response | 2–3 | 58–65 |
+
+- Every message still arrived as an `ArrayBuffer`, in order, with no gap.
+- The hover and the selection are about as fast as before. A large
+  payload is 10 to 25 times slower: the populations of every individual
+  are drawn two frames after the change, not one, and fetching 600 kB
+  takes about 60 ms. That a payload's size is what costs was seen, not
+  analysed; Tauri encrypts what passes through the isolation application.
+- A further run with the content security policy proposed in
+  `.claude/skills/coding/tauri.md` as well gave the same numbers and no
+  error.
 
 ### WebDriver
 
