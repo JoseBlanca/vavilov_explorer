@@ -49,9 +49,11 @@ of truth: no controller, view or plot keeps its own copy of a part of it.
 - `apply` ignores a message whose revision is not newer than the copy's,
   and throws a defect for one that skips a revision: the channel keeps
   the order, so a gap is a bug. The hover is the exception: it carries a
-  sequence number of its own and no revision, since the backend drops a
-  hover it has not sent when a newer one arrives (`tauri.md`), and a
-  window keeps the hover with the highest number it has seen.
+  sequence number of its own and no revision, so that hovers can be
+  dropped without a gap in the revisions, by a queue in the app if one is
+  ever needed (`tauri.md`), and a window keeps the hover with the highest
+  number it has seen. Its header carries the current revision, which
+  plays no part in the order.
 - Every function of `src/state/` is pure apart from the copy itself: no
   DOM, no clock, no Tauri. So its tests are calls and literals in node.
 

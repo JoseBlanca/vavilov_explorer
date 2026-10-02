@@ -35,7 +35,10 @@ seconds, and when it fails says only that something on the path broke.
   a window would. The mock runtime has no web view, so these tests check
   the wiring, not what a window draws. They call every command once,
   which is what catches a command whose `State` type was never managed, a
-  panic at run time (`tauri.md`).
+  panic at run time (`tauri.md`). They cannot see a window closed: the
+  mock runtime never sends the event that removes a destroyed window
+  from Tauri's list, so `get_webview_window` still finds it, and the
+  closing is left to the tests of the real app.
 - A message layout is tested on both sides with the same literal bytes:
   Rust encodes and compares with the literal, TypeScript decodes the
   literal and compares with the values.

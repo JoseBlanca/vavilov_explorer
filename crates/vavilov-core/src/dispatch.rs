@@ -75,24 +75,51 @@ impl Session {
         }
     }
 
-    /// Checks the command and builds what it changes, or `None` when it
-    /// changes nothing. It changes nothing itself.
-    fn plan(&self, request: Request) -> Result<Option<Plan>, CommandError> {
+    /// The set of rows a window sent as bytes with a command made at
+    /// `based_on`, for the table of the open project. A command made before
+    /// the table was loaded is refused as such, before its bytes are read
+    /// against a table they were not made for.
+    ///
+    /// # Errors
+    ///
+    /// `MadeBeforeLoad`, `NoProject`, or the refusals of
+    /// [`RowSet::from_bytes`].
+    pub fn rows_from_window(
+        &self,
+        bytes: &[u8],
+        based_on: Revision,
+    ) -> Result<RowSet, CommandError> {
+        self.check_based_on(based_on)?;
+        let open = self.state.project.open()?;
+        RowSet::from_bytes(bytes, open.table.num_rows())
+    }
+
+    /// Refuses a command made at a revision still to come, a defect, or
+    /// before the current table was loaded.
+    fn check_based_on(&self, based_on: Revision) -> Result<(), CommandError> {
         let state = &self.state;
-        if request.based_on > state.revision {
+        if based_on > state.revision {
             return Err(CommandError::Defect {
                 what: format!(
-                    "a command made at revision {}, after the current one, {}",
-                    request.based_on, state.revision
+                    "a command made at revision {based_on}, after the current one, {}",
+                    state.revision
                 ),
             });
         }
-        if request.based_on < state.loaded_at {
+        if based_on < state.loaded_at {
             return Err(CommandError::MadeBeforeLoad {
-                based_on: request.based_on,
+                based_on,
                 loaded_at: state.loaded_at,
             });
         }
+        Ok(())
+    }
+
+    /// Checks the command and builds what it changes, or `None` when it
+    /// changes nothing. It changes nothing itself.
+    fn plan(&self, request: Request) -> Result<Option<Plan>, CommandError> {
+        self.check_based_on(request.based_on)?;
+        let state = &self.state;
         let sent_at = request.sent_at;
         match request.command {
             Command::LoadTable {

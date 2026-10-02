@@ -5,7 +5,7 @@ use crate::command::{Command, Request};
 use crate::dispatch::{Changed, Dropped};
 use crate::fixtures::{code, decode, part_kinds, plants};
 use crate::ids::{ColumnId, LevelCode, MAX_EXACT_IN_JAVASCRIPT, SentAt};
-use crate::table::ColumnValues;
+use crate::table::{ColumnValues, Table};
 
 const PROJECT: u16 = 1;
 const ACTIVE: u16 = 2;
@@ -1022,5 +1022,54 @@ fn every_value_of_the_plants_is_kept_through_a_load() {
     assert_eq!(
         table.column(HEIGHT).unwrap().values(),
         &ColumnValues::Numeric(vec![Some(1.5), None, Some(2.0), Some(3.25)])
+    );
+}
+
+#[test]
+fn the_rows_of_a_lasso_made_before_a_load_are_refused_as_made_before_it() {
+    let (mut session, _recorder) = loaded();
+    let before = session.revision();
+    let other = Table::new(
+        "",
+        crate::fixtures::names(&["a", "b", "c", "d", "e", "f", "g", "h", "i"]),
+        Vec::new(),
+    )
+    .unwrap();
+    apply(
+        &mut session,
+        Command::LoadTable {
+            table: other,
+            active_classification: None,
+        },
+    );
+    // Four rows' worth of bits, made for the old table, against a table of nine.
+    assert_eq!(
+        session.rows_from_window(&[0b0110], before),
+        Err(CommandError::MadeBeforeLoad {
+            based_on: Revision::new(1),
+            loaded_at: Revision::new(2)
+        })
+    );
+    assert_eq!(
+        session.rows_from_window(&[0b0110], session.revision()),
+        Err(CommandError::RowSetLength {
+            num_rows: 9,
+            num_bytes: 1
+        })
+    );
+    assert_eq!(
+        session
+            .rows_from_window(&[0b0110, 0], session.revision())
+            .map(|rows| rows.num_rows()),
+        Ok(9)
+    );
+}
+
+#[test]
+fn the_rows_from_a_window_need_a_project() {
+    let session = Session::new();
+    assert_eq!(
+        session.rows_from_window(&[], Revision::ZERO),
+        Err(CommandError::NoProject)
     );
 }
