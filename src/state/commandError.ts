@@ -43,6 +43,7 @@ const FIELDS = {
   nothingToRedo: {},
   tooManyRows: { numRows: "number", maxRows: "number" },
   tooManyColumns: { numColumns: "number", maxColumns: "number" },
+  notIndividualId: { header: "string" },
   emptyIndividual: { row: "rowIndex" },
   duplicateIndividual: { name: "string", firstRow: "rowIndex", secondRow: "rowIndex" },
   emptyColumnName: { position: "number" },

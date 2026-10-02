@@ -10,7 +10,7 @@ import { ENGINES, OUT, launch } from "./harness.mjs";
 
 /** Five plants: origin (Spain, Peru, Chile) active, cluster (A, B), height. */
 const PLANTS = {
-  header: "accession",
+  header: "IndividualID",
   names: ["p1", "p2", "p3", "p4", "p5"],
   columns: [
     { name: "height", numeric: [1.5, null, 2, 3.25, 1] },

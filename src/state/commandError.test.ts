@@ -10,6 +10,13 @@ describe("a refusal of the backend", () => {
     expect(isCommandError({ kind: "nonFiniteNumber", columnName: "height", row: 1 })).toBe(true);
     expect(isCommandError({ kind: "nonFiniteNumber", column: "height", row: 1 })).toBe(false);
     expect(isCommandError({ kind: "unknownLevel", column: 3, code: 7, numLevels: 2 })).toBe(true);
+    expect(isCommandError({ kind: "notIndividualId", header: "accession" })).toBe(true);
+    expect(
+      isCommandError({ kind: "roleNotPossible", column: 3, storage: "text", role: "number" }),
+    ).toBe(true);
+    expect(
+      isCommandError({ kind: "roleNotPossible", column: 3, storage: "date", role: "number" }),
+    ).toBe(false);
     expect(
       isCommandError({ kind: "duplicateIndividual", name: "p2", firstRow: 1, secondRow: 3 }),
     ).toBe(true);

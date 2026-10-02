@@ -1051,7 +1051,7 @@ fn the_rows_of_a_lasso_made_before_a_load_are_refused_as_made_before_it() {
     let (mut session, _recorder) = loaded();
     let before = session.revision();
     let other = Table::new(
-        "",
+        "IndividualID",
         crate::fixtures::names(&["a", "b", "c", "d", "e", "f", "g", "h", "i"]),
         Vec::new(),
     )

@@ -37,7 +37,7 @@ pub struct TableDescription {
 pub struct NamesDescription {
     /// Its id.
     pub id: ColumnId,
-    /// Its header, which may be empty.
+    /// Its header, IndividualID.
     pub header: String,
 }
 

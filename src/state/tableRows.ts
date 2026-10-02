@@ -20,7 +20,7 @@ import { hasRow } from "./rowSet.ts";
 export interface TableColumn {
   /** Its id; the first column, the names, has one too. */
   readonly id: ColumnId;
-  /** Its name, as in the user's file; the first column's may be empty. */
+  /** Its name, as in the user's file; the first column's is IndividualID. */
   readonly name: string;
   /** The first column, or the role of another. */
   readonly kind: "names" | Role;

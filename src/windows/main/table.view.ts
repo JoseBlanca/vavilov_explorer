@@ -122,11 +122,7 @@ export function tableView(props: TableProps): TemplateResult {
               )}"
             >
               <span class=${classOf(styles, "headingName")} title=${column.name}>
-                ${
-                  column.name === ""
-                    ? html`<span class=${classOf(styles, "hidden")}>Individual</span>`
-                    : column.name
-                }
+                ${column.name}
               </span>
               ${column.kind === "names" ? nothing : roleSelect(column, props.onRole)}
             </div>`,

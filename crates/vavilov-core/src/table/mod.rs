@@ -30,13 +30,32 @@ pub const MAX_COLUMNS: u32 = 16_777_216;
 /// bits, and `0xFFFF` means missing in the messages.
 pub const MAX_LEVELS: u32 = 65_535;
 
+/// The header of the first column, which the app shows and an export
+/// writes (`docs/design.md`, section 5, decided by the owner on 2 October
+/// 2026).
+pub const INDIVIDUAL_ID: &str = "IndividualID";
+
+/// Whether `header` names the first column: [`INDIVIDUAL_ID`], with case,
+/// spaces and underscores ignored, so that `Individual ID` and
+/// `individual_id` are accepted.
+#[must_use]
+pub fn is_individual_id(header: &str) -> bool {
+    let squeezed = |text: &str| -> String {
+        text.chars()
+            .filter(|c| !c.is_whitespace() && *c != '_')
+            .flat_map(char::to_lowercase)
+            .collect()
+    };
+    squeezed(header) == squeezed(INDIVIDUAL_ID)
+}
+
 /// The first column, which names the individuals: none empty, no two the
-/// same, text as written. It has no type and is never missing.
+/// same, text as written. It has no type and is never missing, and its
+/// header is always [`INDIVIDUAL_ID`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameColumn {
     id: ColumnId,
     revision: Revision,
-    header: String,
     names: Vec<String>,
 }
 
@@ -54,10 +73,10 @@ impl NameColumn {
         self.revision
     }
 
-    /// Its header, which may be empty.
+    /// Its header, [`INDIVIDUAL_ID`], whatever the file wrote of it.
     #[must_use]
-    pub fn header(&self) -> &str {
-        &self.header
+    pub const fn header(&self) -> &'static str {
+        INDIVIDUAL_ID
     }
 
     /// The name of each individual, one per row.
@@ -92,23 +111,28 @@ impl Table {
     ///
     /// # Errors
     ///
-    /// A table of more than [`MAX_ROWS`] rows or [`MAX_COLUMNS`] columns;
-    /// an individual with no name, or two with the same; a column with no
-    /// name, two of the same name, or the first column's header when it is
-    /// not empty; a column of another length than the names; a number that
-    /// is not finite; a category or a classification of more than
-    /// [`MAX_LEVELS`] levels, of another number of colours than levels, a
-    /// level of empty text, a level twice, or a code with no level.
+    /// A header of the first column that is not [`INDIVIDUAL_ID`], as
+    /// [`is_individual_id`] compares them; a table of more than
+    /// [`MAX_ROWS`] rows or [`MAX_COLUMNS`] columns; an individual with no
+    /// name, or two with the same; a column with no name, two of the same
+    /// name, or one named [`INDIVIDUAL_ID`]; a column of another length
+    /// than the names; a number that is not finite; a category or a
+    /// classification of more than [`MAX_LEVELS`] levels, of another number
+    /// of colours than levels, a level of empty text, a level twice, or a
+    /// code with no level.
     pub fn new(
         header: impl Into<String>,
         names: Vec<String>,
         columns: Vec<NewColumn>,
     ) -> Result<Self, CommandError> {
         let header = header.into();
+        if !is_individual_id(&header) {
+            return Err(CommandError::NotIndividualId { header });
+        }
         let num_rows = num_rows_of(names.len())?;
         check_num_columns(columns.len())?;
         check_names(&names)?;
-        check_column_names(&header, &columns)?;
+        check_column_names(&columns)?;
         for column in &columns {
             check_values(column, num_rows)?;
         }
@@ -132,7 +156,6 @@ impl Table {
             names: NameColumn {
                 id: ColumnId::new(0),
                 revision: Revision::ZERO,
-                header,
                 names,
             },
             columns: built,
@@ -228,12 +251,10 @@ fn check_names(names: &[String]) -> Result<(), CommandError> {
 }
 
 /// Checks that every column has a name, and no two the same, the first
-/// column's header among them when it is not empty.
-fn check_column_names(header: &str, columns: &[NewColumn]) -> Result<(), CommandError> {
+/// column's header among them.
+fn check_column_names(columns: &[NewColumn]) -> Result<(), CommandError> {
     let mut seen: HashSet<&str> = HashSet::with_capacity(columns.len());
-    if !header.is_empty() {
-        seen.insert(header);
-    }
+    seen.insert(INDIVIDUAL_ID);
     for (position, column) in (1..=u32::MAX).zip(columns) {
         if column.name.is_empty() {
             return Err(CommandError::EmptyColumnName { position });

@@ -29,7 +29,7 @@ const DESCRIPTION: TableDescription = {
   loadedAt: revision(1),
   shapeAt: revision(1),
   numRows: 6,
-  names: { id: column(0), header: "accession" },
+  names: { id: column(0), header: "IndividualID" },
   columns: [
     {
       id: column(1),

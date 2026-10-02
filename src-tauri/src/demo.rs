@@ -156,7 +156,7 @@ pub fn table() -> Result<Table, CommandError> {
             })
         })
         .collect::<Result<Vec<_>, CommandError>>()?;
-    Table::new("Individual ID", names, columns)
+    Table::new("IndividualID", names, columns)
 }
 
 /// `value` rounded to `decimals` places, as a file would hold it.

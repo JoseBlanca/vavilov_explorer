@@ -29,7 +29,7 @@ const PLANTS: TableDescription = {
   loadedAt: revision(1),
   shapeAt: revision(1),
   numRows: 4,
-  names: { id: column(0), header: "accession" },
+  names: { id: column(0), header: "IndividualID" },
   columns: [
     {
       id: column(1),
@@ -124,7 +124,7 @@ describe("the columns of the table", () => {
         c.choices.map((choice) => choice.label),
       ]),
     ).toEqual([
-      [0, "accession", "names", false, []],
+      [0, "IndividualID", "names", false, []],
       [1, "height", "number", true, ["Number", "Category", "Classification"]],
       [2, "origin", "classification", false, ["Category", "Classification", "Text"]],
       [3, "seeds", "number", true, ["Number", "Category", "Classification"]],

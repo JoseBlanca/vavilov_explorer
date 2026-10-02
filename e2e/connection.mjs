@@ -13,7 +13,7 @@ import { ENGINES, launch } from "./harness.mjs";
  * 3 `seeds`, 4 `fertile` and 5 `note`.
  */
 const PLANTS = {
-  header: "accession",
+  header: "IndividualID",
   names: ["p1", "p2", "p3", "p4"],
   columns: [
     {

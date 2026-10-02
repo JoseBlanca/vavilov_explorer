@@ -166,6 +166,14 @@ pub enum CommandError {
         max_columns: u32,
     },
 
+    /// The first column's header is not `IndividualID`, as
+    /// [`crate::is_individual_id`] compares them.
+    #[error("the first column is named {header:?}, not IndividualID")]
+    NotIndividualId {
+        /// The header the table gave.
+        header: String,
+    },
+
     /// A row of the first column, the names of the individuals, is empty.
     #[error("row {row} has no name")]
     EmptyIndividual {

@@ -37,6 +37,7 @@ pub use row_set::RowSet;
 pub use rows::RowsRequest;
 pub use session::{Active, Selected, SendFailed, Session, Subscriber, UndoRedo};
 pub use table::{
-    Categorical, Colour, Column, ColumnValues, LevelValues, MAX_COLUMNS, MAX_LEVELS, MAX_ROWS,
-    NameColumn, NewColumn, Numbers, PALETTE, Role, StorageType, Stored, Table, palette,
+    Categorical, Colour, Column, ColumnValues, INDIVIDUAL_ID, LevelValues, MAX_COLUMNS, MAX_LEVELS,
+    MAX_ROWS, NameColumn, NewColumn, Numbers, PALETTE, Role, StorageType, Stored, Table,
+    is_individual_id, palette,
 };

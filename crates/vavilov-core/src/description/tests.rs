@@ -24,7 +24,7 @@ fn the_description_names_every_column_with_its_storage_type_role_and_levels() {
             "loadedAt": 1,
             "shapeAt": 1,
             "numRows": 4,
-            "names": { "id": 0, "header": "accession" },
+            "names": { "id": 0, "header": "IndividualID" },
             "columns": [
                 {
                     "id": 1, "name": "height", "revision": 1,

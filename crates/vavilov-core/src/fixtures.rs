@@ -69,7 +69,7 @@ pub(crate) fn boolean(values: Vec<Option<bool>>) -> ColumnValues {
 /// no; and 6 `note`, text.
 pub(crate) fn plants() -> Table {
     Table::new(
-        "accession",
+        "IndividualID",
         names(&["p1", "p2", "p3", "p4"]),
         vec![
             column(

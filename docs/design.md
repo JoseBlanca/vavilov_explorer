@@ -290,7 +290,18 @@ The table is held in the backend as a list of columns. Each column has:
 - a type, and the values, with missing values marked separately from the
   values themselves.
 
-The first column names the individuals, whatever its header says. Its
+The first column names the individuals, and its header must be
+`IndividualID`, compared with case, spaces and underscores ignored, so
+that `Individual ID`, `individual_id` and `INDIVIDUALID` are accepted
+(decided by the owner on 2 October 2026). A file whose first column has
+another header is refused, and the message says what the header is and
+what it must be: "accessions.csv could not be imported: its first
+column, which must hold the ID of each individual, is named 'accession'.
+Name it IndividualID and import the file again." Requiring the name
+makes a file whose IDs are not in the first column fail with that
+reason, rather than with one about repeated names. The app shows the
+column as `IndividualID`, and an export writes that header, so that a
+file Vavilov Explorer wrote imports again unchanged. Its
 values are text as written, so `001` stays `001`. Every row has a name,
 and no name is in two rows. An imported file with a row whose first cell
 is empty, or with a name in two rows, is refused, and the message names

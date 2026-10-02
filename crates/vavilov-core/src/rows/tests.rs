@@ -97,7 +97,7 @@ fn nine() -> Table {
     let mut individuals = vec!["Ñandú"];
     individuals.extend(["p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9"]);
     Table::new(
-        "",
+        "IndividualID",
         names(&individuals),
         vec![column(
             "x",

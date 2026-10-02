@@ -18,7 +18,7 @@ const indexes = [...Array(NUM_PLANTS).keys()];
  * fertile, a category of yes or no; 5 note.
  */
 const PLANTS = {
-  header: "accession",
+  header: "IndividualID",
   names: indexes.map((i) => `p${String(i + 1)}`),
   columns: [
     { name: "height", numeric: indexes.map((i) => (i % 7 === 3 ? null : 100 + i / 4)) },
@@ -57,7 +57,7 @@ for (const engine of Object.keys(ENGINES)) {
     await grid.waitFor();
     assert.equal(await grid.getAttribute("aria-rowcount"), String(NUM_PLANTS + 1));
     assert.deepEqual(await headerNames(grid), [
-      "accession",
+      "IndividualID",
       "height",
       "origin",
       "seeds",
@@ -69,7 +69,7 @@ for (const engine of Object.keys(ENGINES)) {
     assert.deepEqual(await roleOptions(grid, "origin"), ["Category", "Classification", "Text"]);
     assert.deepEqual(await roleOptions(grid, "fertile"), ["Category", "Classification"]);
     assert.equal(await roleOf(grid, "seeds").inputValue(), "number");
-    assert.equal(await grid.getByRole("combobox", { name: "Role of accession" }).count(), 0);
+    assert.equal(await grid.getByRole("combobox", { name: "Role of IndividualID" }).count(), 0);
     // Row 4, p4: its height is missing, said "missing" to a screen reader.
     const p4 = rowNamed(grid, "p4");
     await p4.waitFor();

@@ -79,7 +79,9 @@ Vavilov Explorer needs too, and are the same in both apps:
   `#NULL!`, `#NUM!`, `#REF!` and `#VALUE!`;
 - what a number is: an optional sign, digits with at most one decimal
   mark, an optional exponent, finite, and no thousands separator;
-- the first column names the individuals, whatever its header says: its
+- the first column names the individuals; Vavilov Explorer requires its
+  header to be `IndividualID` and checks it itself, in its core
+  (`design.md`, section 5), so table_io gives the header as written: its
   cells are text as written (`001` stays `001`, and `NA` is a name, not a
   missing value), a row with an empty first cell is refused
   (`emptyIndividual`), and a name in two rows is refused

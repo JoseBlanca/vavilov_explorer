@@ -116,8 +116,10 @@ table is loaded.
   is never an id, because the messages use it for "no column"; the
   counter is checked against it before an id is given.
 - **A name** is unique within the table, compared exactly, and not empty.
-  The header of the first column may be empty, as `table_io`'s draft
-  allows, and is compared with the others only when it is not.
+  The header of the first column must be `IndividualID`, compared with
+  case, spaces and underscores ignored (`design.md`, section 5); the
+  table keeps no header of its own for it, and no other column may be
+  named `IndividualID`.
 - **The storage type and the role** (`design.md`, section 6): the
   storage types are whole numbers, decimal numbers, yes or no, and text,
   and the roles number, category, classification and text. A column's

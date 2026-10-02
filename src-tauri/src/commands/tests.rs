@@ -83,7 +83,7 @@ fn load(app: &App<MockRuntime>) {
         blue: 178,
     };
     let table = Table::new(
-        "accession",
+        "IndividualID",
         vec!["p1".to_owned(), "p2".to_owned(), "p3".to_owned()],
         vec![NewColumn {
             name: "origin".to_owned(),
@@ -474,7 +474,7 @@ fn the_description_of_the_table_comes_back_as_json() {
             "loadedAt": 1,
             "shapeAt": 1,
             "numRows": 3,
-            "names": { "id": 0, "header": "accession" },
+            "names": { "id": 0, "header": "IndividualID" },
             "columns": [{
                 "id": 1, "name": "origin", "revision": 1,
                 "storage": "text", "role": "classification",

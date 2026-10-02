@@ -35,7 +35,7 @@ fn numbers(table: &Table, name: &str) -> Vec<f64> {
 fn the_demo_table_has_its_plants_and_columns_in_order() {
     let table = table().unwrap();
     assert_eq!(table.num_rows(), 2_000);
-    assert_eq!(table.names().header(), "Individual ID");
+    assert_eq!(table.names().header(), "IndividualID");
     assert_eq!(table.names().names()[0], "VAV-0001");
     assert_eq!(table.names().names()[1_999], "VAV-2000");
     let columns: Vec<(&str, StorageType, Role)> = table

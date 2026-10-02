@@ -11,7 +11,7 @@ fn a_table_gives_the_first_column_id_0_and_the_others_ids_in_their_order() {
     let table = plants();
     assert_eq!(table.num_rows(), 4);
     assert_eq!(table.names().id(), ColumnId::new(0));
-    assert_eq!(table.names().header(), "accession");
+    assert_eq!(table.names().header(), "IndividualID");
     assert_eq!(table.names().names(), ["p1", "p2", "p3", "p4"]);
     let ids: Vec<(u32, &str)> = table
         .columns()
@@ -38,7 +38,7 @@ fn a_table_gives_the_first_column_id_0_and_the_others_ids_in_their_order() {
 #[test]
 fn a_table_of_no_row_is_accepted() {
     let table = Table::new(
-        "",
+        "IndividualID",
         Vec::new(),
         vec![
             column("height", float(Vec::new())),
@@ -53,7 +53,7 @@ fn a_table_of_no_row_is_accepted() {
 #[test]
 fn an_individual_with_no_name_is_refused() {
     assert_eq!(
-        refusal("accession", &["p1", "", "p3"], Vec::new()),
+        refusal("IndividualID", &["p1", "", "p3"], Vec::new()),
         CommandError::EmptyIndividual {
             row: RowIndex::new(1)
         }
@@ -63,7 +63,7 @@ fn an_individual_with_no_name_is_refused() {
 #[test]
 fn two_individuals_of_one_name_are_refused_with_both_rows() {
     assert_eq!(
-        refusal("accession", &["p1", "p2", "p3", "p2"], Vec::new()),
+        refusal("IndividualID", &["p1", "p2", "p3", "p2"], Vec::new()),
         CommandError::DuplicateIndividual {
             name: "p2".to_owned(),
             first_row: RowIndex::new(1),
@@ -74,7 +74,7 @@ fn two_individuals_of_one_name_are_refused_with_both_rows() {
 
 #[test]
 fn names_of_individuals_are_compared_exactly() {
-    let table = Table::new("", names(&["P1", "p1", "p1 "]), Vec::new()).unwrap();
+    let table = Table::new("IndividualID", names(&["P1", "p1", "p1 "]), Vec::new()).unwrap();
     assert_eq!(table.num_rows(), 3);
 }
 
@@ -82,7 +82,7 @@ fn names_of_individuals_are_compared_exactly() {
 fn a_column_with_no_name_is_refused_with_its_place() {
     assert_eq!(
         refusal(
-            "accession",
+            "IndividualID",
             &["p1"],
             vec![
                 column("height", float(vec![Some(1.0)])),
@@ -97,7 +97,7 @@ fn a_column_with_no_name_is_refused_with_its_place() {
 fn two_columns_of_one_name_are_refused() {
     assert_eq!(
         refusal(
-            "accession",
+            "IndividualID",
             &["p1"],
             vec![
                 column("height", float(vec![Some(1.0)])),
@@ -111,35 +111,56 @@ fn two_columns_of_one_name_are_refused() {
 }
 
 #[test]
-fn a_column_named_as_the_header_of_the_first_is_refused() {
+fn the_header_of_the_first_column_is_individual_id_with_case_spaces_and_underscores_ignored() {
+    for header in [
+        "IndividualID",
+        "Individual ID",
+        "individual_id",
+        "INDIVIDUALID",
+        " Individual_ ID ",
+    ] {
+        assert!(is_individual_id(header), "{header:?}");
+    }
+    for header in ["accession", "", "Individual IDs", "Individual-ID", "ID"] {
+        assert!(!is_individual_id(header), "{header:?}");
+    }
+}
+
+#[test]
+fn a_first_column_of_another_header_is_refused_with_it() {
     assert_eq!(
-        refusal(
-            "height",
-            &["p1"],
-            vec![column("height", float(vec![Some(1.0)]))]
-        ),
-        CommandError::DuplicateColumnName {
-            name: "height".to_owned()
+        refusal("accession", &["p1"], Vec::new()),
+        CommandError::NotIndividualId {
+            header: "accession".to_owned()
         }
     );
 }
 
 #[test]
-fn an_empty_header_of_the_first_column_is_not_compared() {
-    let table = Table::new(
-        "",
-        names(&["p1"]),
-        vec![column("height", float(vec![Some(1.0)]))],
-    )
-    .unwrap();
-    assert_eq!(table.names().header(), "");
+fn a_table_shows_its_first_column_as_individual_id_whatever_the_file_wrote() {
+    let table = Table::new("individual_id", names(&["p1"]), Vec::new()).unwrap();
+    assert_eq!(table.names().header(), "IndividualID");
+}
+
+#[test]
+fn a_column_named_as_the_first_is_refused() {
+    assert_eq!(
+        refusal(
+            "Individual ID",
+            &["p1"],
+            vec![column("IndividualID", float(vec![Some(1.0)]))]
+        ),
+        CommandError::DuplicateColumnName {
+            name: "IndividualID".to_owned()
+        }
+    );
 }
 
 #[test]
 fn a_column_of_another_length_than_the_names_is_refused() {
     assert_eq!(
         refusal(
-            "accession",
+            "IndividualID",
             &["p1", "p2"],
             vec![
                 column("height", float(vec![Some(1.0), None])),
@@ -159,7 +180,7 @@ fn a_number_that_is_not_finite_is_refused() {
     for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert_eq!(
             refusal(
-                "accession",
+                "IndividualID",
                 &["p1", "p2"],
                 vec![column("height", float(vec![None, Some(value)]))],
             ),
@@ -175,7 +196,7 @@ fn a_number_that_is_not_finite_is_refused() {
 fn a_code_with_no_level_is_refused() {
     assert_eq!(
         refusal(
-            "accession",
+            "IndividualID",
             &["p1", "p2"],
             vec![column(
                 "origin",
@@ -198,7 +219,7 @@ fn a_code_with_no_level_is_refused() {
 fn a_level_with_no_name_is_refused() {
     assert_eq!(
         refusal(
-            "accession",
+            "IndividualID",
             &["p1"],
             vec![column(
                 "origin",
@@ -216,7 +237,7 @@ fn a_level_with_no_name_is_refused() {
 fn two_levels_of_one_name_are_refused() {
     assert_eq!(
         refusal(
-            "accession",
+            "IndividualID",
             &["p1"],
             vec![column(
                 "origin",
@@ -242,7 +263,7 @@ fn colours(count: u32) -> Vec<Colour> {
 fn a_column_of_65535_levels_is_accepted_and_one_of_65536_refused() {
     let largest = u16::try_from(MAX_LEVELS - 1).unwrap();
     let table = Table::new(
-        "",
+        "IndividualID",
         names(&["p1"]),
         vec![column(
             "origin",
@@ -257,7 +278,7 @@ fn a_column_of_65535_levels_is_accepted_and_one_of_65536_refused() {
     assert_eq!(table.columns().len(), 1);
     assert_eq!(
         refusal(
-            "",
+            "IndividualID",
             &["p1"],
             vec![column(
                 "origin",
@@ -304,7 +325,7 @@ fn a_category_with_another_number_of_colours_than_levels_is_refused() {
         vec![code(0)],
     ));
     assert_eq!(
-        refusal("", &["p1"], vec![column("origin", values)]),
+        refusal("IndividualID", &["p1"], vec![column("origin", values)]),
         CommandError::LevelColours {
             column_name: "origin".to_owned(),
             num_levels: 2,
@@ -325,7 +346,7 @@ fn levels_of_decimal_numbers_must_be_finite_and_0_and_minus_0_are_one() {
     };
     assert_eq!(
         refusal(
-            "",
+            "IndividualID",
             &["p1"],
             vec![column("dose", levels(vec![1.0, f64::NAN]))]
         ),
@@ -336,7 +357,7 @@ fn levels_of_decimal_numbers_must_be_finite_and_0_and_minus_0_are_one() {
     );
     assert_eq!(
         refusal(
-            "",
+            "IndividualID",
             &["p1"],
             vec![column("dose", levels(vec![0.0, 2.0, -0.0]))]
         ),

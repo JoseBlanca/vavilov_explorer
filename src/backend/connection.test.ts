@@ -386,7 +386,7 @@ describe("the description of the table", () => {
     loadedAt: 1,
     shapeAt: 1,
     numRows: 4,
-    names: { id: 0, header: "accession" },
+    names: { id: 0, header: "IndividualID" },
     columns: [
       { id: 1, name: "height", revision: 1, storage: "float", role: "number", numDistinct: 3 },
       {

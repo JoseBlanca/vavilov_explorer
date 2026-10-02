@@ -88,7 +88,7 @@ export interface TableDescription {
   readonly shapeAt: Revision;
   /** The number of rows, one per individual. */
   readonly numRows: number;
-  /** The first column, which names the individuals. */
+  /** The first column, which names the individuals, and its header, IndividualID. */
   readonly names: { readonly id: ColumnId; readonly header: string };
   /** The other columns, in their order. */
   readonly columns: readonly ColumnDescription[];

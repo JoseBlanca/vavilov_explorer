@@ -12,7 +12,7 @@ fn loaded() -> Session {
         blue: 0,
     };
     let table = Table::new(
-        "",
+        "IndividualID",
         vec!["p1".to_owned(), "p2".to_owned(), "p3".to_owned()],
         vec![NewColumn {
             name: "origin".to_owned(),
