@@ -2,13 +2,14 @@
 
 use serde::Deserialize;
 use vavilov_core::{
-    Categorical, Colour, ColumnId, ColumnValues, Command, CommandError, Level, LevelCode,
-    NewColumn, Request, Session, Table,
+    Categorical, Colour, ColumnId, ColumnValues, Command, CommandError, LevelCode, LevelValues,
+    NewColumn, Request, Role, Session, Stored, Table,
 };
 
 /// A table as a test describes it: the first column, then columns of
-/// numbers, whole numbers, texts, booleans or codes, `null` for a missing
-/// value.
+/// numbers, whole numbers, texts or booleans, `null` for a missing value,
+/// each with its role, or the levels and codes of a classification or a
+/// category.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct TableSpec {
@@ -28,14 +29,16 @@ struct ColumnSpec {
     boolean: Option<Vec<Option<bool>>>,
     levels: Option<Vec<(String, [u8; 3])>>,
     codes: Option<Vec<Option<u16>>>,
+    /// The role; without one, a column of numbers is a number, of text
+    /// text, of booleans a category, and one of levels a classification.
+    role: Option<Role>,
 }
 
 /// Loads the table into the session, as the import will.
 pub(crate) fn load(session: &mut Session, spec: TableSpec) -> Result<(), CommandError> {
-    let columns = spec
-        .columns
-        .into_iter()
-        .map(column)
+    let columns = (1..=u32::MAX)
+        .zip(spec.columns)
+        .map(|(id, column_spec)| column(ColumnId::new(id), column_spec))
         .collect::<Result<Vec<_>, _>>()?;
     let table = Table::new(spec.header, spec.names, columns)?;
     let based_on = session.revision();
@@ -50,7 +53,13 @@ pub(crate) fn load(session: &mut Session, spec: TableSpec) -> Result<(), Command
     Ok(())
 }
 
-fn column(spec: ColumnSpec) -> Result<NewColumn, CommandError> {
+fn column(id: ColumnId, spec: ColumnSpec) -> Result<NewColumn, CommandError> {
+    let not_one = || CommandError::Defect {
+        what: format!(
+            "column {} of a test has not exactly one kind of values",
+            spec.name
+        ),
+    };
     let values = match (
         spec.numeric,
         spec.integer,
@@ -59,29 +68,33 @@ fn column(spec: ColumnSpec) -> Result<NewColumn, CommandError> {
         spec.levels,
         spec.codes,
     ) {
-        (Some(values), None, None, None, None, None) => ColumnValues::Numeric(values),
-        (None, Some(values), None, None, None, None) => ColumnValues::Integer(values),
-        (None, None, Some(values), None, None, None) => ColumnValues::Text(values),
-        (None, None, None, Some(values), None, None) => ColumnValues::Boolean(values),
         (None, None, None, None, Some(levels), Some(codes)) => {
-            let levels = levels
+            let (names, colours) = levels
                 .into_iter()
-                .map(|(name, [red, green, blue])| Level::new(name, Colour { red, green, blue }))
-                .collect();
+                .map(|(name, [red, green, blue])| (name, Colour { red, green, blue }))
+                .unzip();
             let codes = codes
                 .into_iter()
                 .map(|code| code.map(LevelCode::new))
                 .collect();
-            ColumnValues::Categorical(Categorical::new(levels, codes))
+            let categorical = Categorical::new(LevelValues::Text(names), colours, codes);
+            match spec.role.unwrap_or(Role::Classification) {
+                Role::Classification => ColumnValues::Classification(categorical),
+                Role::Category => ColumnValues::Category(categorical),
+                Role::Number | Role::Text => return Err(not_one()),
+            }
         }
-        _ => {
-            return Err(CommandError::Defect {
-                what: format!(
-                    "column {} of a test has not exactly one type of values",
-                    spec.name
-                ),
-            });
+        (numeric, integer, text, boolean, None, None) => {
+            let (stored, guessed) = match (numeric, integer, text, boolean) {
+                (Some(values), None, None, None) => (Stored::Float(values), Role::Number),
+                (None, Some(values), None, None) => (Stored::Integer(values), Role::Number),
+                (None, None, Some(values), None) => (Stored::Text(values), Role::Text),
+                (None, None, None, Some(values)) => (Stored::Boolean(values), Role::Category),
+                _ => return Err(not_one()),
+            };
+            ColumnValues::from_stored(stored, spec.role.unwrap_or(guessed), id, &spec.name)?
         }
+        _ => return Err(not_one()),
     };
     Ok(NewColumn {
         name: spec.name,

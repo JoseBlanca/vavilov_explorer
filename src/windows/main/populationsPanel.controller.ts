@@ -1,9 +1,10 @@
 import { nothing, render } from "lit-html";
 
 import type { Answer, Connection } from "../../backend/connection.ts";
-import type { TableDescription } from "../../state/description.ts";
+import type { DescriptionNow } from "../../state/description.ts";
 import { populationsModel } from "../../state/populations.ts";
 import type { PopulationRow } from "../../state/populations.ts";
+import { decimalMark } from "../shared/numbers.ts";
 import { populationsPanelView } from "./populationsPanel.view.ts";
 import type { PointerMode } from "./populationsPanel.view.ts";
 
@@ -26,10 +27,11 @@ export interface PopulationsPanel {
 export function createPopulationsPanel(
   element: HTMLElement,
   connection: Connection,
-  description: () => TableDescription | null,
+  description: () => DescriptionNow,
   report: (error: unknown) => void,
 ): PopulationsPanel {
   const { state } = connection;
+  const mark = decimalMark();
   let mode: PointerMode = "move";
 
   const answered =
@@ -51,12 +53,17 @@ export function createPopulationsPanel(
   };
 
   const draw = (): void => {
-    const table = description();
-    if (table === null) {
+    const now = description();
+    if (now.kind === "none") {
       render(nothing, element);
       return;
     }
-    const model = populationsModel(table, state.active(), state.codes);
+    if (now.kind === "behind") {
+      // The description of the copy's shape is on its way, and draws again.
+      return;
+    }
+    const table = now.description;
+    const model = populationsModel(table, state.active(), state.codes, mark);
     const selected = model.rows.find((row) => row.isSelected)?.selected ?? null;
     if (selected === null || (selected.kind === "unassigned" && mode === "remove")) {
       mode = "move";

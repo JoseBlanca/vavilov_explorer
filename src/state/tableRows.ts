@@ -3,15 +3,17 @@
 // fetched for it, the codes of the window's copy and the selection
 // (docs/design.md, section 2.1). The cells of a categorical column are read
 // from the copy's codes, which every lasso keeps up to date, and not from the
-// page, so a page is fetched only for the other columns.
+// page, so a page is fetched only for the numbers and the texts.
 
-import { booleanText, integerText, numberText } from "./cellText.ts";
+import { integerText, levelText, numberText } from "./cellText.ts";
 import type { Cell } from "./cellText.ts";
 import { defect } from "./defect.ts";
-import type { TableDescription } from "./description.ts";
+import type { Role, StorageType, TableDescription } from "./description.ts";
 import { NO_CODE } from "./ids.ts";
 import type { ColumnId, RowIndex } from "./ids.ts";
 import type { RowPage } from "./rowPage.ts";
+import { roleChoices } from "./roles.ts";
+import type { RoleChoice } from "./roles.ts";
 import { hasRow } from "./rowSet.ts";
 
 /** A column of the table as its header shows it. */
@@ -20,8 +22,12 @@ export interface TableColumn {
   readonly id: ColumnId;
   /** Its name, as in the user's file; the first column's may be empty. */
   readonly name: string;
-  /** Its type, `names` for the first column. */
-  readonly type: "names" | "numeric" | "integer" | "text" | "boolean" | "categorical";
+  /** The first column, or the role of another. */
+  readonly kind: "names" | Role;
+  /** Whether its values line up at the end of the cell, as numbers do. */
+  readonly alignEnd: boolean;
+  /** The roles it can take, none for the first column. */
+  readonly choices: readonly RoleChoice[];
 }
 
 /** A row on screen. */
@@ -34,22 +40,35 @@ export interface TableRow {
   readonly cells: readonly Cell[] | null;
 }
 
+/** Whether the values of `storage` line up at the end of the cell. */
+function isNumeric(storage: StorageType): boolean {
+  return storage === "integer" || storage === "float";
+}
+
 /** Every column of the table, the names first. */
 export function tableColumns(description: TableDescription): TableColumn[] {
   return [
-    { id: description.names.id, name: description.names.header, type: "names" },
+    {
+      id: description.names.id,
+      name: description.names.header,
+      kind: "names",
+      alignEnd: false,
+      choices: [],
+    },
     ...description.columns.map((column) => ({
       id: column.id,
       name: column.name,
-      type: column.type,
+      kind: column.role,
+      alignEnd: isNumeric(column.storage),
+      choices: roleChoices(column),
     })),
   ];
 }
 
-/** The columns a page is fetched for: all but the categorical ones, in order. */
+/** The columns a page is fetched for: the numbers and the texts, in order. */
 export function fetchedColumns(description: TableDescription): ColumnId[] {
   return description.columns.flatMap((column) =>
-    column.type === "categorical" ? [] : [column.id],
+    column.role === "number" || column.role === "text" ? [column.id] : [],
   );
 }
 
@@ -81,35 +100,39 @@ export function tableRow(
   }
   const cells: Cell[] = [{ kind: "value", text: name, align: "start" }];
   for (const column of description.columns) {
-    if (column.type === "categorical") {
-      const code = codesOf(column.id)?.[row];
-      if (code === undefined) {
-        throw defect(`no code of row ${String(row)} in column ${String(column.id)}`);
-      }
-      if (code === NO_CODE) {
-        cells.push({ kind: "missing" });
-        continue;
-      }
-      const level = column.levels[code];
-      if (level === undefined) {
-        throw defect(`a code ${String(code)} with no level in column ${String(column.id)}`);
-      }
-      cells.push({ kind: "value", text: level.name, align: "start" });
+    if (column.role === "number" || column.role === "text") {
+      cells.push(pageCell(page, column.id, index, decimalMark));
       continue;
     }
-    cells.push(pageCell(page, column.id, index, decimalMark));
+    const code = codesOf(column.id)?.[row];
+    if (code === undefined) {
+      throw defect(`no code of row ${String(row)} in column ${String(column.id)}`);
+    }
+    if (code === NO_CODE) {
+      cells.push({ kind: "missing" });
+      continue;
+    }
+    const level = column.levels[code];
+    if (level === undefined) {
+      throw defect(`a code ${String(code)} with no level in column ${String(column.id)}`);
+    }
+    cells.push({
+      kind: "value",
+      text: levelText(level.value, column.storage, decimalMark),
+      align: isNumeric(column.storage) ? "end" : "start",
+    });
   }
   return { row, selected, cells };
 }
 
-/** The cell of a column other than a categorical one, from its page. */
+/** The cell of a number or a text, from its page. */
 function pageCell(page: RowPage, id: ColumnId, index: number, decimalMark: string): Cell {
   const column = page.columns.find((candidate) => candidate.id === id);
   if (column === undefined || column.type === "categorical") {
     throw defect(`a page of rows without the values of column ${String(id)}`);
   }
   switch (column.type) {
-    case "numeric": {
+    case "float": {
       const value = column.values[index];
       return value === undefined || value === null
         ? missingOr(value, id)
@@ -120,12 +143,6 @@ function pageCell(page: RowPage, id: ColumnId, index: number, decimalMark: strin
       return value === undefined || value === null
         ? missingOr(value, id)
         : { kind: "value", text: integerText(value), align: "end" };
-    }
-    case "boolean": {
-      const value = column.values[index];
-      return value === undefined || value === null
-        ? missingOr(value, id)
-        : { kind: "value", text: booleanText(value), align: "start" };
     }
     case "text": {
       const value = column.values[index];

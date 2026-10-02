@@ -3,7 +3,8 @@ import { describe, expect, test } from "vitest";
 import { decodeRows } from "./decodeRows.ts";
 
 // The bytes below are those the core writes in the tests of
-// crates/vavilov-core/src/rows/tests.rs.
+// crates/vavilov-core/src/rows/tests.rs, where fertile is a category of
+// yes or no and travels as its codes.
 
 function buffer(bytes: readonly number[]): ArrayBuffer {
   return new Uint8Array(bytes).buffer;
@@ -79,11 +80,10 @@ describe("a page of rows", () => {
       12, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
       7, 0, 0, 0, 0, 0, 0, 0,
-      10, 0, 0, 0, 27, 0, 0, 0,
-      5, 0, 0, 0, 3, 0, 0, 0,
+      10, 0, 0, 0, 22, 0, 0, 0,
+      5, 0, 0, 0, 4, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
-      0b010, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 1, 0, 0, 0, 0, 0,
+      0, 0, 0xff, 0xff, 1, 0, 0, 0,
       10, 0, 0, 0, 22, 0, 0, 0,
       2, 0, 0, 0, 4, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
@@ -97,9 +97,9 @@ describe("a page of rows", () => {
       names: ["p2", "p3", "p4"],
       columns: [
         { id: 6, revision: 1, type: "text", values: [null, "", "tall"] },
-        { id: 1, revision: 1, type: "numeric", values: [null, 2, 3.25] },
+        { id: 1, revision: 1, type: "float", values: [null, 2, 3.25] },
         { id: 4, revision: 1, type: "integer", values: [12n, null, 7n] },
-        { id: 5, revision: 1, type: "boolean", values: [false, null, true] },
+        { id: 5, revision: 1, type: "categorical", codes: [0, null, 1] },
         { id: 2, revision: 1, type: "categorical", codes: [1, null, 0] },
       ],
     });
@@ -152,7 +152,7 @@ describe("a page of rows", () => {
       count: 0,
       names: [],
       columns: [
-        { id: 1, revision: 1, type: "numeric", values: [] },
+        { id: 1, revision: 1, type: "float", values: [] },
         { id: 6, revision: 1, type: "text", values: [] },
       ],
     });
@@ -233,22 +233,17 @@ describe("a page that does not decode is a defect", () => {
     );
   });
 
-  test("a boolean that is neither 0 nor 1", () => {
-    expectDefect(
-      rows(1, page(1, 1), P2, values(3, [0, 0, 0, 0, 0, 0, 0, 0, 2])),
-      /a byte 2 for a yes or no in the values part/,
-    );
-  });
-
   test("a bit of a missing row beyond the page", () => {
     expectDefect(
-      rows(1, page(1, 1), P2, values(3, [0b10, 0, 0, 0, 0, 0, 0, 0, 1])),
+      rows(1, page(1, 1), P2, values(1, [0b10, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0])),
       /a bit set beyond the 1 rows of the page/,
     );
   });
 
   test("an unknown type", () => {
     expectDefect(rows(1, page(1, 1), P2, values(5, [])), /a values part of type 5/);
+    // 3 was yes or no, which a page no longer carries.
+    expectDefect(rows(1, page(1, 1), P2, values(3, [0, 0, 0, 0, 0, 0, 0, 0, 1])), /type 3/);
   });
 
   test("values of another length than the page asks for", () => {

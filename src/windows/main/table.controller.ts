@@ -2,7 +2,7 @@ import { nothing, render } from "lit-html";
 
 import type { Answer, Connection } from "../../backend/connection.ts";
 import { defect } from "../../state/defect.ts";
-import type { TableDescription } from "../../state/description.ts";
+import type { DescriptionNow, TableDescription } from "../../state/description.ts";
 import { isRowIndex } from "../../state/ids.ts";
 import type { Revision, RowIndex } from "../../state/ids.ts";
 import type { RowPage } from "../../state/rowPage.ts";
@@ -10,6 +10,7 @@ import { rangeBits } from "../../state/rowSet.ts";
 import { PAGE_ROWS, pagesOf, rowsInView, rowsOfPage } from "../../state/tablePages.ts";
 import { fetchedColumns, tableColumns, tableRow } from "../../state/tableRows.ts";
 import type { TableRow } from "../../state/tableRows.ts";
+import { decimalMark } from "../shared/numbers.ts";
 import { tableView } from "./table.view.ts";
 
 /** The table in its element. */
@@ -25,17 +26,6 @@ const MARGIN_ROWS = 30;
 /** Pages kept beyond those the rows drawn need, so that scrolling back does not fetch them again. */
 const PAGES_KEPT = 3;
 
-/** The decimal mark of the user's language, as `Intl` writes 1.5. */
-function decimalMark(): string {
-  const mark = new Intl.NumberFormat()
-    .formatToParts(1.5)
-    .find((part) => part.type === "decimal")?.value;
-  if (mark === undefined) {
-    throw defect("the language of the window writes 1.5 with no decimal mark");
-  }
-  return mark;
-}
-
 /**
  * The table of the main window: it draws the rows on screen, fetches their
  * pages from the backend, and turns a click on a row into the selection
@@ -46,7 +36,7 @@ function decimalMark(): string {
 export function createTable(
   element: HTMLElement,
   connection: Connection,
-  description: () => TableDescription | null,
+  description: () => DescriptionNow,
   report: (error: unknown) => void,
 ): Table {
   const { state } = connection;
@@ -121,13 +111,18 @@ export function createTable(
   };
 
   const draw = (): void => {
-    const table = description();
-    if (table === null) {
+    const now = description();
+    if (now.kind === "none") {
       pages.clear();
       loadedAt = null;
       render(nothing, element);
       return;
     }
+    if (now.kind === "behind") {
+      // The description of the copy's shape is on its way, and draws again.
+      return;
+    }
+    const table = now.description;
     if (table.loadedAt !== loadedAt) {
       pages.clear();
       loadedAt = table.loadedAt;
@@ -160,6 +155,9 @@ export function createTable(
         range,
         rows,
         onRowClick: select,
+        onRole: (column, role) => {
+          connection.setRole(column, role).then(answered("changing the role of a column"), report);
+        },
         onScroll: schedule,
       }),
       element,

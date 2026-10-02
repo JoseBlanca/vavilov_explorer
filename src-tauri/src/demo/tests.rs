@@ -1,27 +1,32 @@
-use vavilov_core::Active;
+use vavilov_core::{Active, Colour, LevelValues, Numbers, PALETTE, Role, StorageType};
 
 use super::*;
 
 /// The number of missing values of a column and of present ones.
 fn missing_and_present(values: &ColumnValues) -> (usize, usize) {
     let missing = match values {
-        ColumnValues::Numeric(values) => values.iter().filter(|value| value.is_none()).count(),
-        ColumnValues::Integer(values) => values.iter().filter(|value| value.is_none()).count(),
+        ColumnValues::Number(Numbers::Float(values)) => {
+            values.iter().filter(|value| value.is_none()).count()
+        }
+        ColumnValues::Number(Numbers::Integer(values)) => {
+            values.iter().filter(|value| value.is_none()).count()
+        }
         ColumnValues::Text(values) => values.iter().filter(|value| value.is_none()).count(),
-        ColumnValues::Boolean(values) => values.iter().filter(|value| value.is_none()).count(),
-        ColumnValues::Categorical(categorical) => categorical
-            .codes()
-            .iter()
-            .filter(|code| code.is_none())
-            .count(),
+        ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) => {
+            categorical
+                .codes()
+                .iter()
+                .filter(|code| code.is_none())
+                .count()
+        }
     };
     (missing, values.len().checked_sub(missing).unwrap())
 }
 
 fn numbers(table: &Table, name: &str) -> Vec<f64> {
     let column = table.columns().iter().find(|c| c.name() == name).unwrap();
-    let ColumnValues::Numeric(values) = column.values() else {
-        panic!("{name} is not numeric");
+    let ColumnValues::Number(Numbers::Float(values)) = column.values() else {
+        panic!("{name} is not a number of decimals");
     };
     values.iter().flatten().copied().collect()
 }
@@ -30,65 +35,60 @@ fn numbers(table: &Table, name: &str) -> Vec<f64> {
 fn the_demo_table_has_its_plants_and_columns_in_order() {
     let table = table().unwrap();
     assert_eq!(table.num_rows(), 2_000);
-    assert_eq!(table.names().header(), "accession");
+    assert_eq!(table.names().header(), "Individual ID");
     assert_eq!(table.names().names()[0], "VAV-0001");
     assert_eq!(table.names().names()[1_999], "VAV-2000");
-    let columns: Vec<(&str, &str)> = table
+    let columns: Vec<(&str, StorageType, Role)> = table
         .columns()
         .iter()
         .map(|column| {
-            let kind = match column.values() {
-                ColumnValues::Numeric(_) => "numeric",
-                ColumnValues::Integer(_) => "integer",
-                ColumnValues::Text(_) => "text",
-                ColumnValues::Boolean(_) => "boolean",
-                ColumnValues::Categorical(_) => "categorical",
-            };
-            (column.name(), kind)
+            (
+                column.name(),
+                column.values().storage_type(),
+                column.values().role(),
+            )
         })
         .collect();
     assert_eq!(
         columns,
         [
-            ("country", "categorical"),
-            ("cluster", "categorical"),
-            ("latitude", "numeric"),
-            ("longitude", "numeric"),
-            ("PC1", "numeric"),
-            ("PC2", "numeric"),
-            ("PC3", "numeric"),
-            ("height", "numeric"),
-            ("seeds", "integer"),
-            ("fertile", "boolean"),
-            ("note", "text"),
+            ("country", StorageType::Text, Role::Classification),
+            ("cluster", StorageType::Text, Role::Classification),
+            ("latitude", StorageType::Float, Role::Number),
+            ("longitude", StorageType::Float, Role::Number),
+            ("PC1", StorageType::Float, Role::Number),
+            ("PC2", StorageType::Float, Role::Number),
+            ("PC3", StorageType::Float, Role::Number),
+            ("height", StorageType::Float, Role::Number),
+            ("seeds", StorageType::Integer, Role::Number),
+            ("fertile", StorageType::Boolean, Role::Category),
+            ("flower colour", StorageType::Text, Role::Category),
+            ("note", StorageType::Text, Role::Text),
         ]
     );
 }
 
 #[test]
-fn the_levels_are_in_alphabetical_order_with_the_colours_from_orange() {
+fn the_levels_are_in_order_with_the_colours_from_orange() {
     let table = table().unwrap();
-    let levels = |id: u32| -> Vec<(String, Colour)> {
-        table
+    let levels = |id: u32| -> (LevelValues, Vec<Colour>) {
+        let categorical = table
             .column(ColumnId::new(id))
             .unwrap()
             .categorical()
-            .unwrap()
-            .levels()
-            .iter()
-            .map(|level| (level.name().to_owned(), level.colour()))
-            .collect()
+            .unwrap();
+        (categorical.levels().clone(), categorical.colours().to_vec())
     };
-    let country = levels(1);
-    let names: Vec<&str> = country.iter().map(|(name, _)| name.as_str()).collect();
+    let texts = |names: &[&str]| LevelValues::Text(names.iter().map(|n| (*n).to_owned()).collect());
+    let (country, colours) = levels(1);
     assert_eq!(
-        names,
-        ["China", "Ethiopia", "India", "Mexico", "Peru", "Spain"]
+        country,
+        texts(&["China", "Ethiopia", "India", "Mexico", "Peru", "Spain"])
     );
-    assert_eq!(country[0].1, rgb(0xE6, 0x9F, 0x00));
-    assert_eq!(country[5].1, rgb(0xD5, 0x5E, 0x00));
-    let cluster: Vec<String> = levels(2).into_iter().map(|(name, _)| name).collect();
-    assert_eq!(cluster, ["A", "B", "C", "D"]);
+    assert_eq!(colours, &PALETTE[..6]);
+    assert_eq!(levels(2).0, texts(&["A", "B", "C", "D"]));
+    assert_eq!(levels(10).0, LevelValues::Boolean(vec![false, true]));
+    assert_eq!(levels(11).0, texts(&["pink", "purple", "white"]));
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn every_country_and_cluster_has_plants_and_the_values_are_plausible() {
             .all(|h| (20.0..=200.0).contains(h))
     );
     let column = table.column(ColumnId::new(9)).unwrap();
-    let ColumnValues::Integer(seeds) = column.values() else {
+    let ColumnValues::Number(Numbers::Integer(seeds)) = column.values() else {
         panic!("seeds is not integer");
     };
     assert!(seeds.iter().flatten().all(|seeds| (0..400).contains(seeds)));

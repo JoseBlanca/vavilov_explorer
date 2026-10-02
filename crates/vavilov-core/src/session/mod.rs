@@ -50,6 +50,10 @@ pub(crate) enum Project {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct OpenProject {
     pub(crate) table: Table,
+    /// The revision at which the columns, their names or their roles last
+    /// changed: the load, or a change of role. A window asks for the
+    /// description of the table again when it grows.
+    pub(crate) shape_at: Revision,
     pub(crate) history: History,
     pub(crate) interaction: Interaction,
 }

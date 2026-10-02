@@ -15,6 +15,7 @@ import {
   hoverSeqAt,
   levelCode,
   readMessage,
+  revisionAt,
   rowIndex,
   zerosThenRevision,
 } from "./layout.ts";
@@ -30,6 +31,7 @@ const CODES = 4;
 const UNDO = 5;
 const COLUMNS = 6;
 const HOVER = 7;
+const SHAPE = 11;
 
 /**
  * Decodes one message of the backend: a channel's message or the snapshot a
@@ -104,6 +106,9 @@ function decodePart(
         row: row === NO_ROW ? null : rowIndex(row),
       };
     }
+    case SHAPE:
+      expectLength("shape", length, 8);
+      return { kind: "shape", shapeAt: revisionAt(view, start) };
     default:
       throw defect(`a kind of part ${String(partKind)}`);
   }

@@ -1,7 +1,7 @@
 use super::*;
 use crate::command::{Command, Request};
-use crate::fixtures::{column, decode, names, plants};
-use crate::table::{ColumnValues, Table};
+use crate::fixtures::{column, decode, integer, names, plants};
+use crate::table::Table;
 
 /// A session with `table` loaded at revision 1.
 fn loaded(table: Table) -> Session {
@@ -76,12 +76,11 @@ fn a_page_carries_the_names_and_the_values_of_the_columns_asked_for_in_their_ord
         12, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
         7, 0, 0, 0, 0, 0, 0, 0,
-        // fertile, column 5, boolean: row 2 missing; false, 0, true
-        10, 0, 0, 0, 27, 0, 0, 0,
-        5, 0, 0, 0, 3, 0, 0, 0,
+        // fertile, column 5, a category of FALSE and TRUE: FALSE, missing, TRUE
+        10, 0, 0, 0, 22, 0, 0, 0,
+        5, 0, 0, 0, 4, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0,
-        0b010, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 1, 0, 0, 0, 0, 0,
+        0, 0, 0xFF, 0xFF, 1, 0, 0, 0,
         // origin, column 2, categorical: Peru, missing, Spain
         10, 0, 0, 0, 22, 0, 0, 0,
         2, 0, 0, 0, 4, 0, 0, 0,
@@ -102,7 +101,7 @@ fn nine() -> Table {
         names(&individuals),
         vec![column(
             "x",
-            ColumnValues::Integer(vec![
+            integer(vec![
                 Some(-2),
                 Some(9_007_199_254_740_993),
                 None,

@@ -14,6 +14,7 @@
     "allow-set-hover",
     "allow-set-active-classification",
     "allow-select-population",
+    "allow-set-role",
     "allow-undo",
     "allow-redo"
   ]

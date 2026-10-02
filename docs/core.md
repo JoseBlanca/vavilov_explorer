@@ -118,10 +118,18 @@ table is loaded.
 - **A name** is unique within the table, compared exactly, and not empty.
   The header of the first column may be empty, as `table_io`'s draft
   allows, and is compared with the others only when it is not.
-- **The types** are numeric, integer, text, boolean and categorical. The
-  values are held as `Vec<Option<f64>>`, `Vec<Option<i64>>`,
-  `Vec<Option<String>>` and `Vec<Option<bool>>`, one per row, with `None`
-  for a missing value. `rust.md` asks for the values with "which rows
+- **The storage type and the role** (`design.md`, section 6): the
+  storage types are whole numbers, decimal numbers, yes or no, and text,
+  and the roles number, category, classification and text. A column's
+  values are held in the shape of its role, `ColumnValues`: a number as
+  `Vec<Option<i64>>` or `Vec<Option<f64>>`, text as
+  `Vec<Option<String>>`, and a category or a classification as codes
+  into levels that keep the storage type, so that the storage type is
+  read from the values and stored nowhere else. A change of role builds
+  the new shape from the values as stored (`Stored`, the four types the
+  import reads), except between a category and a classification, which
+  keep their levels, colours and empty levels. Each value is `None` when
+  missing. `rust.md` asks for the values with "which rows
   are missing" apart, and never a NaN; an `Option` keeps the missing
   rows apart in the type itself, so no code can read a missing value as a
   number, where a vector of values with a mask beside it holds a
@@ -129,7 +137,7 @@ table is loaded.
   costs 16 bytes a row instead of 8 and a bit, 800 kB for a numeric
   column of 50,000 rows. A numeric value is always finite, checked when
   the table is built, since a project file could hold a NaN.
-- **A categorical column** holds, for each row, a code, `LevelCode(u16)`,
+- **A category or a classification** holds, for each row, a code, `LevelCode(u16)`,
   that points into its ordered list of levels, or `None` for a missing
   value: in a classification, an unassigned individual. A level has a
   name, unique within the column and not empty, and a colour. Codes on
@@ -411,6 +419,7 @@ parts of the first slice:
 | undo | whether there is something to undo and something to redo, a byte each |
 | columns | the number of columns listed, `u32`; four zero bytes; then for each its id, `u32`, four zero bytes and its revision, `u64` |
 | hover | the hover's sequence number, `u64`; the row, `u32`, `u32::MAX` for none |
+| shape | the revision at which the columns, their names or their roles last changed, `u64`: the load, or a change of role. A window asks for the description of the table again when it grows |
 
 A snapshot carries every part, with every column in the columns part. A
 change carries the parts of what the command changed, by two rules that
@@ -419,9 +428,12 @@ hold for every command:
 - every column whose revision changed is listed in a columns part, so
   that a window that draws it, the active classification or not, fetches
   it again;
-- the codes of a categorical column that changed travel in a codes part,
-  whichever column it is: undoing a lasso on a column that is no longer
-  the active classification still reaches a bar plot of that column.
+- the codes of every category and classification whose revision
+  changed travel in a codes part, whichever column it is: undoing a lasso
+  on a column that is no longer the active classification still reaches
+  a bar plot of that column. So a column listed in the columns part with
+  no codes part beside it is no longer a category or a classification,
+  and a window drops its codes.
 
 So a lasso sends codes, columns and undo; a new selection sends
 selection. Loading a table sends every part, as a snapshot does, with a
@@ -463,16 +475,17 @@ read an integer of 2^53 or more as another. Its parts, in this order:
 |---|---|
 | page | the revision at which the table was loaded, `u64`; the first row, `u32`; the number of rows, `u32` |
 | names | the names of the page's rows, as a text list (below) |
-| values, one per column asked for | the column id, `u32`; its type, a byte, 0 numeric, 1 integer, 2 text, 3 boolean, 4 categorical; three zero bytes; the column's revision, `u64`; then its values |
+| values, one per column asked for | the column id, `u32`; a byte, 0 decimal numbers, 1 whole numbers, 2 text, 4 the codes of a category or a classification, and 3 not used; three zero bytes; the column's revision, `u64`; then its values |
 
-The values of a categorical column are its codes, one `u16` per row,
-`0xFFFF` for missing, as in a codes part. Those of the other four types
+The values of a category or a classification are its codes, one `u16`
+per row, `0xFFFF` for missing, as in a codes part. Those of a number or
+text
 start with which rows are missing, one bit per row of the page, set when
 missing, in the order of the selection's bits, the unused bits of the
 last byte zero, padded with zeros to a multiple of 8 bytes. Then:
 
-- numeric, an `f64` per row; integer, an `i64` per row; boolean, a byte
-  per row, 0 or 1. A missing row holds zero, which the window checks, so
+- decimal numbers, an `f64` per row; whole numbers, an `i64` per row.
+  A missing row holds zero, which the window checks, so
   that no value stands in a missing row a reader could take for data.
 - text, a text list, in which a missing row has an empty text.
 
@@ -695,8 +708,9 @@ applies:
   which is hard to see on a dark background: seven colours, from orange,
   in the list's order. The levels after the seventh go through the list
   again mixed with 40 % white, then with 40 % black, 21 colours in all.
-  The owner sees them before they are taken, and what a column of more
-  than 21 levels gets is decided then.
+  The owner saw them in the app on 2 October 2026; a column of more than
+  21 levels starts the list again, accepted for now and reviewed when
+  there are more populations and views.
 
 Still open, and not needed by the first slice:
 

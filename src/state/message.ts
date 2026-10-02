@@ -35,7 +35,12 @@ export type MessagePart =
   /** The revision of each column listed, so that a window fetches again those that changed. */
   | { readonly kind: "columns"; readonly columns: readonly ColumnRevision[] }
   /** The individual under the pointer, `null` for none, and its sequence number. */
-  | { readonly kind: "hover"; readonly seq: HoverSeq; readonly row: RowIndex | null };
+  | { readonly kind: "hover"; readonly seq: HoverSeq; readonly row: RowIndex | null }
+  /**
+   * The revision at which the columns, their names or their roles last
+   * changed, so that a window asks for the description of the table again.
+   */
+  | { readonly kind: "shape"; readonly shapeAt: Revision };
 
 /**
  * What is selected for editing in the active classification, as `Selected`

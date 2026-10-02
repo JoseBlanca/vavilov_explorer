@@ -25,7 +25,8 @@ mod table;
 
 pub use command::{Command, Request};
 pub use description::{
-    ColumnDescription, ColumnKind, LevelDescription, NamesDescription, TableDescription,
+    ColumnDescription, LevelDescription, LevelValue, NamesDescription, RoleDescription,
+    TableDescription,
 };
 pub use dispatch::{Changed, Dropped, Outcome};
 pub use error::CommandError;
@@ -36,6 +37,6 @@ pub use row_set::RowSet;
 pub use rows::RowsRequest;
 pub use session::{Active, Selected, SendFailed, Session, Subscriber, UndoRedo};
 pub use table::{
-    Categorical, Colour, Column, ColumnValues, Level, MAX_COLUMNS, MAX_LEVELS, MAX_ROWS,
-    NameColumn, NewColumn, Table,
+    Categorical, Colour, Column, ColumnValues, LevelValues, MAX_COLUMNS, MAX_LEVELS, MAX_ROWS,
+    NameColumn, NewColumn, Numbers, PALETTE, Role, StorageType, Stored, Table, palette,
 };

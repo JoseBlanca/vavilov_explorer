@@ -5,13 +5,14 @@
 // section 2.1).
 
 import { defect } from "./defect.ts";
+import { levelText } from "./cellText.ts";
 import type { TableDescription } from "./description.ts";
 import { NO_CODE, isLevelCode } from "./ids.ts";
 import type { ColumnId, LevelCode } from "./ids.ts";
 import type { Selected } from "./message.ts";
 import type { Active } from "./windowState.ts";
 
-/** A categorical column the user can make the active classification. */
+/** A classification the user can make the active one. */
 export interface Classification {
   /** Its id. */
   readonly column: ColumnId;
@@ -23,7 +24,7 @@ export interface Classification {
 export interface PopulationRow {
   /** What selecting the row selects. */
   readonly selected: Selected;
-  /** The population's name, or `null` for the unassigned individuals. */
+  /** The population's value as text, or `null` for the unassigned individuals. */
   readonly name: string | null;
   /** The population's colour, `#rrggbb`, or `null` for the unassigned. */
   readonly colour: string | null;
@@ -35,7 +36,7 @@ export interface PopulationRow {
 
 /** What the panel shows. */
 export interface PopulationsModel {
-  /** Every categorical column, in the order of the table. */
+  /** Every classification, in the order of the table. */
   readonly classifications: readonly Classification[];
   /** The active classification, or `null`. */
   readonly active: ColumnId | null;
@@ -53,16 +54,19 @@ export function populationsModel(
   description: TableDescription,
   active: Active | null,
   codesOf: (column: ColumnId) => Uint16Array | null,
+  decimalMark: string,
 ): PopulationsModel {
   const classifications = description.columns.flatMap((column) =>
-    column.type === "categorical" ? [{ column: column.id, name: column.name }] : [],
+    column.role === "classification" ? [{ column: column.id, name: column.name }] : [],
   );
   if (active === null) {
     return { classifications, active: null, rows: [] };
   }
   const column = description.columns.find((candidate) => candidate.id === active.column);
-  if (column?.type !== "categorical") {
-    throw defect(`the active classification, column ${String(active.column)}, is not categorical`);
+  if (column?.role !== "classification") {
+    throw defect(
+      `the active classification, column ${String(active.column)}, is not a classification`,
+    );
   }
   const codes = codesOf(active.column);
   if (codes === null) {
@@ -96,7 +100,7 @@ export function populationsModel(
     }
     return {
       selected,
-      name: level.name,
+      name: levelText(level.value, column.storage, decimalMark),
       colour: level.colour,
       count,
       isSelected: sameSelected(active.selected, selected),

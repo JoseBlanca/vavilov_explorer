@@ -8,8 +8,7 @@ use std::error::Error;
 use std::sync::Mutex;
 
 use vavilov_core::{
-    Categorical, Colour, ColumnId, ColumnValues, Command, CommandError, Level, LevelCode,
-    NewColumn, Request, Session, Table,
+    ColumnId, ColumnValues, Command, CommandError, NewColumn, Request, Role, Session, Stored, Table,
 };
 
 /// The number of plants of the demo table.
@@ -40,18 +39,9 @@ const CLUSTERS: [(&str, [f64; 3]); 4] = [
     ("D", [-1.0, -2.0, -0.5]),
 ];
 
-/// The first colours of Okabe and Ito's list, from orange, as
-/// `docs/design.md`, section 5, gives them; the core's own list comes
-/// with the import.
-const COLOURS: [Colour; 7] = [
-    rgb(0xE6, 0x9F, 0x00),
-    rgb(0x56, 0xB4, 0xE9),
-    rgb(0x00, 0x9E, 0x73),
-    rgb(0xF0, 0xE4, 0x42),
-    rgb(0x00, 0x72, 0xB2),
-    rgb(0xD5, 0x5E, 0x00),
-    rgb(0xCC, 0x79, 0xA7),
-];
+/// The colours of the flowers, a trait that is a category and not a
+/// classification.
+const FLOWERS: [&str; 3] = ["purple", "white", "pink"];
 
 const NOTES: [&str; 5] = [
     "landrace",
@@ -60,10 +50,6 @@ const NOTES: [&str; 5] = [
     "seed bank, Córdoba",
     "",
 ];
-
-const fn rgb(red: u8, green: u8, blue: u8) -> Colour {
-    Colour { red, green, blue }
-}
 
 /// Loads the demo table into the session, with the country of origin as
 /// the active classification.
@@ -90,8 +76,10 @@ pub fn load(session: &Mutex<Session>) -> Result<(), Box<dyn Error>> {
 
 /// The demo table: plants named `VAV-0001` and on, with two
 /// classifications, coordinates, three principal components, a height, a
-/// count of seeds, whether each is fertile and a note. Some values of
-/// every column are missing.
+/// count of seeds, whether each is fertile and the colour of its flower,
+/// two categories, and a note. Some values of every column are missing.
+/// Each column is built by the core from its stored values and its role,
+/// as the import will build them.
 ///
 /// # Errors
 ///
@@ -107,24 +95,26 @@ pub fn table() -> Result<Table, CommandError> {
     let mut height = Vec::new();
     let mut seeds = Vec::new();
     let mut fertile = Vec::new();
+    let mut flower = Vec::new();
     let mut note = Vec::new();
     for plant in 1..=NUM_PLANTS {
         names.push(format!("VAV-{plant:04}"));
-        let (country_code, (_, lat, lon, usual_cluster)) = random.pick(&COUNTRIES)?;
+        let (_, (country_name, lat, lon, usual_cluster)) = random.pick(&COUNTRIES)?;
         // Most plants of a country are in its usual cluster, the others in
         // any.
-        let cluster_code = if random.chance(0.8) {
+        let cluster_index = if random.chance(0.8) {
             *usual_cluster
         } else {
             random.pick(&CLUSTERS)?.0
         };
-        let (_, centre) = CLUSTERS
-            .get(cluster_code)
-            .ok_or_else(|| CommandError::Defect {
-                what: format!("a demo cluster {cluster_code}"),
-            })?;
-        country.push(random.unless_missing(0.03, code(country_code)?));
-        cluster.push(random.unless_missing(0.06, code(cluster_code)?));
+        let (cluster_name, centre) =
+            CLUSTERS
+                .get(cluster_index)
+                .ok_or_else(|| CommandError::Defect {
+                    what: format!("a demo cluster {cluster_index}"),
+                })?;
+        country.push(random.unless_missing(0.03, (*country_name).to_owned()));
+        cluster.push(random.unless_missing(0.06, (*cluster_name).to_owned()));
         let missing_place = random.chance(0.05);
         latitude.push((!missing_place).then(|| round(lat + 4.0 * random.normal(), 4)));
         longitude.push((!missing_place).then(|| round(lon + 6.0 * random.normal(), 4)));
@@ -137,58 +127,36 @@ pub fn table() -> Result<Table, CommandError> {
         seeds.push(random.unless_missing(0.04, seed_count));
         let is_fertile = random.chance(0.85);
         fertile.push(random.unless_missing(0.03, is_fertile));
+        let (_, colour) = random.pick(&FLOWERS)?;
+        flower.push(random.unless_missing(0.05, (*colour).to_owned()));
         let (_, text) = random.pick(&NOTES)?;
         note.push(random.unless_missing(0.1, (*text).to_owned()));
     }
     let [pc1, pc2, pc3] = components;
-    Table::new(
-        "accession",
-        names,
-        vec![
-            categorical("country", COUNTRIES.iter().map(|c| c.0), country),
-            categorical("cluster", CLUSTERS.iter().map(|c| c.0), cluster),
-            column("latitude", ColumnValues::Numeric(latitude)),
-            column("longitude", ColumnValues::Numeric(longitude)),
-            column("PC1", ColumnValues::Numeric(pc1)),
-            column("PC2", ColumnValues::Numeric(pc2)),
-            column("PC3", ColumnValues::Numeric(pc3)),
-            column("height", ColumnValues::Numeric(height)),
-            column("seeds", ColumnValues::Integer(seeds)),
-            column("fertile", ColumnValues::Boolean(fertile)),
-            column("note", ColumnValues::Text(note)),
-        ],
-    )
-}
-
-fn column(name: &str, values: ColumnValues) -> NewColumn {
-    NewColumn {
-        name: name.to_owned(),
-        values,
-    }
-}
-
-/// A categorical column whose levels take the colours in order.
-fn categorical<'a>(
-    name: &str,
-    levels: impl Iterator<Item = &'a str>,
-    codes: Vec<Option<LevelCode>>,
-) -> NewColumn {
-    let levels = levels
-        .zip(COLOURS.iter().cycle())
-        .map(|(level, colour)| Level::new(level, *colour))
-        .collect();
-    column(
-        name,
-        ColumnValues::Categorical(Categorical::new(levels, codes)),
-    )
-}
-
-fn code(index: usize) -> Result<LevelCode, CommandError> {
-    u16::try_from(index)
-        .map(LevelCode::new)
-        .map_err(|_| CommandError::Defect {
-            what: format!("a demo level {index}"),
+    let columns = [
+        ("country", Stored::Text(country), Role::Classification),
+        ("cluster", Stored::Text(cluster), Role::Classification),
+        ("latitude", Stored::Float(latitude), Role::Number),
+        ("longitude", Stored::Float(longitude), Role::Number),
+        ("PC1", Stored::Float(pc1), Role::Number),
+        ("PC2", Stored::Float(pc2), Role::Number),
+        ("PC3", Stored::Float(pc3), Role::Number),
+        ("height", Stored::Float(height), Role::Number),
+        ("seeds", Stored::Integer(seeds), Role::Number),
+        ("fertile", Stored::Boolean(fertile), Role::Category),
+        ("flower colour", Stored::Text(flower), Role::Category),
+        ("note", Stored::Text(note), Role::Text),
+    ];
+    let columns = (1..=u32::MAX)
+        .zip(columns)
+        .map(|(id, (name, stored, role))| {
+            Ok(NewColumn {
+                name: name.to_owned(),
+                values: ColumnValues::from_stored(stored, role, ColumnId::new(id), name)?,
+            })
         })
+        .collect::<Result<Vec<_>, CommandError>>()?;
+    Table::new("Individual ID", names, columns)
 }
 
 /// `value` rounded to `decimals` places, as a file would hold it.

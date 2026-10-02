@@ -57,6 +57,7 @@ pub(crate) enum PartKind {
     Page,
     Names,
     Values,
+    Shape,
 }
 
 impl PartKind {
@@ -72,6 +73,7 @@ impl PartKind {
             Self::Page => 8,
             Self::Names => 9,
             Self::Values => 10,
+            Self::Shape => 11,
         }
     }
 }
@@ -89,6 +91,7 @@ pub(crate) fn whole_state(
     let mut message = MessageWriter::new(kind, revision, sent_at);
     message.project(project.map(|open| (open.table.num_rows(), loaded_at)))?;
     if let Some(open) = project {
+        message.shape(open.shape_at)?;
         message.active(open.interaction.active)?;
         message.selection(&open.interaction.selection)?;
         message.undo(open.history.undo_redo())?;

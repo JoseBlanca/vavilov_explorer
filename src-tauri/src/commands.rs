@@ -186,6 +186,21 @@ pub fn select_population<R: Runtime>(
     run(&app, &session, "select_population", &request)
 }
 
+/// Sets the role of a column: `{ column, role, basedOn, sentAt }`, `role`
+/// being `"number"`, `"category"`, `"classification"` or `"text"`.
+///
+/// # Errors
+///
+/// The refusals of [`calls::call`].
+#[tauri::command]
+pub fn set_role<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<(), CommandError> {
+    run(&app, &session, "set_role", &request)
+}
+
 /// Undoes the last edit of the document: `{ basedOn, sentAt }`.
 ///
 /// # Errors

@@ -6,10 +6,22 @@
 import { isColumnId, isLevelCode, isRevision, isRowIndex } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision, RowIndex } from "./ids.ts";
 import type { Selected } from "./message.ts";
+import { ROLES } from "./description.ts";
+import type { Role, StorageType } from "./description.ts";
+
+const STORAGE_TYPES: readonly unknown[] = ["integer", "float", "boolean", "text"];
 
 /** The type of a field: an id, a count, or a text from the user's file. */
 type FieldType =
-  "columnId" | "levelCode" | "rowIndex" | "revision" | "selected" | "number" | "string";
+  | "columnId"
+  | "levelCode"
+  | "rowIndex"
+  | "revision"
+  | "selected"
+  | "storage"
+  | "role"
+  | "number"
+  | "string";
 
 /** The fields of each kind of refusal, and the type of each. */
 const FIELDS = {
@@ -17,7 +29,8 @@ const FIELDS = {
   madeBeforeLoad: { basedOn: "revision", loadedAt: "revision" },
   unknownWindow: { label: "string" },
   unknownColumn: { column: "columnId" },
-  notCategorical: { column: "columnId" },
+  notClassification: { column: "columnId" },
+  roleNotPossible: { column: "columnId", storage: "storage", role: "role" },
   notActiveClassification: { column: "columnId" },
   unknownLevel: { column: "columnId", code: "levelCode", numLevels: "number" },
   noPopulationSelected: {},
@@ -37,6 +50,8 @@ const FIELDS = {
   columnLength: { columnName: "string", numValues: "number", numRows: "number" },
   nonFiniteNumber: { columnName: "string", row: "rowIndex" },
   tooManyLevels: { columnName: "string", numLevels: "number", maxLevels: "number" },
+  levelColours: { columnName: "string", numLevels: "number", numColours: "number" },
+  nonFiniteLevel: { columnName: "string", code: "levelCode" },
   emptyLevelName: { columnName: "string", code: "levelCode" },
   duplicateLevel: { columnName: "string", level: "string" },
   codeWithoutLevel: {
@@ -60,6 +75,8 @@ interface TypeOf {
   readonly rowIndex: RowIndex;
   readonly revision: Revision;
   readonly selected: SelectedOnWire;
+  readonly storage: StorageType;
+  readonly role: Role;
   readonly number: number;
   readonly string: string;
 }
@@ -99,6 +116,10 @@ function hasType(value: unknown, type: FieldType): boolean {
       return typeof value === "number" && isRevision(value);
     case "selected":
       return selectedOf(value) !== null;
+    case "storage":
+      return STORAGE_TYPES.includes(value);
+    case "role":
+      return ROLES.some((role) => role === value);
   }
 }
 

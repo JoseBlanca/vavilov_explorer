@@ -20,26 +20,74 @@ function revision(value: number): Revision {
   return value;
 }
 
-/** Four plants: 1 height, 2 origin (Spain, Peru), 3 seeds, 4 fertile, 5 note. */
+/**
+ * Four plants: 1 height, a number; 2 origin (Spain, Peru), a classification;
+ * 3 seeds, a number; 4 fertile, a category of yes or no; 5 note, text; and
+ * 6 dose (0.5, 2), a category of decimal numbers.
+ */
 const PLANTS: TableDescription = {
   loadedAt: revision(1),
+  shapeAt: revision(1),
   numRows: 4,
   names: { id: column(0), header: "accession" },
   columns: [
-    { id: column(1), name: "height", revision: revision(1), type: "numeric" },
+    {
+      id: column(1),
+      name: "height",
+      revision: revision(1),
+      storage: "float",
+      role: "number",
+      numDistinct: 3,
+    },
     {
       id: column(2),
       name: "origin",
       revision: revision(1),
-      type: "categorical",
+      storage: "text",
+      role: "classification",
       levels: [
-        { name: "Spain", colour: "#e69f00" },
-        { name: "Peru", colour: "#56b4e9" },
+        { value: "Spain", colour: "#e69f00" },
+        { value: "Peru", colour: "#56b4e9" },
       ],
     },
-    { id: column(3), name: "seeds", revision: revision(1), type: "integer" },
-    { id: column(4), name: "fertile", revision: revision(1), type: "boolean" },
-    { id: column(5), name: "note", revision: revision(1), type: "text" },
+    {
+      id: column(3),
+      name: "seeds",
+      revision: revision(1),
+      storage: "integer",
+      role: "number",
+      numDistinct: 3,
+    },
+    {
+      id: column(4),
+      name: "fertile",
+      revision: revision(1),
+      storage: "boolean",
+      role: "category",
+      levels: [
+        { value: false, colour: "#e69f00" },
+        { value: true, colour: "#56b4e9" },
+      ],
+    },
+    {
+      id: column(5),
+      name: "note",
+      revision: revision(1),
+      storage: "text",
+      role: "text",
+      numDistinct: 2,
+    },
+    {
+      id: column(6),
+      name: "dose",
+      revision: revision(1),
+      storage: "float",
+      role: "category",
+      levels: [
+        { value: 0.5, colour: "#e69f00" },
+        { value: 2, colour: "#56b4e9" },
+      ],
+    },
   ],
 };
 
@@ -52,30 +100,42 @@ const PAGE: RowPage = {
   names: ["p3", "p4"],
   columns: [
     { id: column(5), revision: revision(1), type: "text", values: ["", null] },
-    { id: column(1), revision: revision(1), type: "numeric", values: [2.5, null] },
+    { id: column(1), revision: revision(1), type: "float", values: [2.5, null] },
     { id: column(3), revision: revision(1), type: "integer", values: [null, -7n] },
-    { id: column(4), revision: revision(1), type: "boolean", values: [true, null] },
   ],
 };
 
-/** The codes of origin: Spain, Peru, missing, Peru. */
-const CODES = new Uint16Array([0, 1, 0xffff, 1]);
-const codesOf = (id: ColumnId): Uint16Array | null => (id === 2 ? CODES : null);
+/** origin: Spain, Peru, missing, Peru; fertile: FALSE, TRUE, TRUE, missing; dose: 0.5, 2, 2, 0.5. */
+const CODES = new Map<number, Uint16Array>([
+  [2, new Uint16Array([0, 1, 0xffff, 1])],
+  [4, new Uint16Array([0, 1, 1, 0xffff])],
+  [6, new Uint16Array([0, 1, 1, 0])],
+]);
+const codesOf = (id: ColumnId): Uint16Array | null => CODES.get(id) ?? null;
 
 describe("the columns of the table", () => {
-  test("are the names, then every column in the order of the table", () => {
-    expect(tableColumns(PLANTS).map((c) => [c.id, c.name, c.type])).toEqual([
-      [0, "accession", "names"],
-      [1, "height", "numeric"],
-      [2, "origin", "categorical"],
-      [3, "seeds", "integer"],
-      [4, "fertile", "boolean"],
-      [5, "note", "text"],
+  test("are the names, then every column in the order of the table, with its roles", () => {
+    expect(
+      tableColumns(PLANTS).map((c) => [
+        c.id,
+        c.name,
+        c.kind,
+        c.alignEnd,
+        c.choices.map((choice) => choice.label),
+      ]),
+    ).toEqual([
+      [0, "accession", "names", false, []],
+      [1, "height", "number", true, ["Number", "Category", "Classification"]],
+      [2, "origin", "classification", false, ["Category", "Classification", "Text"]],
+      [3, "seeds", "number", true, ["Number", "Category", "Classification"]],
+      [4, "fertile", "category", false, ["Category", "Classification"]],
+      [5, "note", "text", false, ["Category", "Classification", "Text"]],
+      [6, "dose", "category", true, ["Number", "Category", "Classification"]],
     ]);
   });
 
-  test("a page is fetched for every column but the categorical ones", () => {
-    expect(fetchedColumns(PLANTS)).toEqual([1, 3, 4, 5]);
+  test("a page is fetched for the numbers and the texts", () => {
+    expect(fetchedColumns(PLANTS)).toEqual([1, 3, 5]);
   });
 });
 
@@ -91,15 +151,17 @@ describe("a row of the table", () => {
         { kind: "missing" },
         { kind: "value", text: "TRUE", align: "start" },
         { kind: "value", text: "", align: "start" },
+        { kind: "value", text: "2", align: "end" },
       ],
     });
-    expect(tableRow(PLANTS, PAGE, row(3), codesOf, null, ".").cells).toEqual([
+    expect(tableRow(PLANTS, PAGE, row(3), codesOf, null, ",").cells).toEqual([
       { kind: "value", text: "p4", align: "start" },
       { kind: "missing" },
       { kind: "value", text: "Peru", align: "start" },
       { kind: "value", text: "-7", align: "end" },
       { kind: "missing" },
       { kind: "missing" },
+      { kind: "value", text: "0,5", align: "end" },
     ]);
   });
 

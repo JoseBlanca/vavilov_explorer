@@ -28,6 +28,12 @@ export interface WindowState {
   readonly revision: () => Revision;
   /** Whether a project is open. */
   readonly project: () => ProjectState;
+  /**
+   * The revision at which the columns, their names or their roles last
+   * changed, or `null` with no project; the window asks for the description
+   * of the table again when it grows.
+   */
+  readonly shapeAt: () => Revision | null;
   /** The active classification, or `null` for none. */
   readonly active: () => Active | null;
   /** The codes of a categorical column, `NO_CODE` for missing, or `null` for a column that has none. */
@@ -68,6 +74,7 @@ const ASPECTS: readonly Aspect[] = [
 interface Copy {
   readonly revision: Revision;
   readonly project: ProjectState;
+  readonly shapeAt: Revision | null;
   readonly active: Active | null;
   readonly codes: ReadonlyMap<ColumnId, Uint16Array>;
   readonly columns: ReadonlyMap<ColumnId, Revision>;
@@ -152,6 +159,7 @@ export function createWindowState(snapshot: Message): WindowState {
   return {
     revision: () => copy.revision,
     project: () => copy.project,
+    shapeAt: () => copy.shapeAt,
     active: () => copy.active,
     codes: (column) => copy.codes.get(column) ?? null,
     columnRevision: (column) => copy.columns.get(column) ?? null,
@@ -180,6 +188,7 @@ function empty(revision: Revision, project: MessagePart, hoverSeq: HoverSeq): Co
       project.kind === "project"
         ? { kind: "open", numRows: project.numRows, loadedAt: project.loadedAt }
         : { kind: "noProject" },
+    shapeAt: null,
     active: null,
     codes: new Map(),
     columns: new Map(),
@@ -196,6 +205,7 @@ function empty(revision: Revision, project: MessagePart, hoverSeq: HoverSeq): Co
  */
 function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Aspect> } {
   let project = copy.project;
+  let shapeAt = copy.shapeAt;
   let active = copy.active;
   const codes = new Map(copy.codes);
   const columns = new Map(copy.columns);
@@ -253,13 +263,43 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
         hoverSeq = part.seq;
         changed.add("hover");
         break;
+      case "shape":
+        rowsOf(project, "the shape of the table");
+        shapeAt = part.shapeAt;
+        changed.add("table");
+        break;
+    }
+  }
+  // A column listed with no codes beside it is no longer a category or a
+  // classification (docs/core.md, section 5), and its codes go.
+  const withCodes = new Set(
+    message.parts.flatMap((part) => (part.kind === "codes" ? [part.column] : [])),
+  );
+  for (const part of message.parts) {
+    if (part.kind === "columns") {
+      for (const { column } of part.columns) {
+        if (!withCodes.has(column) && codes.delete(column)) {
+          changed.add("codes");
+        }
+      }
     }
   }
   if (active !== null && !codes.has(active.column)) {
     throw defect(`an active classification, column ${String(active.column)}, with no codes`);
   }
   return {
-    copy: { ...copy, project, active, codes, columns, selection, hover, hoverSeq, undoRedo },
+    copy: {
+      ...copy,
+      project,
+      shapeAt,
+      active,
+      codes,
+      columns,
+      selection,
+      hover,
+      hoverSeq,
+      undoRedo,
+    },
     changed,
   };
 }

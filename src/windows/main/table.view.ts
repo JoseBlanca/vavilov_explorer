@@ -1,10 +1,12 @@
 import { html, nothing } from "lit-html";
 import type { TemplateResult } from "lit-html";
+import { live } from "lit-html/directives/live.js";
 import { repeat } from "lit-html/directives/repeat.js";
 import { styleMap } from "lit-html/directives/style-map.js";
 
 import type { Cell } from "../../state/cellText.ts";
-import type { RowIndex } from "../../state/ids.ts";
+import type { Role } from "../../state/description.ts";
+import type { ColumnId, RowIndex } from "../../state/ids.ts";
 import type { RowRange } from "../../state/tablePages.ts";
 import type { TableColumn, TableRow } from "../../state/tableRows.ts";
 import { classOf } from "../shared/classOf.ts";
@@ -22,19 +24,43 @@ export interface TableProps {
   readonly rows: readonly TableRow[];
   /** The user clicked a row, with the shift key when `extend`. */
   readonly onRowClick: (row: RowIndex, extend: boolean) => void;
+  /** The user chose a role for a column. */
+  readonly onRole: (column: ColumnId, role: Role) => void;
   /** The user scrolled the table. */
   readonly onScroll: () => void;
 }
 
-/** The width of each type of column, a token of tokens.css. */
-const WIDTHS: Readonly<Record<TableColumn["type"], string>> = {
+/** The width of the first column and of each role, a token of tokens.css. */
+const WIDTHS: Readonly<Record<TableColumn["kind"], string>> = {
   names: "var(--column-names)",
-  numeric: "var(--column-number)",
-  integer: "var(--column-number)",
+  number: "var(--column-number)",
   text: "var(--column-text)",
-  boolean: "var(--column-boolean)",
-  categorical: "var(--column-categorical)",
+  category: "var(--column-categorical)",
+  classification: "var(--column-categorical)",
 };
+
+/** The dropdown of the roles a column can take. */
+function roleSelect(column: TableColumn, onRole: TableProps["onRole"]): TemplateResult {
+  return html`<select
+    class=${classOf(styles, "role")}
+    aria-label=${`Role of ${column.name}`}
+    @change=${(event: Event) => {
+      const chosen = column.choices.find(
+        (choice) => event.target instanceof HTMLSelectElement && choice.role === event.target.value,
+      );
+      if (chosen !== undefined) {
+        onRole(column.id, chosen.role);
+      }
+    }}
+  >
+    ${column.choices.map(
+      (choice) =>
+        html`<option value=${choice.role} .selected=${live(choice.role === column.kind)}>
+          ${choice.label}
+        </option>`,
+    )}
+  </select>`;
+}
 
 /** The empty space that stands for `count` rows not drawn. */
 function blank(count: number): TemplateResult | typeof nothing {
@@ -65,13 +91,13 @@ function cellView(cell: Cell, first: boolean): TemplateResult {
 
 /**
  * The table of the main window (docs/design.md, section 2.1): a header with
- * the name of each column, and the rows on screen, each selected or not; a
+ * the name of each column and the dropdown of its role, and the rows on screen, each selected or not; a
  * click selects a row, and a shift-click the rows from the last one clicked.
  * Only the rows of `range` are drawn, between blank space as tall as the
  * rows above and below them, so the scroll bar is that of the whole table.
  */
 export function tableView(props: TableProps): TemplateResult {
-  const columns = props.columns.map((column) => WIDTHS[column.type]).join(" ");
+  const columns = props.columns.map((column) => WIDTHS[column.kind]).join(" ");
   return html`<div class=${classOf(styles, "scroller")} data-scroller @scroll=${props.onScroll}>
     <div class=${classOf(styles, "probe")} data-probe aria-hidden="true"></div>
     <div
@@ -92,15 +118,17 @@ export function tableView(props: TableProps): TemplateResult {
               role="columnheader"
               class="${classOf(styles, index === 0 ? "nameHeading" : "heading")} ${classOf(
                 styles,
-                column.type === "numeric" || column.type === "integer" ? "end" : "start",
+                column.alignEnd ? "end" : "start",
               )}"
-              title=${column.name}
             >
-              ${
-                column.name === ""
-                  ? html`<span class=${classOf(styles, "hidden")}>Individual</span>`
-                  : column.name
-              }
+              <span class=${classOf(styles, "headingName")} title=${column.name}>
+                ${
+                  column.name === ""
+                    ? html`<span class=${classOf(styles, "hidden")}>Individual</span>`
+                    : column.name
+                }
+              </span>
+              ${column.kind === "names" ? nothing : roleSelect(column, props.onRole)}
             </div>`,
         )}
       </div>

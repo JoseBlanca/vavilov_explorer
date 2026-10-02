@@ -47,6 +47,15 @@ impl MessageWriter {
         })
     }
 
+    /// The revision at which the columns, their names or their roles last
+    /// changed.
+    pub(crate) fn shape(&mut self, shape_at: Revision) -> Result<(), CommandError> {
+        self.part(PartKind::Shape, |payload| {
+            payload.extend_from_slice(&shape_at.get().to_le_bytes());
+            Ok(())
+        })
+    }
+
     /// The active classification and the selected population.
     pub(crate) fn active(&mut self, active: Option<Active>) -> Result<(), CommandError> {
         self.part(PartKind::Active, |payload| {
@@ -170,7 +179,7 @@ impl MessageWriter {
             // A missing row holds zero, which the layout asks for and the
             // window checks; the bits before say which rows are missing.
             match values {
-                PageValues::Numeric(values) => {
+                PageValues::Float(values) => {
                     missing(payload, values)?;
                     for value in values {
                         payload.extend_from_slice(&value.unwrap_or(0.0).to_le_bytes());
@@ -188,10 +197,6 @@ impl MessageWriter {
                         payload,
                         values.iter().map(|value| value.as_deref().unwrap_or("")),
                     )?;
-                }
-                PageValues::Boolean(values) => {
-                    missing(payload, values)?;
-                    payload.extend(values.iter().map(|value| u8::from(value.unwrap_or(false))));
                 }
                 PageValues::Categorical(codes) => {
                     for code in codes {
@@ -241,13 +246,13 @@ impl MessageWriter {
     }
 }
 
-/// The values of one column in the rows of a page, by type.
+/// The values of one column in the rows of a page, by storage type, or
+/// the codes of a category or a classification.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum PageValues<'a> {
-    Numeric(&'a [Option<f64>]),
+    Float(&'a [Option<f64>]),
     Integer(&'a [Option<i64>]),
     Text(&'a [Option<String>]),
-    Boolean(&'a [Option<bool>]),
     Categorical(&'a [Option<LevelCode>]),
 }
 
@@ -255,10 +260,11 @@ impl PageValues<'_> {
     /// The byte of the type in the header of a values part.
     const fn type_byte(self) -> u8 {
         match self {
-            Self::Numeric(_) => 0,
+            Self::Float(_) => 0,
             Self::Integer(_) => 1,
             Self::Text(_) => 2,
-            Self::Boolean(_) => 3,
+            // 3 was yes or no, which a page no longer carries: a column
+            // of yes or no is always a category or a classification.
             Self::Categorical(_) => 4,
         }
     }

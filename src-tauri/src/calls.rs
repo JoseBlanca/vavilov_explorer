@@ -11,8 +11,8 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    ColumnId, Command, CommandError, LevelCode, Outcome, Request, Revision, RowIndex, RowsRequest,
-    Selected, SentAt, Session, TableDescription,
+    ColumnId, Command, CommandError, LevelCode, Outcome, Request, Revision, Role, RowIndex,
+    RowsRequest, Selected, SentAt, Session, TableDescription,
 };
 
 /// The commands `call` takes, every command of the app but `subscribe`.
@@ -25,6 +25,7 @@ pub const COMMANDS: &[&str] = &[
     "set_hover",
     "set_active_classification",
     "select_population",
+    "set_role",
     "undo",
     "redo",
 ];
@@ -132,6 +133,14 @@ pub fn call(
             };
             request(command, args.based_on, args.sent_at)?
         }
+        "set_role" => {
+            let args: RoleArgs = json_args(command, body)?;
+            let command = Command::SetRole {
+                column: ColumnId::new(args.column),
+                role: args.role,
+            };
+            request(command, args.based_on, args.sent_at)?
+        }
         "undo" => {
             let args: At = json_args(command, body)?;
             request(Command::Undo, args.based_on, args.sent_at)?
@@ -207,6 +216,15 @@ struct ActiveArgs {
 struct PopulationArgs {
     column: u32,
     selected: Option<Selected>,
+    based_on: u64,
+    sent_at: Option<f64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RoleArgs {
+    column: u32,
+    role: Role,
     based_on: u64,
     sent_at: Option<f64>,
 }

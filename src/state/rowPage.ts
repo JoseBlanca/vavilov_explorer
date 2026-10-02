@@ -11,10 +11,9 @@ export type PageColumn = {
   /** The revision at which it last changed, when the page was read. */
   readonly revision: Revision;
 } & (
-  | { readonly type: "numeric"; readonly values: readonly (number | null)[] }
+  | { readonly type: "float"; readonly values: readonly (number | null)[] }
   | { readonly type: "integer"; readonly values: readonly (bigint | null)[] }
   | { readonly type: "text"; readonly values: readonly (string | null)[] }
-  | { readonly type: "boolean"; readonly values: readonly (boolean | null)[] }
   | { readonly type: "categorical"; readonly codes: readonly (LevelCode | null)[] }
 );
 

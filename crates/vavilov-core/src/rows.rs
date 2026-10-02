@@ -9,7 +9,7 @@ use crate::error::CommandError;
 use crate::ids::{ColumnId, Revision, RowIndex};
 use crate::message::{MessageKind, MessageWriter, PageValues};
 use crate::session::Session;
-use crate::table::ColumnValues;
+use crate::table::{ColumnValues, Numbers};
 
 /// What a window asks for: `count` rows from `first`, with the values of
 /// `columns` in that order, made from its copy at `based_on`.
@@ -81,11 +81,12 @@ fn page_values<'a>(
     rows: &Range<usize>,
 ) -> Result<PageValues<'a>, CommandError> {
     Ok(match values {
-        ColumnValues::Numeric(values) => PageValues::Numeric(in_page(values, rows)?),
-        ColumnValues::Integer(values) => PageValues::Integer(in_page(values, rows)?),
+        ColumnValues::Number(Numbers::Float(values)) => PageValues::Float(in_page(values, rows)?),
+        ColumnValues::Number(Numbers::Integer(values)) => {
+            PageValues::Integer(in_page(values, rows)?)
+        }
         ColumnValues::Text(values) => PageValues::Text(in_page(values, rows)?),
-        ColumnValues::Boolean(values) => PageValues::Boolean(in_page(values, rows)?),
-        ColumnValues::Categorical(categorical) => {
+        ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) => {
             PageValues::Categorical(in_page(categorical.codes(), rows)?)
         }
     })

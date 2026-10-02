@@ -1,7 +1,8 @@
 // The table of the main window against the real core, in each engine: the
-// columns and the cells of the first rows, a scroll to rows of a page not
-// yet fetched, a click and a shift-click that select rows, and a lasso made
-// elsewhere showing in a cell. Screenshots, light and dark, land in
+// columns and the cells of the first rows, the roles each column offers, a
+// scroll to rows of a page not yet fetched, a click and a shift-click that
+// select rows, a lasso made elsewhere showing in a cell, and a change of
+// role that the populations panel follows. Screenshots, light and dark, land in
 // e2e/output/.
 //
 // Run with `npm run test:e2e`.
@@ -13,7 +14,8 @@ const indexes = [...Array(NUM_PLANTS).keys()];
 
 /**
  * 300 plants, p1 to p300: 1 height, every seventh missing; 2 origin (Spain,
- * Peru), active, every fifth unassigned; 3 seeds; 4 fertile; 5 note.
+ * Peru), a classification, active, every fifth unassigned; 3 seeds; 4
+ * fertile, a category of yes or no; 5 note.
  */
 const PLANTS = {
   header: "accession",
@@ -54,7 +56,7 @@ for (const engine of Object.keys(ENGINES)) {
     const grid = page.getByRole("grid", { name: "Individuals" });
     await grid.waitFor();
     assert.equal(await grid.getAttribute("aria-rowcount"), String(NUM_PLANTS + 1));
-    assert.deepEqual(await grid.getByRole("columnheader").allTextContents().then(trim), [
+    assert.deepEqual(await headerNames(grid), [
       "accession",
       "height",
       "origin",
@@ -62,6 +64,12 @@ for (const engine of Object.keys(ENGINES)) {
       "fertile",
       "note",
     ]);
+    // Each column but the first has the dropdown of the roles it can take.
+    assert.deepEqual(await roleOptions(grid, "height"), ["Number", "Category", "Classification"]);
+    assert.deepEqual(await roleOptions(grid, "origin"), ["Category", "Classification", "Text"]);
+    assert.deepEqual(await roleOptions(grid, "fertile"), ["Category", "Classification"]);
+    assert.equal(await roleOf(grid, "seeds").inputValue(), "number");
+    assert.equal(await grid.getByRole("combobox", { name: "Role of accession" }).count(), 0);
     // Row 4, p4: its height is missing, said "missing" to a screen reader.
     const p4 = rowNamed(grid, "p4");
     await p4.waitFor();
@@ -104,6 +112,31 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal(lasso.ok, null, JSON.stringify(lasso));
     await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).waitFor();
 
+    // fertile made a classification can be chosen in the panel; origin, the
+    // active one, made a category no longer can, and is no longer active.
+    const panel = page.getByRole("region", { name: "Populations" });
+    const classification = panel.getByRole("combobox", { name: "Classification column" });
+    await roleOf(grid, "fertile").selectOption("classification");
+    await classification.locator("option", { hasText: "fertile" }).waitFor({ state: "attached" });
+    await roleOf(grid, "origin").selectOption("category");
+    await classification.locator("option", { hasText: "origin" }).waitFor({ state: "detached" });
+    assert.deepEqual(await classification.locator("option").allTextContents().then(trim), [
+      "None",
+      "fertile",
+    ]);
+    assert.equal(await classification.inputValue(), "");
+    assert.equal(await roleOf(grid, "origin").inputValue(), "category");
+    // The cells of origin are as they were.
+    assert.equal(await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).count(), 1);
+    await shoot(page, engine, "table-roles");
+
+    // origin made text: its codes go from the window's copy before the new
+    // description arrives, and the table must not draw from the old one.
+    await roleOf(grid, "origin").selectOption("text");
+    await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).waitFor();
+    assert.equal(await roleOf(grid, "origin").inputValue(), "text");
+    assert.deepEqual(errors, [], "no page errors after origin was made text");
+
     // A scroll to the end draws the last rows, from pages fetched then.
     await page.locator("[data-scroller]").evaluate((scroller) => {
       scroller.scrollTop = scroller.scrollHeight;
@@ -120,6 +153,25 @@ for (const engine of Object.keys(ENGINES)) {
   } finally {
     await app.close();
   }
+}
+
+/** The names of the columns, as their headers show them. */
+function headerNames(grid) {
+  return grid.evaluate((element) =>
+    [...element.querySelectorAll('[role="columnheader"]')].map(
+      (header) => header.querySelector("span")?.textContent?.trim() ?? "",
+    ),
+  );
+}
+
+/** The dropdown of the role of the column `name`. */
+function roleOf(grid, name) {
+  return grid.getByRole("combobox", { name: `Role of ${name}`, exact: true });
+}
+
+/** The roles the dropdown of the column `name` offers. */
+async function roleOptions(grid, name) {
+  return trim(await roleOf(grid, name).locator("option").allTextContents());
 }
 
 /** The row whose first cell is `name`. */

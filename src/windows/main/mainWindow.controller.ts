@@ -3,7 +3,7 @@ import { render } from "lit-html";
 import { connect } from "../../backend/connection.ts";
 import { tauriTransport } from "../../backend/transport.ts";
 import { defect } from "../../state/defect.ts";
-import type { TableDescription } from "../../state/description.ts";
+import type { DescriptionNow, TableDescription } from "../../state/description.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
 import { mainWindowView } from "./mainWindow.view.ts";
 import { createPopulationsPanel } from "./populationsPanel.controller.ts";
@@ -29,15 +29,33 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
     const connection = await connect(tauriTransport(), defectBar.show);
     const { state } = connection;
     let description: TableDescription | null = null;
+    /**
+     * The description, when it is that of the copy's load and shape: a
+     * component draws only from a description that agrees with the codes
+     * and revisions of the copy.
+     */
+    const describedNow = (): DescriptionNow => {
+      const project = state.project();
+      if (project.kind === "noProject") {
+        return { kind: "none" };
+      }
+      if (description?.loadedAt !== project.loadedAt || description.shapeAt !== state.shapeAt()) {
+        return { kind: "behind" };
+      }
+      return { kind: "current", description };
+    };
     const panel = createPopulationsPanel(
       slot(root, "panel"),
       connection,
-      () => description,
+      describedNow,
       defectBar.show,
     );
-    const table = createTable(slot(root, "table"), connection, () => description, defectBar.show);
+    const table = createTable(slot(root, "table"), connection, describedNow, defectBar.show);
 
-    /** Asks for the description of the table the copy holds, once per load. */
+    /**
+     * Asks for the description of the table the copy holds, once per load
+     * and once per change of its shape, such as a column's role.
+     */
     const describe = async (): Promise<void> => {
       const project = state.project();
       render(mainWindowView({ open: project.kind === "open" }), root);
@@ -47,13 +65,21 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
         table.redraw();
         return;
       }
-      if (description?.loadedAt === project.loadedAt) {
+      const shapeAt = state.shapeAt();
+      if (shapeAt === null) {
+        throw defect(`the table loaded at ${String(project.loadedAt)} has no shape`);
+      }
+      if (description?.loadedAt === project.loadedAt && description.shapeAt === shapeAt) {
         return;
       }
       const answer = await connection.describeTable();
       const now = state.project();
-      if (now.kind === "noProject" || now.loadedAt !== project.loadedAt) {
-        // Another table was loaded meanwhile; its own change asks again.
+      if (
+        now.kind === "noProject" ||
+        now.loadedAt !== project.loadedAt ||
+        state.shapeAt() !== shapeAt
+      ) {
+        // Another table or shape came meanwhile; its own change asks again.
         return;
       }
       if (!answer.ok) {
@@ -61,12 +87,17 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
           `the table loaded at ${String(project.loadedAt)} has no description: ${answer.error.kind}`,
         );
       }
-      if (answer.value.loadedAt !== project.loadedAt) {
+      const { value } = answer;
+      if (value.loadedAt > project.loadedAt || value.shapeAt > shapeAt) {
+        // The backend is ahead of the copy: the change on its way asks again.
+        return;
+      }
+      if (value.loadedAt !== project.loadedAt || value.shapeAt !== shapeAt) {
         throw defect(
-          `a description of the load at ${String(answer.value.loadedAt)} for the one at ${String(project.loadedAt)}`,
+          `a description of the load at ${String(value.loadedAt)} and the shape at ${String(value.shapeAt)} for the copy's ${String(project.loadedAt)} and ${String(shapeAt)}`,
         );
       }
-      description = answer.value;
+      description = value;
       panel.redraw();
       table.redraw();
     };

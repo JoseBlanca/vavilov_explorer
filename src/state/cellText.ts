@@ -2,6 +2,9 @@
 // the shortest form that gives back the same value, with the decimal mark of
 // the user's language and never rounded; a missing value as no text.
 
+import { defect } from "./defect.ts";
+import type { LevelValue, StorageType } from "./description.ts";
+
 /** A cell as the table draws it. */
 export type Cell =
   | { readonly kind: "missing" }
@@ -25,4 +28,25 @@ export function integerText(value: bigint): string {
 /** A yes or no, as Excel and R write it in a file. */
 export function booleanText(value: boolean): string {
   return value ? "TRUE" : "FALSE";
+}
+
+/**
+ * The text of a level, as the table and the populations panel show it, by
+ * the storage type of its column: a whole number is given as text already,
+ * every digit of it.
+ *
+ * @throws A defect for a value of another type than the storage type, which
+ * the check of the description makes impossible.
+ */
+export function levelText(value: LevelValue, storage: StorageType, decimalMark: string): string {
+  if (storage === "float" && typeof value === "number") {
+    return numberText(value, decimalMark);
+  }
+  if (storage === "boolean" && typeof value === "boolean") {
+    return booleanText(value);
+  }
+  if ((storage === "integer" || storage === "text") && typeof value === "string") {
+    return value;
+  }
+  throw defect(`a level ${JSON.stringify(value)} of a column of ${storage}`);
 }

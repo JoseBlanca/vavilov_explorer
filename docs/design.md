@@ -28,8 +28,9 @@ assigned to.
   as CSV… or Export as Excel… writes the table to a new file the user
   names. An imported file is never written to. This is how GIMP treats its
   own format and the formats it imports.
-- **Classification**: a categorical column of the table whose values say
-  which population each individual belongs to. A table can have several,
+- **Classification**: a column of the table, with the role of a
+  classification (section 6), whose values say which population each
+  individual belongs to. A table can have several,
   for example one by country of origin and one from a genetic clustering.
 - **Active classification**: the classification that colours every view.
   The user chooses it in the populations panel of the main window.
@@ -119,7 +120,7 @@ A widget is a window with one view of some columns:
 |---|---|
 | 3D scatter | three numeric columns |
 | histogram | one numeric column |
-| bar plot | one categorical column |
+| bar plot | one category or classification |
 | map | a latitude and a longitude column |
 
 The same kind of widget can be open more than once, for example two
@@ -295,21 +296,23 @@ and no name is in two rows. An imported file with a row whose first cell
 is empty, or with a name in two rows, is refused, and the message names
 the line and the name. The first column's type cannot be changed.
 
-The types are numeric, integer, text, boolean and categorical. A
-categorical column holds, for each row, a code that points into an
-ordered list of levels, the names of the categories, plus a missing
-value of its own. Its levels can include ones that no row uses yet,
-which is how a new, empty population exists. A classification is a
-categorical column with a colour for each level.
+Each column but the first has a storage type and a role (section 6).
+A column whose role is a category or a classification holds, for each
+row, a code that points into an ordered list of levels, the values of the
+categories, plus a missing value of its own. Its levels can include ones
+that no row uses yet, which is how a new, empty population exists. Each
+level has a colour.
 
-The colours come from a fixed list. When a categorical column is created,
-by import or by a change of type, its levels are given the colours of the
-list in the alphabetical order of their names. From then on each level
+The levels are ordered when they are built, by the import or by a
+change of role: text in the order of the names below, numbers as
+numbers, and FALSE before TRUE. The colours come from a fixed list, given
+to the levels in that order. From then on each level
 keeps its colour: a population added later takes the first colour of the
 list no other level of the column uses, and renaming a population does
-not change its colour. A column with more levels than the list has
-colours goes through the list again in a different shade, lighter or
-darker, so that no two levels share a colour. The order of the names is
+not change its colour. The list has 21 colours (below); a column of more
+levels starts the list again, so that two levels share a colour, which
+the owner accepted on 2 October 2026 until there are more populations
+and more views to judge it by. The order of text is
 with case ignored, ties broken by the exact text, and numbers inside a
 name are compared as text, not as numbers. The list is Okabe and Ito's
 without its black, seven colours from orange, then the same mixed with
@@ -318,27 +321,53 @@ without its black, seven colours from orange, then the same mixed with
 picker. Colours are part of the document, saved in the project and
 undone like any other edit.
 
-## 6. Column types
+## 6. Storage types and roles
 
-The type of each column is guessed on import (section 7), and the guess
-will sometimes be wrong. Numeric codes of populations such as 1, 2 and 3
-are a common case, and so is a classification of 20 populations or more,
-which the guess takes for text (`table_io-needs.md`, section 3). The
-dropdown on top of each column but the first lets the user change the
-type.
+Every column but the first has two types, decided by the owner on
+2 October 2026:
 
-The dropdown offers every type, but enables only the conversions that
-lose no value for this column:
+- **The storage type** is what its values are: whole numbers, decimal
+  numbers, yes or no, or text. It is what the import read from the file
+  (section 7), and it is never changed: a column of text that would be
+  numbers but for a value such as `n.d.` is corrected in the file and
+  imported again, since a conversion would turn `n.d.` into a missing
+  value without saying so, and a column whose every value is a number is
+  read as numbers in the first place.
+- **The role** is what the column is for, and is what the user chooses,
+  in a dropdown on top of each column but the first:
+  - **number**: drawn on an axis, in a histogram, or as coordinates on
+    the map;
+  - **category**: a trait such as the colour of the flower, drawn in a
+    bar plot and never edited;
+  - **classification**: populations, which a lasso edits, and which the
+    populations panel lists to choose the active classification from;
+  - **text**: notes and identifiers, shown in the table alone.
 
-- to text or to categorical, from any type, always;
-- from integer to numeric, always;
-- to numeric, integer or boolean from any other type, only when every
-  value of the column converts.
+Which roles each storage type can take:
 
-A conversion that would lose values is shown disabled with the reason,
-for example "12 values are not numbers, such as 'n.d.' in row 40", rather
-than turning those values into missing ones without saying so. A change
-of type is a command and can be undone.
+| storage type | number | category | classification | text |
+|---|---|---|---|---|
+| whole numbers | yes | yes | yes | no |
+| decimal numbers | yes | yes | yes | no |
+| yes or no | no | yes | yes | no |
+| text | no | yes | yes | yes |
+
+The dropdown offers only the roles the column can take, and a category
+or a classification only when its distinct values fit the 65,535 codes
+of a column; a role it cannot take is not shown, as the owner decided on
+2 October 2026. A change
+of role never changes a value: it builds or drops the list of levels.
+The levels of a category or a classification keep the storage type, so
+that population codes 1, 2 and 10 are ordered as numbers, and an export
+writes them back as numbers. A change of role is a command and can be
+undone. Only a classification can be the active classification, so that
+no lasso edits a trait the user measured; a classification whose role is
+changed stops being the active one.
+
+The import guesses the role: number for whole and decimal numbers,
+category for yes or no and for text of at most 20 distinct values, and
+text for the rest. No column is made a classification by the import: the
+user chooses which, in its dropdown.
 
 ## 7. table_io
 
@@ -384,20 +413,18 @@ A `.vav` file is a zip archive, as an xlsx is, with two files in it:
 
 - `table.parquet`: the data. Parquet is a standard binary format for
   tables that stores each column's type, its missing values and exact
-  floats, and that R, pandas and polars read. A categorical column is
-  stored as text, so a reader in another program sees the names of the
-  populations, not their codes. CSV was considered and not taken: it has
+  floats, and that R, pandas and polars read. A category or a
+  classification is stored in its storage type, so a reader in another
+  program sees the values of the populations, not their codes. CSV was considered and not taken: it has
   no types, and in CSV a text value "NA" and a missing value cannot be
   told apart without an escaping of our own.
 - `project.json`: what Parquet cannot hold, which is a version of the
-  format, each column's id, which text columns are categorical, with the
-  order of their levels and their colours, the active classification,
-  the layout of the windows (section 2.4), and the decimal mark of the
-  import, by which a later change of type reads the values.
+  format, each column's id, the role of each column, and for a category or a
+  classification the order of its levels and their colours, the active
+  classification, and the layout of the windows (section 2.4).
 
-No fact is stored in both files. The types Parquet can hold, numeric,
-integer, text and boolean, are read from Parquet, and `project.json`
-does not repeat them.
+No fact is stored in both files. The storage types are read from
+Parquet, and `project.json` does not repeat them.
 
 Saving writes a new file next to the old one and then renames it over
 the old one, so a crash during a save leaves the previous project whole.

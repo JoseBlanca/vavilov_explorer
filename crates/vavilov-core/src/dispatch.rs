@@ -20,7 +20,7 @@ use crate::session::{
     Active, History, HistoryStep, Interaction, OpenProject, Project, Selected, SendFailed, Session,
     SharedState,
 };
-use crate::table::{Categorical, Column, ColumnValues, Table};
+use crate::table::{Categorical, Column, ColumnValues, Role, Table};
 
 /// What a command applied.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -161,7 +161,7 @@ impl Session {
             Command::SetActiveClassification { column } => {
                 let open = state.project.open()?;
                 if let Some(column) = column {
-                    categorical(&open.table, column)?;
+                    classification(&open.table, column)?;
                 }
                 if open.interaction.active.map(|active| active.column) == column {
                     return Ok(None);
@@ -223,6 +223,26 @@ impl Session {
                     state,
                     open,
                     Edit::SetCodes { column, changes },
+                    StepKind::Record,
+                    sent_at,
+                )
+            }
+            Command::SetRole { column, role } => {
+                let open = state.project.open()?;
+                if column == open.table.names().id() {
+                    return Err(CommandError::UnknownColumn { column });
+                }
+                let current = open
+                    .table
+                    .column(column)
+                    .ok_or(CommandError::UnknownColumn { column })?;
+                let Some(values) = current.values().with_role(role, column, current.name())? else {
+                    return Ok(None);
+                };
+                plan_edit(
+                    state,
+                    open,
+                    Edit::SetValues { column, values },
                     StepKind::Record,
                     sent_at,
                 )
@@ -293,11 +313,40 @@ impl Session {
                     .table
                     .column_mut(column)
                     .ok_or_else(|| defect(column, "is gone"))?;
-                let ColumnValues::Categorical(categorical) = values else {
-                    return Err(defect(column, "is no longer categorical"));
+                let (ColumnValues::Category(categorical)
+                | ColumnValues::Classification(categorical)) = values
+                else {
+                    return Err(defect(
+                        column,
+                        "is no longer a category or a classification",
+                    ));
                 };
                 categorical.codes = codes;
                 *column_revision = revision;
+                open.history.take(step);
+                Changed::State(revision)
+            }
+            Change::Values {
+                column,
+                values,
+                active,
+                step,
+            } => {
+                let open = open_for_commit(&mut self.state.project)?;
+                let Column {
+                    revision: column_revision,
+                    values: slot,
+                    ..
+                } = open
+                    .table
+                    .column_mut(column)
+                    .ok_or_else(|| defect(column, "is gone"))?;
+                *slot = values;
+                *column_revision = revision;
+                open.shape_at = revision;
+                if let Some(active) = active {
+                    open.interaction.active = active;
+                }
                 open.history.take(step);
                 Changed::State(revision)
             }
@@ -338,6 +387,14 @@ enum Change {
         codes: Vec<Option<LevelCode>>,
         step: HistoryStep,
     },
+    /// New values of a column, with the active classification when the
+    /// change clears it.
+    Values {
+        column: ColumnId,
+        values: ColumnValues,
+        active: Option<Option<Active>>,
+        step: HistoryStep,
+    },
 }
 
 /// Whether an edit is new, an undo or a redo.
@@ -355,12 +412,13 @@ fn plan_load(
     sent_at: Option<SentAt>,
 ) -> Result<Plan, CommandError> {
     if let Some(column) = active_classification {
-        categorical(&table, column)?;
+        classification(&table, column)?;
     }
     let revision = state.revision.next()?;
     let hover_seq = state.hover_seq.next()?;
     table.set_revisions(revision);
     let project = OpenProject {
+        shape_at: revision,
         interaction: Interaction {
             active: active_classification.map(|column| Active {
                 column,
@@ -405,8 +463,8 @@ fn plan_active(
     }))
 }
 
-/// Plans an edit of the document: the codes it gives, and its reverse
-/// for the history. An edit that changes no row changes nothing.
+/// Plans an edit of the document: what it gives, and its reverse for the
+/// history.
 fn plan_edit(
     state: &SharedState,
     open: &OpenProject,
@@ -414,12 +472,94 @@ fn plan_edit(
     kind: StepKind,
     sent_at: Option<SentAt>,
 ) -> Result<Option<Plan>, CommandError> {
-    let Edit::SetCodes { column, changes } = edit;
+    match edit {
+        Edit::SetCodes { column, changes } => {
+            plan_codes(state, open, column, changes, kind, sent_at)
+        }
+        Edit::SetValues { column, values } => {
+            plan_values(state, open, column, values, kind, sent_at).map(Some)
+        }
+    }
+}
+
+fn step_of(kind: StepKind, reverse: Edit) -> HistoryStep {
+    match kind {
+        StepKind::Record => HistoryStep::Record(reverse),
+        StepKind::Undo => HistoryStep::Undo(reverse),
+        StepKind::Redo => HistoryStep::Redo(reverse),
+    }
+}
+
+/// Plans new values of a column, a change of role or its reverse: the
+/// column and the shape of the table take the new revision, and a
+/// classification that stops being one stops being the active one.
+fn plan_values(
+    state: &SharedState,
+    open: &OpenProject,
+    column: ColumnId,
+    values: ColumnValues,
+    kind: StepKind,
+    sent_at: Option<SentAt>,
+) -> Result<Plan, CommandError> {
+    let old = open
+        .table
+        .column(column)
+        .ok_or(CommandError::UnknownColumn { column })?;
+    let step = step_of(
+        kind,
+        Edit::SetValues {
+            column,
+            values: old.values().clone(),
+        },
+    );
+    let active = open
+        .interaction
+        .active
+        .filter(|active| active.column == column && values.role() != Role::Classification)
+        .map(|_| None);
+    let revision = state.revision.next()?;
+    let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
+    message.shape(revision)?;
+    if let Some(active) = active {
+        message.active(active)?;
+    }
+    if let ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) = &values
+    {
+        message.codes(column, revision, categorical.codes())?;
+    }
+    message.columns(&[(column, revision)])?;
+    message.undo(open.history.after(&step))?;
+    Ok(Plan {
+        revision,
+        message: message.finish(),
+        change: Change::Values {
+            column,
+            values,
+            active,
+            step,
+        },
+    })
+}
+
+/// Plans new codes of some rows of a category or a classification. An
+/// edit that changes no row changes nothing.
+fn plan_codes(
+    state: &SharedState,
+    open: &OpenProject,
+    column: ColumnId,
+    changes: Vec<(RowIndex, Option<LevelCode>)>,
+    kind: StepKind,
+    sent_at: Option<SentAt>,
+) -> Result<Option<Plan>, CommandError> {
     if changes.is_empty() {
         return Ok(None);
     }
     let num_rows = open.table.num_rows();
-    let values = categorical(&open.table, column)?;
+    let values = open
+        .table
+        .column(column)
+        .and_then(Column::categorical)
+        .ok_or_else(|| defect(column, "is not a category or a classification"))?;
     let num_levels = values.num_levels()?;
     let mut codes = values.codes().to_vec();
     let mut reverse = Vec::with_capacity(changes.len());
@@ -439,15 +579,13 @@ fn plan_edit(
         reverse.push((row, *slot));
         *slot = new;
     }
-    let reverse = Edit::SetCodes {
-        column,
-        changes: reverse,
-    };
-    let step = match kind {
-        StepKind::Record => HistoryStep::Record(reverse),
-        StepKind::Undo => HistoryStep::Undo(reverse),
-        StepKind::Redo => HistoryStep::Redo(reverse),
-    };
+    let step = step_of(
+        kind,
+        Edit::SetCodes {
+            column,
+            changes: reverse,
+        },
+    );
     let revision = state.revision.next()?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.codes(column, revision, &codes)?;
@@ -478,7 +616,7 @@ fn lasso<'a>(
         return Err(CommandError::NotSelected { target });
     }
     check_row_set(rows, open.table.num_rows())?;
-    Ok(categorical(&open.table, column)?.codes())
+    Ok(classification(&open.table, column)?.codes())
 }
 
 /// The active classification, when it is `column`.
@@ -489,20 +627,20 @@ fn active_classification(open: &OpenProject, column: ColumnId) -> Result<Active,
         .ok_or(CommandError::NotActiveClassification { column })
 }
 
-/// The values of a categorical column of the table.
-fn categorical(table: &Table, column: ColumnId) -> Result<&Categorical, CommandError> {
+/// The levels and codes of a classification of the table.
+fn classification(table: &Table, column: ColumnId) -> Result<&Categorical, CommandError> {
     if column == table.names().id() {
-        return Err(CommandError::NotCategorical { column });
+        return Err(CommandError::NotClassification { column });
     }
     table
         .column(column)
         .ok_or(CommandError::UnknownColumn { column })?
-        .categorical()
-        .ok_or(CommandError::NotCategorical { column })
+        .classification()
+        .ok_or(CommandError::NotClassification { column })
 }
 
 fn check_level(table: &Table, column: ColumnId, code: LevelCode) -> Result<(), CommandError> {
-    let num_levels = categorical(table, column)?.num_levels()?;
+    let num_levels = classification(table, column)?.num_levels()?;
     if u32::from(code.get()) >= num_levels {
         return Err(CommandError::UnknownLevel {
             column,

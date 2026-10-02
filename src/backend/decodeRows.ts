@@ -7,7 +7,6 @@ import type { ColumnId, LevelCode } from "../state/ids.ts";
 import type { PageColumn, RowPage } from "../state/rowPage.ts";
 import {
   alignUp,
-  booleanAt,
   columnId,
   expectLength,
   expectZeros,
@@ -24,8 +23,12 @@ const ROWS = 3;
 const PAGE = 8;
 const NAMES = 9;
 const VALUES = 10;
-/** The type of a values part, by its byte. */
-const TYPES = ["numeric", "integer", "text", "boolean", "categorical"] as const;
+/**
+ * The type of a values part, by its byte; 3 was yes or no, which a page no
+ * longer carries, a column of yes or no being always a category or a
+ * classification.
+ */
+const TYPES = ["float", "integer", "text", undefined, "categorical"] as const;
 /** The bytes of a values part before its values. */
 const VALUES_HEADER_BYTES = 16;
 
@@ -111,7 +114,7 @@ function valuesPart(bytes: ArrayBuffer, page: Page, part: RawPart): PageColumn {
   const valuesLength = part.start + part.length - values;
   const where = { page, id, missing, at: values };
   switch (type) {
-    case "numeric":
+    case "float":
       expectValuesLength(part.length, alignUp(Math.ceil(count / 8)) + 8 * count, typeByte);
       return {
         id,
@@ -132,14 +135,6 @@ function valuesPart(bytes: ArrayBuffer, page: Page, part: RawPart): PageColumn {
         revision,
         type,
         values: eachRow(where, 8, (at) => view.getBigInt64(at, true)),
-      };
-    case "boolean":
-      expectValuesLength(part.length, alignUp(Math.ceil(count / 8)) + count, typeByte);
-      return {
-        id,
-        revision,
-        type,
-        values: eachRow(where, 1, (at) => booleanAt(view, at, "values")),
       };
     case "text": {
       const texts = textList(bytes, values, valuesLength, count);

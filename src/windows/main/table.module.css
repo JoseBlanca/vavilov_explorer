@@ -37,8 +37,6 @@
   grid-column: 1 / -1;
 }
 
-.heading,
-.nameHeading,
 .cell,
 .nameCell {
   height: var(--row-height);
@@ -52,8 +50,32 @@
 
 .heading,
 .nameHeading {
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
   background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.headingName {
+  overflow: hidden;
   font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.role {
+  width: 100%;
+  min-height: var(--target-size);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  background: var(--color-panel);
+  color: var(--color-text);
+  font-size: var(--font-size-small);
 }
 
 .nameHeading,

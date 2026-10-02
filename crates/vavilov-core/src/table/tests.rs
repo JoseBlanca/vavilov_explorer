@@ -1,5 +1,5 @@
 use super::*;
-use crate::fixtures::{BLUE, VERMILLION, categorical, code, column, names, plants};
+use crate::fixtures::{BLUE, VERMILLION, categorical, code, column, float, integer, names, plants};
 use crate::ids::{LevelCode, RowIndex};
 
 fn refusal(header: &str, rows: &[&str], columns: Vec<NewColumn>) -> CommandError {
@@ -41,7 +41,7 @@ fn a_table_of_no_row_is_accepted() {
         "",
         Vec::new(),
         vec![
-            column("height", ColumnValues::Numeric(Vec::new())),
+            column("height", float(Vec::new())),
             column("origin", categorical(&[], Vec::new())),
         ],
     )
@@ -85,8 +85,8 @@ fn a_column_with_no_name_is_refused_with_its_place() {
             "accession",
             &["p1"],
             vec![
-                column("height", ColumnValues::Numeric(vec![Some(1.0)])),
-                column("", ColumnValues::Integer(vec![Some(1)])),
+                column("height", float(vec![Some(1.0)])),
+                column("", integer(vec![Some(1)])),
             ],
         ),
         CommandError::EmptyColumnName { position: 2 }
@@ -100,8 +100,8 @@ fn two_columns_of_one_name_are_refused() {
             "accession",
             &["p1"],
             vec![
-                column("height", ColumnValues::Numeric(vec![Some(1.0)])),
-                column("height", ColumnValues::Integer(vec![Some(1)])),
+                column("height", float(vec![Some(1.0)])),
+                column("height", integer(vec![Some(1)])),
             ],
         ),
         CommandError::DuplicateColumnName {
@@ -116,7 +116,7 @@ fn a_column_named_as_the_header_of_the_first_is_refused() {
         refusal(
             "height",
             &["p1"],
-            vec![column("height", ColumnValues::Numeric(vec![Some(1.0)]))]
+            vec![column("height", float(vec![Some(1.0)]))]
         ),
         CommandError::DuplicateColumnName {
             name: "height".to_owned()
@@ -129,7 +129,7 @@ fn an_empty_header_of_the_first_column_is_not_compared() {
     let table = Table::new(
         "",
         names(&["p1"]),
-        vec![column("height", ColumnValues::Numeric(vec![Some(1.0)]))],
+        vec![column("height", float(vec![Some(1.0)]))],
     )
     .unwrap();
     assert_eq!(table.names().header(), "");
@@ -142,8 +142,8 @@ fn a_column_of_another_length_than_the_names_is_refused() {
             "accession",
             &["p1", "p2"],
             vec![
-                column("height", ColumnValues::Numeric(vec![Some(1.0), None])),
-                column("seeds", ColumnValues::Integer(vec![Some(1), None, Some(3)])),
+                column("height", float(vec![Some(1.0), None])),
+                column("seeds", integer(vec![Some(1), None, Some(3)])),
             ],
         ),
         CommandError::ColumnLength {
@@ -161,10 +161,7 @@ fn a_number_that_is_not_finite_is_refused() {
             refusal(
                 "accession",
                 &["p1", "p2"],
-                vec![column(
-                    "height",
-                    ColumnValues::Numeric(vec![None, Some(value)])
-                )],
+                vec![column("height", float(vec![None, Some(value)]))],
             ),
             CommandError::NonFiniteNumber {
                 column_name: "height".to_owned(),
@@ -233,10 +230,12 @@ fn two_levels_of_one_name_are_refused() {
     );
 }
 
-fn levels(count: u32) -> Vec<Level> {
-    (0..count)
-        .map(|i| Level::new(format!("population {i}"), VERMILLION))
-        .collect()
+fn levels(count: u32) -> LevelValues {
+    LevelValues::Text((0..count).map(|i| format!("population {i}")).collect())
+}
+
+fn colours(count: u32) -> Vec<Colour> {
+    vec![VERMILLION; usize::try_from(count).unwrap()]
 }
 
 #[test]
@@ -247,7 +246,11 @@ fn a_column_of_65535_levels_is_accepted_and_one_of_65536_refused() {
         names(&["p1"]),
         vec![column(
             "origin",
-            ColumnValues::Categorical(Categorical::new(levels(MAX_LEVELS), vec![code(largest)])),
+            ColumnValues::Classification(Categorical::new(
+                levels(MAX_LEVELS),
+                colours(MAX_LEVELS),
+                vec![code(largest)],
+            )),
         )],
     )
     .unwrap();
@@ -258,7 +261,11 @@ fn a_column_of_65535_levels_is_accepted_and_one_of_65536_refused() {
             &["p1"],
             vec![column(
                 "origin",
-                ColumnValues::Categorical(Categorical::new(levels(MAX_LEVELS + 1), vec![None]))
+                ColumnValues::Classification(Categorical::new(
+                    levels(MAX_LEVELS + 1),
+                    colours(MAX_LEVELS + 1),
+                    vec![None],
+                ))
             )],
         ),
         CommandError::TooManyLevels {
@@ -286,5 +293,56 @@ fn the_limits_of_rows_and_columns_are_their_largest_accepted_value() {
             num_columns: 16_777_217,
             max_columns: 16_777_216
         })
+    );
+}
+
+#[test]
+fn a_category_with_another_number_of_colours_than_levels_is_refused() {
+    let values = ColumnValues::Category(Categorical::new(
+        LevelValues::Text(vec!["Spain".to_owned(), "Peru".to_owned()]),
+        vec![VERMILLION],
+        vec![code(0)],
+    ));
+    assert_eq!(
+        refusal("", &["p1"], vec![column("origin", values)]),
+        CommandError::LevelColours {
+            column_name: "origin".to_owned(),
+            num_levels: 2,
+            num_colours: 1,
+        }
+    );
+}
+
+#[test]
+fn levels_of_decimal_numbers_must_be_finite_and_0_and_minus_0_are_one() {
+    let levels = |values: Vec<f64>| {
+        let colours = vec![VERMILLION; values.len()];
+        ColumnValues::Category(Categorical::new(
+            LevelValues::Float(values),
+            colours,
+            vec![None],
+        ))
+    };
+    assert_eq!(
+        refusal(
+            "",
+            &["p1"],
+            vec![column("dose", levels(vec![1.0, f64::NAN]))]
+        ),
+        CommandError::NonFiniteLevel {
+            column_name: "dose".to_owned(),
+            code: LevelCode::new(1),
+        }
+    );
+    assert_eq!(
+        refusal(
+            "",
+            &["p1"],
+            vec![column("dose", levels(vec![0.0, 2.0, -0.0]))]
+        ),
+        CommandError::DuplicateLevel {
+            column_name: "dose".to_owned(),
+            level: "-0".to_owned(),
+        }
     );
 }

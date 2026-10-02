@@ -5,8 +5,8 @@ use tauri::test::{INVOKE_KEY, MockRuntime, get_ipc_response, mock_builder};
 use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use vavilov_core::{
-    Categorical, Colour, ColumnId, ColumnValues, Command, Level, LevelCode, NewColumn, Request,
-    RowIndex, Table, UndoRedo,
+    Categorical, Colour, ColumnId, ColumnValues, Command, LevelCode, LevelValues, NewColumn,
+    Request, RowIndex, Table, UndoRedo,
 };
 
 use super::*;
@@ -87,8 +87,9 @@ fn load(app: &App<MockRuntime>) {
         vec!["p1".to_owned(), "p2".to_owned(), "p3".to_owned()],
         vec![NewColumn {
             name: "origin".to_owned(),
-            values: ColumnValues::Categorical(Categorical::new(
-                vec![Level::new("Spain", colour), Level::new("Peru", colour)],
+            values: ColumnValues::Classification(Categorical::new(
+                LevelValues::Text(vec!["Spain".to_owned(), "Peru".to_owned()]),
+                vec![colour, colour],
                 vec![Some(LevelCode::new(0)), Some(LevelCode::new(1)), None],
             )),
         }],
@@ -152,6 +153,10 @@ fn every_command_is_registered_and_finds_the_session() {
         (
             "select_population",
             json!({ "column": 1, "selected": null, "basedOn": 0 }),
+        ),
+        (
+            "set_role",
+            json!({ "column": 1, "role": "category", "basedOn": 0 }),
         ),
         ("undo", json!({ "basedOn": 0 })),
         ("redo", json!({ "basedOn": 0, "sentAt": 1.5 })),
@@ -467,13 +472,15 @@ fn the_description_of_the_table_comes_back_as_json() {
         description,
         json!({
             "loadedAt": 1,
+            "shapeAt": 1,
             "numRows": 3,
             "names": { "id": 0, "header": "accession" },
             "columns": [{
-                "id": 1, "name": "origin", "revision": 1, "type": "categorical",
+                "id": 1, "name": "origin", "revision": 1,
+                "storage": "text", "role": "classification",
                 "levels": [
-                    { "name": "Spain", "colour": "#0072b2" },
-                    { "name": "Peru", "colour": "#0072b2" },
+                    { "value": "Spain", "colour": "#0072b2" },
+                    { "value": "Peru", "colour": "#0072b2" },
                 ],
             }],
         })
@@ -544,5 +551,42 @@ fn a_page_past_the_last_row_crosses_as_its_refusal() {
         )
         .unwrap_err(),
         json!({ "kind": "rowsOutOfRange", "first": 2, "count": 2, "numRows": 3 })
+    );
+}
+
+#[test]
+fn a_change_of_role_through_its_command_reaches_the_session() {
+    let (app, window) = app();
+    load(&app);
+    json_command(
+        &window,
+        "set_role",
+        json!({ "column": ORIGIN, "role": "category", "basedOn": 1 }),
+    )
+    .unwrap();
+    let session = session_of(&app);
+    let values = session
+        .table()
+        .unwrap()
+        .column(ColumnId::new(ORIGIN))
+        .unwrap()
+        .values()
+        .role();
+    assert_eq!(values, vavilov_core::Role::Category);
+    assert_eq!(session.active(), None);
+}
+
+#[test]
+fn a_role_the_storage_type_cannot_take_crosses_as_its_refusal() {
+    let (app, window) = app();
+    load(&app);
+    assert_eq!(
+        json_command(
+            &window,
+            "set_role",
+            json!({ "column": ORIGIN, "role": "number", "basedOn": 1 }),
+        )
+        .unwrap_err(),
+        json!({ "kind": "roleNotPossible", "column": 1, "storage": "text", "role": "number" })
     );
 }

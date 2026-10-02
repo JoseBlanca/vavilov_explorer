@@ -15,6 +15,7 @@ const COMMANDS: &[&str] = &[
     "set_hover",
     "set_active_classification",
     "select_population",
+    "set_role",
     "undo",
     "redo",
 ];

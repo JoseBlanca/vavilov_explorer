@@ -52,6 +52,7 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::set_hover,
             commands::set_active_classification,
             commands::select_population,
+            commands::set_role,
             commands::undo,
             commands::redo,
         ])

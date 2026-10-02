@@ -21,33 +21,53 @@ function revision(value: number): Revision {
 const ORIGIN = column(2);
 const CLUSTER = column(4);
 
-/** Six plants: height, origin (Spain, Peru, Chile), seeds, cluster (A, B). */
+/**
+ * Six plants: height; origin (Spain, Peru, Chile), a classification of
+ * text; seeds; cluster (1, 20), a classification of whole numbers.
+ */
 const DESCRIPTION: TableDescription = {
   loadedAt: revision(1),
+  shapeAt: revision(1),
   numRows: 6,
   names: { id: column(0), header: "accession" },
   columns: [
-    { id: column(1), name: "height", revision: revision(1), type: "numeric" },
+    {
+      id: column(1),
+      name: "height",
+      revision: revision(1),
+      storage: "float",
+      role: "number",
+      numDistinct: 6,
+    },
     {
       id: ORIGIN,
       name: "origin",
       revision: revision(1),
-      type: "categorical",
+      storage: "text",
+      role: "classification",
       levels: [
-        { name: "Spain", colour: "#e69f00" },
-        { name: "Peru", colour: "#56b4e9" },
-        { name: "Chile", colour: "#009e73" },
+        { value: "Spain", colour: "#e69f00" },
+        { value: "Peru", colour: "#56b4e9" },
+        { value: "Chile", colour: "#009e73" },
       ],
     },
-    { id: column(3), name: "seeds", revision: revision(1), type: "integer" },
+    {
+      id: column(3),
+      name: "seeds",
+      revision: revision(1),
+      storage: "integer",
+      role: "number",
+      numDistinct: 6,
+    },
     {
       id: CLUSTER,
       name: "cluster",
       revision: revision(1),
-      type: "categorical",
+      storage: "integer",
+      role: "classification",
       levels: [
-        { name: "A", colour: "#0072b2" },
-        { name: "B", colour: "#d55e00" },
+        { value: "1", colour: "#0072b2" },
+        { value: "20", colour: "#d55e00" },
       ],
     },
   ],
@@ -61,8 +81,8 @@ const CODES = new Map<number, Uint16Array>([
 const codesOf = (id: ColumnId): Uint16Array | null => CODES.get(id) ?? null;
 
 describe("the populations panel's model", () => {
-  test("lists every categorical column as a classification to choose", () => {
-    const model = populationsModel(DESCRIPTION, null, codesOf);
+  test("lists every classification to choose", () => {
+    const model = populationsModel(DESCRIPTION, null, codesOf, ",");
     expect(model.classifications).toEqual([
       { column: 2, name: "origin" },
       { column: 4, name: "cluster" },
@@ -72,7 +92,7 @@ describe("the populations panel's model", () => {
   });
 
   test("gives each population its colour and count, an empty one too, and the unassigned last", () => {
-    const model = populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, codesOf);
+    const model = populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, codesOf, ",");
     expect(model.active).toBe(2);
     expect(model.rows).toEqual([
       {
@@ -105,21 +125,23 @@ describe("the populations panel's model", () => {
       DESCRIPTION,
       { column: ORIGIN, selected: { kind: "population", code: code(1) } },
       codesOf,
+      ",",
     );
     expect(peru.rows.map((row) => row.isSelected)).toEqual([false, true, false, false]);
     const unassigned = populationsModel(
       DESCRIPTION,
       { column: ORIGIN, selected: { kind: "unassigned" } },
       codesOf,
+      ",",
     );
     expect(unassigned.rows.map((row) => row.isSelected)).toEqual([false, false, false, true]);
   });
 
-  test("counts the active classification, not another", () => {
-    const model = populationsModel(DESCRIPTION, { column: CLUSTER, selected: null }, codesOf);
+  test("counts the active classification, not another, its levels of numbers as text", () => {
+    const model = populationsModel(DESCRIPTION, { column: CLUSTER, selected: null }, codesOf, ",");
     expect(model.rows.map((row) => [row.name, row.count])).toEqual([
-      ["A", 5],
-      ["B", 1],
+      ["1", 5],
+      ["20", 1],
       [null, 0],
     ]);
   });
@@ -127,19 +149,19 @@ describe("the populations panel's model", () => {
   test("codes that do not fit the levels or the table are a defect", () => {
     const tooHigh = (): Uint16Array => new Uint16Array([0, 3, 0, 0, 0, 0]);
     expect(() =>
-      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, tooHigh),
+      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, tooHigh, ","),
     ).toThrow(/defect.*code 3.*3 levels/);
     const short = (): Uint16Array => new Uint16Array([0, 1]);
-    expect(() => populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, short)).toThrow(
-      /defect.*2 codes.*6 rows/,
-    );
-    const none = (): null => null;
-    expect(() => populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, none)).toThrow(
-      /defect.*no codes/,
-    );
     expect(() =>
-      populationsModel(DESCRIPTION, { column: column(1), selected: null }, codesOf),
-    ).toThrow(/defect.*column 1.*not categorical/);
+      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, short, ","),
+    ).toThrow(/defect.*2 codes.*6 rows/);
+    const none = (): null => null;
+    expect(() =>
+      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, none, ","),
+    ).toThrow(/defect.*no codes/);
+    expect(() =>
+      populationsModel(DESCRIPTION, { column: column(1), selected: null }, codesOf, ","),
+    ).toThrow(/defect.*column 1.*not a classification/);
   });
 });
 

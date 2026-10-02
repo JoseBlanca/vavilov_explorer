@@ -384,19 +384,29 @@ describe("through Tauri's real channel", () => {
 describe("the description of the table", () => {
   const DESCRIPTION = {
     loadedAt: 1,
+    shapeAt: 1,
     numRows: 4,
     names: { id: 0, header: "accession" },
     columns: [
-      { id: 1, name: "height", revision: 1, type: "numeric" },
+      { id: 1, name: "height", revision: 1, storage: "float", role: "number", numDistinct: 3 },
       {
         id: 2,
         name: "origin",
         revision: 1,
-        type: "categorical",
+        storage: "text",
+        role: "classification",
         levels: [
-          { name: "Spain", colour: "#e69f00" },
-          { name: "Peru", colour: "#56b4e9" },
+          { value: "Spain", colour: "#e69f00" },
+          { value: "Peru", colour: "#56b4e9" },
         ],
+      },
+      {
+        id: 3,
+        name: "cluster",
+        revision: 1,
+        storage: "integer",
+        role: "category",
+        levels: [{ value: "-12", colour: "#e69f00" }],
       },
     ],
   };
@@ -415,20 +425,24 @@ describe("the description of the table", () => {
   });
 
   test("that does not fit is a defect", async () => {
+    const height = { id: 1, name: "height", revision: 1, storage: "float", numDistinct: 3 };
+    const origin = { id: 2, name: "origin", revision: 1, storage: "text", role: "category" };
+    const withoutShape = Object.fromEntries(
+      Object.entries(DESCRIPTION).filter(([key]) => key !== "shapeAt"),
+    );
     for (const wrong of [
       { ...DESCRIPTION, numRows: -1 },
-      { ...DESCRIPTION, columns: [{ id: 1, name: "height", revision: 1, type: "date" }] },
+      withoutShape,
+      { ...DESCRIPTION, columns: [{ ...height, role: "date" }] },
+      // A number of text, and text of numbers, which the core never sends.
+      { ...DESCRIPTION, columns: [{ ...height, storage: "text", role: "number" }] },
+      { ...DESCRIPTION, columns: [{ ...height, role: "text" }] },
+      { ...DESCRIPTION, columns: [{ ...origin, levels: [{ value: "Spain", colour: "red" }] }] },
+      { ...DESCRIPTION, columns: [{ ...origin, levels: [{ value: "", colour: "#e69f00" }] }] },
+      // A whole number as a JSON number, which cannot hold every one.
       {
         ...DESCRIPTION,
-        columns: [
-          {
-            id: 2,
-            name: "origin",
-            revision: 1,
-            type: "categorical",
-            levels: [{ name: "Spain", colour: "red" }],
-          },
-        ],
+        columns: [{ ...origin, storage: "integer", levels: [{ value: 12, colour: "#e69f00" }] }],
       },
     ]) {
       const { transport } = fakeTransport({ answer: () => Promise.resolve(wrong) });
@@ -519,5 +533,28 @@ describe("fetching rows", () => {
     await expect(connection.fetchRows(row(1), 2, [column(1), column(2)])).rejects.toThrow(
       /defect: a page of 2 rows from row 1 with columns 1, asked for as 2 rows from row 1 with columns 1, 2/,
     );
+  });
+});
+
+describe("setting a role", () => {
+  test("sends the column and the role with the window's revision", async () => {
+    const { transport, calls } = fakeTransport();
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.setRole(column(2), "category")).toEqual({
+      ok: true,
+      value: "applied",
+    });
+    expect(calls.at(-1)).toEqual({
+      command: "set_role",
+      args: { column: 2, role: "category", basedOn: 1, sentAt: 1_727_865_600_000.5 },
+      headers: undefined,
+    });
+  });
+
+  test("refused for a storage type that cannot take it gives the refusal as a value", async () => {
+    const refusal = { kind: "roleNotPossible", column: 2, storage: "text", role: "number" };
+    const { transport } = fakeTransport({ answer: () => refusedWith(refusal) });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.setRole(column(2), "number")).toEqual({ ok: false, error: refusal });
   });
 });

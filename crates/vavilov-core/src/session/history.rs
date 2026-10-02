@@ -4,7 +4,7 @@ use crate::edit::Edit;
 
 /// The edits that undo and redo the document's changes, the latest last.
 /// Each is the reverse of an edit applied, ready to be applied itself.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct History {
     pub(crate) undo: Vec<Edit>,
     pub(crate) redo: Vec<Edit>,
@@ -22,7 +22,7 @@ pub struct UndoRedo {
 
 /// What a change does to the history, with the reverse of the edit it
 /// applies.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum HistoryStep {
     /// A new edit: its reverse goes on the undo history, and the redo
     /// history is cleared.

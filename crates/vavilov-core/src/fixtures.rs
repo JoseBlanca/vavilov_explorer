@@ -1,7 +1,9 @@
 //! The tables the tests build, small enough to work out by hand.
 
 use crate::ids::LevelCode;
-use crate::table::{Categorical, Colour, ColumnValues, Level, NewColumn, Table};
+use crate::table::{
+    Categorical, Colour, ColumnValues, LevelValues, NewColumn, Numbers, Stored, Table,
+};
 
 pub(crate) const VERMILLION: Colour = Colour {
     red: 213,
@@ -34,20 +36,37 @@ pub(crate) fn column(name: &str, values: ColumnValues) -> NewColumn {
     }
 }
 
+/// A classification of text levels, each with its colour.
 pub(crate) fn categorical(
     levels: &[(&str, Colour)],
     codes: Vec<Option<LevelCode>>,
 ) -> ColumnValues {
-    let levels = levels
+    let (names, colours) = levels
         .iter()
-        .map(|(name, colour)| Level::new(*name, *colour))
-        .collect();
-    ColumnValues::Categorical(Categorical::new(levels, codes))
+        .map(|(name, colour)| ((*name).to_owned(), *colour))
+        .unzip();
+    ColumnValues::Classification(Categorical::new(LevelValues::Text(names), colours, codes))
 }
 
-/// Four plants, with ids 0 for the names and, in order, 1 `height`,
-/// 2 `origin` (Spain, Peru), 3 `cluster` (A, B, C), 4 `seeds`,
-/// 5 `fertile` and 6 `note`.
+/// A number of decimal numbers.
+pub(crate) fn float(values: Vec<Option<f64>>) -> ColumnValues {
+    ColumnValues::Number(Numbers::Float(values))
+}
+
+/// A number of whole numbers.
+pub(crate) fn integer(values: Vec<Option<i64>>) -> ColumnValues {
+    ColumnValues::Number(Numbers::Integer(values))
+}
+
+/// A category of yes or no, FALSE before TRUE, as the import makes one.
+pub(crate) fn boolean(values: Vec<Option<bool>>) -> ColumnValues {
+    ColumnValues::Category(Categorical::from_stored(&Stored::Boolean(values), "a test").unwrap())
+}
+
+/// Four plants, with ids 0 for the names and, in order, 1 `height`, a
+/// number; 2 `origin` (Spain, Peru) and 3 `cluster` (A, B, C),
+/// classifications; 4 `seeds`, a number; 5 `fertile`, a category of yes or
+/// no; and 6 `note`, text.
 pub(crate) fn plants() -> Table {
     Table::new(
         "accession",
@@ -55,7 +74,7 @@ pub(crate) fn plants() -> Table {
         vec![
             column(
                 "height",
-                ColumnValues::Numeric(vec![Some(1.5), None, Some(2.0), Some(3.25)]),
+                float(vec![Some(1.5), None, Some(2.0), Some(3.25)]),
             ),
             column(
                 "origin",
@@ -71,13 +90,10 @@ pub(crate) fn plants() -> Table {
                     vec![None, code(2), code(2), code(0)],
                 ),
             ),
-            column(
-                "seeds",
-                ColumnValues::Integer(vec![Some(10), Some(12), None, Some(7)]),
-            ),
+            column("seeds", integer(vec![Some(10), Some(12), None, Some(7)])),
             column(
                 "fertile",
-                ColumnValues::Boolean(vec![Some(true), Some(false), None, Some(true)]),
+                boolean(vec![Some(true), Some(false), None, Some(true)]),
             ),
             column(
                 "note",

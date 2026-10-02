@@ -5,7 +5,7 @@
 import { isCommandError } from "../state/commandError.ts";
 import type { Refusal } from "../state/commandError.ts";
 import { isTableDescription } from "../state/description.ts";
-import type { TableDescription } from "../state/description.ts";
+import type { Role, TableDescription } from "../state/description.ts";
 import type { Selected } from "../state/message.ts";
 import { defect } from "../state/defect.ts";
 import type { ColumnId, LevelCode, RowIndex } from "../state/ids.ts";
@@ -50,6 +50,8 @@ export interface Connection {
     population: LevelCode,
     rows: Uint8Array,
   ) => Promise<Answer>;
+  /** Sets the role of a column other than the first. */
+  readonly setRole: (column: ColumnId, role: Role) => Promise<Answer>;
   /** Undoes the last edit. */
   readonly undo: () => Promise<Answer>;
   /** Redoes the last edit undone. */
@@ -229,6 +231,7 @@ export async function connect(
       }
       return { ok: true, value: decoded };
     },
+    setRole: (column, role) => command("set_role", { column, role }),
     undo: () => command("undo", {}),
     redo: () => command("redo", {}),
   };

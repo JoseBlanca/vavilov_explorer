@@ -248,18 +248,32 @@ describe("the snapshot after edits that the core's tests write", () => {
   // crates/vavilov-core/src/session/tests.rs, SNAPSHOT_AFTER_EDITS: the
   // plants loaded at 1, Spain selected at 2, a lasso of rows 1 and 2 into
   // Spain at 3, a hover on row 2, and cluster made active at 4.
+  // prettier-ignore
   const SNAPSHOT_AFTER_EDITS = [
-    0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0,
-    1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0,
-    3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-    0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-    0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-    0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 24, 0, 0, 0, 2, 0, 0, 0, 0, 0,
-    0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0,
-    0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 2, 0, 2, 0, 0, 0, 7, 0, 0, 0, 12, 0, 0, 0, 2, 0, 0, 0,
-    0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // snapshot at 4
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0, // no time; project part
+    1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
+    1, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 8, 0, 0, 0, // loaded at 1; shape part
+    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, // shape at 1; active part
+    3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
+    4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
+    5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
+    6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, // columns part: 7 columns
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // the names, at 1
+    1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // height at 1
+    2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, // origin at 3
+    3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // cluster at 1
+    4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // seeds at 1
+    5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // fertile at 1
+    6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // note at 1
+    4, 0, 0, 0, 24, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, // codes of origin
+    3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // at 3: Spain four times
+    4, 0, 0, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, // codes of cluster
+    1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 2, 0, 2, 0, 0, 0, // at 1: missing, C, C, A
+    4, 0, 0, 0, 24, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, // codes of fertile
+    1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 255, 255, 1, 0, // at 1: TRUE, FALSE, missing, TRUE
+    7, 0, 0, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, // hover part, sequence 2
+    2, 0, 0, 0, 0, 0, 0, 0, // row 2
   ];
 
   test("decodes to the state the core held", () => {
@@ -281,6 +295,7 @@ describe("the snapshot after edits that the core's tests write", () => {
         case "undo":
         case "columns":
         case "hover":
+        case "shape":
           return part;
       }
     });
@@ -288,6 +303,7 @@ describe("the snapshot after edits that the core's tests write", () => {
     expect(message.revision).toBe(4);
     expect(summary).toEqual([
       { kind: "project", numRows: 4, loadedAt: 1 },
+      { kind: "shape", shapeAt: 1 },
       { kind: "active", column: 3, selected: null },
       { kind: "selection", numRows: 4, bits: [0] },
       { kind: "undo", canUndo: true, canRedo: false },
@@ -305,6 +321,7 @@ describe("the snapshot after edits that the core's tests write", () => {
       },
       { kind: "codes", column: 2, revision: 3, codes: [0, 0, 0, 0] },
       { kind: "codes", column: 3, revision: 1, codes: [0xffff, 2, 2, 0] },
+      { kind: "codes", column: 5, revision: 1, codes: [1, 0, 0xffff, 1] },
       { kind: "hover", seq: 2, row: 2 },
     ]);
   });
@@ -319,6 +336,7 @@ describe("a message that does not decode is a defect", () => {
   test("an unknown kind of message or of part", () => {
     expectDefect([3, ...CHANGE_AT_5.slice(1)], /kind of message 3/);
     expectDefect([...CHANGE_AT_5, 8, 0, 0, 0, 0, 0, 0, 0], /kind of part 8/);
+    expectDefect([...CHANGE_AT_5, 12, 0, 0, 0, 0, 0, 0, 0], /kind of part 12/);
   });
 
   test("a byte that should be zero", () => {

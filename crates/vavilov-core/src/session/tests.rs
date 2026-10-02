@@ -3,10 +3,10 @@ use std::sync::{Arc, Mutex};
 use super::*;
 use crate::command::{Command, Request};
 use crate::dispatch::{Changed, Dropped};
-use crate::fixtures::{code, decode, part_kinds, plants};
+use crate::fixtures::{code, decode, float, part_kinds, plants};
 use crate::ids::{ColumnId, LevelCode, MAX_EXACT_IN_JAVASCRIPT, SentAt};
 use crate::session::Selected;
-use crate::table::{ColumnValues, Table};
+use crate::table::{LevelValues, Role, StorageType, Table};
 
 const PROJECT: u16 = 1;
 const ACTIVE: u16 = 2;
@@ -15,6 +15,7 @@ const CODES: u16 = 4;
 const UNDO: u16 = 5;
 const COLUMNS: u16 = 6;
 const HOVER: u16 = 7;
+const SHAPE: u16 = 11;
 
 const ORIGIN: ColumnId = ColumnId::new(2);
 const CLUSTER: ColumnId = ColumnId::new(3);
@@ -215,7 +216,7 @@ fn loading_a_table_sends_every_part_of_the_state() {
     assert_eq!(
         part_kinds(&messages[0]),
         [
-            PROJECT, ACTIVE, SELECTION, UNDO, COLUMNS, CODES, CODES, HOVER
+            PROJECT, SHAPE, ACTIVE, SELECTION, UNDO, COLUMNS, CODES, CODES, CODES, HOVER
         ]
     );
     assert_eq!(
@@ -224,9 +225,11 @@ fn loading_a_table_sends_every_part_of_the_state() {
             1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0
         ]
     );
+    // The shape of the new table, at its load.
+    assert_eq!(decoded.parts[1].1, [1, 0, 0, 0, 0, 0, 0, 0]);
     // The hover of the new table: a new sequence number and no row.
     assert_eq!(
-        decoded.parts[7].1,
+        decoded.parts[9].1,
         [1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255]
     );
 }
@@ -244,7 +247,7 @@ fn a_table_is_loaded_only_with_a_categorical_active_classification() {
     assert_refused(
         &mut session,
         request,
-        CommandError::NotCategorical { column: HEIGHT },
+        CommandError::NotClassification { column: HEIGHT },
     );
     let request = at(
         &session,
@@ -465,7 +468,7 @@ fn only_a_categorical_column_of_the_table_can_be_the_active_classification() {
     assert_refused(
         &mut session,
         request,
-        CommandError::NotCategorical { column: HEIGHT },
+        CommandError::NotClassification { column: HEIGHT },
     );
     let request = at(
         &session,
@@ -476,7 +479,7 @@ fn only_a_categorical_column_of_the_table_can_be_the_active_classification() {
     assert_refused(
         &mut session,
         request,
-        CommandError::NotCategorical {
+        CommandError::NotClassification {
             column: ColumnId::new(0),
         },
     );
@@ -910,10 +913,10 @@ fn a_subscriber_gets_the_snapshot_at_r_and_then_every_revision_after_r() {
     assert_eq!(
         part_kinds(&snapshot),
         [
-            PROJECT, ACTIVE, SELECTION, UNDO, COLUMNS, CODES, CODES, HOVER
+            PROJECT, SHAPE, ACTIVE, SELECTION, UNDO, COLUMNS, CODES, CODES, CODES, HOVER
         ]
     );
-    assert_eq!(decoded.parts[2].1, [4, 0, 0, 0, 0, 0, 0, 0, 0b0100]);
+    assert_eq!(decoded.parts[3].1, [4, 0, 0, 0, 0, 0, 0, 0, 0b0100]);
     apply(
         &mut session,
         Command::SetSelection {
@@ -1039,7 +1042,7 @@ fn every_value_of_the_plants_is_kept_through_a_load() {
     assert_eq!(table.names().names(), ["p1", "p2", "p3", "p4"]);
     assert_eq!(
         table.column(HEIGHT).unwrap().values(),
-        &ColumnValues::Numeric(vec![Some(1.5), None, Some(2.0), Some(3.25)])
+        &float(vec![Some(1.5), None, Some(2.0), Some(3.25)])
     );
 }
 
@@ -1097,11 +1100,12 @@ fn the_rows_from_a_window_need_a_project() {
 /// `cluster` made active at 4, as docs/core.md, section 5, lays it out. The
 /// same bytes are decoded in src/backend/decodeMessage.test.ts.
 #[rustfmt::skip]
-const SNAPSHOT_AFTER_EDITS: [u8; 328] = [
+const SNAPSHOT_AFTER_EDITS: [u8; 376] = [
     0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // snapshot at 4
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0, // no time; project part
     1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
-    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, // loaded at 1; active part
+    1, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 8, 0, 0, 0, // loaded at 1; shape part
+    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, // shape at 1; active part
     3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
@@ -1117,6 +1121,8 @@ const SNAPSHOT_AFTER_EDITS: [u8; 328] = [
     3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // at 3: Spain four times
     4, 0, 0, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, // codes of cluster
     1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 2, 0, 2, 0, 0, 0, // at 1: missing, C, C, A
+    4, 0, 0, 0, 24, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, // codes of fertile
+    1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 255, 255, 1, 0, // at 1: TRUE, FALSE, missing, TRUE
     7, 0, 0, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, // hover part, sequence 2
     2, 0, 0, 0, 0, 0, 0, 0, // row 2
 ];
@@ -1295,4 +1301,163 @@ fn a_lasso_whose_target_is_not_what_is_selected_is_refused() {
             target: Selected::Population(SPAIN),
         },
     );
+}
+
+const SEEDS: ColumnId = ColumnId::new(4);
+const FERTILE: ColumnId = ColumnId::new(5);
+const NOTE: ColumnId = ColumnId::new(6);
+
+fn set_role(column: ColumnId, role: Role) -> Command {
+    Command::SetRole { column, role }
+}
+
+#[test]
+fn a_number_made_a_category_takes_a_revision_and_sends_its_codes_and_the_shape() {
+    let (mut session, recorder) = loaded();
+    assert_eq!(
+        apply(&mut session, set_role(SEEDS, Role::Category)),
+        Changed::State(Revision::new(2))
+    );
+    // The seeds, 10, 12, missing, 7, as levels 7, 10, 12.
+    assert_eq!(codes_of(&session, SEEDS), [code(1), code(2), None, code(0)]);
+    let messages = recorder.take();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(part_kinds(&messages[0]), [SHAPE, CODES, COLUMNS, UNDO]);
+    let decoded = decode(&messages[0]);
+    assert_eq!(decoded.parts[0].1, [2, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(
+        decoded.parts[1].1,
+        [
+            4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 255, 255, 0, 0
+        ]
+    );
+    assert_eq!(session.describe().unwrap().shape_at, Revision::new(2));
+}
+
+#[test]
+fn a_column_given_the_role_it_has_changes_nothing() {
+    let (mut session, recorder) = loaded();
+    assert_eq!(
+        apply(&mut session, set_role(HEIGHT, Role::Number)),
+        Changed::Nothing
+    );
+    assert!(recorder.take().is_empty());
+    assert!(!session.undo_redo().can_undo);
+}
+
+#[test]
+fn the_active_classification_made_a_category_is_no_longer_active() {
+    let (mut session, recorder) = editing_spain();
+    apply(&mut session, set_role(ORIGIN, Role::Category));
+    assert_eq!(session.active(), None);
+    let messages = recorder.take();
+    assert_eq!(
+        part_kinds(&messages[0]),
+        [SHAPE, ACTIVE, CODES, COLUMNS, UNDO]
+    );
+    // A category cannot be made the active classification, nor lassoed.
+    let request = at(
+        &session,
+        Command::SetActiveClassification {
+            column: Some(ORIGIN),
+        },
+    );
+    assert_refused(
+        &mut session,
+        request,
+        CommandError::NotClassification { column: ORIGIN },
+    );
+    let request = at(
+        &session,
+        Command::SetActiveClassification {
+            column: Some(FERTILE),
+        },
+    );
+    assert_refused(
+        &mut session,
+        request,
+        CommandError::NotClassification { column: FERTILE },
+    );
+}
+
+#[test]
+fn undoing_a_change_of_role_gives_back_the_levels_their_colours_and_the_empty_ones() {
+    let (mut session, _recorder) = loaded();
+    // cluster has three levels; row 1 and 2 are in C, row 3 in A, B is empty.
+    let before = session.table().unwrap().column(CLUSTER).unwrap().clone();
+    apply(&mut session, set_role(CLUSTER, Role::Text));
+    apply(&mut session, set_role(CLUSTER, Role::Classification));
+    // Built again from the text: B is gone, and the colours start again.
+    let rebuilt = session.table().unwrap().column(CLUSTER).unwrap();
+    assert_eq!(
+        rebuilt.categorical().unwrap().levels(),
+        &LevelValues::Text(vec!["A".to_owned(), "C".to_owned()])
+    );
+    apply(&mut session, Command::Undo);
+    apply(&mut session, Command::Undo);
+    let after = session.table().unwrap().column(CLUSTER).unwrap();
+    assert_eq!(after.values(), before.values());
+    assert_eq!(after.revision(), Revision::new(5));
+    apply(&mut session, Command::Redo);
+    assert_eq!(
+        session
+            .table()
+            .unwrap()
+            .column(CLUSTER)
+            .unwrap()
+            .values()
+            .role(),
+        Role::Text
+    );
+}
+
+#[test]
+fn a_role_the_storage_type_cannot_take_and_the_first_column_are_refused() {
+    let (mut session, _recorder) = loaded();
+    for (column, role, expected) in [
+        (
+            NOTE,
+            Role::Number,
+            CommandError::RoleNotPossible {
+                column: NOTE,
+                storage: StorageType::Text,
+                role: Role::Number,
+            },
+        ),
+        (
+            FERTILE,
+            Role::Number,
+            CommandError::RoleNotPossible {
+                column: FERTILE,
+                storage: StorageType::Boolean,
+                role: Role::Number,
+            },
+        ),
+        (
+            SEEDS,
+            Role::Text,
+            CommandError::RoleNotPossible {
+                column: SEEDS,
+                storage: StorageType::Integer,
+                role: Role::Text,
+            },
+        ),
+        (
+            ColumnId::new(0),
+            Role::Category,
+            CommandError::UnknownColumn {
+                column: ColumnId::new(0),
+            },
+        ),
+        (
+            ColumnId::new(9),
+            Role::Category,
+            CommandError::UnknownColumn {
+                column: ColumnId::new(9),
+            },
+        ),
+    ] {
+        let request = at(&session, set_role(column, role));
+        assert_refused(&mut session, request, expected);
+    }
 }

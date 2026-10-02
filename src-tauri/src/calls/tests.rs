@@ -1,5 +1,5 @@
 use serde_json::json;
-use vavilov_core::{Categorical, Colour, ColumnValues, Level, NewColumn, Table};
+use vavilov_core::{Categorical, Colour, ColumnValues, LevelValues, NewColumn, Table};
 
 use super::*;
 
@@ -16,8 +16,9 @@ fn loaded() -> Session {
         vec!["p1".to_owned(), "p2".to_owned(), "p3".to_owned()],
         vec![NewColumn {
             name: "origin".to_owned(),
-            values: ColumnValues::Categorical(Categorical::new(
-                vec![Level::new("Spain", colour), Level::new("Peru", colour)],
+            values: ColumnValues::Classification(Categorical::new(
+                LevelValues::Text(vec!["Spain".to_owned(), "Peru".to_owned()]),
+                vec![colour, colour],
                 vec![Some(LevelCode::new(0)), None, None],
             )),
         }],

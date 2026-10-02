@@ -4,11 +4,11 @@
 
 mod colour;
 mod column;
-mod level;
 
-pub use colour::Colour;
-pub use column::{Categorical, Column, ColumnValues};
-pub use level::Level;
+pub use colour::{Colour, PALETTE, palette};
+pub use column::{
+    Categorical, Column, ColumnValues, LevelValues, Numbers, Role, StorageType, Stored,
+};
 
 use std::collections::{HashMap, HashSet};
 
@@ -26,8 +26,8 @@ pub const MAX_ROWS: u32 = 268_435_456;
 /// length of a part.
 pub const MAX_COLUMNS: u32 = 16_777_216;
 
-/// The most levels a categorical column may have: a code is 16 bits, and
-/// `0xFFFF` means missing in the messages.
+/// The most levels a category or a classification may have: a code is 16
+/// bits, and `0xFFFF` means missing in the messages.
 pub const MAX_LEVELS: u32 = 65_535;
 
 /// The first column, which names the individuals: none empty, no two the
@@ -96,9 +96,9 @@ impl Table {
     /// an individual with no name, or two with the same; a column with no
     /// name, two of the same name, or the first column's header when it is
     /// not empty; a column of another length than the names; a number that
-    /// is not finite; a categorical column of more than [`MAX_LEVELS`]
-    /// levels, a level with no name or two of the same name, or a code with
-    /// no level.
+    /// is not finite; a category or a classification of more than
+    /// [`MAX_LEVELS`] levels, of another number of colours than levels, a
+    /// level of empty text, a level twice, or a code with no level.
     pub fn new(
         header: impl Into<String>,
         names: Vec<String>,
@@ -258,7 +258,7 @@ fn check_values(column: &NewColumn, num_rows: u32) -> Result<(), CommandError> {
         });
     }
     match &column.values {
-        ColumnValues::Numeric(values) => {
+        ColumnValues::Number(Numbers::Float(values)) => {
             for (row, value) in rows(values) {
                 if value.is_some_and(|value| !value.is_finite()) {
                     return Err(CommandError::NonFiniteNumber {
@@ -269,12 +269,15 @@ fn check_values(column: &NewColumn, num_rows: u32) -> Result<(), CommandError> {
             }
             Ok(())
         }
-        ColumnValues::Categorical(categorical) => check_categorical(&column.name, categorical),
-        ColumnValues::Integer(_) | ColumnValues::Text(_) | ColumnValues::Boolean(_) => Ok(()),
+        ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) => {
+            check_categorical(&column.name, categorical)
+        }
+        ColumnValues::Number(Numbers::Integer(_)) | ColumnValues::Text(_) => Ok(()),
     }
 }
 
-/// Checks the levels of a categorical column and that every code has one.
+/// Checks the levels of a category or a classification, their colours,
+/// and that every code has a level.
 fn check_categorical(name: &str, categorical: &Categorical) -> Result<(), CommandError> {
     let levels = categorical.levels();
     let num_levels = u32::try_from(levels.len())
@@ -285,20 +288,46 @@ fn check_categorical(name: &str, categorical: &Categorical) -> Result<(), Comman
             num_levels: u64_from(levels.len()),
             max_levels: MAX_LEVELS,
         })?;
-    let mut seen: HashSet<&str> = HashSet::with_capacity(levels.len());
-    for (code, level) in (0..=u16::MAX).zip(levels) {
-        if level.name().is_empty() {
-            return Err(CommandError::EmptyLevelName {
-                column_name: name.to_owned(),
-                code: LevelCode::new(code),
-            });
+    if categorical.colours().len() != levels.len() {
+        return Err(CommandError::LevelColours {
+            column_name: name.to_owned(),
+            num_levels: u64_from(levels.len()),
+            num_colours: u64_from(categorical.colours().len()),
+        });
+    }
+    let repeated = match levels {
+        LevelValues::Integer(values) => repeated(values, i64::cmp),
+        // Two levels are one number when they are equal as numbers, so
+        // that −0 and 0 are one.
+        LevelValues::Float(values) => {
+            if let Some(row) = values.iter().position(|value| !value.is_finite()) {
+                return Err(CommandError::NonFiniteLevel {
+                    column_name: name.to_owned(),
+                    code: level_code(row)?,
+                });
+            }
+            repeated(values, |a, b| {
+                a.partial_cmp(b).unwrap_or_else(|| a.total_cmp(b))
+            })
         }
-        if !seen.insert(level.name()) {
-            return Err(CommandError::DuplicateLevel {
-                column_name: name.to_owned(),
-                level: level.name().to_owned(),
-            });
+        LevelValues::Boolean(values) => repeated(values, bool::cmp),
+        LevelValues::Text(values) => {
+            if let Some(index) = values.iter().position(String::is_empty) {
+                return Err(CommandError::EmptyLevelName {
+                    column_name: name.to_owned(),
+                    code: level_code(index)?,
+                });
+            }
+            repeated(values, String::cmp)
         }
+    };
+    if let Some(index) = repeated {
+        return Err(CommandError::DuplicateLevel {
+            column_name: name.to_owned(),
+            level: levels.text_of(index).ok_or_else(|| CommandError::Defect {
+                what: format!("no level {index} of column {name:?}"),
+            })?,
+        });
     }
     for (row, code) in rows(categorical.codes()) {
         if let Some(code) = code
@@ -313,6 +342,28 @@ fn check_categorical(name: &str, categorical: &Categorical) -> Result<(), Comman
         }
     }
     Ok(())
+}
+
+/// The index of a value equal to another, by `order`, or `None` when
+/// every value is distinct. It sorts, so that 65,535 levels take a few
+/// million comparisons and not two billion.
+fn repeated<T>(values: &[T], order: impl Fn(&T, &T) -> std::cmp::Ordering) -> Option<usize> {
+    let mut sorted: Vec<(usize, &T)> = values.iter().enumerate().collect();
+    sorted.sort_by(|(_, a), (_, b)| order(a, b));
+    sorted.windows(2).find_map(|pair| match pair {
+        [(_, first), (index, second)] => order(first, second).is_eq().then_some(*index),
+        _ => None,
+    })
+}
+
+/// The code of the level at `index`, which the number of levels was
+/// checked to fit.
+fn level_code(index: usize) -> Result<LevelCode, CommandError> {
+    u16::try_from(index)
+        .map(LevelCode::new)
+        .map_err(|_| CommandError::Defect {
+            what: format!("a level at {index}, beyond the codes"),
+        })
 }
 
 /// The values of a column with their rows. The table has at most

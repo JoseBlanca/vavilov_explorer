@@ -35,6 +35,7 @@ const HEIGHT = column(1);
 function plantParts(loadedAt: number): MessagePart[] {
   return [
     { kind: "project", numRows: 4, loadedAt: revision(loadedAt) },
+    { kind: "shape", shapeAt: revision(loadedAt) },
     { kind: "active", column: ORIGIN, selected: null },
     { kind: "selection", numRows: 4, bits: new Uint8Array([0]) },
     { kind: "undo", canUndo: false, canRedo: false },
@@ -300,5 +301,69 @@ describe("a listener", () => {
     unsubscribe();
     state.apply(hover(1, 3, 1));
     expect(calls).toBe(1);
+  });
+});
+
+describe("a change of a column's role", () => {
+  test("moves the shape, so that the window asks for the description again", () => {
+    const state = createWindowState(snapshot(1));
+    expect(state.shapeAt()).toBe(1);
+    const seen: Aspect[] = [];
+    state.subscribe("table", () => seen.push("table"));
+    state.apply(
+      change(
+        2,
+        { kind: "shape", shapeAt: revision(2) },
+        {
+          kind: "columns",
+          columns: [{ column: HEIGHT, revision: revision(2) }],
+        },
+      ),
+    );
+    expect(state.shapeAt()).toBe(2);
+    expect(seen).toEqual(["table"]);
+  });
+
+  test("of a classification to a number drops its codes, and of a number to a category brings them", () => {
+    const state = createWindowState(snapshot(1));
+    const seen: Aspect[] = [];
+    state.subscribe("codes", () => seen.push("codes"));
+    // cluster becomes a number: listed, with no codes beside it.
+    state.apply(
+      change(
+        2,
+        { kind: "shape", shapeAt: revision(2) },
+        {
+          kind: "columns",
+          columns: [{ column: CLUSTER, revision: revision(2) }],
+        },
+      ),
+    );
+    expect(state.codes(CLUSTER)).toBeNull();
+    expect(seen).toEqual(["codes"]);
+    // height becomes a category: listed, with its codes.
+    state.apply(
+      change(
+        3,
+        { kind: "shape", shapeAt: revision(3) },
+        {
+          kind: "codes",
+          column: HEIGHT,
+          revision: revision(3),
+          codes: new Uint16Array([1, 0, 0, 2]),
+        },
+        { kind: "columns", columns: [{ column: HEIGHT, revision: revision(3) }] },
+      ),
+    );
+    expect([...(state.codes(HEIGHT) ?? [])]).toEqual([1, 0, 0, 2]);
+    // origin keeps its codes through both.
+    expect([...(state.codes(ORIGIN) ?? [])]).toEqual([0, 1, 0xffff, 0]);
+  });
+
+  test("with no project open has no shape", () => {
+    const state = createWindowState(
+      snapshot(0, [{ kind: "noProject" }, { kind: "hover", seq: seq(0), row: null }]),
+    );
+    expect(state.shapeAt()).toBeNull();
   });
 });

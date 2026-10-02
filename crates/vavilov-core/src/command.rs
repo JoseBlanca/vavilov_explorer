@@ -4,7 +4,7 @@
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, SentAt};
 use crate::row_set::RowSet;
 use crate::session::Selected;
-use crate::table::Table;
+use crate::table::{Role, Table};
 
 /// A change to the document or the interaction. Each names what it acts
 /// on, rather than leaning on the session's current value, so that a
@@ -33,7 +33,7 @@ pub enum Command {
     /// Sets the active classification, which clears the selected
     /// population.
     SetActiveClassification {
-        /// A categorical column, or `None` for no classification.
+        /// A classification, or `None` for none.
         column: Option<ColumnId>,
     },
     /// Selects a population of the active classification, or its
@@ -63,6 +63,14 @@ pub enum Command {
         population: LevelCode,
         /// The rows inside the lasso.
         rows: RowSet,
+    },
+    /// Sets the role of a column other than the first. A classification
+    /// that stops being one stops being the active classification.
+    SetRole {
+        /// The column.
+        column: ColumnId,
+        /// Its new role.
+        role: Role,
     },
     /// Undoes the last edit of the document.
     Undo,

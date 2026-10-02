@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, WindowLabel};
 use crate::session::Selected;
+use crate::table::{Role, StorageType};
 
 /// Why a command was refused, or a table could not be built.
 ///
@@ -50,11 +51,23 @@ pub enum CommandError {
         column: ColumnId,
     },
 
-    /// The command needs a categorical column.
-    #[error("column {column} is not categorical")]
-    NotCategorical {
+    /// The command needs a classification.
+    #[error("column {column} is not a classification")]
+    NotClassification {
         /// The column the command gave.
         column: ColumnId,
+    },
+
+    /// The column's storage type cannot take the role asked for: a number
+    /// needs numbers, and text needs text (`docs/design.md`, section 6).
+    #[error("column {column}, of {storage:?}, cannot be a {role:?}")]
+    RoleNotPossible {
+        /// The column the command gave.
+        column: ColumnId,
+        /// Its storage type.
+        storage: StorageType,
+        /// The role asked for.
+        role: Role,
     },
 
     /// The command acts on the active classification, and this column is
@@ -205,7 +218,7 @@ pub enum CommandError {
         row: RowIndex,
     },
 
-    /// A categorical column of more levels than [`crate::MAX_LEVELS`].
+    /// A category or a classification of more levels than [`crate::MAX_LEVELS`].
     #[error(
         "column {column_name:?} has {num_levels} levels, more than the {max_levels} the app takes"
     )]
@@ -218,7 +231,28 @@ pub enum CommandError {
         max_levels: u32,
     },
 
-    /// A level of a categorical column has an empty name.
+    /// A category or a classification has another number of colours than
+    /// levels.
+    #[error("column {column_name:?} has {num_levels} levels and {num_colours} colours")]
+    LevelColours {
+        /// The name of the column.
+        column_name: String,
+        /// The levels it has.
+        num_levels: u64,
+        /// The colours it has.
+        num_colours: u64,
+    },
+
+    /// A level of decimal numbers that is not finite.
+    #[error("level {code} of column {column_name:?} is not a finite number")]
+    NonFiniteLevel {
+        /// The name of the column.
+        column_name: String,
+        /// The code of the level.
+        code: LevelCode,
+    },
+
+    /// A level of text of a category or a classification is empty.
     #[error("level {code} of column {column_name:?} has no name")]
     EmptyLevelName {
         /// The name of the column.
@@ -227,7 +261,7 @@ pub enum CommandError {
         code: LevelCode,
     },
 
-    /// Two levels of a categorical column have the same name.
+    /// Two levels of a category or a classification are the same.
     #[error("two levels of column {column_name:?} are named {level:?}")]
     DuplicateLevel {
         /// The name of the column.
@@ -236,7 +270,7 @@ pub enum CommandError {
         level: String,
     },
 
-    /// A row of a categorical column holds a code with no level.
+    /// A row of a category or a classification holds a code with no level.
     #[error(
         "row {row} of column {column_name:?} holds code {code}, and the column has {num_levels} levels"
     )]

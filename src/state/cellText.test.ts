@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { booleanText, integerText, numberText } from "./cellText.ts";
+import { booleanText, integerText, levelText, numberText } from "./cellText.ts";
 
 describe("the text of a number", () => {
   test("is the shortest form that gives back the value, with the decimal mark given", () => {
@@ -33,5 +33,20 @@ describe("the text of a whole number and of a yes or no", () => {
   test("a yes or no is TRUE or FALSE", () => {
     expect(booleanText(true)).toBe("TRUE");
     expect(booleanText(false)).toBe("FALSE");
+  });
+});
+
+describe("the text of a level", () => {
+  test("follows the storage type of its column", () => {
+    expect(levelText("12", "integer", ",")).toBe("12");
+    expect(levelText(0.5, "float", ",")).toBe("0,5");
+    expect(levelText(true, "boolean", ",")).toBe("TRUE");
+    expect(levelText("Spain", "text", ",")).toBe("Spain");
+  });
+
+  test("of another type than its storage type is a defect", () => {
+    expect(() => levelText(12, "integer", ".")).toThrow(
+      /defect: a level 12 of a column of integer/,
+    );
   });
 });

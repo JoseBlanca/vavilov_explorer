@@ -82,13 +82,13 @@ for (const engine of Object.keys(ENGINES)) {
     const peru = { kind: "population", code: 1 };
     const description = await page.evaluate(() => globalThis.__connection.describeTable());
     assert.deepEqual(
-      description.value.columns.map((column) => [column.name, column.type]),
+      description.value.columns.map((column) => [column.name, column.storage, column.role]),
       [
-        ["origin", "categorical"],
-        ["height", "numeric"],
-        ["seeds", "integer"],
-        ["fertile", "boolean"],
-        ["note", "text"],
+        ["origin", "text", "classification"],
+        ["height", "float", "number"],
+        ["seeds", "integer", "number"],
+        ["fertile", "boolean", "category"],
+        ["note", "text", "text"],
       ],
     );
     /** A page of rows, its integers as text, which a page cannot return. */
@@ -112,9 +112,10 @@ for (const engine of Object.keys(ENGINES)) {
         names: ["p2", "p3", "p4"],
         columns: [
           { id: 5, revision: 1, type: "text", values: [null, "", "Ñandú"] },
-          { id: 2, revision: 1, type: "numeric", values: [null, 2, 3.25] },
+          { id: 2, revision: 1, type: "float", values: [null, 2, 3.25] },
           { id: 3, revision: 1, type: "integer", values: ["12n", null, "-7n"] },
-          { id: 4, revision: 1, type: "boolean", values: [false, null, true] },
+          // fertile, a category of yes or no, FALSE before TRUE, as codes.
+          { id: 4, revision: 1, type: "categorical", codes: [0, null, 1] },
           { id: 1, revision: 1, type: "categorical", codes: [1, null, 0] },
         ],
       },
@@ -150,6 +151,18 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal((await stateAt(10)).active, null);
     assert.deepEqual(await send("setHover", 2), applied);
     await page.waitForFunction(() => globalThis.__connection.state.hover() === 2);
+
+    // seeds made a category, then refused as text, which numbers cannot be.
+    assert.deepEqual(await send("setRole", 3, "category"), applied);
+    await stateAt(11);
+    assert.deepEqual(
+      await page.evaluate(() => [...(globalThis.__connection.state.codes(3) ?? [])]),
+      [1, 2, 0xffff, 0],
+    );
+    assert.deepEqual(await send("setRole", 3, "text"), {
+      ok: false,
+      error: { kind: "roleNotPossible", column: 3, storage: "integer", role: "text" },
+    });
 
     assert.deepEqual(await page.evaluate(() => globalThis.__defects), []);
     assert.deepEqual(errors, [], "no page errors");
