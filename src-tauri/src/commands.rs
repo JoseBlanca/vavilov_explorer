@@ -73,8 +73,9 @@ pub fn describe_table(
 }
 
 /// A page of rows of the table, as raw bytes: `{ first, count, columns,
-/// basedOn }`, with the ids of the columns wanted in their order. It
-/// changes nothing.
+/// basedOn }`, with `first` the position of the page's first row among the
+/// rows the filter shows and the ids of the columns wanted in their order.
+/// It changes nothing.
 ///
 /// # Errors
 ///
@@ -207,10 +208,11 @@ pub fn set_role<R: Runtime>(
     run(&app, &session, "set_role", &request)
 }
 
-/// Sets the filter of the find bar: `{ text, column, cell, shown,
+/// Sets the filter of the find bar: `{ text, column, cell, showing,
 /// decimalMark, basedOn, sentAt }`, with `column` an id or `null` for any
-/// column, `cell` `part` or `whole`, and `shown` `matching` or
-/// `notMatching`.
+/// column, `cell` `part` or `whole`, `showing` `matching` or
+/// `notMatching`, and `decimalMark` the one the window writes numbers
+/// with.
 ///
 /// # Errors
 ///

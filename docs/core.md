@@ -201,10 +201,12 @@ it and whether it is undone. `OpenProject` holds the first two:
   it. The selection is a `RowSet` with as many bits as the table has
   rows. The hover is an `Option<RowIndex>`. The filter of the find bar
   (`design.md`, section 2.1) is a `Filter`, its text, the column searched
-  or any, whole cell or part, the rows that match or those that do not,
-  and the decimal mark the window writes numbers with; beside it the rows
-  it shows, in order, or none for every row, and the revision at which
-  they last changed. A load gives a filter of no text.
+  or any, whole cell or part, and whether it is showing the rows that
+  match or those that do not. Beside it are the decimal mark the last
+  `set_filter` gave, the one its window writes numbers with, which an
+  edit finds the rows shown with, or none after a load; and the rows the
+  filter shows, in order, or none for every row, with the revision at
+  which they last changed. A load gives a filter of no text.
 - **The window's own** state, the camera of a 3D view or the scroll of
   the table, is not in the session.
 
@@ -431,7 +433,7 @@ parts of the first slice:
 | columns | the number of columns listed, `u32`; four zero bytes; then for each its id, `u32`, four zero bytes and its revision, `u64` |
 | hover | the hover's sequence number, `u64`; the row, `u32`, `u32::MAX` for none |
 | shape | the revision at which the columns, their names or their roles last changed, `u64`: the load, or a change of role. A window asks for the description of the table again when it grows |
-| filter, 13 | the revision at which the rows shown last changed, `u64`; the number of rows shown, `u32`; the column searched, `u32`, `u32::MAX` for any; a byte each for whole cell (0 part, 1 whole), the rows shown (0 those that match, 1 those that do not) and whether bits follow; five zero bytes; the text, as a text list of one; and while there is a text, padded to a multiple of 8, one bit per row, set for a row shown, in the order of the selection's bits |
+| filter, 13 | the revision at which the rows shown last changed, `u64`; the number of rows shown, `u32`; the column searched, `u32`, `u32::MAX` for any; a byte each for whole cell (0 part, 1 whole), the rows the filter is showing (0 those that match, 1 those that do not) and whether bits follow; five zero bytes; the text, as a text list of one; and while there is a text, padded to a multiple of 8, one bit per row, set for a row shown, in the order of the selection's bits |
 
 A snapshot carries every part, with every column in the columns part. A
 change carries the parts of what the command changed, by two rules that
@@ -471,14 +473,16 @@ that was not changed.
 The table of the main window draws only the rows on screen and asks the
 backend for them a page at a time (`design.md`, section 2.1). The
 command `fetch_rows` takes, as JSON, the position of the page's first
-row among the rows the filter shows, which with no filter is its row,
-the number of rows, the ids of the columns wanted, in the order wanted,
+row among the rows the filter shows, from 0, which with no filter is its
+row (a `Position` in the core), the number of rows, the ids of the columns wanted, in the order wanted,
 and the revision of the window's copy, `{ first, count, columns,
 basedOn }`.
 It changes nothing and takes no revision. It is refused as a command
 made before the current table was loaded when `basedOn` is older than
 the load, which the window takes as stale (section 4); as
-`RowsOutOfRange` when the page goes past the last row shown; and as
+`RowsOutOfRange`, with the first position, the count and the number of
+rows shown, `{ first, count, numShown }`, when the page goes past the
+last row shown; and as
 `UnknownColumn` for an id the table does not have, the first column's
 included, since the names come with every page; and as a defect for a
 column asked for twice, since a window asks for each once and a list of
@@ -517,24 +521,48 @@ bytes, or bytes that are not UTF-8, treats the message as a defect.
 ### The filter
 
 The command `set_filter` takes the filter of the find bar as JSON, `{
-text, column, cell, shown, decimalMark, basedOn, sentAt }`, with `column`
-an id or `null` for any column, `cell` `part` or `whole`, and `shown`
-`matching` or `notMatching`. The core finds the rows in
+text, column, cell, showing, decimalMark, basedOn, sentAt }`, with
+`column` an id or `null` for any column, `cell` `part` or `whole`,
+`showing` `matching` or `notMatching`, and `decimalMark` the decimal mark
+the window writes numbers with, its system's region's. The core keeps
+the decimal mark beside the filter, not in it, and finds the rows shown
+after an edit with it. It refuses as a defect a decimal mark that is not
+one to three characters, since macOS gives one and Windows at most three,
+and a text of more than `MAX_FILTER_TEXT`, 1,000 characters, the limit
+of the find bar's field, since the text is sent back in every message
+that changes the filter, to every window. It refuses a column the table
+does not have as `UnknownColumn`, with a text or not. The core finds the
+rows in
 `crates/vavilov-core/src/filter.rs`: a cell matches by the text the
-table shows of it, a decimal number written as JavaScript writes it with
+table shows of it, a decimal number written as JavaScript's `String`
+writes it, in the fewest digits that give back the value and, of two
+such forms equally close to it, the one whose last digit is even, with
 the window's decimal mark, yes and no as `TRUE` and `FALSE`, a level as
 its value; case is ignored, by `to_lowercase` on both sides, and accents
 are not; a level of a country matches also when the text is part of one
 of its ISO names, or equals one of its codes of two or three letters,
-which are compared whole so that `es` finds Spain and not Estonia; a
-missing cell never matches. With any column, a row matches when one of
-its cells does, the first column's included. The same filter again
-changes nothing. The filter is part of the interaction and is not
+which are compared whole so that a one-letter text such as `j` does not
+find Benin by its code `BJ`; the code the table shows matches as part,
+as every cell's text does, so `es` finds Spain by its code `ES` and
+Estonia by its shown code `EST`, as the owner wants (2 October 2026); a
+missing cell never matches. With any
+column, a row matches when one of its cells does, the first column's
+included. The same filter with the same decimal mark again changes
+nothing. The filter is part of the interaction and is not
 undone.
 
-The window keeps the text being typed as its own until the backend's
-filter holds it, and sends the newest text once the command before is
-answered, so that typing fast sends no queue of texts. A shift-click
+The find bar keeps as its own the whole filter the user asked for last,
+its text, column and checkboxes, with the load of the table it was made
+for, and draws it while it is pending; otherwise it draws the backend's
+filter (`src/state/findDraft.ts`). At most one `set_filter` is on its
+way: a change made meanwhile waits, and the newest is sent once that
+one is answered, so that typing fast sends no queue of texts. The
+pending filter is dropped when the backend's filter becomes it, when
+another table is loaded, which clears the filter and the field, and when
+the command that carried it is answered stale, refused or failed, so
+that no older filter is sent after a newer one. A message of an older
+filter, sent before the user's last change, does not take the field
+back. A shift-click
 over a filtered table selects the rows shown between the two rows
 clicked, and none the filter hides.
 

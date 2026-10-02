@@ -5,7 +5,7 @@
 
 use crate::convert::usize_from;
 use crate::error::CommandError;
-use crate::ids::{ColumnId, Revision, RowIndex};
+use crate::ids::{ColumnId, Position, Revision, RowIndex};
 use crate::message::{MessageKind, MessageWriter, PageValues};
 use crate::session::Session;
 use crate::table::{ColumnValues, Numbers};
@@ -15,9 +15,8 @@ use crate::table::{ColumnValues, Numbers};
 /// copy at `based_on`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RowsRequest {
-    /// The position of the first row of the page among the rows shown,
-    /// which with no filter is its row.
-    pub first: u32,
+    /// The position of the first row of the page among the rows shown.
+    pub first: Position,
     /// The number of rows, which may be 0.
     pub count: u32,
     /// The columns whose values the page carries, by id, the first column
@@ -52,21 +51,21 @@ impl Session {
         let out_of_range = CommandError::RowsOutOfRange {
             first: request.first,
             count: request.count,
-            num_rows: num_shown,
+            num_shown,
         };
-        let end = request
-            .first
+        let first = request.first.get();
+        let end = first
             .checked_add(request.count)
             .filter(|end| *end <= num_shown)
             .ok_or(out_of_range)?;
         let rows: Vec<RowIndex> = match &shown.rows {
             Some(rows) => rows
-                .get(usize_from(request.first)..usize_from(end))
+                .get(usize_from(first)..usize_from(end))
                 .ok_or_else(|| CommandError::Defect {
-                    what: format!("no rows shown {} to {end}", request.first),
+                    what: format!("no rows shown {first} to {end}"),
                 })?
                 .to_vec(),
-            None => (request.first..end).map(RowIndex::new).collect(),
+            None => (first..end).map(RowIndex::new).collect(),
         };
         // A window asks for each column once; a column asked for again
         // would let a short request make a page of any size.

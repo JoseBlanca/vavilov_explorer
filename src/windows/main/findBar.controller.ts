@@ -1,8 +1,17 @@
 import { nothing, render } from "lit-html";
 
-import type { Connection } from "../../backend/connection.ts";
+import type { Answer, Connection } from "../../backend/connection.ts";
+import { defect } from "../../state/defect.ts";
 import type { DescriptionNow } from "../../state/description.ts";
 import type { Filter } from "../../state/filter.ts";
+import {
+  NO_DRAFT,
+  backendChanged,
+  drawnFilter,
+  edited,
+  sendAnswered,
+} from "../../state/findDraft.ts";
+import type { FilterOfLoad, FindStep } from "../../state/findDraft.ts";
 import { answered } from "../shared/answered.ts";
 import { findBarView } from "./findBar.view.ts";
 
@@ -10,97 +19,110 @@ import { findBarView } from "./findBar.view.ts";
 export interface FindBar {
   /** Draws the bar again, when the description of the table has changed. */
   readonly redraw: () => void;
-  /** Unsubscribes and empties the element. */
+  /** Unsubscribes and empties the element; an answer that comes after draws nothing. */
   readonly destroy: () => void;
 }
+
+/** Nothing to draw again for the console's warning of a filter refused: the step below draws. */
+const ignore = (): void => undefined;
 
 /**
  * The find bar above the table: it turns what the user types and chooses
  * into the filter of the backend, which holds it and finds the rows
- * (docs/design.md, section 2.1). The text being typed is the bar's own
- * until the backend's filter holds it: the bar sends the newest text once
- * the one before is answered, so that typing fast sends no queue of
- * texts, and a filter the backend changed itself, as a load clears it,
- * replaces the text. The column and the checkboxes are drawn from the
- * backend's filter.
+ * (docs/design.md, section 2.1). The whole filter the user asked for is
+ * the bar's own until the backend holds it, and at most one filter is on
+ * its way to the backend, the newest sent once it is answered
+ * (src/state/findDraft.ts); a load drops it, with the text of the field.
  */
 export function createFindBar(
   element: HTMLElement,
   connection: Connection,
   description: () => DescriptionNow,
-  mark: string,
+  decimalMark: string,
   report: (error: unknown) => void,
 ): FindBar {
   const { state } = connection;
-  /** The text in the field, while it is not yet the backend's. */
-  let typed: string | null = null;
-  /** Whether a filter is on its way to the backend. */
-  let sending = false;
-  /** The filter to send once the one on its way is answered. */
-  let waiting: Filter | null = null;
+  let draft = NO_DRAFT;
+  let destroyed = false;
 
-  const current = (): Filter | null => state.shown()?.filter ?? null;
-
-  const send = (filter: Filter): void => {
-    if (sending) {
-      waiting = filter;
-      return;
+  /** The backend's filter in the window's copy, and its load, or `null` with no project. */
+  const backend = (): FilterOfLoad | null => {
+    const project = state.project();
+    if (project.kind === "noProject") {
+      return null;
     }
-    sending = true;
-    connection
-      .setFilter(filter, mark)
-      .then(answered("filtering the table", draw))
-      .then(
-        () => {
-          sending = false;
-          const next = waiting;
-          waiting = null;
-          if (next !== null) {
-            send(next);
-          } else if (typed === current()?.text) {
-            typed = null;
-          }
-          draw();
-        },
-        (error: unknown) => {
-          sending = false;
-          report(error);
-        },
-      );
+    const filter = state.filter();
+    if (filter === null) {
+      throw defect(`the table loaded at ${String(project.loadedAt)} with no filter in the copy`);
+    }
+    return { filter, loadedAt: project.loadedAt };
   };
 
-  /** Sends the backend's filter with `change` applied, and the text being typed. */
-  const change = (change: Partial<Filter>): void => {
-    const filter = current();
-    if (filter === null) {
-      return;
+  const take = (step: FindStep): void => {
+    draft = step.draft;
+    if (step.send !== null) {
+      send(step.send);
     }
-    send({ ...filter, text: typed ?? filter.text, ...change });
+  };
+
+  const send = (asked: FilterOfLoad): void => {
+    const settle = (outcome: "applied" | "dropped"): void => {
+      if (destroyed) {
+        return;
+      }
+      take(sendAnswered(draft, outcome, backend()));
+      draw();
+    };
+    connection
+      .setFilter(asked.filter, decimalMark)
+      .then(
+        (answer: Answer) => {
+          answered("filtering the table", ignore)(answer);
+          settle(answer.ok && answer.value === "applied" ? "applied" : "dropped");
+        },
+        (error: unknown) => {
+          report(error);
+          settle("dropped");
+        },
+      )
+      .catch(report);
+  };
+
+  /** The user changed the filter by `filterChange`. */
+  const change = (filterChange: Partial<Filter>): void => {
+    take(edited(draft, filterChange, backend()));
+    draw();
   };
 
   const draw = (): void => {
-    const now = description();
-    const filter = current();
-    if (now.kind !== "current" || filter === null) {
-      if (now.kind === "none") {
-        typed = null;
-        render(nothing, element);
-      }
+    if (destroyed) {
       return;
+    }
+    const now = description();
+    if (now.kind === "none") {
+      render(nothing, element);
+      return;
+    }
+    if (now.kind === "behind") {
+      // The description of the copy's table is on its way, and draws again.
+      return;
+    }
+    const filter = drawnFilter(draft, backend());
+    if (filter === null) {
+      throw defect("a find bar drawn for a table with no filter");
     }
     const table = now.description;
     render(
       findBarView({
-        text: typed ?? filter.text,
+        text: filter.text,
         columns: [
           { id: table.names.id, name: table.names.header },
           ...table.columns.map((column) => ({ id: column.id, name: column.name })),
         ],
         column: filter.column,
         whole: filter.cell === "whole",
-        notMatching: filter.shown === "notMatching",
+        notMatching: filter.showing === "notMatching",
         onText: (text) => {
-          typed = text;
           change({ text });
         },
         onColumn: (column) => {
@@ -110,28 +132,25 @@ export function createFindBar(
           change({ cell: whole ? "whole" : "part" });
         },
         onNotMatching: (notMatching) => {
-          change({ shown: notMatching ? "notMatching" : "matching" });
+          change({ showing: notMatching ? "notMatching" : "matching" });
         },
       }),
       element,
     );
   };
 
-  const unsubscribes = [
-    state.subscribe("filter", () => {
-      // A filter the backend changed while nothing was typed or sent, as a
-      // load clears it, is the text of the field.
-      if (!sending && waiting === null) {
-        typed = null;
-      }
-      draw();
-    }),
-    state.subscribe("table", draw),
-  ];
+  /** The backend's filter, or the table, changed: the pending filter may be dropped. */
+  const heard = (): void => {
+    draft = backendChanged(draft, backend());
+    draw();
+  };
+
+  const unsubscribes = [state.subscribe("filter", heard), state.subscribe("table", heard)];
   draw();
   return {
     redraw: draw,
     destroy: () => {
+      destroyed = true;
       for (const unsubscribe of unsubscribes) {
         unsubscribe();
       }

@@ -7,7 +7,7 @@ pub use file::{ExportRefusal, ImportRefusal, IoFailure};
 
 use serde::Serialize;
 
-use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, WindowLabel};
+use crate::ids::{ColumnId, LevelCode, Position, Revision, RowIndex, WindowLabel};
 use crate::session::Selected;
 use crate::table::{Role, StorageType};
 
@@ -132,15 +132,17 @@ pub enum CommandError {
         num_rows: u32,
     },
 
-    /// A page of rows that goes past the last row of the table.
-    #[error("{count} rows from row {first} go past the {num_rows} rows of the table")]
+    /// A page of rows that goes past the last of the rows the filter
+    /// shows, all of the table's when there is no filter.
+    #[error("{count} rows from position {first} go past the {num_shown} rows shown")]
     RowsOutOfRange {
-        /// The first row the window asked for.
-        first: u32,
+        /// The position among the rows shown of the first row the window
+        /// asked for.
+        first: Position,
         /// The number of rows it asked for.
         count: u32,
-        /// The rows of the table.
-        num_rows: u32,
+        /// The number of rows shown.
+        num_shown: u32,
     },
 
     /// Undo with nothing to undo.

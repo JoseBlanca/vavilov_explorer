@@ -15,6 +15,9 @@
   color: var(--color-text-muted);
 }
 
+/* WebKit draws the native select 22 px high whatever min-height says; the
+   bar's padding and gap leave the 24 px of clear space around it that
+   WCAG 2.5.8, the size of a target, asks for in its place. */
 .text,
 .select {
   min-height: var(--target-size);

@@ -31,6 +31,10 @@ pub enum Command {
     SetFilter {
         /// The filter.
         filter: Filter,
+        /// The decimal mark the window writes decimal numbers with, its
+        /// system's region's, so that a number matches by the text shown:
+        /// one to three characters.
+        decimal_mark: String,
     },
     /// Sets the individual under the pointer. It takes no revision.
     SetHover {

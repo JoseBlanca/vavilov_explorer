@@ -126,10 +126,11 @@ it.
 - Undo and Redo are in an Edit menu, with Cmd-Z and Cmd-Shift-Z, Ctrl-Z
   and Ctrl-Shift-Z on Windows and Linux (decided by the owner on
   2 October 2026). They are greyed out when there is nothing to undo or
-  redo. The menu's shortcut reaches the main window as an action, so
-  once the window has a field to type in, the find bar's or a cell's,
-  the window decides there that Cmd-Z undoes the typing in the field and
-  not the last edit of the table.
+  redo. In a field to type in, the find bar's or a cell's, they undo
+  and redo the typing in the field, not the last edit of the table: the
+  page sees the key before the menu and takes it, and a click on Edit >
+  Undo reaches the main window as an action, which undoes the field's
+  typing when a field has the focus (section 10).
 - The populations panel lists the populations of the active
   classification, each with its colour, name and number of individuals. A
   dropdown above it chooses the active classification. It is where a
@@ -699,6 +700,22 @@ facts, taken from the Tauri 2.12 documentation and source and from tao
   Keyboard shortcuts, such as Enter to apply a lasso and Esc to cancel
   it, are handled by one TypeScript module present in every window and
   turned into commands, so they do not depend on where the menu is.
+- **Undo in a text field.** On macOS, while Undo or Redo is greyed out
+  in the menu, because there is nothing to undo in the table, as right
+  after a load, the menu keeps Cmd-Z from the find bar's field and the
+  web view does not undo the field's typing either; the reviewer showed
+  it with a test of the real app. So the window handles Cmd-Z and
+  Cmd-Shift-Z itself in a text field, Ctrl-Z, Ctrl-Shift-Z and on Windows
+  Ctrl-Y elsewhere, and takes the key from the menu
+  (`src/windows/shared/fieldUndo.ts`). How much one Undo takes back
+  differs: WebKit takes back the word typed, while Chromium, and so
+  WebView2 on Windows, takes back one letter at a time, because the table
+  draws again between two keys. In the e2e harness, where the test types
+  two characters at once, both took back the two. Not checked yet:
+  whether on Windows the menu's Ctrl-Z reaches the menu at all while the
+  web view has the focus, since wry, the library under Tauri that holds
+  the web view, does not listen to WebView2's `AcceleratorKeyPressed`; it
+  is to be tried on the owner's Windows machine.
 - **Hover in an inactive window on macOS.** WebKit sends mouse movement
   only to the active window, so on macOS a widget shows a hover only once
   it is active: the user clicks a view before hovering in it. The hover

@@ -13,7 +13,7 @@ use crate::command::{Command, Request};
 use crate::convert::{u64_from, usize_from};
 use crate::edit::Edit;
 use crate::error::CommandError;
-use crate::filter::{Filter, Replaced, shown_rows};
+use crate::filter::{Filter, MAX_FILTER_TEXT, Replaced, shown_rows};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt, WindowLabel};
 use crate::message::{MessageKind, MessageWriter, whole_state};
 use crate::row_set::RowSet;
@@ -142,17 +142,32 @@ impl Session {
                     change: Change::Selection(rows),
                 }))
             }
-            Command::SetFilter { filter } => {
+            Command::SetFilter {
+                filter,
+                decimal_mark,
+            } => {
                 let open = state.project.open()?;
-                if filter.decimal_mark.is_empty() {
+                // A region's decimal mark has one character on macOS and
+                // at most three on Windows, by LOCALE_SDECIMAL.
+                if !(1..=3).contains(&decimal_mark.chars().count()) {
                     return Err(CommandError::Defect {
-                        what: "a filter with no decimal mark".to_owned(),
+                        what: format!("a filter with the decimal mark {decimal_mark:?}"),
                     });
                 }
-                if filter == open.interaction.filter {
+                let length = filter.text.chars().count();
+                if length > MAX_FILTER_TEXT {
+                    return Err(CommandError::Defect {
+                        what: format!(
+                            "a filter's text of {length} characters, more than the find bar's {MAX_FILTER_TEXT}"
+                        ),
+                    });
+                }
+                if filter == open.interaction.filter
+                    && Some(&decimal_mark) == open.interaction.decimal_mark.as_ref()
+                {
                     return Ok(None);
                 }
-                let rows = shown_rows(&filter, &open.table, None)?;
+                let rows = shown_rows(&filter, Some(&decimal_mark), &open.table, None)?;
                 let revision = state.revision.next()?;
                 let shown = Shown { rows, at: revision };
                 let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
@@ -160,7 +175,11 @@ impl Session {
                 Ok(Some(Plan {
                     revision,
                     message: message.finish(),
-                    change: Change::Filter { filter, shown },
+                    change: Change::Filter {
+                        filter,
+                        decimal_mark,
+                        shown,
+                    },
                 }))
             }
             Command::SetHover { row } => {
@@ -315,9 +334,14 @@ impl Session {
                 open.interaction.active = active;
                 Changed::State(revision)
             }
-            Change::Filter { filter, shown } => {
+            Change::Filter {
+                filter,
+                decimal_mark,
+                shown,
+            } => {
                 let open = open_for_commit(&mut self.state.project)?;
                 open.interaction.filter = filter;
+                open.interaction.decimal_mark = Some(decimal_mark);
                 open.interaction.shown = shown;
                 Changed::State(revision)
             }
@@ -411,6 +435,7 @@ enum Change {
     Active(Option<Active>),
     Filter {
         filter: Filter,
+        decimal_mark: String,
         shown: Shown,
     },
     Hover {
@@ -465,6 +490,7 @@ fn plan_load(
             selection: RowSet::empty(table.num_rows()),
             hover: None,
             filter: Filter::none(),
+            decimal_mark: None,
             shown: Shown {
                 rows: None,
                 at: revision,
@@ -672,7 +698,12 @@ fn refiltered(
     replaced: Replaced<'_>,
     revision: Revision,
 ) -> Result<Option<Shown>, CommandError> {
-    let rows = shown_rows(&open.interaction.filter, &open.table, Some(replaced))?;
+    let rows = shown_rows(
+        &open.interaction.filter,
+        open.interaction.decimal_mark.as_deref(),
+        &open.table,
+        Some(replaced),
+    )?;
     Ok((rows != open.interaction.shown.rows).then_some(Shown { rows, at: revision }))
 }
 

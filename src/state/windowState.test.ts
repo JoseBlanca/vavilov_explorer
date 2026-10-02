@@ -31,6 +31,9 @@ const ORIGIN = column(2);
 const CLUSTER = column(3);
 const HEIGHT = column(1);
 
+/** The filter of a table just loaded, which shows every row. */
+const NO_FILTER = { text: "", column: null, cell: "part", showing: "matching" } as const;
+
 /** The parts of the plants of the core's tests, four rows, loaded at 1. */
 function plantParts(loadedAt: number): MessagePart[] {
   return [
@@ -41,10 +44,8 @@ function plantParts(loadedAt: number): MessagePart[] {
     { kind: "undo", canUndo: false, canRedo: false },
     {
       kind: "filter",
-      filter: { text: "", column: null, cell: "part", shown: "matching" },
-      at: revision(loadedAt),
-      numShown: 4,
-      bits: null,
+      filter: NO_FILTER,
+      shown: { at: revision(loadedAt), numShown: 4, bits: null },
     },
     {
       kind: "columns",
@@ -209,6 +210,11 @@ describe("applying a change", () => {
       { kind: "active", column: null, selected: null },
       { kind: "selection", numRows: 9, bits: new Uint8Array([0, 0]) },
       { kind: "undo", canUndo: false, canRedo: false },
+      {
+        kind: "filter",
+        filter: NO_FILTER,
+        shown: { at: revision(3), numShown: 9, bits: null },
+      },
       { kind: "columns", columns: [{ column: HEIGHT, revision: revision(3) }] },
       { kind: "hover", seq: seq(2), row: null },
     ];
@@ -396,36 +402,59 @@ describe("a change of a column's role", () => {
 });
 
 describe("the filter of the copy", () => {
-  const spain = { text: "Spain", column: ORIGIN, cell: "whole", shown: "matching" } as const;
+  const spain = { text: "Spain", column: ORIGIN, cell: "whole", showing: "matching" } as const;
 
   test("is the one the backend sent, and its change calls the filter's listeners", () => {
     const state = createWindowState(snapshot(1));
+    expect(state.filter()).toEqual(NO_FILTER);
     expect(state.shown()?.numShown).toBe(4);
     const called = recordAspects(state);
     const bits = new Uint8Array([0b1001]);
-    state.apply(change(2, { kind: "filter", filter: spain, at: revision(2), numShown: 2, bits }));
-    expect(state.shown()).toEqual({ filter: spain, at: 2, numShown: 2, bits });
+    state.apply(
+      change(2, { kind: "filter", filter: spain, shown: { at: revision(2), numShown: 2, bits } }),
+    );
+    expect(state.filter()).toEqual(spain);
+    expect(state.shown()).toEqual({ at: 2, numShown: 2, bits });
     expect(called).toEqual(["filter"]);
   });
 
   test("whose rows do not fit the table is a defect, and the copy is kept", () => {
     const state = createWindowState(snapshot(1));
+    const filterPart = (numShown: number, bits: Uint8Array | null): MessagePart => ({
+      kind: "filter",
+      filter: spain,
+      shown: { at: revision(2), numShown, bits },
+    });
     expect(() => {
-      state.apply(
-        change(2, {
-          kind: "filter",
-          filter: spain,
-          at: revision(2),
-          numShown: 2,
-          bits: new Uint8Array([0b1001, 0]),
-        }),
-      );
+      state.apply(change(2, filterPart(2, new Uint8Array([0b1001, 0]))));
     }).toThrow(/defect: a filter of 2 rows shown and 2 bytes for a table of 4 rows/);
     expect(() => {
-      state.apply(
-        change(2, { kind: "filter", filter: spain, at: revision(2), numShown: 3, bits: null }),
-      );
+      state.apply(change(2, filterPart(3, null)));
     }).toThrow(/defect: a filter of 3 rows shown/);
+    // Rows 0 and 4 of a table of 4 rows.
+    expect(() => {
+      state.apply(change(2, filterPart(2, new Uint8Array([0b1_0001]))));
+    }).toThrow(/defect: a filter of 4 rows with a bit beyond the last row/);
+    expect(state.filter()).toEqual(NO_FILTER);
     expect(state.shown()?.numShown).toBe(4);
+  });
+
+  test("is in every load, or the load is a defect", () => {
+    const withoutFilter = plantParts(1).filter((part) => part.kind !== "filter");
+    expect(() => createWindowState(snapshot(1, withoutFilter))).toThrow(
+      /defect: a load of a table of 4 rows without its filter/,
+    );
+    const state = createWindowState(snapshot(1));
+    expect(() => {
+      state.apply(change(2, ...withoutFilter));
+    }).toThrow(/defect: a load of a table of 4 rows without its filter/);
+    expect(state.revision()).toBe(1);
+  });
+
+  test("is none once no project is open", () => {
+    const state = createWindowState(snapshot(1));
+    state.apply(change(2, { kind: "noProject" }));
+    expect(state.filter()).toBeNull();
+    expect(state.shown()).toBeNull();
   });
 });

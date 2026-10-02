@@ -22,6 +22,12 @@ describe("a refusal of the backend", () => {
     ).toBe(true);
   });
 
+  test("of a page past the rows shown has the number of rows shown", () => {
+    // The JSON of RowsOutOfRange in crates/vavilov-core/src/error.rs.
+    expect(isCommandError({ kind: "rowsOutOfRange", first: 3, count: 2, numShown: 4 })).toBe(true);
+    expect(isCommandError({ kind: "rowsOutOfRange", first: 3, count: 2, numRows: 4 })).toBe(false);
+  });
+
   test("is not one with an unknown kind, a missing, extra or mistyped field", () => {
     expect(isCommandError({ kind: "unknownThing" })).toBe(false);
     expect(isCommandError({ kind: "toString" })).toBe(false);

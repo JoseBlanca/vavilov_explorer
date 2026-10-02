@@ -42,6 +42,9 @@ pub(crate) struct Interaction {
     pub(crate) hover: Option<RowIndex>,
     /// The filter of the find bar.
     pub(crate) filter: Filter,
+    /// The decimal mark the last filter was set with, which an edit finds
+    /// the rows shown with; `None` after a load, until a filter is set.
+    pub(crate) decimal_mark: Option<String>,
     /// The rows the table shows.
     pub(crate) shown: Shown,
 }

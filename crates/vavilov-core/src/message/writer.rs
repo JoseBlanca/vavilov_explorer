@@ -1,8 +1,8 @@
 //! The writer of one message: its header, then its parts.
 
 use crate::error::CommandError;
-use crate::filter::{CellMatch, Filter, ShownRows};
-use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt};
+use crate::filter::{CellMatch, Filter, Showing};
+use crate::ids::{ColumnId, HoverSeq, LevelCode, Position, Revision, RowIndex, SentAt};
 use crate::message::{MessageKind, NO_CODE, NO_COLUMN, NO_ROW, PartKind};
 use crate::row_set::RowSet;
 use crate::session::{Active, Selected, Shown, UndoRedo};
@@ -153,8 +153,9 @@ impl MessageWriter {
 
     /// The filter of the find bar and the rows it shows: the revision at
     /// which they last changed, their number, the column searched, how a
-    /// cell matches, which rows are shown, the text, and, when there is a
-    /// text, one bit per row of the table, set for a row shown.
+    /// cell matches, whether it is showing the rows that match or the
+    /// others, the text, and, when there is a text, one bit per row of the
+    /// table, set for a row shown.
     pub(crate) fn filter(
         &mut self,
         filter: &Filter,
@@ -180,9 +181,9 @@ impl MessageWriter {
                 CellMatch::Part => 0,
                 CellMatch::Whole => 1,
             });
-            payload.push(match filter.shown {
-                ShownRows::Matching => 0,
-                ShownRows::NotMatching => 1,
+            payload.push(match filter.showing {
+                Showing::Matching => 0,
+                Showing::NotMatching => 1,
             });
             payload.push(u8::from(bits.is_some()));
             payload.extend_from_slice(&[0; 5]);
@@ -203,7 +204,7 @@ impl MessageWriter {
         &mut self,
         loaded_at: Revision,
         shown_at: Revision,
-        first: u32,
+        first: Position,
         rows: &[RowIndex],
     ) -> Result<(), CommandError> {
         let count = u32::try_from(rows.len())
@@ -211,7 +212,7 @@ impl MessageWriter {
         self.part(PartKind::Page, |payload| {
             payload.extend_from_slice(&loaded_at.get().to_le_bytes());
             payload.extend_from_slice(&shown_at.get().to_le_bytes());
-            payload.extend_from_slice(&first.to_le_bytes());
+            payload.extend_from_slice(&first.get().to_le_bytes());
             payload.extend_from_slice(&count.to_le_bytes());
             for row in rows {
                 payload.extend_from_slice(&row.get().to_le_bytes());

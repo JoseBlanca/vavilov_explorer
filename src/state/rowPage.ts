@@ -2,7 +2,7 @@
 // values of some columns in consecutive rows of those the filter shows
 // (docs/core.md, section 5, "A page of rows").
 
-import type { ColumnId, LevelCode, Revision, RowIndex } from "./ids.ts";
+import type { ColumnId, LevelCode, Position, Revision, RowIndex } from "./ids.ts";
 
 /** The values of one column in the rows of a page, `null` for a missing value. */
 export type PageColumn = {
@@ -26,7 +26,7 @@ export interface RowPage {
   /** The revision at which the rows the filter shows last changed, when it was read. */
   readonly shownAt: Revision;
   /** The position of the page's first row among the rows shown. */
-  readonly first: number;
+  readonly first: Position;
   /** The number of rows, which may be 0. */
   readonly count: number;
   /** The row of the table each row of the page is, in order. */

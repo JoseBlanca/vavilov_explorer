@@ -3,7 +3,7 @@
 // "The window's copy of the state"; docs/core.md, section 5).
 
 import { defect } from "./defect.ts";
-import type { Shown } from "./filter.ts";
+import type { Filter, Shown } from "./filter.ts";
 import type { ColumnId, HoverSeq, Revision, RowIndex } from "./ids.ts";
 import type { Message, MessagePart, Selected, UndoRedo } from "./message.ts";
 
@@ -48,7 +48,9 @@ export interface WindowState {
   readonly hover: () => RowIndex | null;
   /** Whether there is something to undo and something to redo. */
   readonly undoRedo: () => UndoRedo;
-  /** The filter of the find bar and the rows it shows, or `null` with no project. */
+  /** The filter of the find bar, or `null` with no project. */
+  readonly filter: () => Filter | null;
+  /** The rows the filter shows, or `null` with no project. */
   readonly shown: () => Shown | null;
   /**
    * Applies a message of the channel: a change one revision after the last,
@@ -87,6 +89,7 @@ interface Copy {
   readonly hover: RowIndex | null;
   readonly hoverSeq: HoverSeq;
   readonly undoRedo: UndoRedo;
+  readonly filter: Filter | null;
   readonly shown: Shown | null;
 }
 
@@ -172,6 +175,7 @@ export function createWindowState(snapshot: Message): WindowState {
     selection: () => copy.selection,
     hover: () => copy.hover,
     undoRedo: () => copy.undoRedo,
+    filter: () => copy.filter,
     shown: () => copy.shown,
     apply,
     subscribe: (aspect, listener) => {
@@ -203,6 +207,7 @@ function empty(revision: Revision, project: MessagePart, hoverSeq: HoverSeq): Co
     hover: null,
     hoverSeq,
     undoRedo: { canUndo: false, canRedo: false },
+    filter: null,
     shown: null,
   };
 }
@@ -221,13 +226,17 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
   let hover = copy.hover;
   let hoverSeq = copy.hoverSeq;
   let undoRedo = copy.undoRedo;
+  let filter = copy.filter;
   let shown = copy.shown;
   const changed = new Set<Aspect>();
   for (const part of message.parts) {
     switch (part.kind) {
       case "noProject":
         project = { kind: "noProject" };
+        filter = null;
+        shown = null;
         changed.add("table");
+        changed.add("filter");
         break;
       case "project":
         project = { kind: "open", numRows: part.numRows, loadedAt: part.loadedAt };
@@ -279,20 +288,32 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
         break;
       case "filter": {
         const numRows = rowsOf(project, "a filter");
-        if (
-          part.bits === null
-            ? part.numShown !== numRows
-            : part.bits.length !== Math.ceil(numRows / 8)
-        ) {
+        const { bits, numShown } = part.shown;
+        if (bits === null ? numShown !== numRows : bits.length !== Math.ceil(numRows / 8)) {
           throw defect(
-            `a filter of ${String(part.numShown)} rows shown and ${String(part.bits?.length ?? 0)} bytes for a table of ${String(numRows)} rows`,
+            `a filter of ${String(numShown)} rows shown and ${String(bits?.length ?? 0)} bytes for a table of ${String(numRows)} rows`,
           );
         }
-        shown = { filter: part.filter, at: part.at, numShown: part.numShown, bits: part.bits };
+        const used = numRows % 8;
+        const last = bits?.at(-1);
+        if (used !== 0 && last !== undefined && (last & (0xff << used) & 0xff) !== 0) {
+          throw defect(`a filter of ${String(numRows)} rows with a bit beyond the last row`);
+        }
+        filter = part.filter;
+        shown = part.shown;
         changed.add("filter");
         break;
       }
     }
+  }
+  // A load sends the filter it starts with, which the find bar and the
+  // table draw from.
+  if (
+    project.kind === "open" &&
+    message.parts.some((part) => part.kind === "project") &&
+    !message.parts.some((part) => part.kind === "filter")
+  ) {
+    throw defect(`a load of a table of ${String(project.numRows)} rows without its filter`);
   }
   // A column listed with no codes beside it is no longer a category
   // (docs/core.md, section 5), and its codes go.
@@ -323,6 +344,7 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
       hover,
       hoverSeq,
       undoRedo,
+      filter,
       shown,
     },
     changed,

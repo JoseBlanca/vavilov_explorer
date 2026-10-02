@@ -40,12 +40,13 @@ pub use dispatch::{Changed, Dropped, Outcome};
 pub use error::{CommandError, ExportRefusal, ImportRefusal, IoFailure};
 pub use export::export_table;
 pub use files::{file_name, read_for_import, write_export};
-pub use filter::{CellMatch, Filter, ShownRows};
+pub use filter::{CellMatch, Filter, MAX_FILTER_TEXT, Showing};
 pub use formats::{
     CsvChoices, CsvEncoding, DecimalMark, ExportFormat, FileFormat, MissingText, Separator,
 };
 pub use ids::{
-    ColumnId, HoverSeq, LevelCode, MAX_EXACT_IN_JAVASCRIPT, Revision, RowIndex, SentAt, WindowLabel,
+    ColumnId, HoverSeq, LevelCode, MAX_EXACT_IN_JAVASCRIPT, Position, Revision, RowIndex, SentAt,
+    WindowLabel,
 };
 pub use import::{Imported, MAX_GUESSED_LEVELS, MAX_IMPORT_BYTES, MAX_IMPORT_CELLS, import_table};
 pub use row_set::RowSet;

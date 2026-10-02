@@ -7,6 +7,7 @@
 import { defect } from "../state/defect.ts";
 import { MAX_ROWS, NO_CODE, NO_COLUMN, NO_ROW } from "../state/ids.ts";
 import type { ColumnRevision, Message, MessagePart, Selected } from "../state/message.ts";
+import { countRows } from "../state/rowSet.ts";
 import {
   booleanAt,
   columnId,
@@ -168,10 +169,11 @@ function selectionPart(
 
 /**
  * The filter part: the revision at which the rows shown last changed, their
- * number, the column searched, how a cell matches, which rows are shown,
- * whether bits follow, the text as a text list of one, and, when there is a
- * text, one bit per row after padding to a multiple of 8. Its bits are
- * checked against the rows of the table by the window's copy.
+ * number, the column searched, how a cell matches, whether it is showing
+ * the rows that match or the others, whether bits follow, the text as a
+ * text list of one, and, when there is a text, one bit per row after
+ * padding to a multiple of 8. Its bits are checked against the rows of the
+ * table by the window's copy.
  */
 function filterPart(
   bytes: ArrayBuffer,
@@ -186,13 +188,13 @@ function filterPart(
   const numShown = view.getUint32(start + 8, true);
   const column = view.getUint32(start + 12, true);
   const cellByte = view.getUint8(start + 16);
-  const shownByte = view.getUint8(start + 17);
+  const showingByte = view.getUint8(start + 17);
   const filtered = booleanAt(view, start + 18, "filter");
   expectZeros(view, start + 19, start + FILTER_HEADER_BYTES, "bytes 19 to 23 of the filter part");
   const cell = cellByte === 0 ? "part" : cellByte === 1 ? "whole" : null;
-  const shown = shownByte === 0 ? "matching" : shownByte === 1 ? "notMatching" : null;
-  if (cell === null || shown === null) {
-    throw defect(`a filter part of cell ${String(cellByte)} and shown ${String(shownByte)}`);
+  const showing = showingByte === 0 ? "matching" : showingByte === 1 ? "notMatching" : null;
+  if (cell === null || showing === null) {
+    throw defect(`a filter part of cell ${String(cellByte)} and showing ${String(showingByte)}`);
   }
   const textAt = start + FILTER_HEADER_BYTES;
   const textEnd = view.getUint32(textAt + 4, true);
@@ -213,12 +215,7 @@ function filterPart(
     }
     expectZeros(view, textAt + textLength, bitsAt, "the padding of the filter's text");
     bits = new Uint8Array(bytes, bitsAt, end - bitsAt);
-    let set = 0;
-    for (const byte of bits) {
-      for (let bit = byte; bit !== 0; bit &= bit - 1) {
-        set += 1;
-      }
-    }
+    const set = countRows(bits);
     if (set !== numShown) {
       throw defect(`a filter part of ${String(numShown)} rows shown with ${String(set)} bits set`);
     }
@@ -227,10 +224,8 @@ function filterPart(
   }
   return {
     kind: "filter",
-    filter: { text, column: column === NO_COLUMN ? null : columnId(column), cell, shown },
-    at,
-    numShown,
-    bits,
+    filter: { text, column: column === NO_COLUMN ? null : columnId(column), cell, showing },
+    shown: { at, numShown, bits },
   };
 }
 

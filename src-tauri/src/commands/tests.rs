@@ -161,7 +161,7 @@ fn every_command_is_registered_and_finds_the_session() {
         (
             "set_filter",
             json!({
-                "text": "Spain", "column": null, "cell": "part", "shown": "matching",
+                "text": "Spain", "column": null, "cell": "part", "showing": "matching",
                 "decimalMark": ",", "basedOn": 0
             }),
         ),
@@ -596,7 +596,7 @@ fn a_page_past_the_last_row_crosses_as_its_refusal() {
             json!({ "first": 2, "count": 2, "columns": [], "basedOn": 1 }),
         )
         .unwrap_err(),
-        json!({ "kind": "rowsOutOfRange", "first": 2, "count": 2, "numRows": 3 })
+        json!({ "kind": "rowsOutOfRange", "first": 2, "count": 2, "numShown": 3 })
     );
 }
 

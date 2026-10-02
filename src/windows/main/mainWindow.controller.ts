@@ -6,6 +6,7 @@ import { defect } from "../../state/defect.ts";
 import type { DescriptionNow, TableDescription } from "../../state/description.ts";
 import { createDialog } from "../shared/dialog.controller.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
+import { installFieldUndo } from "../shared/fieldUndo.ts";
 import { createNotice } from "../shared/notice.controller.ts";
 import { createCsvDialog } from "./csvDialog.controller.ts";
 import { createFindBar } from "./findBar.controller.ts";
@@ -31,12 +32,13 @@ function slot(root: HTMLElement, name: string): HTMLElement {
 export async function startMainWindow(root: HTMLElement): Promise<void> {
   render(mainWindowView({ open: false }), root);
   const defectBar = createDefectBar(slot(root, "defect"), window);
+  installFieldUndo(window);
   try {
     const connection = await connect(tauriTransport(), defectBar.show);
     const { state } = connection;
     // The decimal mark of the system's region, which Excel follows, read
     // once: a change of the region shows after the window is reloaded.
-    const mark = await connection.regionDecimalMark();
+    const decimalMark = await connection.regionDecimalMark();
     let description: TableDescription | null = null;
     /**
      * The description, when it is that of the copy's load and shape: a
@@ -57,14 +59,14 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       slot(root, "panel"),
       connection,
       describedNow,
-      mark,
+      decimalMark,
       defectBar.show,
     );
     const findBar = createFindBar(
       slot(root, "find"),
       connection,
       describedNow,
-      mark,
+      decimalMark,
       defectBar.show,
     );
     createInfoBar(slot(root, "info"), state);
@@ -73,7 +75,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       slot(root, "table"),
       connection,
       describedNow,
-      mark,
+      decimalMark,
       dialog.ask,
       defectBar.show,
     );

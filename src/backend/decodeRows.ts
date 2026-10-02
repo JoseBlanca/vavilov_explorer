@@ -11,6 +11,7 @@ import {
   expectLength,
   expectZeros,
   levelCode,
+  position,
   readMessage,
   revisionAt,
   rowIndex,
@@ -59,7 +60,7 @@ export function decodeRows(bytes: ArrayBuffer): RowPage {
   }
   const loadedAt = revisionAt(view, pagePart.start);
   const shownAt = revisionAt(view, pagePart.start + 8);
-  const first = view.getUint32(pagePart.start + 16, true);
+  const first = position(view.getUint32(pagePart.start + 16, true));
   const count = view.getUint32(pagePart.start + 20, true);
   if (first + count > MAX_ROWS) {
     throw defect(`a page of ${String(count)} rows from position ${String(first)}, past the table`);

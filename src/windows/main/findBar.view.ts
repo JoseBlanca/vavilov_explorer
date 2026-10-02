@@ -1,7 +1,10 @@
 import { html } from "lit-html";
 import type { TemplateResult } from "lit-html";
 import { live } from "lit-html/directives/live.js";
+import { repeat } from "lit-html/directives/repeat.js";
 
+import { defect } from "../../state/defect.ts";
+import { MAX_FILTER_TEXT } from "../../state/filter.ts";
 import type { ColumnId } from "../../state/ids.ts";
 import { classOf } from "../shared/classOf.ts";
 import styles from "./findBar.module.css";
@@ -40,6 +43,22 @@ export interface FindBarProps {
 const ANY = "any";
 
 /**
+ * The column of the option `value` of the Column dropdown, `null` for any.
+ *
+ * @throws A defect for a value no option of `columns` has.
+ */
+function chosenColumn(value: string, columns: readonly FindColumn[]): ColumnId | null {
+  if (value === ANY) {
+    return null;
+  }
+  const chosen = columns.find((column) => String(column.id) === value);
+  if (chosen === undefined) {
+    throw defect(`a column ${value} chosen in the find bar, not in the table`);
+  }
+  return chosen.id;
+}
+
+/**
  * The find bar above the table (docs/design.md, section 2.1): the field of
  * the text searched for, the Column dropdown, "Any column" and then every
  * column, and the checkboxes "Whole cell" and "Show rows that don't
@@ -52,6 +71,7 @@ export function findBarView(props: FindBarProps): TemplateResult {
       <input
         type="search"
         class=${classOf(styles, "text")}
+        maxlength=${String(MAX_FILTER_TEXT)}
         .value=${live(props.text)}
         @input=${(event: Event) => {
           if (event.target instanceof HTMLInputElement) {
@@ -65,12 +85,15 @@ export function findBarView(props: FindBarProps): TemplateResult {
       <select
         class=${classOf(styles, "select")}
         @change=${(event: Event) => {
-          const value = event.target instanceof HTMLSelectElement ? event.target.value : ANY;
-          props.onColumn(props.columns.find((column) => String(column.id) === value)?.id ?? null);
+          if (event.target instanceof HTMLSelectElement) {
+            props.onColumn(chosenColumn(event.target.value, props.columns));
+          }
         }}
       >
         <option value=${ANY} .selected=${live(props.column === null)}>Any column</option>
-        ${props.columns.map(
+        ${repeat(
+          props.columns,
+          (column) => column.id,
           (column) =>
             html`<option value=${String(column.id)} .selected=${live(props.column === column.id)}>
               ${column.name}

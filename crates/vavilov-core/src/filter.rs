@@ -26,7 +26,7 @@ pub enum CellMatch {
 /// Which rows the filter shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum ShownRows {
+pub enum Showing {
     /// The rows that match.
     Matching,
     /// The rows that do not: "Show rows that don't match".
@@ -43,12 +43,16 @@ pub struct Filter {
     pub column: Option<ColumnId>,
     /// How the text must match a cell.
     pub cell: CellMatch,
-    /// Which rows are shown.
-    pub shown: ShownRows,
-    /// The decimal mark the table writes decimal numbers with, the
-    /// system's region's, so that a number matches by the text shown.
-    pub decimal_mark: String,
+    /// Whether it shows the rows that match or those that do not.
+    pub showing: Showing,
 }
+
+/// The most characters the text of a filter may have, the limit of the
+/// find bar's field, whose `maxlength` counts UTF-16 units, never fewer
+/// than the characters counted here. A text is sent back in every message
+/// that changes the filter, to every window, so a limit keeps one pasted
+/// by mistake from being echoed at length.
+pub const MAX_FILTER_TEXT: usize = 1_000;
 
 impl Filter {
     /// The filter of a table just loaded: no text, any column, part of a
@@ -60,8 +64,7 @@ impl Filter {
             text: String::new(),
             column: None,
             cell: CellMatch::Part,
-            shown: ShownRows::Matching,
-            decimal_mark: ".".to_owned(),
+            showing: Showing::Matching,
         }
     }
 }
@@ -78,27 +81,39 @@ pub(crate) enum Replaced<'a> {
 
 /// The rows `filter` shows of `table`, in order, with `replaced` in the
 /// place of what it replaces; `None` when the filter has no text and shows
-/// every row.
+/// every row. A decimal number matches by its text with `decimal_mark`,
+/// the one the window that set the filter writes numbers with.
 ///
 /// # Errors
 ///
-/// `UnknownColumn` for a column the table does not have, and a `Defect`
-/// for a column whose length is not the table's.
+/// `UnknownColumn` for a column the table does not have, with a text or
+/// not; a `Defect` for a text with no decimal mark, and for a column whose
+/// length is not the table's.
 pub(crate) fn shown_rows(
     filter: &Filter,
+    decimal_mark: Option<&str>,
     table: &Table,
     replaced: Option<Replaced<'_>>,
 ) -> Result<Option<Vec<RowIndex>>, CommandError> {
+    let names = table.names();
+    if let Some(column) = filter.column
+        && column != names.id()
+        && table.column(column).is_none()
+    {
+        return Err(CommandError::UnknownColumn { column });
+    }
     if filter.text.is_empty() {
         return Ok(None);
     }
+    let decimal_mark = decimal_mark.ok_or_else(|| CommandError::Defect {
+        what: "a filter with a text and no decimal mark".to_owned(),
+    })?;
     let search = Search {
         text: filter.text.to_lowercase(),
         cell: filter.cell,
-        decimal_mark: &filter.decimal_mark,
+        decimal_mark,
     };
     let num_rows = usize_from(table.num_rows());
-    let names = table.names();
     let matches = match filter.column {
         Some(column) if column == names.id() => texts(names.names().iter().map(Some), &search),
         Some(column) => {
@@ -129,9 +144,9 @@ pub(crate) fn shown_rows(
             ),
         });
     }
-    let wanted = match filter.shown {
-        ShownRows::Matching => true,
-        ShownRows::NotMatching => false,
+    let wanted = match filter.showing {
+        Showing::Matching => true,
+        Showing::NotMatching => false,
     };
     Ok(Some(
         (0..=u32::MAX)
@@ -202,20 +217,19 @@ fn values_matches(
                 .collect(),
             Numbers::Float(values) => values
                 .iter()
-                .map(|value| {
-                    value.is_some_and(|value| {
-                        search.matches(&number_text(value, search.decimal_mark))
-                    })
+                .map(|value| match value {
+                    Some(value) => Ok(search.matches(&number_text(*value, search.decimal_mark)?)),
+                    None => Ok(false),
                 })
-                .collect(),
+                .collect::<Result<_, _>>()?,
         },
         ColumnValues::Text(values) => texts(values.iter().map(Option::as_ref), search),
         ColumnValues::Category(categorical) => {
-            let levels = level_matches(categorical, search, Synonyms::None);
+            let levels = level_matches(categorical, search, Synonyms::None)?;
             by_code(&levels, codes.unwrap_or(categorical.codes()))?
         }
         ColumnValues::Country(categorical) => {
-            let levels = level_matches(categorical, search, Synonyms::Countries);
+            let levels = level_matches(categorical, search, Synonyms::Countries)?;
             by_code(&levels, codes.unwrap_or(categorical.codes()))?
         }
     })
@@ -237,29 +251,33 @@ enum Synonyms {
 }
 
 /// Whether each level of a category matches, in the order of its codes.
-fn level_matches(categorical: &Categorical, search: &Search<'_>, synonyms: Synonyms) -> Vec<bool> {
+fn level_matches(
+    categorical: &Categorical,
+    search: &Search<'_>,
+    synonyms: Synonyms,
+) -> Result<Vec<bool>, CommandError> {
     let shown: Vec<String> = match categorical.levels() {
         LevelValues::Integer(values) => values.iter().map(ToString::to_string).collect(),
         LevelValues::Float(values) => values
             .iter()
             .map(|value| number_text(*value, search.decimal_mark))
-            .collect(),
+            .collect::<Result<_, _>>()?,
         LevelValues::Boolean(values) => values
             .iter()
             .map(|value| if *value { "TRUE" } else { "FALSE" }.to_owned())
             .collect(),
         LevelValues::Text(values) => values.clone(),
     };
-    shown
+    Ok(shown
         .iter()
         .map(|level| {
             search.matches(level)
                 || match synonyms {
                     Synonyms::None => false,
                     Synonyms::Countries => countries::names_of(level).any(|name| {
-                        // A code of two or three letters is compared whole:
-                        // as part of a code, "es" would find Estonia (EST)
-                        // as well as Spain.
+                        // An ISO code of two or three letters is compared
+                        // whole, so that a one-letter text such as "j" does
+                        // not find Benin by its code BJ.
                         if name.chars().count() <= 3 {
                             name == search.text
                         } else {
@@ -268,7 +286,7 @@ fn level_matches(categorical: &Categorical, search: &Search<'_>, synonyms: Synon
                     }),
                 }
         })
-        .collect()
+        .collect())
 }
 
 /// Whether each row matches, by whether its level does.
@@ -289,25 +307,134 @@ fn by_code(levels: &[bool], codes: &[Option<LevelCode>]) -> Result<Vec<bool>, Co
         .collect()
 }
 
-/// A decimal number as the table writes it (`src/state/cellText.ts`): the
-/// shortest form that gives back the value, as JavaScript writes it, with
-/// `decimal_mark` in the place of the point. JavaScript writes an
-/// exponent from 10^21 up and below 10^-6, as `1e+21` and `1.5e-7`, and
-/// −0 as `0`.
-pub(crate) fn number_text(value: f64, decimal_mark: &str) -> String {
-    let magnitude = value.abs();
+/// A decimal number as the table writes it (`src/state/cellText.ts`), the
+/// text JavaScript's `String(value)` gives, with `decimal_mark` in the
+/// place of the point: the fewest digits that give back the value, and of
+/// two such forms equally close to it, the one whose last digit is even.
+/// JavaScript writes an exponent from 10^21 up and below 10^-6, as `1e+21`
+/// and `1.5e-7`, and −0 as `0`.
+///
+/// # Errors
+///
+/// A `Defect` when Rust's own formatting of the value is not of the form
+/// it always has.
+pub(crate) fn number_text(value: f64, decimal_mark: &str) -> Result<String, CommandError> {
     let text = if value == 0.0 {
         "0".to_owned()
-    } else if (1e-6..1e21).contains(&magnitude) {
-        value.to_string()
+    } else if value.is_nan() {
+        "NaN".to_owned()
+    } else if value.is_infinite() {
+        if value > 0.0 { "Infinity" } else { "-Infinity" }.to_owned()
     } else {
-        let exponent = format!("{value:e}");
-        match exponent.split_once('e') {
-            Some((mantissa, power)) if !power.starts_with('-') => format!("{mantissa}e+{power}"),
-            Some(_) | None => exponent,
-        }
+        let (digits, exponent) = shortest_digits(value)?;
+        let sign = if value < 0.0 { "-" } else { "" };
+        format!("{sign}{}", javascript_form(&digits, exponent)?)
     };
-    text.replacen('.', decimal_mark, 1)
+    Ok(text.replacen('.', decimal_mark, 1))
+}
+
+/// The decimal digits of the magnitude of a finite, nonzero `value` as
+/// JavaScript chooses them, the first not zero, and the power of ten of
+/// the first: 1.5 is ("15", 0).
+fn shortest_digits(value: f64) -> Result<(String, i32), CommandError> {
+    let magnitude = value.abs();
+    // Rust gives the fewest digits that give back the value, but of two
+    // such forms equally close to it it may give the odd one.
+    let (digits, exponent) = scientific(&format!("{magnitude:e}"))?;
+    let Some((head, last)) = digits
+        .split_at_checked(digits.len().saturating_sub(1))
+        .and_then(|(head, last)| Some((head, last.parse::<u8>().ok()?)))
+    else {
+        return Err(number_defect(value));
+    };
+    if last % 2 == 0 {
+        return Ok((digits, exponent));
+    }
+    // The neighbours of an odd last digit, from 1 to 9, are even. One of
+    // 0 would give back the value only if the form one digit shorter did,
+    // which Rust would have given; one of 10 is not a digit.
+    let exact = exact_digits(magnitude)?;
+    let below = (last > 1).then(|| format!("{head}{}", last.saturating_sub(1)));
+    let above = (last < 9).then(|| format!("{head}{}", last.saturating_add(1)));
+    // A neighbour is as close as Rust's digits when the value lies exactly
+    // halfway, at the lower of the two followed by a 5.
+    let candidates = [
+        below.map(|below| (below.clone(), below)),
+        above.map(|above| (above, digits.clone())),
+    ];
+    for (even, lower) in candidates.into_iter().flatten() {
+        // The digits are read as "0.ddd", a power of ten above the first.
+        let gives_back = format!("0.{even}e{}", exponent.saturating_add(1))
+            .parse::<f64>()
+            .is_ok_and(|other| other.to_bits() == magnitude.to_bits());
+        if gives_back && exact == (format!("{lower}5"), exponent) {
+            return Ok((even, exponent));
+        }
+    }
+    Ok((digits, exponent))
+}
+
+/// The digits of `magnitude` exactly, with no trailing zero, and the
+/// power of ten of the first. A double has at most 767 significant
+/// digits, so 800 after the first hold them all.
+fn exact_digits(magnitude: f64) -> Result<(String, i32), CommandError> {
+    let (digits, exponent) = scientific(&format!("{magnitude:.800e}"))?;
+    Ok((digits.trim_end_matches('0').to_owned(), exponent))
+}
+
+/// The digits and the exponent of Rust's scientific form of a positive
+/// number: `1.5e0` is ("15", 0), and `1.250e-3` is ("1250", -3).
+fn scientific(text: &str) -> Result<(String, i32), CommandError> {
+    let defect = || CommandError::Defect {
+        what: format!("Rust wrote a number as {text}"),
+    };
+    let (mantissa, exponent) = text.split_once('e').ok_or_else(defect)?;
+    let exponent = exponent.parse::<i32>().map_err(|_| defect())?;
+    let digits: String = mantissa.chars().filter(|char| *char != '.').collect();
+    if digits.is_empty()
+        || digits.starts_with('0')
+        || !digits.chars().all(|char| char.is_ascii_digit())
+    {
+        return Err(defect());
+    }
+    Ok((digits, exponent))
+}
+
+fn number_defect(value: f64) -> CommandError {
+    CommandError::Defect {
+        what: format!("the digits of the number {value:e}"),
+    }
+}
+
+/// The text of the digits `digits` of a positive number whose first is at
+/// the power of ten `exponent`, as ECMAScript's Number::toString writes
+/// it, with k the number of digits and n the exponent plus one.
+fn javascript_form(digits: &str, exponent: i32) -> Result<String, CommandError> {
+    let defect = || CommandError::Defect {
+        what: format!("the digits {digits} at the power {exponent}"),
+    };
+    let num_digits = i32::try_from(digits.len()).map_err(|_| defect())?;
+    let point = exponent.checked_add(1).ok_or_else(defect)?;
+    let zeros = |count: Option<i32>| {
+        count
+            .and_then(|count| usize::try_from(count).ok())
+            .map(|count| "0".repeat(count))
+            .ok_or_else(defect)
+    };
+    Ok(if num_digits <= point && point <= 21 {
+        format!("{digits}{}", zeros(point.checked_sub(num_digits))?)
+    } else if 0 < point && point <= 21 {
+        let at = usize::try_from(point).map_err(|_| defect())?;
+        let (whole, fraction) = digits.split_at_checked(at).ok_or_else(defect)?;
+        format!("{whole}.{fraction}")
+    } else if -6 < point && point <= 0 {
+        format!("0.{}{digits}", zeros(point.checked_neg())?)
+    } else {
+        let sign = if exponent < 0 { '-' } else { '+' };
+        let (first, rest) = digits.split_at_checked(1).ok_or_else(defect)?;
+        let point = if rest.is_empty() { "" } else { "." };
+        format!("{first}{point}{rest}e{sign}{}", exponent.unsigned_abs())
+    })
 }
 
 #[cfg(test)]

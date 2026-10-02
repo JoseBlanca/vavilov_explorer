@@ -1,5 +1,5 @@
-//! The small values that name things: columns, rows, levels, revisions,
-//! hovers and windows. Each is a type of its own, so that a row cannot be
+//! The small values that name things: columns, rows, positions among the
+//! rows shown, levels, revisions, hovers and windows. Each is a type of its own, so that a row cannot be
 //! passed where a column is meant.
 
 use std::fmt;
@@ -62,6 +62,33 @@ impl RowIndex {
 }
 
 impl fmt::Display for RowIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// The place of a row among the rows the filter shows, from 0, as the
+/// table's pages count them. With no filter it equals the row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[serde(transparent)]
+pub struct Position(u32);
+
+impl Position {
+    /// The position with this number, which may be past the rows shown: a
+    /// window's position is checked when a page is made.
+    #[must_use]
+    pub const fn new(position: u32) -> Self {
+        Self(position)
+    }
+
+    /// The position as a number.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }

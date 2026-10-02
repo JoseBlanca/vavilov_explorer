@@ -4,8 +4,15 @@
 // decodeRows.ts read their parts with it.
 
 import { defect } from "../state/defect.ts";
-import { isColumnId, isHoverSeq, isLevelCode, isRevision, isRowIndex } from "../state/ids.ts";
-import type { ColumnId, HoverSeq, LevelCode, Revision, RowIndex } from "../state/ids.ts";
+import {
+  isColumnId,
+  isHoverSeq,
+  isLevelCode,
+  isPosition,
+  isRevision,
+  isRowIndex,
+} from "../state/ids.ts";
+import type { ColumnId, HoverSeq, LevelCode, Position, Revision, RowIndex } from "../state/ids.ts";
 
 const HEADER_BYTES = 24;
 const PART_HEADER_BYTES = 8;
@@ -150,6 +157,14 @@ export function levelCode(value: number): LevelCode {
 export function rowIndex(value: number): RowIndex {
   if (!isRowIndex(value)) {
     throw defect(`a row ${String(value)}`);
+  }
+  return value;
+}
+
+/** A position among the rows shown, which a `u32` always is. */
+export function position(value: number): Position {
+  if (!isPosition(value)) {
+    throw defect(`a position ${String(value)}`);
   }
   return value;
 }

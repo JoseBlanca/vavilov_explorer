@@ -11,7 +11,7 @@ import { defect } from "./defect.ts";
 import { isCategoricalColumn } from "./description.ts";
 import type { Role, StorageType, TableDescription } from "./description.ts";
 import { NO_CODE } from "./ids.ts";
-import type { ColumnId, RowIndex } from "./ids.ts";
+import type { ColumnId, Position, RowIndex } from "./ids.ts";
 import type { RowPage } from "./rowPage.ts";
 import { roleChoices } from "./roles.ts";
 import type { RoleChoice } from "./roles.ts";
@@ -33,8 +33,8 @@ export interface TableColumn {
 
 /** A row on screen. */
 export interface TableRow {
-  /** Its position among the rows the filter shows, from 0. */
-  readonly position: number;
+  /** Its position among the rows the filter shows. */
+  readonly position: Position;
   /** Its row in the table. */
   readonly row: RowIndex;
   /** Whether the individual is in the selection. */
@@ -84,7 +84,7 @@ export function fetchedColumns(description: TableDescription): ColumnId[] {
 export function tableRow(
   description: TableDescription,
   page: RowPage | null,
-  position: number,
+  position: Position,
   row: RowIndex,
   codesOf: (column: ColumnId) => Uint16Array | null,
   selection: Uint8Array | null,

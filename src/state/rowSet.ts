@@ -2,6 +2,8 @@
 // `i` in bit `i % 8` of byte `i / 8`, the bits beyond the last row zero
 // (crates/vavilov-core/src/row_set.rs).
 
+import { defect } from "./defect.ts";
+
 /** The rows from `from` to `to`, both included and in either order, of a table of `numRows`. */
 export function rangeBits(numRows: number, from: number, to: number): Uint8Array {
   const bits = new Uint8Array(Math.ceil(numRows / 8));
@@ -17,12 +19,29 @@ export function hasRow(bits: Uint8Array, row: number): boolean {
   return ((bits[Math.floor(row / 8)] ?? 0) & (1 << (row % 8))) !== 0;
 }
 
-/** The rows of `bits` that are also in `within`, a set of the same table; all of `bits` for `null`. */
+/**
+ * The rows of `bits` that are also in `within`, a set of the same table;
+ * all of `bits` for `null`.
+ *
+ * @throws A defect when the two sets are not of the same length, and so not
+ * of the same table.
+ */
 export function intersection(bits: Uint8Array, within: Uint8Array | null): Uint8Array {
   if (within === null) {
     return bits;
   }
-  return bits.map((byte, index) => byte & (within[index] ?? 0));
+  if (within.length !== bits.length) {
+    throw defect(
+      `the rows in common of a set of ${String(bits.length)} bytes and one of ${String(within.length)}`,
+    );
+  }
+  return bits.map((byte, index) => {
+    const other = within[index];
+    if (other === undefined) {
+      throw defect(`no byte ${String(index)} in a set of ${String(within.length)} bytes`);
+    }
+    return byte & other;
+  });
 }
 
 /** The number of rows in the set. */

@@ -12,6 +12,12 @@ export type LevelCode = number & { readonly __brand: "LevelCode" };
 export type Revision = number & { readonly __brand: "Revision" };
 /** The sequence number of a hover, which takes no revision. */
 export type HoverSeq = number & { readonly __brand: "HoverSeq" };
+/**
+ * The place of a row among the rows the filter shows, from 0, as the
+ * table's pages count them; with no filter it equals the row. `Position`
+ * of the core.
+ */
+export type Position = number & { readonly __brand: "Position" };
 
 /** The `u32` that means no column. */
 export const NO_COLUMN = 0xffff_ffff;
@@ -32,6 +38,11 @@ export function isColumnId(value: number): value is ColumnId {
 /** Whether `value` can be a row: a `u32` other than {@link NO_ROW}. */
 export function isRowIndex(value: number): value is RowIndex {
   return isWhole(value, NO_ROW);
+}
+
+/** Whether `value` can be a position among the rows shown: a `u32`. */
+export function isPosition(value: number): value is Position {
+  return isWhole(value, 2 ** 32);
 }
 
 /** Whether `value` can be a level code: a `u16` other than {@link NO_CODE}. */

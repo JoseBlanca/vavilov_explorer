@@ -3,16 +3,19 @@ import { nothing, render } from "lit-html";
 import type { Connection } from "../../backend/connection.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow, Role, TableDescription } from "../../state/description.ts";
-import { rowAt, shownRowsOf } from "../../state/filter.ts";
+import { rowAt, shownBetween, shownRowsOf } from "../../state/filter.ts";
+import type { Shown } from "../../state/filter.ts";
 import type { ColumnId, Revision, RowIndex } from "../../state/ids.ts";
 import type { Question } from "../../state/question.ts";
 import { roleChangeQuestion } from "../../state/roles.ts";
 import type { RowPage } from "../../state/rowPage.ts";
-import { intersection, rangeBits } from "../../state/rowSet.ts";
 import {
+  NO_ROWS,
   PAGE_ROWS,
+  checkPageRefusal,
   pageStanding,
   pagesOf,
+  positionsIn,
   rowsInView,
   rowsOfPage,
 } from "../../state/tablePages.ts";
@@ -51,7 +54,7 @@ export function createTable(
   element: HTMLElement,
   connection: Connection,
   description: () => DescriptionNow,
-  mark: string,
+  decimalMark: string,
   ask: (question: Question, withdrawn: AbortSignal) => Promise<boolean>,
   report: (error: unknown) => void,
 ): Table {
@@ -66,28 +69,27 @@ export function createTable(
   /** The question about a role being asked, and the load of the table it is about. */
   let asking: { readonly loadedAt: Revision; readonly withdraw: AbortController } | null = null;
   /**
-   * The row at each position among those shown, for the rows shown since
-   * `at`, worked out once for each change of the rows shown.
+   * The row of the table at each position among those shown, `null` when
+   * the position is the row, for the rows shown since `at`: worked out once
+   * for each change of the rows shown.
    */
-  let positions: { readonly at: Revision; readonly rows: Uint32Array | null } | null = null;
+  let rowsByPosition: { readonly at: Revision; readonly rows: Uint32Array | null } | null = null;
 
-  /** The rows shown now, their number, and the row at each position. */
-  const shownNow = (
-    table: TableDescription,
-  ): { at: Revision; numShown: number; rows: Uint32Array | null; bits: Uint8Array | null } => {
+  /** The rows shown now, and the row at each of their positions. */
+  const shownNow = (table: TableDescription): { shown: Shown; rows: Uint32Array | null } => {
     const shown = state.shown();
     if (shown === null) {
       throw defect("a table drawn with no rows shown in the copy");
     }
-    if (positions?.at !== shown.at) {
-      positions = { at: shown.at, rows: shownRowsOf(shown) };
+    if (rowsByPosition?.at !== shown.at) {
+      rowsByPosition = { at: shown.at, rows: shownRowsOf(shown) };
     }
     if (shown.bits === null && shown.numShown !== table.numRows) {
       throw defect(
         `every row shown, ${String(shown.numShown)}, of a table of ${String(table.numRows)} rows`,
       );
     }
-    return { at: shown.at, numShown: shown.numShown, rows: positions.rows, bits: shown.bits };
+    return { shown, rows: rowsByPosition.rows };
   };
 
   const part = (name: string): HTMLElement | null => {
@@ -102,13 +104,14 @@ export function createTable(
     });
   };
 
-  /** How a page stands against the copy and the description. */
+  /** How page `index` stands against the copy and the description. */
   const standing = (
     page: RowPage,
+    index: number,
     table: TableDescription,
-    shownAt: Revision,
+    shown: Shown,
   ): ReturnType<typeof pageStanding> =>
-    pageStanding(page, table.loadedAt, shownAt, fetchedColumns(table), state.columnRevision);
+    pageStanding(page, index, table.loadedAt, shown, fetchedColumns(table), state.columnRevision);
 
   const fetchPage = (index: number, table: TableDescription, numShown: number): void => {
     const { first, end } = rowsOfPage(index, numShown);
@@ -124,33 +127,34 @@ export function createTable(
     };
     connection
       .fetchRows(first, end - first, fetchedColumns(table))
-      .then((answer) => {
-        if (!settle()) {
-          return;
-        }
-        if (!answer.ok) {
-          // The rows shown changed after the fetch, and the page asked
-          // for is past them: the draw fetches the pages of those shown now.
-          if (answer.error.kind === "rowsOutOfRange") {
+      .then(
+        (answer) => {
+          if (!settle()) {
+            return;
+          }
+          if (!answer.ok) {
+            // Fewer rows were shown by the time the backend read the fetch,
+            // and the page asked for is past them: the draw fetches the
+            // pages of those shown now.
+            checkPageRefusal(answer.error, numShown);
             schedule();
             return;
           }
-          throw defect(
-            `the rows ${String(first)} to ${String(end)} were refused: ${answer.error.kind}`,
-          );
-        }
-        // A page of a table since replaced is dropped, and the draw fetches
-        // the page of the table there is now.
-        if (answer.value !== "stale" && answer.value.loadedAt === loadedAt) {
-          pages.set(index, answer.value);
-        }
-        schedule();
-      })
-      .catch((error: unknown) => {
-        if (settle()) {
+          // A page of a table since replaced is dropped, and the draw fetches
+          // the page of the table there is now.
+          if (answer.value !== "stale" && answer.value.loadedAt === loadedAt) {
+            pages.set(index, answer.value);
+          }
+          schedule();
+        },
+        // A fetch fails only by a defect, which is reported even when the
+        // fetch was made for a table since replaced.
+        (error: unknown) => {
+          settle();
           report(error);
-        }
-      });
+        },
+      )
+      .catch(report);
   };
 
   /**
@@ -224,7 +228,7 @@ export function createTable(
     if (!extend) {
       anchor = row;
     }
-    const bits = intersection(rangeBits(project.numRows, from, row), state.shown()?.bits ?? null);
+    const bits = shownBetween(project.numRows, from, row, state.shown());
     connection.setSelection(bits).then(answered("selecting rows", schedule), report);
   };
 
@@ -259,7 +263,7 @@ export function createTable(
       return;
     }
     const table = now.description;
-    const shown = shownNow(table);
+    const { shown, rows: rowAtPosition } = shownNow(table);
     const replaced = table.loadedAt !== loadedAt;
     /** Whether this table takes the place of another the table showed. */
     const another = replaced && loadedAt !== null;
@@ -274,7 +278,7 @@ export function createTable(
     // the change it holds arrives and makes it current.
     const drawable = new Map<number, RowPage>();
     for (const [index, page] of pages) {
-      switch (standing(page, table, shown.at)) {
+      switch (standing(page, index, table, shown)) {
         case "current":
           drawable.set(index, page);
           break;
@@ -299,7 +303,7 @@ export function createTable(
           };
     const range =
       measured === null
-        ? { first: 0, end: 0 }
+        ? NO_ROWS
         : rowsInView(
             measured.scrollTop,
             measured.viewport,
@@ -307,16 +311,21 @@ export function createTable(
             shown.numShown,
             MARGIN_ROWS,
           );
-    const rows: TableRow[] = [];
-    for (let position = range.first; position < range.end; position += 1) {
-      const page = drawable.get(Math.floor(position / PAGE_ROWS)) ?? null;
-      const row = rowAt(shown.rows, position);
-      rows.push(tableRow(table, page, position, row, state.codes, state.selection(), mark));
-    }
+    const rows: TableRow[] = positionsIn(range).map((position) =>
+      tableRow(
+        table,
+        drawable.get(Math.floor(position / PAGE_ROWS)) ?? null,
+        position,
+        rowAt(rowAtPosition, position),
+        state.codes,
+        state.selection(),
+        decimalMark,
+      ),
+    );
     render(
       tableView({
         columns: tableColumns(table),
-        numRows: shown.numShown,
+        numShown: shown.numShown,
         range,
         rows,
         onRowClick: select,

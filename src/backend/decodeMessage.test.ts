@@ -293,7 +293,10 @@ describe("the snapshot after edits that the core's tests write", () => {
         case "selection":
           return { kind: part.kind, numRows: part.numRows, bits: [...part.bits] };
         case "filter":
-          return { ...part, bits: part.bits === null ? null : [...part.bits] };
+          return {
+            ...part,
+            shown: { ...part.shown, bits: part.shown.bits === null ? null : [...part.shown.bits] },
+          };
         case "noProject":
         case "project":
         case "active":
@@ -314,10 +317,8 @@ describe("the snapshot after edits that the core's tests write", () => {
       { kind: "undo", canUndo: true, canRedo: false },
       {
         kind: "filter",
-        filter: { text: "", column: null, cell: "part", shown: "matching" },
-        at: 1,
-        numShown: 4,
-        bits: null,
+        filter: { text: "", column: null, cell: "part", showing: "matching" },
+        shown: { at: 1, numShown: 4, bits: null },
       },
       {
         kind: "columns",
@@ -420,12 +421,14 @@ describe("a filter part", () => {
 
   test("decodes to the filter and the rows it shows", () => {
     const [part] = decodeMessage(buffer(...CHANGE_AT_5, ...FILTER_PART)).parts;
-    expect(part?.kind === "filter" ? { ...part, bits: [...(part.bits ?? [])] } : part).toEqual({
+    expect(
+      part?.kind === "filter"
+        ? { ...part, shown: { ...part.shown, bits: [...(part.shown.bits ?? [])] } }
+        : part,
+    ).toEqual({
       kind: "filter",
-      filter: { text: "Spain", column: 2, cell: "whole", shown: "notMatching" },
-      at: 2,
-      numShown: 2,
-      bits: [0b0110],
+      filter: { text: "Spain", column: 2, cell: "whole", showing: "notMatching" },
+      shown: { at: 2, numShown: 2, bits: [0b0110] },
     });
   });
 
@@ -439,5 +442,17 @@ describe("a filter part", () => {
     const wrong = [...FILTER_PART];
     wrong[24] = 2;
     expectDefect([...CHANGE_AT_5, ...wrong], /cell 2/);
+  });
+
+  test("whose text is padded with bytes that are not zero is a defect", () => {
+    const wrong = [...FILTER_PART];
+    wrong[45] = 1;
+    expectDefect([...CHANGE_AT_5, ...wrong], /the padding of the filter's text/);
+  });
+
+  test("with bytes after its text and no rows is a defect", () => {
+    const wrong = [...FILTER_PART];
+    wrong[26] = 0;
+    expectDefect([...CHANGE_AT_5, ...wrong], /a filter part with bytes after its text and no rows/);
   });
 });

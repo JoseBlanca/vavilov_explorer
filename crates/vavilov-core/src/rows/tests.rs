@@ -26,7 +26,7 @@ fn load(session: &mut Session, table: Table) {
 
 fn request(first: u32, count: u32, columns: &[u32], based_on: u64) -> RowsRequest {
     RowsRequest {
-        first,
+        first: Position::new(first),
         count,
         columns: columns.iter().copied().map(ColumnId::new).collect(),
         based_on: Revision::new(based_on),
@@ -272,26 +272,26 @@ fn a_page_past_the_last_row_is_refused() {
     assert_eq!(
         session.rows(&request(2, 3, &[], 1)),
         Err(CommandError::RowsOutOfRange {
-            first: 2,
+            first: Position::new(2),
             count: 3,
-            num_rows: 4,
+            num_shown: 4,
         })
     );
     assert_eq!(
         session.rows(&request(5, 0, &[], 1)),
         Err(CommandError::RowsOutOfRange {
-            first: 5,
+            first: Position::new(5),
             count: 0,
-            num_rows: 4,
+            num_shown: 4,
         })
     );
     // Past u32 itself.
     assert_eq!(
         session.rows(&request(u32::MAX, 2, &[], 1)),
         Err(CommandError::RowsOutOfRange {
-            first: u32::MAX,
+            first: Position::new(u32::MAX),
             count: 2,
-            num_rows: 4,
+            num_shown: 4,
         })
     );
 }

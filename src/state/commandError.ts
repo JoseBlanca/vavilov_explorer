@@ -3,8 +3,8 @@
 // (crates/vavilov-core/src/error.rs). The table below is the one list of
 // them on this side, and the type is made from it.
 
-import { isColumnId, isLevelCode, isRevision, isRowIndex } from "./ids.ts";
-import type { ColumnId, LevelCode, Revision, RowIndex } from "./ids.ts";
+import { isColumnId, isLevelCode, isPosition, isRevision, isRowIndex } from "./ids.ts";
+import type { ColumnId, LevelCode, Position, Revision, RowIndex } from "./ids.ts";
 import type { Selected } from "./message.ts";
 import { isRole, isStorageType } from "./description.ts";
 import { isExportRefusal, isImportRefusal } from "./fileRefusal.ts";
@@ -17,6 +17,7 @@ type FieldType =
   | "columnId"
   | "levelCode"
   | "rowIndex"
+  | "position"
   | "revision"
   | "selected"
   | "storage"
@@ -43,7 +44,7 @@ const FIELDS = {
   rowSetLength: { numRows: "number", numBytes: "number" },
   rowSetUnusedBits: { numRows: "number" },
   rowOutOfRange: { row: "rowIndex", numRows: "number" },
-  rowsOutOfRange: { first: "number", count: "number", numRows: "number" },
+  rowsOutOfRange: { first: "position", count: "number", numShown: "number" },
   nothingToUndo: {},
   nothingToRedo: {},
   tooManyRows: { numRows: "number", maxRows: "number" },
@@ -86,6 +87,7 @@ interface TypeOf {
   readonly columnId: ColumnId;
   readonly levelCode: LevelCode;
   readonly rowIndex: RowIndex;
+  readonly position: Position;
   readonly revision: Revision;
   readonly selected: SelectedOnWire;
   readonly storage: StorageType;
@@ -131,6 +133,8 @@ function hasType(value: unknown, type: FieldType): boolean {
       return typeof value === "number" && isLevelCode(value);
     case "rowIndex":
       return typeof value === "number" && isRowIndex(value);
+    case "position":
+      return typeof value === "number" && isPosition(value);
     case "revision":
       return typeof value === "number" && isRevision(value);
     case "selected":

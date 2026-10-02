@@ -124,7 +124,7 @@ for (const engine of Object.keys(ENGINES)) {
     });
     assert.deepEqual(await fetchRows(3, 2, []), {
       ok: false,
-      error: { kind: "rowsOutOfRange", first: 3, count: 2, numRows: 4 },
+      error: { kind: "rowsOutOfRange", first: 3, count: 2, numShown: 4 },
     });
     assert.deepEqual(await send("selectPopulation", 1, peru), applied);
     assert.deepEqual((await stateAt(2)).active, { column: 1, selected: peru });
@@ -165,6 +165,20 @@ for (const engine of Object.keys(ENGINES)) {
       ok: false,
       error: { kind: "roleNotPossible", column: 3, storage: "integer", role: "text" },
     });
+
+    // The rows whose note is not the whole of "tall": 0, 1, whose note is
+    // missing and never matches, and 3.
+    const tall = { text: "tall", column: 5, cell: "whole", showing: "notMatching" };
+    assert.deepEqual(await send("setFilter", tall, ","), applied);
+    await stateAt(12);
+    assert.deepEqual(
+      await page.evaluate(() => {
+        const state = globalThis.__connection.state;
+        const shown = state.shown();
+        return { filter: state.filter(), numShown: shown.numShown, bits: [...shown.bits] };
+      }),
+      { filter: tall, numShown: 3, bits: [0b1011] },
+    );
 
     assert.deepEqual(await page.evaluate(() => globalThis.__defects), []);
     assert.deepEqual(errors, [], "no page errors");

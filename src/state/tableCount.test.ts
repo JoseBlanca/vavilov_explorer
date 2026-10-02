@@ -1,7 +1,14 @@
 import { describe, expect, test } from "vitest";
 
+import { isRevision } from "./ids.ts";
+import type { Revision } from "./ids.ts";
 import { countRows } from "./rowSet.ts";
-import { tableCountText } from "./tableCount.ts";
+import { tableCountOf, tableCountText } from "./tableCount.ts";
+
+function revision(value: number): Revision {
+  if (!isRevision(value)) throw new Error("not a revision");
+  return value;
+}
 
 const SPANISH = new Intl.NumberFormat("es-ES", { useGrouping: "always" });
 const count = (value: number): string => SPANISH.format(value);
@@ -29,6 +36,43 @@ describe("the count of the table", () => {
     expect(
       tableCountText({ numShown: 312, numRows: 2000, filtered: true, numSelected: 45 }, count),
     ).toBe("Showing 312 of 2.000 individuals · 45 selected");
+  });
+});
+
+describe("what the information bar counts", () => {
+  const open = { kind: "open", numRows: 10, loadedAt: revision(1) } as const;
+  const selection = new Uint8Array([0b1001, 0]);
+
+  test("is the rows shown, the table's and the selected", () => {
+    expect(tableCountOf(open, { at: revision(1), numShown: 10, bits: null }, selection)).toEqual({
+      numShown: 10,
+      numRows: 10,
+      filtered: false,
+      numSelected: 2,
+    });
+  });
+
+  test("is filtered when the backend sends the rows shown, even every one", () => {
+    const every = new Uint8Array([0xff, 0b11]);
+    expect(tableCountOf(open, { at: revision(2), numShown: 10, bits: every }, selection)).toEqual({
+      numShown: 10,
+      numRows: 10,
+      filtered: true,
+      numSelected: 2,
+    });
+  });
+
+  test("is nothing with no project open", () => {
+    expect(tableCountOf({ kind: "noProject" }, null, null)).toBeNull();
+  });
+
+  test("with a project open and no rows shown or no selection is a defect", () => {
+    expect(() => tableCountOf(open, null, selection)).toThrow(
+      /defect: a count of a table of 10 rows with no rows shown/,
+    );
+    expect(() => tableCountOf(open, { at: revision(1), numShown: 10, bits: null }, null)).toThrow(
+      /defect: a count of a table of 10 rows with no selection/,
+    );
   });
 });
 

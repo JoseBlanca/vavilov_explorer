@@ -16,8 +16,8 @@ import styles from "./table.module.css";
 export interface TableProps {
   /** The columns, the names first. */
   readonly columns: readonly TableColumn[];
-  /** The rows of the table, of which only `range` is drawn. */
-  readonly numRows: number;
+  /** The rows the filter shows, of which only `range` is drawn. */
+  readonly numShown: number;
   /** The rows drawn; the others are blank space of the same height. */
   readonly range: RowRange;
   /** The rows of `range`, in order. */
@@ -118,7 +118,7 @@ export function tableView(props: TableProps): TemplateResult {
         tabindex="-1"
         style=${styleMap({ gridTemplateColumns: columns })}
         aria-label="Individuals"
-        aria-rowcount=${String(props.numRows + 1)}
+        aria-rowcount=${String(props.numShown + 1)}
         aria-colcount=${String(props.columns.length)}
         aria-multiselectable="true"
       >
@@ -177,7 +177,7 @@ export function tableView(props: TableProps): TemplateResult {
               }
             </div>`,
         )}
-        ${blank(props.numRows - props.range.end)}
+        ${blank(props.numShown - props.range.end)}
       </div>
     </div>
   </div>`;

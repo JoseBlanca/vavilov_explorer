@@ -9,7 +9,7 @@ import type { Role, TableDescription } from "../state/description.ts";
 import type { Filter } from "../state/filter.ts";
 import type { Selected } from "../state/message.ts";
 import { defect } from "../state/defect.ts";
-import type { ColumnId, LevelCode, RowIndex } from "../state/ids.ts";
+import type { ColumnId, LevelCode, Position, RowIndex } from "../state/ids.ts";
 import type { Result } from "../state/result.ts";
 import type { RowPage } from "../state/rowPage.ts";
 import { exportAnswerOf, importAnswerOf } from "../state/transfer.ts";
@@ -74,7 +74,7 @@ export interface Connection {
    * backend's refusal.
    */
   readonly fetchRows: (
-    first: number,
+    first: Position,
     count: number,
     columns: readonly ColumnId[],
   ) => Promise<Result<RowPage | "stale", Refusal>>;
@@ -298,7 +298,14 @@ export async function connect(
       return { ok: true, value: decoded };
     },
     setRole: (column, role) => command("set_role", { column, role }),
-    setFilter: (filter, decimalMark) => command("set_filter", { ...filter, decimalMark }),
+    setFilter: (filter, decimalMark) =>
+      command("set_filter", {
+        text: filter.text,
+        column: filter.column,
+        cell: filter.cell,
+        showing: filter.showing,
+        decimalMark,
+      }),
     undo: () => command("undo", {}),
     redo: () => command("redo", {}),
     importTable: async () => {

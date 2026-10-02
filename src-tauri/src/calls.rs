@@ -11,8 +11,8 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    CellMatch, ColumnId, Command, CommandError, Filter, LevelCode, Outcome, Request, Revision,
-    Role, RowIndex, RowsRequest, Selected, SentAt, Session, ShownRows, TableDescription,
+    CellMatch, ColumnId, Command, CommandError, Filter, LevelCode, Outcome, Position, Request,
+    Revision, Role, RowIndex, RowsRequest, Selected, SentAt, Session, Showing, TableDescription,
 };
 
 /// The commands `call` takes, every command of the app but `subscribe`.
@@ -57,7 +57,7 @@ pub fn call(
     if command == "fetch_rows" {
         let args: RowsArgs = json_args(command, body)?;
         let request = RowsRequest {
-            first: args.first,
+            first: Position::new(args.first),
             count: args.count,
             columns: args.columns.into_iter().map(ColumnId::new).collect(),
             based_on: Revision::new(args.based_on),
@@ -148,10 +148,13 @@ pub fn call(
                 text: args.text,
                 column: args.column.map(ColumnId::new),
                 cell: args.cell,
-                shown: args.shown,
+                showing: args.showing,
+            };
+            let command = Command::SetFilter {
+                filter,
                 decimal_mark: args.decimal_mark,
             };
-            request(Command::SetFilter { filter }, args.based_on, args.sent_at)?
+            request(command, args.based_on, args.sent_at)?
         }
         "undo" => {
             let args: At = json_args(command, body)?;
@@ -249,7 +252,7 @@ struct FilterArgs {
     text: String,
     column: Option<u32>,
     cell: CellMatch,
-    shown: ShownRows,
+    showing: Showing,
     decimal_mark: String,
     based_on: u64,
     sent_at: Option<f64>,
