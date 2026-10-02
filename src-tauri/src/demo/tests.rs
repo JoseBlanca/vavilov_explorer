@@ -52,8 +52,8 @@ fn the_demo_table_has_its_plants_and_columns_in_order() {
     assert_eq!(
         columns,
         [
-            ("country", StorageType::Text, Role::CountryClassification),
-            ("cluster", StorageType::Text, Role::Classification),
+            ("country", StorageType::Text, Role::Country),
+            ("cluster", StorageType::Text, Role::Category),
             ("latitude", StorageType::Float, Role::Latitude),
             ("longitude", StorageType::Float, Role::Longitude),
             ("PC1", StorageType::Float, Role::Number),

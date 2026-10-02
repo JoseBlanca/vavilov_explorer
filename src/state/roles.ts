@@ -18,9 +18,7 @@ const LABELS: Readonly<Record<Role, string>> = {
   latitude: "Latitude",
   longitude: "Longitude",
   category: "Category",
-  countryCategory: "Country category",
-  classification: "Classification",
-  countryClassification: "Country classification",
+  country: "Country",
   text: "Text",
 };
 

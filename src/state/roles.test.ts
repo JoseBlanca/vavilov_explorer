@@ -21,15 +21,13 @@ describe("the roles a column is offered", () => {
     const origin: ColumnDescription = {
       ...COMMON,
       storage: "text",
-      role: "countryClassification",
-      roles: ["category", "countryCategory", "classification", "countryClassification", "text"],
+      role: "country",
+      roles: ["category", "country", "text"],
       levels: [],
     };
     expect(roleChoices(origin)).toEqual([
       { role: "category", label: "Category" },
-      { role: "countryCategory", label: "Country category" },
-      { role: "classification", label: "Classification" },
-      { role: "countryClassification", label: "Country classification" },
+      { role: "country", label: "Country" },
       { role: "text", label: "Text" },
     ]);
   });

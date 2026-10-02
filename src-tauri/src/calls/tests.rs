@@ -16,7 +16,7 @@ fn loaded() -> Session {
         vec!["p1".to_owned(), "p2".to_owned(), "p3".to_owned()],
         vec![NewColumn {
             name: "origin".to_owned(),
-            values: ColumnValues::Classification(Categorical::new(
+            values: ColumnValues::Category(Categorical::new(
                 LevelValues::Text(vec!["Spain".to_owned(), "Peru".to_owned()]),
                 vec![colour, colour],
                 vec![Some(LevelCode::new(0)), None, None],

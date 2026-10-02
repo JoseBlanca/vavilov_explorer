@@ -270,8 +270,8 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
         break;
     }
   }
-  // A column listed with no codes beside it is no longer a category or a
-  // classification (docs/core.md, section 5), and its codes go.
+  // A column listed with no codes beside it is no longer a category
+  // (docs/core.md, section 5), and its codes go.
   const withCodes = new Set(
     message.parts.flatMap((part) => (part.kind === "codes" ? [part.column] : [])),
   );

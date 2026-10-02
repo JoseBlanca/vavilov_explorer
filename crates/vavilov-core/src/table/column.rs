@@ -25,9 +25,9 @@ pub enum StorageType {
 }
 
 /// What a column is for, which the user chooses. Latitude and longitude
-/// are sub-roles of a number, and a country category and a country
-/// classification of a category and a classification: each behaves as the
-/// role above it, with a check of every value (`docs/design.md`, section 6).
+/// are sub-roles of a number, and country of a category: each behaves as
+/// the role above it, with a check of every value (`docs/design.md`,
+/// section 6). Any category can be the active classification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Role {
@@ -37,36 +37,31 @@ pub enum Role {
     Latitude,
     /// A number from −180 to 180.
     Longitude,
-    /// A trait, drawn in a bar plot and never edited.
+    /// Values that divide the individuals into groups, drawn in a bar plot;
+    /// the one being edited is the active classification.
     Category,
     /// A category whose every value is a country, shown by its code.
-    CountryCategory,
-    /// Populations, which a lasso edits.
-    Classification,
-    /// A classification whose every population is a country.
-    CountryClassification,
+    Country,
     /// Notes and identifiers, shown in the table alone.
     Text,
 }
 
 impl Role {
     /// Every role, in the order the dropdown of a column lists them.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 6] = [
         Self::Number,
         Self::Latitude,
         Self::Longitude,
         Self::Category,
-        Self::CountryCategory,
-        Self::Classification,
-        Self::CountryClassification,
+        Self::Country,
         Self::Text,
     ];
 
-    /// Whether the role is a classification, of countries or not: the
-    /// roles a lasso edits.
+    /// Whether the role holds codes into levels: a category, of countries
+    /// or not, which can be the active classification.
     #[must_use]
-    pub const fn is_classification(self) -> bool {
-        matches!(self, Self::Classification | Self::CountryClassification)
+    pub const fn is_categorical(self) -> bool {
+        matches!(self, Self::Category | Self::Country)
     }
 }
 
@@ -112,7 +107,7 @@ pub enum Numbers {
     Float(Vec<Option<f64>>),
 }
 
-/// The values of the levels of a category or a classification, in the
+/// The values of the levels of a category, in the
 /// order of their codes, each of the column's storage type and none twice.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LevelValues {
@@ -155,7 +150,7 @@ impl LevelValues {
     }
 }
 
-/// The values of a category or a classification: its ordered levels,
+/// The values of a category: its ordered levels,
 /// each with a colour, and for each row the code of its level or `None`,
 /// which in a classification is an unassigned individual. A level no row
 /// uses is allowed: it is how a new, empty population exists.
@@ -347,7 +342,7 @@ fn levels_of<T: Clone>(
 /// The values of a column, in the shape its role gives them, each value of
 /// its storage type, `None` for a missing value. A decimal number is
 /// always finite; a latitude and a longitude are in their range; the
-/// levels of a country category or classification are the codes of
+/// levels of a country category are the codes of
 /// countries.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ColumnValues {
@@ -360,11 +355,7 @@ pub enum ColumnValues {
     /// A category.
     Category(Categorical),
     /// A category of countries.
-    CountryCategory(Categorical),
-    /// A classification.
-    Classification(Categorical),
-    /// A classification of countries.
-    CountryClassification(Categorical),
+    Country(Categorical),
     /// Text.
     Text(Vec<Option<String>>),
 }
@@ -379,7 +370,7 @@ impl ColumnValues {
     /// `RoleNotPossible` when the storage type cannot take the role,
     /// `ValueNotFor` for a value a sub-role does not take, a latitude out of
     /// its range or a text that names no country, and `TooManyLevels` for a
-    /// category or a classification of more distinct values than
+    /// category of more distinct values than
     /// [`crate::MAX_LEVELS`].
     pub fn from_stored(
         stored: Stored,
@@ -414,21 +405,15 @@ impl ColumnValues {
                 &stored,
                 column_name,
             )?)),
-            Role::Classification => Ok(Self::Classification(Categorical::from_stored(
-                &stored,
-                column_name,
-            )?)),
-            Role::CountryCategory | Role::CountryClassification => {
+            Role::Country => {
                 let Stored::Text(values) = stored else {
                     return Err(impossible);
                 };
                 let codes = Stored::Text(countries_of(&values, column, role)?);
-                let categorical = Categorical::from_stored(&codes, column_name)?;
-                Ok(if role == Role::CountryCategory {
-                    Self::CountryCategory(categorical)
-                } else {
-                    Self::CountryClassification(categorical)
-                })
+                Ok(Self::Country(Categorical::from_stored(
+                    &codes,
+                    column_name,
+                )?))
             }
             Role::Text => match stored {
                 Stored::Text(values) => Ok(Self::Text(values)),
@@ -452,17 +437,12 @@ impl ColumnValues {
                 }
             }
             Self::Text(values) => Stored::Text(values.clone()),
-            Self::Category(categorical)
-            | Self::CountryCategory(categorical)
-            | Self::Classification(categorical)
-            | Self::CountryClassification(categorical) => categorical.to_stored()?,
+            Self::Category(categorical) | Self::Country(categorical) => categorical.to_stored()?,
         })
     }
 
     /// The values in the shape of `role`, or `None` when they have it
-    /// already. A category and a classification change into each other
-    /// keeping the levels, their colours and the empty ones, and so do a
-    /// country category and a country classification.
+    /// already. The new shape is built from the values as stored.
     ///
     /// # Errors
     ///
@@ -476,25 +456,11 @@ impl ColumnValues {
         if self.role() == role {
             return Ok(None);
         }
-        match (self, role) {
-            (Self::Category(categorical), Role::Classification) => {
-                Ok(Some(Self::Classification(categorical.clone())))
-            }
-            (Self::Classification(categorical), Role::Category) => {
-                Ok(Some(Self::Category(categorical.clone())))
-            }
-            (Self::CountryCategory(categorical), Role::CountryClassification) => {
-                Ok(Some(Self::CountryClassification(categorical.clone())))
-            }
-            (Self::CountryClassification(categorical), Role::CountryCategory) => {
-                Ok(Some(Self::CountryCategory(categorical.clone())))
-            }
-            _ => Self::from_stored(self.to_stored()?, role, column, column_name).map(Some),
-        }
+        Self::from_stored(self.to_stored()?, role, column, column_name).map(Some)
     }
 
     /// The roles the column can take, its own among them, in the order of
-    /// [`Role::ALL`]: by its storage type, a category or a classification
+    /// [`Role::ALL`]: by its storage type, a category
     /// only when its distinct values fit the codes, and a sub-role only when
     /// every value passes its check.
     ///
@@ -527,8 +493,8 @@ impl ColumnValues {
                 Role::Number => numeric,
                 Role::Latitude => numeric && in_range(&LATITUDE),
                 Role::Longitude => numeric && in_range(&LONGITUDE),
-                Role::Category | Role::Classification => categorical,
-                Role::CountryCategory | Role::CountryClassification => countries,
+                Role::Category => categorical,
+                Role::Country => countries,
                 Role::Text => storage == StorageType::Text,
             })
             .collect())
@@ -542,9 +508,7 @@ impl ColumnValues {
             Self::Latitude(_) => Role::Latitude,
             Self::Longitude(_) => Role::Longitude,
             Self::Category(_) => Role::Category,
-            Self::CountryCategory(_) => Role::CountryCategory,
-            Self::Classification(_) => Role::Classification,
-            Self::CountryClassification(_) => Role::CountryClassification,
+            Self::Country(_) => Role::Country,
             Self::Text(_) => Role::Text,
         }
     }
@@ -560,10 +524,7 @@ impl ColumnValues {
                 }
             }
             Self::Text(_) => StorageType::Text,
-            Self::Category(categorical)
-            | Self::CountryCategory(categorical)
-            | Self::Classification(categorical)
-            | Self::CountryClassification(categorical) => categorical.storage_type(),
+            Self::Category(categorical) | Self::Country(categorical) => categorical.storage_type(),
         }
     }
 
@@ -574,35 +535,24 @@ impl ColumnValues {
             Self::Number(numbers) | Self::Latitude(numbers) | Self::Longitude(numbers) => {
                 Some(numbers)
             }
-            Self::Category(_)
-            | Self::CountryCategory(_)
-            | Self::Classification(_)
-            | Self::CountryClassification(_)
-            | Self::Text(_) => None,
+            Self::Category(_) | Self::Country(_) | Self::Text(_) => None,
         }
     }
 
-    /// The levels and codes of a category or a classification, of
-    /// countries or not.
+    /// The levels and codes of a category, of countries or not.
     #[must_use]
     pub const fn categorical(&self) -> Option<&Categorical> {
         match self {
-            Self::Category(categorical)
-            | Self::CountryCategory(categorical)
-            | Self::Classification(categorical)
-            | Self::CountryClassification(categorical) => Some(categorical),
+            Self::Category(categorical) | Self::Country(categorical) => Some(categorical),
             Self::Number(_) | Self::Latitude(_) | Self::Longitude(_) | Self::Text(_) => None,
         }
     }
 
-    /// The levels and codes of a category or a classification, to be
+    /// The levels and codes of a category, to be
     /// changed.
     pub(crate) const fn categorical_mut(&mut self) -> Option<&mut Categorical> {
         match self {
-            Self::Category(categorical)
-            | Self::CountryCategory(categorical)
-            | Self::Classification(categorical)
-            | Self::CountryClassification(categorical) => Some(categorical),
+            Self::Category(categorical) | Self::Country(categorical) => Some(categorical),
             Self::Number(_) | Self::Latitude(_) | Self::Longitude(_) | Self::Text(_) => None,
         }
     }
@@ -618,10 +568,7 @@ impl ColumnValues {
                 }
             }
             Self::Text(values) => values.len(),
-            Self::Category(categorical)
-            | Self::CountryCategory(categorical)
-            | Self::Classification(categorical)
-            | Self::CountryClassification(categorical) => categorical.codes.len(),
+            Self::Category(categorical) | Self::Country(categorical) => categorical.codes.len(),
         }
     }
 
@@ -744,26 +691,10 @@ impl Column {
         &self.values
     }
 
-    /// The levels and codes of a category or a classification, of
-    /// countries or not.
+    /// The levels and codes of a category, of countries or not.
     #[must_use]
     pub const fn categorical(&self) -> Option<&Categorical> {
         self.values.categorical()
-    }
-
-    /// The levels and codes of a classification, of countries or not.
-    #[must_use]
-    pub const fn classification(&self) -> Option<&Categorical> {
-        match &self.values {
-            ColumnValues::Classification(categorical)
-            | ColumnValues::CountryClassification(categorical) => Some(categorical),
-            ColumnValues::Number(_)
-            | ColumnValues::Latitude(_)
-            | ColumnValues::Longitude(_)
-            | ColumnValues::Category(_)
-            | ColumnValues::CountryCategory(_)
-            | ColumnValues::Text(_) => None,
-        }
     }
 }
 

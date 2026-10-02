@@ -324,7 +324,7 @@ describe("a change of a column's role", () => {
     expect(seen).toEqual(["table"]);
   });
 
-  test("of a classification to a number drops its codes, and of a number to a category brings them", () => {
+  test("of a category to a number drops its codes, and of a number to a category brings them", () => {
     const state = createWindowState(snapshot(1));
     const seen: Aspect[] = [];
     state.subscribe("codes", () => seen.push("codes"));

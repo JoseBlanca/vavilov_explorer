@@ -15,8 +15,7 @@ const fn rgb(red: u8, green: u8, blue: u8) -> Colour {
     Colour { red, green, blue }
 }
 
-/// The colours levels are given, in order, when a category or a
-/// classification is built (`docs/design.md`, section 5): Okabe and Ito's
+/// The colours levels are given, in order, when a category is built (`docs/design.md`, section 5): Okabe and Ito's
 /// list without its black, then the same mixed with 40 % white, then with
 /// 40 % black, each channel rounded to the nearest. Decided by the owner on
 /// 2 October 2026. A column of more levels starts the list again, which

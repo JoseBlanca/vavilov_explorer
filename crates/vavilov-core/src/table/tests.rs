@@ -267,7 +267,7 @@ fn a_column_of_65535_levels_is_accepted_and_one_of_65536_refused() {
         names(&["p1"]),
         vec![column(
             "origin",
-            ColumnValues::Classification(Categorical::new(
+            ColumnValues::Category(Categorical::new(
                 levels(MAX_LEVELS),
                 colours(MAX_LEVELS),
                 vec![code(largest)],
@@ -282,7 +282,7 @@ fn a_column_of_65535_levels_is_accepted_and_one_of_65536_refused() {
             &["p1"],
             vec![column(
                 "origin",
-                ColumnValues::Classification(Categorical::new(
+                ColumnValues::Category(Categorical::new(
                     levels(MAX_LEVELS + 1),
                     colours(MAX_LEVELS + 1),
                     vec![None],
@@ -391,7 +391,7 @@ fn a_latitude_out_of_its_range_is_refused_when_the_table_is_built() {
 fn a_level_of_a_country_category_that_is_no_country_s_code_is_refused() {
     let values = |levels: Vec<&str>| {
         let colours = vec![VERMILLION; levels.len()];
-        ColumnValues::CountryCategory(Categorical::new(
+        ColumnValues::Country(Categorical::new(
             LevelValues::Text(levels.into_iter().map(str::to_owned).collect()),
             colours,
             vec![None],

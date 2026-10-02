@@ -38,9 +38,7 @@ const WIDTHS: Readonly<Record<TableColumn["kind"], string>> = {
   longitude: "var(--column-number)",
   text: "var(--column-text)",
   category: "var(--column-categorical)",
-  countryCategory: "var(--column-country)",
-  classification: "var(--column-categorical)",
-  countryClassification: "var(--column-country)",
+  country: "var(--column-categorical)",
 };
 
 /** The dropdown of the roles a column can take. */

@@ -95,9 +95,7 @@ fn page_values<'a>(
         | ColumnValues::Latitude(_)
         | ColumnValues::Longitude(_)
         | ColumnValues::Category(_)
-        | ColumnValues::CountryCategory(_)
-        | ColumnValues::Classification(_)
-        | ColumnValues::CountryClassification(_) => Err(CommandError::Defect {
+        | ColumnValues::Country(_) => Err(CommandError::Defect {
             what: "a column neither of numbers, of codes nor of text".to_owned(),
         }),
     }

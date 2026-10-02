@@ -35,19 +35,20 @@ After the import, each column but the first has a role, which you choose
 in the dropdown at the top of the column:
 
 - **Number**: values drawn on an axis or in a histogram.
-- **Category**: a trait you measured or recorded, such as the colour of
-  the flower. It is drawn in bar plots and never changed by the app.
-- **Classification**: populations, the groups you assign individuals to.
-  A classification can colour every plot, and you can move individuals
-  from one population to another by drawing around them in a plot. Each
-  value of the column is a population. Moving individuals changes the
-  column in the app, never the file you imported.
+- **Category**: values that divide the individuals into groups, such as
+  the colour of the flower, the country of origin or a genetic
+  clustering. A category is drawn in bar plots, and you can choose any
+  category in the populations panel to work with its groups as
+  populations: to colour the plots by them, and to move individuals
+  from one to another by drawing around them in a plot. Moving
+  individuals changes the column in the app, never the file you
+  imported; you choose which category to edit, so take care not to edit
+  a trait you recorded by mistake.
 - **Text**: notes and identifiers, shown in the table only.
 
 Three roles are more particular forms of these, for columns whose every
 value fits them: **Latitude** and **Longitude**, numbers the map uses to
-place each individual, and **Country category** and **Country
-classification**, categories or classifications whose values are
+place each individual, and **Country**, a category whose values are
 countries. The dropdown lists only the roles a column can take, and you
 can change a column's role at any time.
 
@@ -62,8 +63,7 @@ to decimal degrees in the file first.
 
 ### Countries
 
-A column of text can be a country category or a country classification
-when every value names a country. The countries are those of ISO 3166,
+A column of text can be a country when every value names a country. The countries are those of ISO 3166,
 the international standard list of countries and their codes, and a
 value can name one in any of these ways:
 

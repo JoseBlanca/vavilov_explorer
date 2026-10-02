@@ -87,7 +87,7 @@ fn load(app: &App<MockRuntime>) {
         vec!["p1".to_owned(), "p2".to_owned(), "p3".to_owned()],
         vec![NewColumn {
             name: "origin".to_owned(),
-            values: ColumnValues::Classification(Categorical::new(
+            values: ColumnValues::Category(Categorical::new(
                 LevelValues::Text(vec!["Spain".to_owned(), "Peru".to_owned()]),
                 vec![colour, colour],
                 vec![Some(LevelCode::new(0)), Some(LevelCode::new(1)), None],
@@ -477,11 +477,8 @@ fn the_description_of_the_table_comes_back_as_json() {
             "names": { "id": 0, "header": "IndividualID" },
             "columns": [{
                 "id": 1, "name": "origin", "revision": 1,
-                "storage": "text", "role": "classification",
-                "roles": [
-                    "category", "countryCategory", "classification",
-                    "countryClassification", "text",
-                ],
+                "storage": "text", "role": "category",
+                "roles": ["category", "country", "text"],
                 "levels": [
                     { "value": "Spain", "colour": "#0072b2" },
                     { "value": "Peru", "colour": "#0072b2" },
@@ -565,7 +562,7 @@ fn a_change_of_role_through_its_command_reaches_the_session() {
     json_command(
         &window,
         "set_role",
-        json!({ "column": ORIGIN, "role": "category", "basedOn": 1 }),
+        json!({ "column": ORIGIN, "role": "country", "basedOn": 1 }),
     )
     .unwrap();
     let session = session_of(&app);
@@ -576,8 +573,15 @@ fn a_change_of_role_through_its_command_reaches_the_session() {
         .unwrap()
         .values()
         .role();
-    assert_eq!(values, vavilov_core::Role::Category);
-    assert_eq!(session.active(), None);
+    assert_eq!(values, vavilov_core::Role::Country);
+    // Still the active classification, its levels built again as codes.
+    assert_eq!(
+        session.active(),
+        Some(vavilov_core::Active {
+            column: ColumnId::new(ORIGIN),
+            selected: None
+        })
+    );
 }
 
 #[test]

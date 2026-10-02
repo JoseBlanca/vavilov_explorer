@@ -11,8 +11,8 @@ export type StorageType = "integer" | "float" | "boolean" | "text";
 
 /**
  * What a column is for, which the user chooses. Latitude and longitude are
- * sub-roles of number, and the country ones of category and classification
- * (docs/design.md, section 6).
+ * sub-roles of number, and country of category (docs/design.md, section 6).
+ * Any category can be the active classification.
  */
 export type Role = ValuesRole | LevelsRole;
 
@@ -20,8 +20,7 @@ export type Role = ValuesRole | LevelsRole;
 export type ValuesRole = "number" | "latitude" | "longitude" | "text";
 
 /** The roles whose codes the window's copy holds. */
-export type LevelsRole =
-  "category" | "countryCategory" | "classification" | "countryClassification";
+export type LevelsRole = "category" | "country";
 
 /** Every role, in the order the dropdown of a column lists them, as `Role::ALL` in the core. */
 export const ROLES: readonly Role[] = [
@@ -29,25 +28,13 @@ export const ROLES: readonly Role[] = [
   "latitude",
   "longitude",
   "category",
-  "countryCategory",
-  "classification",
-  "countryClassification",
+  "country",
   "text",
 ];
 
-/** Whether `role` is a classification, of countries or not: the roles a lasso edits. */
-export function isClassification(role: Role): boolean {
-  return role === "classification" || role === "countryClassification";
-}
-
-/** Whether `role` holds codes into levels: a category or a classification, of countries or not. */
+/** Whether `role` holds codes into levels: a category, of countries or not. */
 export function hasLevels(role: Role): role is LevelsRole {
-  return (
-    role === "category" ||
-    role === "countryCategory" ||
-    role === "classification" ||
-    role === "countryClassification"
-  );
+  return role === "category" || role === "country";
 }
 
 /**
@@ -57,7 +44,7 @@ export function hasLevels(role: Role): role is LevelsRole {
  */
 export type LevelValue = string | number | boolean;
 
-/** A level of a category or a classification: in a classification, a population. */
+/** A level of a category: in the active classification, a population. */
 export interface LevelDescription {
   /** Its value, of the column's storage type. */
   readonly value: LevelValue;
@@ -89,7 +76,7 @@ export interface ValuesColumn<R extends ValuesRole> extends ColumnCommon {
   readonly role: R;
 }
 
-/** A category or a classification, of countries or not, whose codes the window's copy holds. */
+/** A category, of countries or not, whose codes the window's copy holds. */
 export interface LevelsColumn<R extends LevelsRole> extends ColumnCommon {
   /** What it is for. */
   readonly role: R;
@@ -104,9 +91,7 @@ export type ColumnDescription =
   | ValuesColumn<"longitude">
   | ValuesColumn<"text">
   | LevelsColumn<"category">
-  | LevelsColumn<"countryCategory">
-  | LevelsColumn<"classification">
-  | LevelsColumn<"countryClassification">;
+  | LevelsColumn<"country">;
 
 /**
  * The description a window's components draw from: none with no project;
@@ -119,7 +104,7 @@ export type DescriptionNow =
   | { readonly kind: "behind" }
   | { readonly kind: "current"; readonly description: TableDescription };
 
-/** Whether `column` holds codes into levels: a category or a classification, of countries or not. */
+/** Whether `column` holds codes into levels: a category, of countries or not. */
 export function isLevelsColumn(column: ColumnDescription): column is LevelsColumn<LevelsRole> {
   return hasLevels(column.role);
 }
@@ -176,12 +161,10 @@ function fitsStorage(role: Role, storage: StorageType): boolean {
     case "latitude":
     case "longitude":
       return storage === "integer" || storage === "float";
-    case "countryCategory":
-    case "countryClassification":
+    case "country":
     case "text":
       return storage === "text";
     case "category":
-    case "classification":
       return true;
   }
 }

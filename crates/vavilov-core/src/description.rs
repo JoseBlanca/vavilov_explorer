@@ -55,13 +55,13 @@ pub struct ColumnDescription {
     /// The roles it can take, its own among them, in the order of
     /// [`Role::ALL`]: what the dropdown of its role offers.
     pub roles: Vec<Role>,
-    /// The levels of a category or a classification, of countries or not,
+    /// The levels of a category, of countries or not,
     /// in the order of their codes; absent for the other roles.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub levels: Option<Vec<LevelDescription>>,
 }
 
-/// A level of a category or a classification: in a classification, a
+/// A level of a category: in a classification, a
 /// population.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]

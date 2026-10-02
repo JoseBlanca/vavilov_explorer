@@ -33,7 +33,7 @@ pub enum Command {
     /// Sets the active classification, which clears the selected
     /// population.
     SetActiveClassification {
-        /// A classification, or `None` for none.
+        /// A category, of countries or not, or `None` for none.
         column: Option<ColumnId>,
     },
     /// Selects a population of the active classification, or its
@@ -64,8 +64,8 @@ pub enum Command {
         /// The rows inside the lasso.
         rows: RowSet,
     },
-    /// Sets the role of a column other than the first. A classification
-    /// that stops being one stops being the active classification.
+    /// Sets the role of a column other than the first. The active
+    /// classification made a number or text stops being active.
     SetRole {
         /// The column.
         column: ColumnId,

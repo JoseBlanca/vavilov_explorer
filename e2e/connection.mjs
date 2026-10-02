@@ -84,7 +84,7 @@ for (const engine of Object.keys(ENGINES)) {
     assert.deepEqual(
       description.value.columns.map((column) => [column.name, column.storage, column.role]),
       [
-        ["origin", "text", "classification"],
+        ["origin", "text", "category"],
         ["height", "float", "number"],
         ["seeds", "integer", "number"],
         ["fertile", "boolean", "category"],

@@ -27,7 +27,7 @@ pub const MAX_ROWS: u32 = 268_435_456;
 /// length of a part.
 pub const MAX_COLUMNS: u32 = 16_777_216;
 
-/// The most levels a category or a classification may have: a code is 16
+/// The most levels a category may have: a code is 16
 /// bits, and `0xFFFF` means missing in the messages.
 pub const MAX_LEVELS: u32 = 65_535;
 
@@ -120,8 +120,8 @@ impl Table {
     /// [`MAX_ROWS`] rows or [`MAX_COLUMNS`] columns; an individual with no
     /// name, or two with the same; a column with no name, two of the same
     /// name, or one named [`INDIVIDUAL_ID`]; a column of another length
-    /// than the names; a number that is not finite; a category or a
-    /// classification of more than [`MAX_LEVELS`] levels, of another number
+    /// than the names; a number that is not finite; a category of more
+    /// than [`MAX_LEVELS`] levels, of another number
     /// of colours than levels, a level of empty text, a level twice, or a
     /// code with no level.
     pub fn new(
@@ -303,14 +303,11 @@ fn check_values(column: &NewColumn, id: ColumnId, num_rows: u32) -> Result<(), C
             };
             check_range(numbers, range, id, role)
         }
-        ColumnValues::CountryCategory(categorical)
-        | ColumnValues::CountryClassification(categorical) => {
+        ColumnValues::Country(categorical) => {
             check_categorical(&column.name, categorical)?;
             check_countries(&column.name, categorical, id, column.values.role())
         }
-        ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) => {
-            check_categorical(&column.name, categorical)
-        }
+        ColumnValues::Category(categorical) => check_categorical(&column.name, categorical),
         ColumnValues::Number(_) | ColumnValues::Text(_) => Ok(()),
     }
 }
@@ -345,7 +342,7 @@ fn check_countries(
     }
 }
 
-/// Checks the levels of a category or a classification, their colours,
+/// Checks the levels of a category, their colours,
 /// and that every code has a level.
 fn check_categorical(name: &str, categorical: &Categorical) -> Result<(), CommandError> {
     let levels = categorical.levels();

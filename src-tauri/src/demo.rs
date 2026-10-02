@@ -39,8 +39,7 @@ const CLUSTERS: [(&str, [f64; 3]); 4] = [
     ("D", [-1.0, -2.0, -0.5]),
 ];
 
-/// The colours of the flowers, a trait that is a category and not a
-/// classification.
+/// The colours of the flowers, a trait.
 const FLOWERS: [&str; 3] = ["purple", "white", "pink"];
 
 const NOTES: [&str; 5] = [
@@ -135,12 +134,8 @@ pub fn table() -> Result<Table, CommandError> {
     }
     let [pc1, pc2, pc3] = components;
     let columns = [
-        (
-            "country",
-            Stored::Text(country),
-            Role::CountryClassification,
-        ),
-        ("cluster", Stored::Text(cluster), Role::Classification),
+        ("country", Stored::Text(country), Role::Country),
+        ("cluster", Stored::Text(cluster), Role::Category),
         ("latitude", Stored::Float(latitude), Role::Latitude),
         ("longitude", Stored::Float(longitude), Role::Longitude),
         ("PC1", Stored::Float(pc1), Role::Number),

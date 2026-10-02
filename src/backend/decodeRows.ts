@@ -25,8 +25,7 @@ const NAMES = 9;
 const VALUES = 10;
 /**
  * The type of a values part, by its byte; 3 was yes or no, which a page no
- * longer carries, a column of yes or no being always a category or a
- * classification.
+ * longer carries, a column of yes or no being always a category.
  */
 const TYPES = ["float", "integer", "text", undefined, "categorical"] as const;
 /** The bytes of a values part before its values. */

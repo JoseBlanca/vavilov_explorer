@@ -6,14 +6,14 @@
 
 import { defect } from "./defect.ts";
 import { levelText } from "./cellText.ts";
-import { isClassification, isLevelsColumn } from "./description.ts";
+import { isLevelsColumn } from "./description.ts";
 import type { TableDescription } from "./description.ts";
 import { NO_CODE, isLevelCode } from "./ids.ts";
 import type { ColumnId, LevelCode } from "./ids.ts";
 import type { Selected } from "./message.ts";
 import type { Active } from "./windowState.ts";
 
-/** A classification the user can make the active one. */
+/** A category the user can make the active classification. */
 export interface Classification {
   /** Its id. */
   readonly column: ColumnId;
@@ -37,7 +37,7 @@ export interface PopulationRow {
 
 /** What the panel shows. */
 export interface PopulationsModel {
-  /** Every classification, in the order of the table. */
+  /** Every category, of countries or not, in the order of the table. */
   readonly classifications: readonly Classification[];
   /** The active classification, or `null`. */
   readonly active: ColumnId | null;
@@ -58,16 +58,14 @@ export function populationsModel(
   decimalMark: string,
 ): PopulationsModel {
   const classifications = description.columns.flatMap((column) =>
-    isClassification(column.role) ? [{ column: column.id, name: column.name }] : [],
+    isLevelsColumn(column) ? [{ column: column.id, name: column.name }] : [],
   );
   if (active === null) {
     return { classifications, active: null, rows: [] };
   }
   const column = description.columns.find((candidate) => candidate.id === active.column);
-  if (column === undefined || !isLevelsColumn(column) || !isClassification(column.role)) {
-    throw defect(
-      `the active classification, column ${String(active.column)}, is not a classification`,
-    );
+  if (column === undefined || !isLevelsColumn(column)) {
+    throw defect(`the active classification, column ${String(active.column)}, is not a category`);
   }
   const codes = codesOf(active.column);
   if (codes === null) {

@@ -187,7 +187,8 @@ pub fn select_population<R: Runtime>(
 }
 
 /// Sets the role of a column: `{ column, role, basedOn, sentAt }`, `role`
-/// being `"number"`, `"category"`, `"classification"` or `"text"`.
+/// being `"number"`, `"latitude"`, `"longitude"`, `"category"`,
+/// `"country"` or `"text"`.
 ///
 /// # Errors
 ///

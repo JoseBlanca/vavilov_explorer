@@ -122,16 +122,17 @@ table is loaded.
   named `IndividualID`.
 - **The storage type and the role** (`design.md`, section 6): the
   storage types are whole numbers, decimal numbers, yes or no, and text,
-  and the roles number, category, classification and text. A column's
-  values are held in the shape of its role, `ColumnValues`: a number as
-  `Vec<Option<i64>>` or `Vec<Option<f64>>`, text as
-  `Vec<Option<String>>`, and a category or a classification as codes
-  into levels that keep the storage type, so that the storage type is
-  read from the values and stored nowhere else. A change of role builds
-  the new shape from the values as stored (`Stored`, the four types the
-  import reads), except between a category and a classification, which
-  keep their levels, colours and empty levels. Each value is `None` when
-  missing. `rust.md` asks for the values with "which rows
+  and the roles number, latitude and longitude, category and country,
+  and text. A column's values are held in the shape of its role,
+  `ColumnValues`: a number as `Vec<Option<i64>>` or `Vec<Option<f64>>`,
+  text as `Vec<Option<String>>`, and a category as codes into levels
+  that keep the storage type, so that the storage type is read from the
+  values and stored nowhere else. A change of role builds the new shape
+  from the values as stored (`Stored`, the four types the import reads).
+  Any category, of countries or not, can be the active classification.
+  The roles a column can take are worked out by the core and sent in the
+  description, so that the window only gives them their words. Each value
+  is `None` when missing. `rust.md` asks for the values with "which rows
   are missing" apart, and never a NaN; an `Option` keeps the missing
   rows apart in the type itself, so no code can read a missing value as a
   number, where a vector of values with a mask beside it holds a
@@ -139,9 +140,9 @@ table is loaded.
   costs 16 bytes a row instead of 8 and a bit, 800 kB for a numeric
   column of 50,000 rows. A numeric value is always finite, checked when
   the table is built, since a project file could hold a NaN.
-- **A category or a classification** holds, for each row, a code, `LevelCode(u16)`,
+- **A category** holds, for each row, a code, `LevelCode(u16)`,
   that points into its ordered list of levels, or `None` for a missing
-  value: in a classification, an unassigned individual. A level has a
+  value: in the active classification, an unassigned individual. A level has a
   name, unique within the column and not empty, and a colour. Codes on
   the wire are 16 bits with `0xFFFF` for missing (section 5), so a column
   has at most 65,535 levels. Levels that no row uses are allowed, which
@@ -430,11 +431,11 @@ hold for every command:
 - every column whose revision changed is listed in a columns part, so
   that a window that draws it, the active classification or not, fetches
   it again;
-- the codes of every category and classification whose revision
+- the codes of every category whose revision
   changed travel in a codes part, whichever column it is: undoing a lasso
   on a column that is no longer the active classification still reaches
   a bar plot of that column. So a column listed in the columns part with
-  no codes part beside it is no longer a category or a classification,
+  no codes part beside it is no longer a category,
   and a window drops its codes.
 
 So a lasso sends codes, columns and undo; a new selection sends
@@ -477,9 +478,9 @@ read an integer of 2^53 or more as another. Its parts, in this order:
 |---|---|
 | page | the revision at which the table was loaded, `u64`; the first row, `u32`; the number of rows, `u32` |
 | names | the names of the page's rows, as a text list (below) |
-| values, one per column asked for | the column id, `u32`; a byte, 0 decimal numbers, 1 whole numbers, 2 text, 4 the codes of a category or a classification, and 3 not used; three zero bytes; the column's revision, `u64`; then its values |
+| values, one per column asked for | the column id, `u32`; a byte, 0 decimal numbers, 1 whole numbers, 2 text, 4 the codes of a category, and 3 not used; three zero bytes; the column's revision, `u64`; then its values |
 
-The values of a category or a classification are its codes, one `u16`
+The values of a category are its codes, one `u16`
 per row, `0xFFFF` for missing, as in a codes part. Those of a number or
 text
 start with which rows are missing, one bit per row of the page, set when

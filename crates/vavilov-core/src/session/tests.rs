@@ -247,7 +247,7 @@ fn a_table_is_loaded_only_with_a_categorical_active_classification() {
     assert_refused(
         &mut session,
         request,
-        CommandError::NotClassification { column: HEIGHT },
+        CommandError::NotCategory { column: HEIGHT },
     );
     let request = at(
         &session,
@@ -468,7 +468,7 @@ fn only_a_categorical_column_of_the_table_can_be_the_active_classification() {
     assert_refused(
         &mut session,
         request,
-        CommandError::NotClassification { column: HEIGHT },
+        CommandError::NotCategory { column: HEIGHT },
     );
     let request = at(
         &session,
@@ -479,7 +479,7 @@ fn only_a_categorical_column_of_the_table_can_be_the_active_classification() {
     assert_refused(
         &mut session,
         request,
-        CommandError::NotClassification {
+        CommandError::NotCategory {
             column: ColumnId::new(0),
         },
     );
@@ -1346,16 +1346,13 @@ fn a_column_given_the_role_it_has_changes_nothing() {
 }
 
 #[test]
-fn the_active_classification_made_a_category_is_no_longer_active() {
+fn the_active_classification_made_text_is_no_longer_active() {
     let (mut session, recorder) = editing_spain();
-    apply(&mut session, set_role(ORIGIN, Role::Category));
+    apply(&mut session, set_role(ORIGIN, Role::Text));
     assert_eq!(session.active(), None);
     let messages = recorder.take();
-    assert_eq!(
-        part_kinds(&messages[0]),
-        [SHAPE, ACTIVE, CODES, COLUMNS, UNDO]
-    );
-    // A category cannot be made the active classification, nor lassoed.
+    assert_eq!(part_kinds(&messages[0]), [SHAPE, ACTIVE, COLUMNS, UNDO]);
+    // Text cannot be made the active classification, nor lassoed.
     let request = at(
         &session,
         Command::SetActiveClassification {
@@ -1365,18 +1362,25 @@ fn the_active_classification_made_a_category_is_no_longer_active() {
     assert_refused(
         &mut session,
         request,
-        CommandError::NotClassification { column: ORIGIN },
+        CommandError::NotCategory { column: ORIGIN },
     );
-    let request = at(
-        &session,
+}
+
+#[test]
+fn any_category_can_be_the_active_classification_a_trait_of_yes_or_no_too() {
+    let (mut session, _recorder) = loaded();
+    apply(
+        &mut session,
         Command::SetActiveClassification {
             column: Some(FERTILE),
         },
     );
-    assert_refused(
-        &mut session,
-        request,
-        CommandError::NotClassification { column: FERTILE },
+    assert_eq!(
+        session.active(),
+        Some(Active {
+            column: FERTILE,
+            selected: None
+        })
     );
 }
 
@@ -1386,7 +1390,7 @@ fn undoing_a_change_of_role_gives_back_the_levels_their_colours_and_the_empty_on
     // cluster has three levels; row 1 and 2 are in C, row 3 in A, B is empty.
     let before = session.table().unwrap().column(CLUSTER).unwrap().clone();
     apply(&mut session, set_role(CLUSTER, Role::Text));
-    apply(&mut session, set_role(CLUSTER, Role::Classification));
+    apply(&mut session, set_role(CLUSTER, Role::Category));
     // Built again from the text: B is gone, and the colours start again.
     let rebuilt = session.table().unwrap().column(CLUSTER).unwrap();
     assert_eq!(
@@ -1465,7 +1469,7 @@ fn a_role_the_storage_type_cannot_take_and_the_first_column_are_refused() {
 #[test]
 fn the_active_classification_made_one_of_countries_stays_active_without_its_population() {
     let (mut session, recorder) = editing_spain();
-    apply(&mut session, set_role(ORIGIN, Role::CountryClassification));
+    apply(&mut session, set_role(ORIGIN, Role::Country));
     assert_eq!(
         session.active(),
         Some(Active {
@@ -1496,13 +1500,13 @@ fn the_active_classification_made_one_of_countries_stays_active_without_its_popu
 fn a_role_whose_check_a_value_fails_is_refused_with_the_row() {
     let (mut session, _recorder) = loaded();
     // cluster's levels, A, B and C, name no country.
-    let request = at(&session, set_role(CLUSTER, Role::CountryCategory));
+    let request = at(&session, set_role(CLUSTER, Role::Country));
     assert_refused(
         &mut session,
         request,
         CommandError::ValueNotFor {
             column: CLUSTER,
-            role: Role::CountryCategory,
+            role: Role::Country,
             row: RowIndex::new(1),
         },
     );
@@ -1511,7 +1515,7 @@ fn a_role_whose_check_a_value_fails_is_refused_with_the_row() {
 #[test]
 fn a_lasso_on_a_classification_of_countries_assigns_its_rows() {
     let (mut session, _recorder) = loaded();
-    apply(&mut session, set_role(ORIGIN, Role::CountryClassification));
+    apply(&mut session, set_role(ORIGIN, Role::Country));
     // ESP is code 0, PER code 1.
     apply(
         &mut session,

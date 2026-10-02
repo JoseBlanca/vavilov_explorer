@@ -28,10 +28,11 @@ assigned to.
   as CSV… or Export as Excel… writes the table to a new file the user
   names. An imported file is never written to. This is how GIMP treats its
   own format and the formats it imports.
-- **Classification**: a column of the table, with the role of a
-  classification (section 6), whose values say which population each
-  individual belongs to. A table can have several,
-  for example one by country of origin and one from a genetic clustering.
+- **Classification**: a column of the table with the role of a category
+  (section 6), seen as the populations it divides the individuals into.
+  Any category can be one: country of origin, a genetic clustering, or
+  a trait such as the colour of the flower; which the user edits is
+  their decision.
 - **Active classification**: the classification that colours every view.
   The user chooses it in the populations panel of the main window.
   Changing it recolours every window.
@@ -120,7 +121,7 @@ A widget is a window with one view of some columns:
 |---|---|
 | 3D scatter | three numeric columns |
 | histogram | one numeric column |
-| bar plot | one category or classification |
+| bar plot | one category |
 | map | a latitude and a longitude column |
 
 The same kind of widget can be open more than once, for example two
@@ -258,7 +259,7 @@ The messages are binary and carry whole values, not differences:
 
 | message | size for 50,000 individuals |
 |---|---|
-| the codes of a classification, 16 bits each | 100 kB |
+| the codes of a category, 16 bits each | 100 kB |
 | the selection, one bit per individual | 6 kB |
 | the hover, one index | 4 bytes |
 
@@ -308,7 +309,7 @@ is empty, or with a name in two rows, is refused, and the message names
 the line and the name. The first column's type cannot be changed.
 
 Each column but the first has a storage type and a role (section 6).
-A column whose role is a category or a classification holds, for each
+A column whose role is a category holds, for each
 row, a code that points into an ordered list of levels, the values of the
 categories, plus a missing value of its own. Its levels can include ones
 that no row uses yet, which is how a new, empty population exists. Each
@@ -348,20 +349,31 @@ Every column but the first has two types, decided by the owner on
   in a dropdown on top of each column but the first:
   - **number**: drawn on an axis, in a histogram, or as coordinates on
     the map;
-  - **category**: a trait such as the colour of the flower, drawn in a
-    bar plot and never edited;
-  - **classification**: populations, which a lasso edits, and which the
-    populations panel lists to choose the active classification from;
+  - **category**: values that divide the individuals into groups, a
+    trait such as the colour of the flower or populations such as a
+    genetic clustering; drawn in a bar plot, and any category can be the
+    active classification, which a lasso edits;
   - **text**: notes and identifiers, shown in the table alone.
+
+  Category and classification were two roles until the owner merged them
+  on 2 October 2026: the user chooses which category to edit, and a role
+  that kept measured traits out of the lasso's reach was a guard the
+  owner judged not worth its cost. What the merge gives up, and the owner
+  accepted: a lasso can change a trait the user recorded, a change that
+  outlives the session once the project is saved; a trait's missing
+  values are its "unassigned" individuals; the panel lists every
+  category. The guard that remains to be decided is separating the
+  column that colours the views from the one being edited
+  (section 12).
 
 Which roles each storage type can take:
 
-| storage type | number, latitude, longitude | category, country category | classification, country classification | text |
-|---|---|---|---|---|
-| whole numbers | yes | yes, not country | yes, not country | no |
-| decimal numbers | yes | yes, not country | yes, not country | no |
-| yes or no | no | yes, not country | yes, not country | no |
-| text | no | yes, and country | yes, and country | yes |
+| storage type | number, latitude, longitude | category, country | text |
+|---|---|---|---|
+| whole numbers | yes | yes, not country | no |
+| decimal numbers | yes | yes, not country | no |
+| yes or no | no | yes, not country | no |
+| text | no | yes, and country | yes |
 
 Three roles are sub-roles of others, decided by the owner on 2 October
 2026: they behave as the role above them, and add a check of every value
@@ -373,7 +385,7 @@ and what the views can do with it.
   map takes its columns from them. Coordinates in metres, a longitude
   from 0 to 360, or degrees written as text such as `40°25'N` can be
   numbers but not these.
-- **country**, a sub-role of category and of classification, for text,
+- **country**, a sub-role of category, for text,
   offered only when every value names a country of ISO 3166-1, or a
   former one of ISO 3166-3: by its two- or three-letter code, by its ISO
   name in English, or by its name in Natural Earth, the data behind the
@@ -386,26 +398,24 @@ and what the views can do with it.
   three-letter code, whatever the file wrote, so that `ES` and `Spain`
   are one level, `ESP`; a former country whose three-letter code a
   current one uses is shown by its four-letter code. A new population of
-  a country classification must be a country.
+  a country category being edited must be a country.
 
 The dropdown offers, of number, latitude, longitude, category, country
-category, classification, country classification and text, only those
-the column can take: by its storage type, a category or a
-classification only when its distinct values fit the 65,535 codes of a
-column, and a sub-role only when every value passes its check. A role it
+and text, only those the column can take: by its storage type, a
+category only when its distinct values fit the 65,535 codes of a column,
+and a sub-role only when every value passes its check. A role it
 cannot take is not shown, as the owner decided on 2 October 2026.
 
 A change of role never changes a value, but for country, which writes
 each value as its code: it builds or drops the list of levels. The
-levels of a category or a classification keep the storage type, so that
-population codes 1, 2 and 10 are ordered as numbers, and an export
-writes them back as numbers. A change of role is a command and can be
-undone, and undoing a change to country gives back the file's
-spellings. Only a classification, of countries or not, can be the active
-classification, so that no lasso edits a trait the user measured; a
-classification whose role is changed to another than classification
-stops being the active one, and one whose levels are built again loses
-its selected population.
+levels of a category keep the storage type, so that population codes 1,
+2 and 10 are ordered as numbers, and an export writes them back as
+numbers. A change of role is a command and can be undone, and undoing a
+change to country gives back the file's spellings. Any category, of
+countries or not, can be the active classification; one whose role is
+changed to a number or text stops being active, and one whose levels are
+built again, between category and country, loses its selected
+population.
 
 The list of countries is a table in the core, generated once from the
 data of Debian's `iso-codes` (ISO 3166-1 and 3166-3, their codes, names
@@ -418,8 +428,7 @@ The import guesses the role: number for whole and decimal numbers,
 latitude or longitude for a column of numbers whose header is `lat` or
 `latitude`, or `lon`, `long` or `longitude`, case ignored, and whose
 values fit; category for yes or no and for text of at most 20 distinct
-values, and text for the rest. No column is made a classification by the
-import: the user chooses which, in its dropdown.
+values, and text for the rest.
 
 ## 7. table_io
 
@@ -664,6 +673,12 @@ functions.
 
 Open decisions:
 
+- Whether the column that colours the views is the active
+  classification, the one being edited, or a column of its own. The
+  owner noted on 2 October 2026 that the selected population may be
+  shown by size, and the colour may follow another column; separating
+  the two is the guard against editing a trait by mistake that the
+  merge of category and classification left (section 6).
 - A compact key of the populations, with a line saying which population
   is being edited, in each plot window. Deferred by the owner until the
   first views exist.

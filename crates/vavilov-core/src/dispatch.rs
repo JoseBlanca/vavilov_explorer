@@ -314,10 +314,7 @@ impl Session {
                     .column_mut(column)
                     .ok_or_else(|| defect(column, "is gone"))?;
                 let Some(categorical) = values.categorical_mut() else {
-                    return Err(defect(
-                        column,
-                        "is no longer a category or a classification",
-                    ));
+                    return Err(defect(column, "is no longer a category"));
                 };
                 categorical.codes = codes;
                 *column_revision = revision;
@@ -490,8 +487,8 @@ fn step_of(kind: StepKind, reverse: Edit) -> HistoryStep {
 
 /// Plans new values of a column, a change of role or its reverse: the
 /// column and the shape of the table take the new revision; an active
-/// classification that stops being one stops being active, and one that
-/// stays one loses its selected population.
+/// classification made a number or text stops being active, and one that
+/// stays a category loses its selected population.
 fn plan_values(
     state: &SharedState,
     open: &OpenProject,
@@ -519,7 +516,7 @@ fn plan_values(
         .active
         .filter(|active| active.column == column)
         .map(|_| {
-            values.role().is_classification().then_some(Active {
+            values.role().is_categorical().then_some(Active {
                 column,
                 selected: None,
             })
@@ -547,7 +544,7 @@ fn plan_values(
     })
 }
 
-/// Plans new codes of some rows of a category or a classification. An
+/// Plans new codes of some rows of a category. An
 /// edit that changes no row changes nothing.
 fn plan_codes(
     state: &SharedState,
@@ -565,7 +562,7 @@ fn plan_codes(
         .table
         .column(column)
         .and_then(Column::categorical)
-        .ok_or_else(|| defect(column, "is not a category or a classification"))?;
+        .ok_or_else(|| defect(column, "is not a category"))?;
     let num_levels = values.num_levels()?;
     let mut codes = values.codes().to_vec();
     let mut reverse = Vec::with_capacity(changes.len());
@@ -633,16 +630,17 @@ fn active_classification(open: &OpenProject, column: ColumnId) -> Result<Active,
         .ok_or(CommandError::NotActiveClassification { column })
 }
 
-/// The levels and codes of a classification of the table.
+/// The levels and codes of a category of the table, which can be the
+/// active classification.
 fn classification(table: &Table, column: ColumnId) -> Result<&Categorical, CommandError> {
     if column == table.names().id() {
-        return Err(CommandError::NotClassification { column });
+        return Err(CommandError::NotCategory { column });
     }
     table
         .column(column)
         .ok_or(CommandError::UnknownColumn { column })?
-        .classification()
-        .ok_or(CommandError::NotClassification { column })
+        .categorical()
+        .ok_or(CommandError::NotCategory { column })
 }
 
 fn check_level(table: &Table, column: ColumnId, code: LevelCode) -> Result<(), CommandError> {

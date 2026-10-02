@@ -22,8 +22,8 @@ const ORIGIN = column(2);
 const CLUSTER = column(4);
 
 /**
- * Six plants: height; origin (Spain, Peru, Chile), a classification of
- * text; seeds; cluster (1, 20), a classification of whole numbers.
+ * Six plants: height; origin (Spain, Peru, Chile), a category of text;
+ * seeds; cluster (1, 20), a category of whole numbers.
  */
 const DESCRIPTION: TableDescription = {
   loadedAt: revision(1),
@@ -44,8 +44,8 @@ const DESCRIPTION: TableDescription = {
       name: "origin",
       revision: revision(1),
       storage: "text",
-      role: "classification",
-      roles: ["classification"],
+      role: "category",
+      roles: ["category"],
       levels: [
         { value: "Spain", colour: "#e69f00" },
         { value: "Peru", colour: "#56b4e9" },
@@ -65,8 +65,8 @@ const DESCRIPTION: TableDescription = {
       name: "cluster",
       revision: revision(1),
       storage: "integer",
-      role: "classification",
-      roles: ["classification"],
+      role: "category",
+      roles: ["category"],
       levels: [
         { value: "1", colour: "#0072b2" },
         { value: "20", colour: "#d55e00" },
@@ -83,7 +83,7 @@ const CODES = new Map<number, Uint16Array>([
 const codesOf = (id: ColumnId): Uint16Array | null => CODES.get(id) ?? null;
 
 describe("the populations panel's model", () => {
-  test("lists every classification to choose", () => {
+  test("lists every category to choose as the classification", () => {
     const model = populationsModel(DESCRIPTION, null, codesOf, ",");
     expect(model.classifications).toEqual([
       { column: 2, name: "origin" },
@@ -163,7 +163,7 @@ describe("the populations panel's model", () => {
     ).toThrow(/defect.*no codes/);
     expect(() =>
       populationsModel(DESCRIPTION, { column: column(1), selected: null }, codesOf, ","),
-    ).toThrow(/defect.*column 1.*not a classification/);
+    ).toThrow(/defect.*column 1.*not a category/);
   });
 });
 

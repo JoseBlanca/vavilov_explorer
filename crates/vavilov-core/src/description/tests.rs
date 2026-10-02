@@ -29,15 +29,12 @@ fn the_description_names_every_column_with_its_storage_type_role_and_levels() {
                 {
                     "id": 1, "name": "height", "revision": 1, "storage": "float",
                     "role": "number",
-                    "roles": ["number", "latitude", "longitude", "category", "classification"],
+                    "roles": ["number", "latitude", "longitude", "category"],
                 },
                 {
                     "id": 2, "name": "origin", "revision": 1, "storage": "text",
-                    "role": "classification",
-                    "roles": [
-                        "category", "countryCategory", "classification",
-                        "countryClassification", "text",
-                    ],
+                    "role": "category",
+                    "roles": ["category", "country", "text"],
                     "levels": [
                         { "value": "Spain", "colour": "#d55e00" },
                         { "value": "Peru", "colour": "#0072b2" },
@@ -45,8 +42,8 @@ fn the_description_names_every_column_with_its_storage_type_role_and_levels() {
                 },
                 {
                     "id": 3, "name": "cluster", "revision": 1, "storage": "text",
-                    "role": "classification",
-                    "roles": ["category", "classification", "text"],
+                    "role": "category",
+                    "roles": ["category", "text"],
                     "levels": [
                         { "value": "A", "colour": "#d55e00" },
                         { "value": "B", "colour": "#0072b2" },
@@ -56,12 +53,12 @@ fn the_description_names_every_column_with_its_storage_type_role_and_levels() {
                 {
                     "id": 4, "name": "seeds", "revision": 1, "storage": "integer",
                     "role": "number",
-                    "roles": ["number", "latitude", "longitude", "category", "classification"],
+                    "roles": ["number", "latitude", "longitude", "category"],
                 },
                 {
                     "id": 5, "name": "fertile", "revision": 1, "storage": "boolean",
                     "role": "category",
-                    "roles": ["category", "classification"],
+                    "roles": ["category"],
                     "levels": [
                         { "value": false, "colour": "#e69f00" },
                         { "value": true, "colour": "#56b4e9" },
@@ -70,7 +67,7 @@ fn the_description_names_every_column_with_its_storage_type_role_and_levels() {
                 {
                     "id": 6, "name": "note", "revision": 1, "storage": "text",
                     "role": "text",
-                    "roles": ["category", "classification", "text"],
+                    "roles": ["category", "text"],
                 },
             ],
         })

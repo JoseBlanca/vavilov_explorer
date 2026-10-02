@@ -36,7 +36,7 @@ pub(crate) fn column(name: &str, values: ColumnValues) -> NewColumn {
     }
 }
 
-/// A classification of text levels, each with its colour.
+/// A category of text levels, each with its colour.
 pub(crate) fn categorical(
     levels: &[(&str, Colour)],
     codes: Vec<Option<LevelCode>>,
@@ -45,7 +45,7 @@ pub(crate) fn categorical(
         .iter()
         .map(|(name, colour)| ((*name).to_owned(), *colour))
         .unzip();
-    ColumnValues::Classification(Categorical::new(LevelValues::Text(names), colours, codes))
+    ColumnValues::Category(Categorical::new(LevelValues::Text(names), colours, codes))
 }
 
 /// A number of decimal numbers.
@@ -65,7 +65,7 @@ pub(crate) fn boolean(values: Vec<Option<bool>>) -> ColumnValues {
 
 /// Four plants, with ids 0 for the names and, in order, 1 `height`, a
 /// number; 2 `origin` (Spain, Peru) and 3 `cluster` (A, B, C),
-/// classifications; 4 `seeds`, a number; 5 `fertile`, a category of yes or
+/// categories; 4 `seeds`, a number; 5 `fertile`, a category of yes or
 /// no; and 6 `note`, text.
 pub(crate) fn plants() -> Table {
     Table::new(

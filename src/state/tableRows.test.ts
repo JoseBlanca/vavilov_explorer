@@ -21,7 +21,7 @@ function revision(value: number): Revision {
 }
 
 /**
- * Four plants: 1 height, a number; 2 origin (Spain, Peru), a classification;
+ * Four plants: 1 height, a number; 2 origin (Spain, Peru), a category;
  * 3 seeds, a number; 4 fertile, a category of yes or no; 5 note, text; and
  * 6 dose (0.5, 2), a category of decimal numbers.
  */
@@ -37,15 +37,15 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "float",
       role: "number",
-      roles: ["number", "latitude", "longitude", "category", "classification"],
+      roles: ["number", "latitude", "longitude", "category"],
     },
     {
       id: column(2),
       name: "origin",
       revision: revision(1),
       storage: "text",
-      role: "classification",
-      roles: ["category", "countryCategory", "classification", "countryClassification", "text"],
+      role: "category",
+      roles: ["category", "country", "text"],
       levels: [
         { value: "Spain", colour: "#e69f00" },
         { value: "Peru", colour: "#56b4e9" },
@@ -57,7 +57,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "integer",
       role: "number",
-      roles: ["number", "category", "classification"],
+      roles: ["number", "category"],
     },
     {
       id: column(4),
@@ -65,7 +65,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "boolean",
       role: "category",
-      roles: ["category", "classification"],
+      roles: ["category"],
       levels: [
         { value: false, colour: "#e69f00" },
         { value: true, colour: "#56b4e9" },
@@ -77,7 +77,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "text",
       role: "text",
-      roles: ["category", "classification", "text"],
+      roles: ["category", "text"],
     },
     {
       id: column(6),
@@ -85,7 +85,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "float",
       role: "category",
-      roles: ["number", "category", "classification"],
+      roles: ["number", "category"],
       levels: [
         { value: 0.5, colour: "#e69f00" },
         { value: 2, colour: "#56b4e9" },
@@ -128,24 +128,12 @@ describe("the columns of the table", () => {
       ]),
     ).toEqual([
       [0, "IndividualID", "names", false, []],
-      [
-        1,
-        "height",
-        "number",
-        true,
-        ["Number", "Latitude", "Longitude", "Category", "Classification"],
-      ],
-      [
-        2,
-        "origin",
-        "classification",
-        false,
-        ["Category", "Country category", "Classification", "Country classification", "Text"],
-      ],
-      [3, "seeds", "number", true, ["Number", "Category", "Classification"]],
-      [4, "fertile", "category", false, ["Category", "Classification"]],
-      [5, "note", "text", false, ["Category", "Classification", "Text"]],
-      [6, "dose", "category", true, ["Number", "Category", "Classification"]],
+      [1, "height", "number", true, ["Number", "Latitude", "Longitude", "Category"]],
+      [2, "origin", "category", false, ["Category", "Country", "Text"]],
+      [3, "seeds", "number", true, ["Number", "Category"]],
+      [4, "fertile", "category", false, ["Category"]],
+      [5, "note", "text", false, ["Category", "Text"]],
+      [6, "dose", "category", true, ["Number", "Category"]],
     ]);
   });
 

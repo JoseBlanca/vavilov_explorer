@@ -8,8 +8,7 @@ use vavilov_core::{
 
 /// A table as a test describes it: the first column, then columns of
 /// numbers, whole numbers, texts or booleans, `null` for a missing value,
-/// each with its role, or the levels and codes of a classification or a
-/// category.
+/// each with its role, or the levels and codes of a category.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct TableSpec {
@@ -30,7 +29,7 @@ struct ColumnSpec {
     levels: Option<Vec<(String, [u8; 3])>>,
     codes: Option<Vec<Option<u16>>>,
     /// The role; without one, a column of numbers is a number, of text
-    /// text, of booleans a category, and one of levels a classification.
+    /// text, and of booleans or of levels a category.
     role: Option<Role>,
 }
 
@@ -78,17 +77,13 @@ fn column(id: ColumnId, spec: ColumnSpec) -> Result<NewColumn, CommandError> {
                 .map(|code| code.map(LevelCode::new))
                 .collect();
             let categorical = Categorical::new(LevelValues::Text(names), colours, codes);
-            match spec.role.unwrap_or(Role::Classification) {
-                Role::Classification => ColumnValues::Classification(categorical),
+            match spec.role.unwrap_or(Role::Category) {
                 Role::Category => ColumnValues::Category(categorical),
                 // A column of countries is given by its values, which the
                 // core turns into codes.
-                Role::CountryCategory
-                | Role::CountryClassification
-                | Role::Number
-                | Role::Latitude
-                | Role::Longitude
-                | Role::Text => return Err(not_one()),
+                Role::Country | Role::Number | Role::Latitude | Role::Longitude | Role::Text => {
+                    return Err(not_one());
+                }
             }
         }
         (numeric, integer, text, boolean, None, None) => {

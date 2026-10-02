@@ -247,7 +247,7 @@ impl MessageWriter {
 }
 
 /// The values of one column in the rows of a page, by storage type, or
-/// the codes of a category or a classification.
+/// the codes of a category.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum PageValues<'a> {
     Float(&'a [Option<f64>]),
@@ -264,7 +264,7 @@ impl PageValues<'_> {
             Self::Integer(_) => 1,
             Self::Text(_) => 2,
             // 3 was yes or no, which a page no longer carries: a column
-            // of yes or no is always a category or a classification.
+            // of yes or no is always a category.
             Self::Categorical(_) => 4,
         }
     }

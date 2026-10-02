@@ -29,7 +29,7 @@ const FIELDS = {
   madeBeforeLoad: { basedOn: "revision", loadedAt: "revision" },
   unknownWindow: { label: "string" },
   unknownColumn: { column: "columnId" },
-  notClassification: { column: "columnId" },
+  notCategory: { column: "columnId" },
   roleNotPossible: { column: "columnId", storage: "storage", role: "role" },
   valueNotFor: { column: "columnId", role: "role", row: "rowIndex" },
   notActiveClassification: { column: "columnId" },

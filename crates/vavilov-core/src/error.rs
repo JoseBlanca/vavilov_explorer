@@ -51,9 +51,9 @@ pub enum CommandError {
         column: ColumnId,
     },
 
-    /// The command needs a classification.
-    #[error("column {column} is not a classification")]
-    NotClassification {
+    /// The command needs a category, which the active classification is.
+    #[error("column {column} is not a category")]
+    NotCategory {
         /// The column the command gave.
         column: ColumnId,
     },
@@ -226,7 +226,7 @@ pub enum CommandError {
         row: RowIndex,
     },
 
-    /// A category or a classification of more levels than [`crate::MAX_LEVELS`].
+    /// A category of more levels than [`crate::MAX_LEVELS`].
     #[error(
         "column {column_name:?} has {num_levels} levels, more than the {max_levels} the app takes"
     )]
@@ -252,7 +252,7 @@ pub enum CommandError {
         row: RowIndex,
     },
 
-    /// A level of a country category or classification that is not the
+    /// A level of a country category that is not the
     /// code a country is shown by.
     #[error("level {level:?} of column {column_name:?} is no country's code")]
     NotACountry {
@@ -262,7 +262,7 @@ pub enum CommandError {
         level: String,
     },
 
-    /// A category or a classification has another number of colours than
+    /// A category has another number of colours than
     /// levels.
     #[error("column {column_name:?} has {num_levels} levels and {num_colours} colours")]
     LevelColours {
@@ -283,7 +283,7 @@ pub enum CommandError {
         code: LevelCode,
     },
 
-    /// A level of text of a category or a classification is empty.
+    /// A level of text of a category is empty.
     #[error("level {code} of column {column_name:?} has no name")]
     EmptyLevelName {
         /// The name of the column.
@@ -292,7 +292,7 @@ pub enum CommandError {
         code: LevelCode,
     },
 
-    /// Two levels of a category or a classification are the same.
+    /// Two levels of a category are the same.
     #[error("two levels of column {column_name:?} are named {level:?}")]
     DuplicateLevel {
         /// The name of the column.
@@ -301,7 +301,7 @@ pub enum CommandError {
         level: String,
     },
 
-    /// A row of a category or a classification holds a code with no level.
+    /// A row of a category holds a code with no level.
     #[error(
         "row {row} of column {column_name:?} holds code {code}, and the column has {num_levels} levels"
     )]

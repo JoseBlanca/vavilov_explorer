@@ -1005,7 +1005,10 @@ pub(crate) const NAMES: &[(&str, &str)] = &[
     ("union of the comoros", "COM"),
     ("united arab emirates", "ARE"),
     ("united kingdom", "GBR"),
-    ("united kingdom of great britain and northern ireland", "GBR"),
+    (
+        "united kingdom of great britain and northern ireland",
+        "GBR",
+    ),
     ("united mexican states", "MEX"),
     ("united republic of tanzania", "TZA"),
     ("united states", "USA"),

@@ -14,7 +14,7 @@ const indexes = [...Array(NUM_PLANTS).keys()];
 
 /**
  * 300 plants, p1 to p300: 1 height, every seventh missing; 2 origin (Spain,
- * Peru), a classification, active, every fifth unassigned; 3 seeds; 4
+ * Peru), a category, active, every fifth unassigned; 3 seeds; 4
  * fertile, a category of yes or no; 5 note.
  */
 const PLANTS = {
@@ -66,21 +66,10 @@ for (const engine of Object.keys(ENGINES)) {
     ]);
     // Each column but the first has the dropdown of the roles it can take.
     // height, from 100 to 174.75, fits a longitude but not a latitude.
-    assert.deepEqual(await roleOptions(grid, "height"), [
-      "Number",
-      "Longitude",
-      "Category",
-      "Classification",
-    ]);
+    assert.deepEqual(await roleOptions(grid, "height"), ["Number", "Longitude", "Category"]);
     // origin, Spain and Peru, names countries.
-    assert.deepEqual(await roleOptions(grid, "origin"), [
-      "Category",
-      "Country category",
-      "Classification",
-      "Country classification",
-      "Text",
-    ]);
-    assert.deepEqual(await roleOptions(grid, "fertile"), ["Category", "Classification"]);
+    assert.deepEqual(await roleOptions(grid, "origin"), ["Category", "Country", "Text"]);
+    assert.deepEqual(await roleOptions(grid, "fertile"), ["Category"]);
     assert.equal(await roleOf(grid, "seeds").inputValue(), "number");
     assert.equal(await grid.getByRole("combobox", { name: "Role of IndividualID" }).count(), 0);
     // Row 4, p4: its height is missing, said "missing" to a screen reader.
@@ -125,22 +114,14 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal(lasso.ok, null, JSON.stringify(lasso));
     await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).waitFor();
 
-    // fertile made a classification can be chosen in the panel; origin, the
-    // active one, made a category no longer can, and is no longer active.
+    // Every category can be chosen in the panel, fertile as well as origin.
     const panel = page.getByRole("region", { name: "Populations" });
     const classification = panel.getByRole("combobox", { name: "Classification column" });
-    await roleOf(grid, "fertile").selectOption("classification");
-    await classification.locator("option", { hasText: "fertile" }).waitFor({ state: "attached" });
-    await roleOf(grid, "origin").selectOption("category");
-    await classification.locator("option", { hasText: "origin" }).waitFor({ state: "detached" });
     assert.deepEqual(await classification.locator("option").allTextContents().then(trim), [
       "None",
+      "origin",
       "fertile",
     ]);
-    assert.equal(await classification.inputValue(), "");
-    assert.equal(await roleOf(grid, "origin").inputValue(), "category");
-    // The cells of origin are as they were.
-    assert.equal(await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).count(), 1);
     await shoot(page, engine, "table-roles");
 
     // origin made text: its codes go from the window's copy before the new
@@ -149,10 +130,14 @@ for (const engine of Object.keys(ENGINES)) {
     await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).waitFor();
     assert.equal(await roleOf(grid, "origin").inputValue(), "text");
     assert.deepEqual(errors, [], "no page errors after origin was made text");
+    // Text cannot be the classification: origin leaves the panel, and
+    // nothing is active.
+    await classification.locator("option", { hasText: "origin" }).waitFor({ state: "detached" });
+    assert.equal(await classification.inputValue(), "");
 
-    // origin made a country classification: each value is its code, and the
-    // panel can choose it again.
-    await roleOf(grid, "origin").selectOption("countryClassification");
+    // origin made a country: each value is its code, and the panel can
+    // choose it again.
+    await roleOf(grid, "origin").selectOption("country");
     await rowNamed(grid, "p2").getByRole("gridcell", { name: "ESP" }).waitFor();
     await classification.locator("option", { hasText: "origin" }).waitFor({ state: "attached" });
     await classification.selectOption({ label: "origin" });
