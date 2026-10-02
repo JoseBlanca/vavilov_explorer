@@ -7,31 +7,36 @@ import type { ExportFormat, MenuAction } from "../../state/transfer.ts";
 import type { Dialog } from "../shared/dialog.controller.ts";
 import type { Notice } from "../shared/notice.controller.ts";
 import { countText } from "../shared/numbers.ts";
+import { answered } from "../shared/answered.ts";
 import type { CsvDialog } from "./csvDialog.controller.ts";
 
-/** The main window's import and export, which the menu starts. */
-export interface Transfers {
+/** Nothing to draw again after an undo or a redo the backend did not apply. */
+const ignore = (): void => undefined;
+
+/** The items of the menu the main window carries out. */
+export interface MenuActions {
   /** Stops listening to the menu. */
   readonly destroy: () => void;
 }
 
 /**
- * Carries out the items of the File menu that the backend hands to the main
+ * Carries out the items of the menu that the backend hands to the main
  * window: Import table… asks the backend to import, and shows a refusal in
  * the dialog, and a character it could not decode in the notice; Export as
  * CSV… asks for the CSV's choices first, and both exports show a refusal in
- * the dialog (docs/design.md, sections 2.1 and 7). The items are carried out
+ * the dialog (docs/design.md, sections 2.1 and 7); Undo and Redo ask the
+ * backend to undo or redo the last edit of the window's copy. The items are carried out
  * one at a time, in the order they came, each once the one before has
  * ended, its dialogs answered. A refusal that is not about a file is a
  * defect, since the backend gives none here.
  */
-export function createTransfers(
+export function createMenuActions(
   connection: Connection,
   dialog: Dialog,
   notice: Notice,
   csvDialog: CsvDialog,
   report: (error: unknown) => void,
-): Transfers {
+): MenuActions {
   const importTable = async (): Promise<void> => {
     const answer = await connection.importTable();
     if (!answer.ok) {
@@ -79,6 +84,10 @@ export function createTransfers(
         return exportTable("csv");
       case "exportXlsx":
         return exportTable("xlsx");
+      case "undo":
+        return connection.undo().then(answered("undoing", ignore));
+      case "redo":
+        return connection.redo().then(answered("redoing", ignore));
     }
   };
 

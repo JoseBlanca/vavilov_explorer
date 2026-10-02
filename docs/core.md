@@ -670,14 +670,18 @@ the file a test picked in the place of the dialog's.
 
 ### The menu's actions
 
-The File menu is the backend's, and an item the user chooses there is
-carried out by the main window, so that the window shows the answer of
+The menu is the backend's, and an item the user chooses in File or Edit
+is carried out by the main window, so that the window shows the answer of
 the command, a refusal in its dialog, as it would for a control of its
 own. The backend hands the item to the window as a message of the kind
 action, 4, whose header has the current revision, which takes no part
 in the order, and whose one part, kind 12, holds the item's code as a
-`u16`, 1 Import table…, 2 Export as CSV…, 3 Export as Excel…, and six
-zero bytes. An action changes no state. A window keeps an action that
+`u16`, 1 Import table…, 2 Export as CSV…, 3 Export as Excel…, 4 Undo,
+5 Redo, and six zero bytes. An action changes no state. Undo and Redo
+are carried out by the window, with the revision of its copy, like any
+command it sends, so that an undo made from a stale copy is refused. The
+backend enables them while the session has something to undo and to
+redo, after every command and every load. A window keeps an action that
 comes before it listens for one, as while it starts.
 
 ## 9. The first slice, and what comes later

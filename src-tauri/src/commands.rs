@@ -256,9 +256,15 @@ pub async fn import_table<R: Runtime>(
         return Ok(ImportAnswer::Cancelled);
     };
     let (file_name, imported) = transfer::read(&path)?;
-    let (answer, outcome) = transfer::load(&mut *lock(&session)?, file_name, imported, args)?;
+    let (answer, outcome, undo_redo) = {
+        let mut session = lock(&session)?;
+        let (answer, outcome) = transfer::load(&mut session, file_name, imported, args)?;
+        (answer, outcome, session.undo_redo())
+    };
     report_dropped(&app, outcome.dropped);
     menu::enable_table_items(&app);
+    // A table loaded has no history.
+    menu::show_undo_redo(&app, undo_redo);
     Ok(answer)
 }
 
@@ -307,10 +313,12 @@ fn run<R: Runtime>(
 ) -> Result<(), CommandError> {
     let mut session = lock(session)?;
     let reply = calls::call(&mut session, command, request.body(), request.headers())?;
+    let undo_redo = session.undo_redo();
     drop(session);
     match reply {
         calls::Reply::Applied(outcome) => {
             report_dropped(app, outcome.dropped);
+            menu::show_undo_redo(app, undo_redo);
             Ok(())
         }
         calls::Reply::Description(_) | calls::Reply::Rows(_) => Err(CommandError::Defect {

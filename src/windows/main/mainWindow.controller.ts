@@ -11,7 +11,7 @@ import { createCsvDialog } from "./csvDialog.controller.ts";
 import { mainWindowView } from "./mainWindow.view.ts";
 import { createPopulationsPanel } from "./populationsPanel.controller.ts";
 import { createTable } from "./table.controller.ts";
-import { createTransfers } from "./transfers.controller.ts";
+import { createMenuActions } from "./menuActions.controller.ts";
 
 function slot(root: HTMLElement, name: string): HTMLElement {
   const element = root.querySelector(`[data-slot="${name}"]`);
@@ -67,7 +67,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       dialog.ask,
       defectBar.show,
     );
-    createTransfers(
+    createMenuActions(
       connection,
       dialog,
       createNotice(slot(root, "notice"), table.focus),

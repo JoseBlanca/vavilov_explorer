@@ -121,3 +121,23 @@ fn an_action_for_a_window_not_subscribed_is_refused() {
         })
     );
 }
+
+#[test]
+fn undo_and_redo_have_the_codes_4_and_5() {
+    let mut session = Session::new();
+    let recorder = Recorder::default();
+    session
+        .subscribe(WindowLabel::main(), Box::new(recorder.clone()))
+        .unwrap();
+    for action in [MenuAction::Undo, MenuAction::Redo] {
+        assert_eq!(session.send_action(&WindowLabel::main(), action), Ok(None));
+    }
+    let codes: Vec<u8> = recorder
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|message| message[32])
+        .collect();
+    assert_eq!(codes, [4, 5]);
+}

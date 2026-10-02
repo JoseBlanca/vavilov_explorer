@@ -7,9 +7,12 @@ import type { Separator } from "./fileRefusal.ts";
 import { hasFieldsOf } from "./tagged.ts";
 
 /** The items of the menu a window carries out, in the order of their codes, 1 and on. */
-export const MENU_ACTIONS = ["importTable", "exportCsv", "exportXlsx"] as const;
+export const MENU_ACTIONS = ["importTable", "exportCsv", "exportXlsx", "undo", "redo"] as const;
 
-/** An item of the menu a window carries out: Import table…, Export as CSV…, Export as Excel…. */
+/**
+ * An item of the menu a window carries out: Import table…, Export as CSV…,
+ * Export as Excel…, Undo and Redo.
+ */
 export type MenuAction = (typeof MENU_ACTIONS)[number];
 
 /** The mark between the whole part and the decimals of a number. */

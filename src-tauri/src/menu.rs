@@ -9,16 +9,30 @@ use std::sync::Mutex;
 
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, Runtime};
-use vavilov_core::{MenuAction, Session, WindowLabel};
+use vavilov_core::{MenuAction, Session, UndoRedo, WindowLabel};
 
 use crate::commands::report_dropped;
 
 /// Each item the main window carries out: its id, which is also the name
-/// the window gives its action, its text, and the action.
-const ITEMS: [(&str, &str, MenuAction); 3] = [
-    ("importTable", "Import table…", MenuAction::ImportTable),
-    ("exportCsv", "Export as CSV…", MenuAction::ExportCsv),
-    ("exportXlsx", "Export as Excel…", MenuAction::ExportXlsx),
+/// the window gives its action, its text, the action, and its shortcut.
+/// Undo and Redo have Cmd-Z and Cmd-Shift-Z, Ctrl outside macOS
+/// (`docs/design.md`, section 2.1).
+const ITEMS: [(&str, &str, MenuAction, Option<&str>); 5] = [
+    (
+        "importTable",
+        "Import table…",
+        MenuAction::ImportTable,
+        None,
+    ),
+    ("exportCsv", "Export as CSV…", MenuAction::ExportCsv, None),
+    (
+        "exportXlsx",
+        "Export as Excel…",
+        MenuAction::ExportXlsx,
+        None,
+    ),
+    ("undo", "Undo", MenuAction::Undo, Some("CmdOrCtrl+Z")),
+    ("redo", "Redo", MenuAction::Redo, Some("CmdOrCtrl+Shift+Z")),
 ];
 
 /// The actions whose items need a table, disabled until one is open.
@@ -35,9 +49,14 @@ const CLOSE_WINDOW: &str = "closeWindow";
 #[cfg(not(target_os = "macos"))]
 const QUIT: &str = "quit";
 
-/// The items that need a table, kept so that they are enabled once one is
-/// open.
-struct TableItems<R: Runtime>(Vec<MenuItem<R>>);
+/// The items that follow the session: those that need a table, enabled
+/// once one is open, and Undo and Redo, enabled while there is something
+/// to undo and to redo.
+struct FollowingItems<R: Runtime> {
+    table: Vec<MenuItem<R>>,
+    undo: MenuItem<R>,
+    redo: MenuItem<R>,
+}
 
 /// The action of the item of the menu whose id, or the window's name of
 /// its action, is `name`; `None` for any other.
@@ -45,8 +64,8 @@ struct TableItems<R: Runtime>(Vec<MenuItem<R>>);
 pub fn action_named(name: &str) -> Option<MenuAction> {
     ITEMS
         .iter()
-        .find(|(id, _, _)| *id == name)
-        .map(|(_, _, action)| *action)
+        .find(|(id, _, _, _)| *id == name)
+        .map(|(_, _, action, _)| *action)
 }
 
 /// Makes the menu of the app and gives it to the app on macOS and to the
@@ -58,11 +77,15 @@ pub fn action_named(name: &str) -> Option<MenuAction> {
 /// Tauri's error when a menu cannot be made or set, or `WindowNotFound`
 /// when there is no main window outside macOS.
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let items = ITEMS.map(|(id, text, action)| {
-        MenuItem::with_id(app, id, text, !NEED_A_TABLE.contains(&action), None::<&str>)
+    // Undo and Redo start disabled, with nothing to undo.
+    let items = ITEMS.map(|(id, text, action, shortcut)| {
+        let enabled = !NEED_A_TABLE.contains(&action)
+            && !matches!(action, MenuAction::Undo | MenuAction::Redo);
+        MenuItem::with_id(app, id, text, enabled, shortcut)
     });
-    let [import, export_csv, export_xlsx] = items;
-    let (import, export_csv, export_xlsx) = (import?, export_csv?, export_xlsx?);
+    let [import, export_csv, export_xlsx, undo, redo] = items;
+    let (import, export_csv, export_xlsx, undo, redo) =
+        (import?, export_csv?, export_xlsx?, undo?, redo?);
     let file = Submenu::with_items(
         app,
         "File",
@@ -86,6 +109,9 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         "Edit",
         true,
         &[
+            &undo,
+            &redo,
+            &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::cut(app, None)?,
             &PredefinedMenuItem::copy(app, None)?,
             &PredefinedMenuItem::paste(app, None)?,
@@ -132,7 +158,11 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             .ok_or(tauri::Error::WindowNotFound)?
             .set_menu(menu)?;
     }
-    app.manage(TableItems(vec![export_csv, export_xlsx]));
+    app.manage(FollowingItems {
+        table: vec![export_csv, export_xlsx],
+        undo,
+        redo,
+    });
     Ok(())
 }
 
@@ -213,17 +243,32 @@ fn close_main_window<R: Runtime>(app: &AppHandle<R>) {
 /// Enables the items that need a table, once one is open; a failure is
 /// written to the log, and leaves them as they were.
 pub fn enable_table_items<R: Runtime>(app: &AppHandle<R>) {
-    let Some(items) = app.try_state::<TableItems<R>>() else {
+    let Some(items) = app.try_state::<FollowingItems<R>>() else {
         eprintln!("Vavilov Explorer defect: no menu whose export items to enable");
         return;
     };
-    for item in &items.0 {
-        if let Err(error) = item.set_enabled(true) {
-            eprintln!(
-                "Vavilov Explorer: the menu item {} could not be enabled: {error}",
-                item.id().as_ref()
-            );
-        }
+    for item in &items.table {
+        set_enabled(item, true);
+    }
+}
+
+/// Enables Undo and Redo while there is something to undo and to redo; a
+/// failure is written to the log, and leaves them as they were.
+pub fn show_undo_redo<R: Runtime>(app: &AppHandle<R>, undo_redo: UndoRedo) {
+    let Some(items) = app.try_state::<FollowingItems<R>>() else {
+        eprintln!("Vavilov Explorer defect: no menu whose Undo and Redo to enable");
+        return;
+    };
+    set_enabled(&items.undo, undo_redo.can_undo);
+    set_enabled(&items.redo, undo_redo.can_redo);
+}
+
+fn set_enabled<R: Runtime>(item: &MenuItem<R>, enabled: bool) {
+    if let Err(error) = item.set_enabled(enabled) {
+        eprintln!(
+            "Vavilov Explorer: the menu item {} could not be set to enabled {enabled}: {error}",
+            item.id().as_ref()
+        );
     }
 }
 

@@ -50,11 +50,15 @@ assigned to.
   and the interface keeps them apart.
 - **Hover**: the one individual under the pointer, shown in every window.
 
-The only cells the user edits are those of the active classification,
-with a lasso in a plot or by choosing a population in a cell of that
-column in the table. The other edits are to the shape of the table:
-adding and removing columns, renaming them, adding, renaming and removing
-populations, and changing the type of a column.
+The user edits the cells of the active classification with a lasso in a
+plot, and any cell in the table (section 2.1). The other edits are to
+the shape of the table: adding and removing columns, renaming them,
+adding, renaming and removing populations, and changing the type of a
+column. Every edit can be undone. An earlier version of this design let
+the user edit only the active classification, so that a trait would not
+be changed by mistake; the owner opened every column to editing on
+2 October 2026, with undo and the double-click of section 2.1 as the
+guard.
 
 popnei, named in section 7, is the owner's population genetics
 library in Rust, and popnei_web its web applications.
@@ -88,6 +92,44 @@ it.
   the same day (section 7). The mark is read when the window starts.
 - On top of each column, a dropdown shows its type and lets the user
   change it (section 6).
+- A cell is edited by double-clicking it, or by pressing Enter on it, so
+  that a single click still selects its row and typing alone changes
+  nothing. Beside the cell being edited, a checkbox, "Apply to all
+  selected rows", off by default, applies the value to every selected
+  row instead; it gives no count, to keep the widget small. A value must
+  fit the column's storage type, which never changes (section 6), the
+  same for one cell or many; a value that does not fit is refused and
+  the cell keeps its value. IndividualID is edited one cell at a time,
+  since one ID given to several rows would repeat it. An edit of many
+  rows is one command: it changes every row or none, and one undo
+  reverts it. Decided by the owner on 2 October 2026.
+- Above the table, a find bar: a field for the text searched, a Column
+  dropdown, "Any column" first and then every column from IndividualID
+  on, a checkbox "Whole cell", off by default, and a checkbox "Show rows
+  that don't match". Typing shows only the rows that match, and an empty
+  field shows them all. A cell matches by the text the table shows,
+  case ignored and accents not; a cell of a country matches when the
+  text is part of any of its ISO names or equals one of its codes; a
+  missing cell never matches. The filter hides rows of the table only,
+  not of the other windows, and the backend holds it and finds the
+  rows. The filter by the selection or by one population planned here
+  before is left out: a population is a search of its column, whole
+  cell. Decided by the owner on 2 October 2026.
+- Below the table, an information bar, the one place for information,
+  warnings and errors about the table: the count of the rows shown,
+  "Showing 312 of 2,000 individuals", and messages, each with its kind
+  in words and dismissed with ×. The refusals of an import and an
+  export and the notice of a character that could not be read move
+  there from their pop-up and notice. A defect of the app keeps its red
+  bar, and a question that needs an answer before anything happens
+  keeps its dialog. Decided by the owner on 2 October 2026.
+- Undo and Redo are in an Edit menu, with Cmd-Z and Cmd-Shift-Z, Ctrl-Z
+  and Ctrl-Shift-Z on Windows and Linux (decided by the owner on
+  2 October 2026). They are greyed out when there is nothing to undo or
+  redo. The menu's shortcut reaches the main window as an action, so
+  once the window has a field to type in, the find bar's or a cell's,
+  the window decides there that Cmd-Z undoes the typing in the field and
+  not the last edit of the table.
 - The populations panel lists the populations of the active
   classification, each with its colour, name and number of individuals. A
   dropdown above it chooses the active classification. It is where a

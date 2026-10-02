@@ -5,6 +5,8 @@ fn each_name_the_window_gives_an_action_is_the_action_of_its_item() {
     assert_eq!(action_named("importTable"), Some(MenuAction::ImportTable));
     assert_eq!(action_named("exportCsv"), Some(MenuAction::ExportCsv));
     assert_eq!(action_named("exportXlsx"), Some(MenuAction::ExportXlsx));
+    assert_eq!(action_named("undo"), Some(MenuAction::Undo));
+    assert_eq!(action_named("redo"), Some(MenuAction::Redo));
 }
 
 #[test]

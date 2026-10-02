@@ -62,6 +62,15 @@ column of countries as their three-letter codes. The export refuses a
 value that would not read back as itself, such as a text `NA`, and the
 message names its column and its individual.
 
+## Undoing an edit
+
+Edit, Undo, or Cmd-Z (Ctrl-Z on Windows and Linux), undoes the last
+change to the table, such as a change of a column's role, and Edit,
+Redo, or Cmd-Shift-Z, makes it again. Each can be repeated, back to the
+table as it was imported. Importing another table starts its history
+afresh. The selection and the choice of the Classification column are
+not undone.
+
 ## What each column is for
 
 After the import, each column but the first has a role, which you choose

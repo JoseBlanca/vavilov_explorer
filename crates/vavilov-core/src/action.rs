@@ -19,6 +19,10 @@ pub enum MenuAction {
     ExportCsv,
     /// File, Export as Excel….
     ExportXlsx,
+    /// Edit, Undo.
+    Undo,
+    /// Edit, Redo.
+    Redo,
 }
 
 impl MenuAction {
@@ -28,6 +32,8 @@ impl MenuAction {
             Self::ImportTable => 1,
             Self::ExportCsv => 2,
             Self::ExportXlsx => 3,
+            Self::Undo => 4,
+            Self::Redo => 5,
         }
     }
 }
