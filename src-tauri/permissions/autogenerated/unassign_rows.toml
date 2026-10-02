@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-unassign-rows"
+description = "Enables the unassign_rows command without any pre-configured scope."
+commands.allow = ["unassign_rows"]
+
+[[permission]]
+identifier = "deny-unassign-rows"
+description = "Denies the unassign_rows command without any pre-configured scope."
+commands.deny = ["unassign_rows"]

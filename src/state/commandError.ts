@@ -3,49 +3,95 @@
 // (crates/vavilov-core/src/error.rs). The table below is the one list of
 // them on this side, and the type is made from it.
 
-/** The fields of each kind of refusal, and whether each is a number or a text. */
+import { isColumnId, isLevelCode, isRevision, isRowIndex } from "./ids.ts";
+import type { ColumnId, LevelCode, Revision, RowIndex } from "./ids.ts";
+
+/** The type of a field: an id, a count, or a text from the user's file. */
+type FieldType = "columnId" | "levelCode" | "rowIndex" | "revision" | "number" | "string";
+
+/** The fields of each kind of refusal, and the type of each. */
 const FIELDS = {
   noProject: {},
-  madeBeforeLoad: { basedOn: "number", loadedAt: "number" },
+  madeBeforeLoad: { basedOn: "revision", loadedAt: "revision" },
   unknownWindow: { label: "string" },
-  unknownColumn: { column: "number" },
-  notCategorical: { column: "number" },
-  notActiveClassification: { column: "number" },
-  unknownLevel: { column: "number", code: "number", numLevels: "number" },
+  unknownColumn: { column: "columnId" },
+  notCategorical: { column: "columnId" },
+  notActiveClassification: { column: "columnId" },
+  unknownLevel: { column: "columnId", code: "levelCode", numLevels: "number" },
   noPopulationSelected: {},
-  notSelectedPopulation: { code: "number" },
+  notSelectedPopulation: { code: "levelCode" },
   rowSetLength: { numRows: "number", numBytes: "number" },
   rowSetUnusedBits: { numRows: "number" },
-  rowOutOfRange: { row: "number", numRows: "number" },
+  rowOutOfRange: { row: "rowIndex", numRows: "number" },
   nothingToUndo: {},
   nothingToRedo: {},
   tooManyRows: { numRows: "number", maxRows: "number" },
   tooManyColumns: { numColumns: "number", maxColumns: "number" },
-  emptyIndividual: { row: "number" },
-  duplicateIndividual: { name: "string", firstRow: "number", secondRow: "number" },
+  emptyIndividual: { row: "rowIndex" },
+  duplicateIndividual: { name: "string", firstRow: "rowIndex", secondRow: "rowIndex" },
   emptyColumnName: { position: "number" },
   duplicateColumnName: { name: "string" },
-  columnLength: { column: "string", numValues: "number", numRows: "number" },
-  nonFiniteNumber: { column: "string", row: "number" },
-  tooManyLevels: { column: "string", numLevels: "number", maxLevels: "number" },
-  emptyLevelName: { column: "string", code: "number" },
-  duplicateLevel: { column: "string", level: "string" },
-  codeWithoutLevel: { column: "string", row: "number", code: "number", numLevels: "number" },
+  columnLength: { columnName: "string", numValues: "number", numRows: "number" },
+  nonFiniteNumber: { columnName: "string", row: "rowIndex" },
+  tooManyLevels: { columnName: "string", numLevels: "number", maxLevels: "number" },
+  emptyLevelName: { columnName: "string", code: "levelCode" },
+  duplicateLevel: { columnName: "string", level: "string" },
+  codeWithoutLevel: {
+    columnName: "string",
+    row: "rowIndex",
+    code: "levelCode",
+    numLevels: "number",
+  },
   defect: { what: "string" },
-} as const satisfies Record<string, Record<string, "number" | "string">>;
+} as const satisfies Record<string, Record<string, FieldType>>;
 
 type Fields = typeof FIELDS;
+
+/** The TypeScript type of each type of field. */
+interface TypeOf {
+  readonly columnId: ColumnId;
+  readonly levelCode: LevelCode;
+  readonly rowIndex: RowIndex;
+  readonly revision: Revision;
+  readonly number: number;
+  readonly string: string;
+}
 
 /** Why the backend refused a command; a refused command changed nothing. */
 export type CommandError = {
   [K in keyof Fields]: { readonly kind: K } & {
-    readonly [F in keyof Fields[K]]: Fields[K][F] extends "number" ? number : string;
+    readonly [F in keyof Fields[K]]: Fields[K][F] extends FieldType ? TypeOf[Fields[K][F]] : never;
   };
 }[keyof Fields];
 
-const FIELDS_OF_KIND: ReadonlyMap<string, Readonly<Record<string, "number" | "string">>> = new Map(
+/**
+ * A refusal a window receives as a value: every kind but a defect, which is
+ * thrown, and a command made before the current table was loaded, which the
+ * window does not show (`docs/core.md`, section 4).
+ */
+export type Refusal = Exclude<CommandError, { readonly kind: "defect" | "madeBeforeLoad" }>;
+
+const FIELDS_OF_KIND: ReadonlyMap<string, Readonly<Record<string, FieldType>>> = new Map(
   Object.entries(FIELDS),
 );
+
+/** Whether `value` is a field of `type`. */
+function hasType(value: unknown, type: FieldType): boolean {
+  switch (type) {
+    case "string":
+      return typeof value === "string";
+    case "number":
+      return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+    case "columnId":
+      return typeof value === "number" && isColumnId(value);
+    case "levelCode":
+      return typeof value === "number" && isLevelCode(value);
+    case "rowIndex":
+      return typeof value === "number" && isRowIndex(value);
+    case "revision":
+      return typeof value === "number" && isRevision(value);
+  }
+}
 
 /**
  * Whether `value` is a refusal of the backend: an object with a known kind
@@ -71,7 +117,7 @@ export function isCommandError(value: unknown): value is CommandError {
     if (name === "kind") {
       return true;
     }
-    const expected = Object.hasOwn(fields, name) ? fields[name] : undefined;
-    return expected !== undefined && typeof field === expected;
+    const type = Object.hasOwn(fields, name) ? fields[name] : undefined;
+    return type !== undefined && hasType(field, type);
   });
 }

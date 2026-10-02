@@ -87,7 +87,7 @@ function recordAspects(state: ReturnType<typeof createWindowState>): Aspect[] {
     "codes",
     "selection",
     "hover",
-    "undo",
+    "undoRedo",
   ] as const) {
     state.subscribe(aspect, () => {
       called.push(aspect);
@@ -108,14 +108,14 @@ describe("a window's state made from a snapshot", () => {
     expect(state.columnRevision(column(9))).toBeNull();
     expect([...(state.selection() ?? [])]).toEqual([0]);
     expect(state.hover()).toBeNull();
-    expect(state.undo()).toEqual({ canUndo: false, canRedo: false });
+    expect(state.undoRedo()).toEqual({ canUndo: false, canRedo: false });
   });
 
   test("with no project, holds none", () => {
     const state = createWindowState(
       snapshot(0, [{ kind: "noProject" }, { kind: "hover", seq: seq(0), row: null }]),
     );
-    expect(state.project()).toEqual({ kind: "none" });
+    expect(state.project()).toEqual({ kind: "noProject" });
     expect(state.selection()).toBeNull();
     expect(state.active()).toBeNull();
   });
@@ -154,8 +154,8 @@ describe("applying a change", () => {
     expect([...(state.codes(ORIGIN) ?? [])]).toEqual([0, 0, 0, 0]);
     expect(state.columnRevision(ORIGIN)).toBe(2);
     expect(state.columnRevision(HEIGHT)).toBe(1);
-    expect(state.undo()).toEqual({ canUndo: true, canRedo: false });
-    expect(called).toEqual(["table", "codes", "undo"]);
+    expect(state.undoRedo()).toEqual({ canUndo: true, canRedo: false });
+    expect(called).toEqual(["table", "codes", "undoRedo"]);
   });
 
   test("a new active classification and population", () => {
@@ -202,7 +202,7 @@ describe("applying a change", () => {
     expect(state.codes(ORIGIN)).toBeNull();
     expect(state.columnRevision(ORIGIN)).toBeNull();
     expect([...(state.selection() ?? [])]).toEqual([0, 0]);
-    expect(called).toEqual(["table", "classification", "codes", "selection", "hover", "undo"]);
+    expect(called).toEqual(["table", "classification", "codes", "selection", "hover", "undoRedo"]);
   });
 
   test("whose parts do not fit the table is a defect", () => {
@@ -272,11 +272,14 @@ describe("applying a hover", () => {
     // snapshot would be.
     state.apply(hover(1, 1, 0));
     expect(state.hover()).toBe(3);
+    // The same sequence number again, as a hover the snapshot already holds.
+    state.apply(hover(1, 2, 0));
+    expect(state.hover()).toBe(3);
     state.apply(change(2, { kind: "undo", canUndo: true, canRedo: false }));
     state.apply(hover(2, 3, null));
     expect(state.hover()).toBeNull();
     expect(state.revision()).toBe(2);
-    expect(called).toEqual(["hover", "undo", "hover"]);
+    expect(called).toEqual(["hover", "undoRedo", "hover"]);
   });
 });
 

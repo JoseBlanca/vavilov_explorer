@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-assign-rows"
+description = "Enables the assign_rows command without any pre-configured scope."
+commands.allow = ["assign_rows"]
+
+[[permission]]
+identifier = "deny-assign-rows"
+description = "Denies the assign_rows command without any pre-configured scope."
+commands.deny = ["assign_rows"]

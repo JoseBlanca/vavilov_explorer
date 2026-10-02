@@ -4,18 +4,18 @@
 
 import { defect } from "./defect.ts";
 import type { ColumnId, HoverSeq, LevelCode, Revision, RowIndex } from "./ids.ts";
-import type { Message, MessagePart } from "./message.ts";
+import type { Message, MessagePart, UndoRedo } from "./message.ts";
 
 /** What changes together, so that a component redraws only for what it shows. */
-export type Aspect = "table" | "classification" | "codes" | "selection" | "hover" | "undo";
+export type Aspect = "table" | "classification" | "codes" | "selection" | "hover" | "undoRedo";
 
 /** Whether a project is open, and its number of rows. */
 export type ProjectState =
-  | { readonly kind: "none" }
+  | { readonly kind: "noProject" }
   | { readonly kind: "open"; readonly numRows: number; readonly loadedAt: Revision };
 
-/** The active classification and its selected population. */
-export interface ActiveState {
+/** The active classification and its selected population, as `Active` in the core. */
+export interface Active {
   /** The column of the active classification. */
   readonly column: ColumnId;
   /** The population selected for editing, or `null`. */
@@ -29,7 +29,7 @@ export interface WindowState {
   /** Whether a project is open. */
   readonly project: () => ProjectState;
   /** The active classification, or `null` for none. */
-  readonly active: () => ActiveState | null;
+  readonly active: () => Active | null;
   /** The codes of a categorical column, `NO_CODE` for missing, or `null` for a column that has none. */
   readonly codes: (column: ColumnId) => Uint16Array | null;
   /** The revision at which a column last changed, or `null` for a column not in the table. */
@@ -39,7 +39,7 @@ export interface WindowState {
   /** The individual under the pointer. */
   readonly hover: () => RowIndex | null;
   /** Whether there is something to undo and something to redo. */
-  readonly undo: () => { readonly canUndo: boolean; readonly canRedo: boolean };
+  readonly undoRedo: () => UndoRedo;
   /**
    * Applies a message of the channel: a change one revision after the last,
    * or a hover. A change at or before the current revision is already in the
@@ -61,20 +61,20 @@ const ASPECTS: readonly Aspect[] = [
   "codes",
   "selection",
   "hover",
-  "undo",
+  "undoRedo",
 ];
 
 /** Everything the copy holds; a message builds a new one and keeps it only when every part fits. */
 interface Copy {
   readonly revision: Revision;
   readonly project: ProjectState;
-  readonly active: ActiveState | null;
+  readonly active: Active | null;
   readonly codes: ReadonlyMap<ColumnId, Uint16Array>;
   readonly columns: ReadonlyMap<ColumnId, Revision>;
   readonly selection: Uint8Array | null;
   readonly hover: RowIndex | null;
   readonly hoverSeq: HoverSeq;
-  readonly undo: { readonly canUndo: boolean; readonly canRedo: boolean };
+  readonly undoRedo: UndoRedo;
 }
 
 /**
@@ -100,7 +100,11 @@ export function createWindowState(snapshot: Message): WindowState {
   function notify(changed: ReadonlySet<Aspect>): void {
     for (const aspect of ASPECTS) {
       if (changed.has(aspect)) {
-        for (const listener of listeners.get(aspect) ?? []) {
+        const set = listeners.get(aspect);
+        if (set === undefined) {
+          throw defect(`an aspect ${aspect} with no listeners`);
+        }
+        for (const listener of set) {
           listener();
         }
       }
@@ -153,7 +157,7 @@ export function createWindowState(snapshot: Message): WindowState {
     columnRevision: (column) => copy.columns.get(column) ?? null,
     selection: () => copy.selection,
     hover: () => copy.hover,
-    undo: () => copy.undo,
+    undoRedo: () => copy.undoRedo,
     apply,
     subscribe: (aspect, listener) => {
       const set = listeners.get(aspect);
@@ -175,14 +179,14 @@ function empty(revision: Revision, project: MessagePart, hoverSeq: HoverSeq): Co
     project:
       project.kind === "project"
         ? { kind: "open", numRows: project.numRows, loadedAt: project.loadedAt }
-        : { kind: "none" },
+        : { kind: "noProject" },
     active: null,
     codes: new Map(),
     columns: new Map(),
     selection: null,
     hover: null,
     hoverSeq,
-    undo: { canUndo: false, canRedo: false },
+    undoRedo: { canUndo: false, canRedo: false },
   };
 }
 
@@ -198,12 +202,12 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
   let selection = copy.selection;
   let hover = copy.hover;
   let hoverSeq = copy.hoverSeq;
-  let undo = copy.undo;
+  let undoRedo = copy.undoRedo;
   const changed = new Set<Aspect>();
   for (const part of message.parts) {
     switch (part.kind) {
       case "noProject":
-        project = { kind: "none" };
+        project = { kind: "noProject" };
         changed.add("table");
         break;
       case "project":
@@ -240,8 +244,8 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
         changed.add("table");
         break;
       case "undo":
-        undo = { canUndo: part.canUndo, canRedo: part.canRedo };
-        changed.add("undo");
+        undoRedo = { canUndo: part.canUndo, canRedo: part.canRedo };
+        changed.add("undoRedo");
         break;
       case "hover":
         checkRow(project, part.row);
@@ -255,14 +259,14 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
     throw defect(`an active classification, column ${String(active.column)}, with no codes`);
   }
   return {
-    copy: { ...copy, project, active, codes, columns, selection, hover, hoverSeq, undo },
+    copy: { ...copy, project, active, codes, columns, selection, hover, hoverSeq, undoRedo },
     changed,
   };
 }
 
 /** The number of rows of the open project, for a part that needs one. */
 function rowsOf(project: ProjectState, what: string): number {
-  if (project.kind === "none") {
+  if (project.kind === "noProject") {
     throw defect(`${what} with no project open`);
   }
   return project.numRows;

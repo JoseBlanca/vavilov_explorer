@@ -181,6 +181,132 @@ describe("the parts", () => {
   });
 });
 
+describe("the boundaries", () => {
+  test("a selection of 8 rows uses the whole of its last byte", () => {
+    const [selection] = parts(
+      ...[3, 0, 0, 0, 9, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0b1000_0000, 0, 0, 0, 0, 0, 0, 0],
+    );
+    expect(selection?.kind === "selection" ? [...selection.bits] : null).toEqual([0b1000_0000]);
+  });
+
+  test("a revision of 2^53 - 1 is read exactly", () => {
+    const message = decodeMessage(
+      buffer(
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        0x1f,
+        0,
+        ...CHANGE_AT_5.slice(16),
+      ),
+    );
+    expect(message.revision).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  test("a table of no rows gives empty bits and codes", () => {
+    expect(
+      parts(
+        ...[3, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ...[4, 0, 0, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+      ).map((part) =>
+        part.kind === "selection"
+          ? part.bits.length
+          : part.kind === "codes"
+            ? part.codes.length
+            : -1,
+      ),
+    ).toEqual([0, 0]);
+  });
+
+  test("a project of more rows than the core takes is a defect", () => {
+    expectDefect(
+      [
+        ...CHANGE_AT_5,
+        ...[1, 0, 0, 0, 24, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+        ...[1, 0, 0, 0x10, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+      ],
+      /268435457 rows/,
+    );
+  });
+});
+
+describe("the snapshot after edits that the core's tests write", () => {
+  // crates/vavilov-core/src/session/tests.rs, SNAPSHOT_AFTER_EDITS: the
+  // plants loaded at 1, Spain selected at 2, a lasso of rows 1 and 2 into
+  // Spain at 3, a hover on row 2, and cluster made active at 4.
+  const SNAPSHOT_AFTER_EDITS = [
+    0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 6, 0, 0, 0,
+    3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+    0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+    0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+    0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 24, 0, 0, 0, 2, 0, 0, 0, 0, 0,
+    0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0,
+    0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 2, 0, 2, 0, 0, 0, 7, 0, 0, 0, 12, 0, 0, 0, 2, 0, 0, 0,
+    0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+  ];
+
+  test("decodes to the state the core held", () => {
+    const message = decodeMessage(buffer(...SNAPSHOT_AFTER_EDITS));
+    const summary = message.parts.map((part) => {
+      switch (part.kind) {
+        case "codes":
+          return {
+            kind: part.kind,
+            column: part.column,
+            revision: part.revision,
+            codes: [...part.codes],
+          };
+        case "selection":
+          return { kind: part.kind, numRows: part.numRows, bits: [...part.bits] };
+        case "noProject":
+        case "project":
+        case "active":
+        case "undo":
+        case "columns":
+        case "hover":
+          return part;
+      }
+    });
+    expect(message.kind).toBe("snapshot");
+    expect(message.revision).toBe(4);
+    expect(summary).toEqual([
+      { kind: "project", numRows: 4, loadedAt: 1 },
+      { kind: "active", column: 3, selected: null },
+      { kind: "selection", numRows: 4, bits: [0] },
+      { kind: "undo", canUndo: true, canRedo: false },
+      {
+        kind: "columns",
+        columns: [
+          { column: 0, revision: 1 },
+          { column: 1, revision: 1 },
+          { column: 2, revision: 3 },
+          { column: 3, revision: 1 },
+          { column: 4, revision: 1 },
+          { column: 5, revision: 1 },
+          { column: 6, revision: 1 },
+        ],
+      },
+      { kind: "codes", column: 2, revision: 3, codes: [0, 0, 0, 0] },
+      { kind: "codes", column: 3, revision: 1, codes: [0xffff, 2, 2, 0] },
+      { kind: "hover", seq: 2, row: 2 },
+    ]);
+  });
+});
+
 describe("a message that does not decode is a defect", () => {
   test("shorter than its header, or not a multiple of 8 bytes", () => {
     expectDefect([1, 0, 0, 0, 0, 0, 0, 0], /24/);

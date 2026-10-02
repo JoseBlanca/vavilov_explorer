@@ -1,9 +1,7 @@
 use serde_json::{Value, json};
 use tauri::http::{HeaderMap, HeaderName, HeaderValue};
 use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponseBody};
-use tauri::test::{
-    INVOKE_KEY, MockRuntime, get_ipc_response, mock_builder, mock_context, noop_assets,
-};
+use tauri::test::{INVOKE_KEY, MockRuntime, get_ipc_response, mock_builder};
 use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use vavilov_core::{Categorical, Colour, ColumnValues, Level, NewColumn, Table, UndoRedo};
@@ -13,9 +11,11 @@ use crate::with_session;
 
 const ORIGIN: u32 = 1;
 
+/// The app on Tauri's mock runtime, with the real configuration and
+/// capabilities, so that a call is checked against them as in the app.
 fn app() -> (App<MockRuntime>, WebviewWindow<MockRuntime>) {
     let app = with_session(mock_builder())
-        .build(mock_context(noop_assets()))
+        .build(tauri::generate_context!(test = true))
         .unwrap();
     let window = WebviewWindowBuilder::new(&app, "main", WebviewUrl::default())
         .build()
@@ -304,21 +304,131 @@ fn a_raw_command_without_a_header_it_needs_is_a_defect() {
             &[("based-on", "1".to_owned())]
         )
         .unwrap_err(),
-        json!({ "kind": "defect", "what": "a command that takes raw bytes was given JSON" })
+        json!({ "kind": "defect", "what": "a command that takes raw bytes was given JSON, as Tauri sends every \
+                     body once a window has fallen back from its custom IPC protocol to postMessage" })
     );
 }
 
-// That the window is then closed is not seen here: the mock runtime never
-// sends the event that removes a destroyed window from Tauri's list, so the
-// closing is left to the tests of the real app.
+// The capability lets only the main window call the commands, so a widget's
+// window is refused before the session sees it. The session's own refusal of
+// a label it does not know, and the closing of such a window, come into play
+// once the widgets are in the capability (core.md, section 7); the session's
+// refusal is tested in the core.
 #[test]
-fn a_window_the_session_does_not_know_is_refused() {
+fn a_window_of_a_widget_cannot_subscribe_yet() {
     let (app, _main) = app();
     let stray = WebviewWindowBuilder::new(&app, "scatter3d-1", WebviewUrl::default())
         .build()
         .unwrap();
+    let refusal =
+        json_command(&stray, "subscribe", json!({ "onChange": "__CHANNEL__:2" })).unwrap_err();
+    assert!(
+        refusal
+            .as_str()
+            .is_some_and(|text| text.contains("subscribe not allowed")),
+        "{refusal}"
+    );
+}
+
+#[test]
+fn a_window_outside_the_capability_cannot_call_the_commands() {
+    let (app, _main) = app();
+    load(&app);
+    let other = WebviewWindowBuilder::new(&app, "other", WebviewUrl::default())
+        .build()
+        .unwrap();
+    for cmd in ["undo", "set_hover"] {
+        let refusal = json_command(&other, cmd, json!({ "row": null, "basedOn": 1 })).unwrap_err();
+        assert!(
+            refusal
+                .as_str()
+                .is_some_and(|text| text.contains("not allowed")),
+            "{cmd}: {refusal}"
+        );
+    }
+    assert_eq!(codes(&app), [Some(0), Some(1), None]);
+}
+
+fn session_of(app: &App<MockRuntime>) -> std::sync::MutexGuard<'_, Session> {
+    app.state::<Mutex<Session>>().inner().lock().unwrap()
+}
+
+#[test]
+fn the_hover_reaches_the_session() {
+    let (app, window) = app();
+    load(&app);
+    json_command(
+        &window,
+        "set_hover",
+        json!({ "row": 2, "basedOn": 1, "sentAt": 1.5 }),
+    )
+    .unwrap();
+    assert_eq!(session_of(&app).hover(), Some(RowIndex::new(2)));
+    json_command(&window, "set_hover", json!({ "row": null, "basedOn": 1 })).unwrap();
+    assert_eq!(session_of(&app).hover(), None);
+}
+
+#[test]
+fn the_active_classification_reaches_the_session() {
+    let (app, window) = app();
+    load(&app);
+    json_command(
+        &window,
+        "set_active_classification",
+        json!({ "column": null, "basedOn": 1 }),
+    )
+    .unwrap();
+    assert_eq!(session_of(&app).active(), None);
+    json_command(
+        &window,
+        "set_active_classification",
+        json!({ "column": ORIGIN, "basedOn": 2 }),
+    )
+    .unwrap();
     assert_eq!(
-        json_command(&stray, "subscribe", json!({ "onChange": "__CHANNEL__:2" })).unwrap_err(),
-        json!({ "kind": "unknownWindow", "label": "scatter3d-1" })
+        session_of(&app).active(),
+        Some(vavilov_core::Active {
+            column: ColumnId::new(ORIGIN),
+            selected: None
+        })
+    );
+}
+
+#[test]
+fn a_lasso_in_remove_mode_and_a_redo_through_the_commands() {
+    let (app, window) = app();
+    load(&app);
+    json_command(
+        &window,
+        "select_population",
+        json!({ "column": ORIGIN, "population": 1, "basedOn": 1 }),
+    )
+    .unwrap();
+    assert_eq!(
+        session_of(&app).active(),
+        Some(vavilov_core::Active {
+            column: ColumnId::new(ORIGIN),
+            selected: Some(LevelCode::new(1))
+        })
+    );
+    // Rows 0 and 1 out of Peru, at revision 2: only row 1 is in Peru.
+    invoke(
+        &window,
+        "unassign_rows",
+        InvokeBody::Raw(vec![0b011]),
+        &lasso_headers(1, 2),
+    )
+    .unwrap();
+    assert_eq!(codes(&app), [Some(0), None, None]);
+    json_command(&window, "undo", json!({ "basedOn": 3 })).unwrap();
+    assert_eq!(codes(&app), [Some(0), Some(1), None]);
+    json_command(&window, "redo", json!({ "basedOn": 4 })).unwrap();
+    assert_eq!(codes(&app), [Some(0), None, None]);
+    assert_eq!(
+        session_of(&app).undo_redo(),
+        UndoRedo {
+            can_undo: true,
+            can_redo: false
+        }
     );
 }

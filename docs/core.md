@@ -107,7 +107,9 @@ table is loaded.
   never missing.
 - **A column id**, `ColumnId(u32)`, is given when a column is created and
   never changes, so that a widget or a message names a column by its id
-  and a rename breaks nothing. The first column has one too. A table
+  and a rename breaks nothing. The first column has one too, 0, and a
+  revision like the others; it is not categorical, so a command that
+  needs a classification refuses it as such. A table
   keeps the next id to give, which only grows: a column that is added and
   then undone does not give its id back, so a stale window that still
   names it is refused rather than pointed at a newer column. `u32::MAX`
@@ -150,11 +152,13 @@ rules.
 
 The table has at most `MAX_ROWS` rows, 2^28, 268,435,456, and at most
 `MAX_COLUMNS` columns, 2^24, 16,777,216. The limits come from the
-messages: a part gives its length as a `u32` (section 5), and with these
-limits the largest part, a column of 8-byte values or the list of every
-column's revision at 16 bytes a column, takes 2^31 bytes and a few dozen
-more for its headers, half of the 2^32 a `u32` counts to, so every
-message of a table the constructor accepted can be encoded. `rust.md` sets the row index at `u32`; this limit is lower and
+messages: a part gives its length as a `u32` (section 5). A column of
+8-byte values of 2^28 rows takes 2^31 bytes and a few dozen more for its
+headers, half of the 2^32 a `u32` counts to, and the list of the
+revisions of 2^24 columns, at 16 bytes a column, takes 2^28 bytes; so
+every message of a table the constructor accepted can be encoded. The
+limit on columns leaves room to spare, and no table of individuals has
+16 million columns. `rust.md` sets the row index at `u32`; this limit is lower and
 leaves `u32::MAX` free to mean "no row" in the hover. The tables of the
 app have tens of thousands of rows.
 
@@ -462,15 +466,14 @@ core's tests check the sequence number: it grows with each hover, and hovers bet
 
 ## 6. Errors
 
-The core has one error enum, `CommandError`, written with `thiserror`,
-`#[non_exhaustive]`, and serialised by `serde` as an object with a
+The core has one error enum, `CommandError`, written with `thiserror`
+and serialised by `serde` as an object with a
 `kind` and the data its message needs (`tauri.md`, "Errors across the
 boundary"):
 
 ```rust
 #[derive(Debug, thiserror::Error, serde::Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
-#[non_exhaustive]
 pub enum CommandError {
     #[error("no project is open")]
     NoProject,

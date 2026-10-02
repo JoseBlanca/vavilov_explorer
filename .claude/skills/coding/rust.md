@@ -78,9 +78,12 @@ overflow; in a debug build they panic; `/` and `%` by zero panic in both;
   value (`CLAUDE.md`). A `Result` is never dropped; `let _ =` on one needs
   a reason in a comment. An error turned into an empty table, a zero or a
   missing value is the defect this rule is for.
-- Each crate has one error enum, `#[non_exhaustive]`, written with
+- Each crate has one error enum, written with
   `thiserror` (approved by the owner on 2 October 2026, `SKILL.md`,
-  "Dependencies"), to which each module adds its cases. A case names what was being done,
+  "Dependencies"), to which each module adds its cases. It is not
+  `#[non_exhaustive]`: the crates ship together, and the attribute would
+  force a `_` arm in every `match` of another crate, where a new case
+  falls in silence (the review of the core, 2 October 2026). A case names what was being done,
   `ImportRaggedRow`, `ProjectVersionTooNew`, and carries what finds the
   cause: the path, the line, the column, the value. No error type of a
   dependency is in a public case, so that a user of the core does not

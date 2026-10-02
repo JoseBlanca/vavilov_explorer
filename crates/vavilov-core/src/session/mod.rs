@@ -22,14 +22,14 @@ use crate::table::Table;
 /// The session of the app. The app holds it once, behind a lock, and
 /// every change goes through [`Session::dispatch`].
 pub struct Session {
-    pub(crate) state: SessionState,
+    pub(crate) state: SharedState,
     pub(crate) subscribers: Subscribers,
 }
 
 /// Everything the session holds but the subscribers, in one value, so
 /// that a test can compare all of it before and after a refused command.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SessionState {
+pub(crate) struct SharedState {
     pub(crate) project: Project,
     pub(crate) revision: Revision,
     pub(crate) hover_seq: HoverSeq,
@@ -88,7 +88,7 @@ impl Session {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            state: SessionState {
+            state: SharedState {
                 project: Project::None,
                 revision: Revision::ZERO,
                 hover_seq: HoverSeq::ZERO,

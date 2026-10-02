@@ -31,3 +31,6 @@ tmp/
 
 # The build of the Cargo workspace
 /target/
+
+# The worktrees of the reviewers
+.claude/worktrees/

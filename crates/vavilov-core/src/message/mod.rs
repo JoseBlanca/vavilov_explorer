@@ -10,7 +10,7 @@ mod writer;
 pub(crate) use writer::MessageWriter;
 
 use crate::error::CommandError;
-use crate::ids::{HoverSeq, Revision, SentAt};
+use crate::ids::{ColumnId, HoverSeq, Revision, SentAt};
 use crate::session::OpenProject;
 
 /// The column id that means no column, in the active part.
@@ -84,11 +84,15 @@ pub(crate) fn whole_state(
         message.selection(&open.interaction.selection)?;
         message.undo(open.history.undo_redo())?;
         let columns = open.table.columns();
-        message.columns(
-            columns
-                .iter()
-                .map(|column| (column.id(), column.revision())),
-        )?;
+        let names = open.table.names();
+        let revisions: Vec<(ColumnId, Revision)> = std::iter::once((names.id(), names.revision()))
+            .chain(
+                columns
+                    .iter()
+                    .map(|column| (column.id(), column.revision())),
+            )
+            .collect();
+        message.columns(&revisions)?;
         for column in columns {
             if let Some(categorical) = column.categorical() {
                 message.codes(column.id(), column.revision(), categorical.codes())?;

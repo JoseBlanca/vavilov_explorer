@@ -475,8 +475,21 @@ fn only_a_categorical_column_of_the_table_can_be_the_active_classification() {
     assert_refused(
         &mut session,
         request,
-        CommandError::UnknownColumn {
+        CommandError::NotCategorical {
             column: ColumnId::new(0),
+        },
+    );
+    let request = at(
+        &session,
+        Command::SetActiveClassification {
+            column: Some(ColumnId::new(9)),
+        },
+    );
+    assert_refused(
+        &mut session,
+        request,
+        CommandError::UnknownColumn {
+            column: ColumnId::new(9),
         },
     );
 }
@@ -1072,4 +1085,108 @@ fn the_rows_from_a_window_need_a_project() {
         session.rows_from_window(&[], Revision::ZERO),
         Err(CommandError::NoProject)
     );
+}
+
+/// The snapshot after a load at 1, Spain selected at 2, a lasso of rows 1
+/// and 2 into Spain at 3, a hover on row 2 (sequence number 2), and
+/// `cluster` made active at 4, as docs/core.md, section 5, lays it out. The
+/// same bytes are decoded in src/backend/decodeMessage.test.ts.
+#[rustfmt::skip]
+const SNAPSHOT_AFTER_EDITS: [u8; 328] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // snapshot at 4
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0, // no time; project part
+    1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
+    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 6, 0, 0, 0, // loaded at 1; active part
+    3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
+    4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
+    5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
+    6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, // columns part: 7 columns
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // the names, at 1
+    1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // height at 1
+    2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, // origin at 3
+    3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // cluster at 1
+    4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // seeds at 1
+    5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // fertile at 1
+    6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // note at 1
+    4, 0, 0, 0, 24, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, // codes of origin
+    3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // at 3: Spain four times
+    4, 0, 0, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, // codes of cluster
+    1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 2, 0, 2, 0, 0, 0, // at 1: missing, C, C, A
+    7, 0, 0, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, // hover part, sequence 2
+    2, 0, 0, 0, 0, 0, 0, 0, // row 2
+];
+
+#[test]
+fn a_snapshot_after_edits_holds_every_value_of_the_session() {
+    let (mut session, _recorder) = editing_spain();
+    let request = assign(&session, SPAIN, &[1, 2]);
+    session.dispatch(request).unwrap();
+    apply(
+        &mut session,
+        Command::SetHover {
+            row: Some(RowIndex::new(2)),
+        },
+    );
+    apply(
+        &mut session,
+        Command::SetActiveClassification {
+            column: Some(CLUSTER),
+        },
+    );
+    let snapshot = session
+        .subscribe(WindowLabel::main(), Box::new(Recorder::default()))
+        .unwrap();
+    assert_eq!(snapshot, SNAPSHOT_AFTER_EDITS);
+}
+
+#[test]
+fn selecting_the_population_already_selected_changes_nothing() {
+    let (mut session, recorder) = editing_spain();
+    assert_eq!(
+        apply(
+            &mut session,
+            Command::SelectPopulation {
+                column: ORIGIN,
+                population: Some(SPAIN)
+            }
+        ),
+        Changed::Nothing
+    );
+    assert!(recorder.take().is_empty());
+}
+
+/// The undo part of the only message `recorder` received.
+fn undo_part(recorder: &Recorder) -> Vec<u8> {
+    let messages = recorder.take();
+    assert_eq!(messages.len(), 1);
+    decode(&messages[0])
+        .parts
+        .into_iter()
+        .find(|(kind, _)| *kind == UNDO)
+        .unwrap()
+        .1
+}
+
+#[test]
+fn the_undo_part_says_what_can_be_undone_and_redone_after_two_lassos() {
+    let (mut session, recorder) = editing_spain();
+    let request = assign(&session, SPAIN, &[1]);
+    session.dispatch(request).unwrap();
+    let request = assign(&session, SPAIN, &[2]);
+    session.dispatch(request).unwrap();
+    recorder.take();
+    for (command, expected) in [
+        (Command::Undo, [1, 1]),
+        (Command::Undo, [0, 1]),
+        (Command::Redo, [1, 1]),
+        (Command::Redo, [1, 0]),
+    ] {
+        apply(&mut session, command);
+        let undo_redo = session.undo_redo();
+        assert_eq!(undo_part(&recorder), expected);
+        assert_eq!(
+            [u8::from(undo_redo.can_undo), u8::from(undo_redo.can_redo)],
+            expected
+        );
+    }
 }

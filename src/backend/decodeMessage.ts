@@ -6,6 +6,7 @@
 
 import { defect } from "../state/defect.ts";
 import {
+  MAX_ROWS,
   NO_CODE,
   NO_COLUMN,
   NO_ROW,
@@ -22,6 +23,16 @@ const HEADER_BYTES = 24;
 const PART_HEADER_BYTES = 8;
 const ALIGNMENT = 8;
 const MESSAGE_KINDS = ["snapshot", "change", "hover"] as const;
+
+// The kinds of part, the u16 at the start of a part's header (PartKind in
+// crates/vavilov-core/src/message/mod.rs).
+const PROJECT = 1;
+const ACTIVE = 2;
+const SELECTION = 3;
+const CODES = 4;
+const UNDO = 5;
+const COLUMNS = 6;
+const HOVER = 7;
 
 // A typed array reads in the platform's byte order; the messages are
 // little-endian, which every platform of the app is.
@@ -97,9 +108,9 @@ function decodePart(
   length: number,
 ): MessagePart {
   switch (partKind) {
-    case 1:
+    case PROJECT:
       return projectPart(view, start, length);
-    case 2: {
+    case ACTIVE: {
       expectLength("active", length, 6);
       const column = view.getUint32(start, true);
       const selected = view.getUint16(start + 4, true);
@@ -109,9 +120,9 @@ function decodePart(
         selected: selected === NO_CODE ? null : levelCode(selected),
       };
     }
-    case 3:
+    case SELECTION:
       return selectionPart(bytes, view, start, length);
-    case 4: {
+    case CODES: {
       if (length < 16 || (length - 16) % 2 !== 0) {
         throw defect(`a codes part of ${String(length)} bytes`);
       }
@@ -122,7 +133,7 @@ function decodePart(
         codes: new Uint16Array(bytes, start + 16, (length - 16) / 2),
       };
     }
-    case 5: {
+    case UNDO: {
       expectLength("undo", length, 2);
       return {
         kind: "undo",
@@ -130,9 +141,9 @@ function decodePart(
         canRedo: booleanAt(view, start + 1, "undo"),
       };
     }
-    case 6:
+    case COLUMNS:
       return columnsPart(view, start, length);
-    case 7: {
+    case HOVER: {
       expectLength("hover", length, 12);
       const row = view.getUint32(start + 8, true);
       return {
@@ -157,9 +168,15 @@ function projectPart(view: DataView, start: number, length: number): MessagePart
     return { kind: "noProject" };
   }
   expectLength("project, with one open,", length, 24);
+  const numRows = view.getUint32(start + 8, true);
+  if (numRows > MAX_ROWS) {
+    throw defect(
+      `a project of ${String(numRows)} rows, more than the ${String(MAX_ROWS)} of the core`,
+    );
+  }
   return {
     kind: "project",
-    numRows: view.getUint32(start + 8, true),
+    numRows,
     loadedAt: zerosThenRevision(view, start + 8),
   };
 }

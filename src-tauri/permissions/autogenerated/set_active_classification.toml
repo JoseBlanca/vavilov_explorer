@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-active-classification"
+description = "Enables the set_active_classification command without any pre-configured scope."
+commands.allow = ["set_active_classification"]
+
+[[permission]]
+identifier = "deny-set-active-classification"
+description = "Denies the set_active_classification command without any pre-configured scope."
+commands.deny = ["set_active_classification"]

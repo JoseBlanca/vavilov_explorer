@@ -31,11 +31,19 @@ export type MessagePart =
       readonly codes: Uint16Array;
     }
   /** Whether there is something to undo and something to redo. */
-  | { readonly kind: "undo"; readonly canUndo: boolean; readonly canRedo: boolean }
+  | ({ readonly kind: "undo" } & UndoRedo)
   /** The revision of each column listed, so that a window fetches again those that changed. */
   | { readonly kind: "columns"; readonly columns: readonly ColumnRevision[] }
   /** The individual under the pointer, `null` for none, and its sequence number. */
   | { readonly kind: "hover"; readonly seq: HoverSeq; readonly row: RowIndex | null };
+
+/** Whether there is something to undo and something to redo, as `UndoRedo` in the core. */
+export interface UndoRedo {
+  /** Whether there is an edit to undo. */
+  readonly canUndo: boolean;
+  /** Whether there is an edit to redo. */
+  readonly canRedo: boolean;
+}
 
 /** A column and the revision at which it last changed. */
 export interface ColumnRevision {

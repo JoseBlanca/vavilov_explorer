@@ -34,12 +34,8 @@ pub fn subscribe<R: Runtime>(
     match subscribed {
         Ok(snapshot) => Ok(Response::new(snapshot)),
         Err(error) => {
-            if let CommandError::UnknownWindow { .. } = error
-                && let Err(destroyed) = window.destroy()
-            {
-                eprintln!(
-                    "Vavilov Explorer: a window the session does not know could not be closed: {destroyed}"
-                );
+            if let CommandError::UnknownWindow { .. } = error {
+                close_later(&window);
             }
             Err(error)
         }
@@ -288,12 +284,35 @@ fn report_dropped<R: Runtime>(app: &AppHandle<R>, dropped: Vec<Dropped>) {
     }
 }
 
+/// Closes a window once the call it made has returned: destroying a web
+/// view from inside its own call may hang on Windows, as creating one from
+/// a synchronous command does (tauri.md).
+fn close_later<R: Runtime>(window: &WebviewWindow<R>) {
+    let closing = window.clone();
+    let queued = window.run_on_main_thread(move || {
+        if let Err(error) = closing.destroy() {
+            eprintln!(
+                "Vavilov Explorer: window {} that the session does not know could not be closed: {error}",
+                closing.label()
+            );
+        }
+    });
+    if let Err(error) = queued {
+        eprintln!(
+            "Vavilov Explorer: the closing of window {} could not be queued: {error}",
+            window.label()
+        );
+    }
+}
+
 /// The bytes of a raw body.
 fn raw_body<'a>(request: &'a tauri::ipc::Request<'_>) -> Result<&'a [u8], CommandError> {
     match request.body() {
         InvokeBody::Raw(bytes) => Ok(bytes),
         InvokeBody::Json(_) => Err(CommandError::Defect {
-            what: "a command that takes raw bytes was given JSON".to_owned(),
+            what: "a command that takes raw bytes was given JSON, as Tauri sends every \
+                   body once a window has fallen back from its custom IPC protocol to postMessage"
+                .to_owned(),
         }),
     }
 }

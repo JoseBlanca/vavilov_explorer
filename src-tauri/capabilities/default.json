@@ -1,7 +1,18 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "What the main window may call: Tauri's defaults and the app's commands",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "allow-subscribe",
+    "allow-set-selection",
+    "allow-assign-rows",
+    "allow-unassign-rows",
+    "allow-set-hover",
+    "allow-set-active-classification",
+    "allow-select-population",
+    "allow-undo",
+    "allow-redo"
+  ]
 }

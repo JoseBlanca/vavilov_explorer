@@ -35,6 +35,7 @@ pub const MAX_LEVELS: u32 = 65_535;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameColumn {
     id: ColumnId,
+    revision: Revision,
     header: String,
     names: Vec<String>,
 }
@@ -44,6 +45,13 @@ impl NameColumn {
     #[must_use]
     pub const fn id(&self) -> ColumnId {
         self.id
+    }
+
+    /// The revision of the session at which it last changed: its load, as
+    /// no command changes it yet.
+    #[must_use]
+    pub const fn revision(&self) -> Revision {
+        self.revision
     }
 
     /// Its header, which may be empty.
@@ -123,6 +131,7 @@ impl Table {
             num_rows,
             names: NameColumn {
                 id: ColumnId::new(0),
+                revision: Revision::ZERO,
                 header,
                 names,
             },
@@ -149,7 +158,8 @@ impl Table {
         &self.columns
     }
 
-    /// The column of this id, other than the first.
+    /// The column of this id, other than the first, which has no type:
+    /// look for the first by [`NameColumn::id`].
     #[must_use]
     pub fn column(&self, id: ColumnId) -> Option<&Column> {
         self.columns.iter().find(|column| column.id == id)
@@ -162,6 +172,7 @@ impl Table {
 
     /// Gives every column the revision at which the table is loaded.
     pub(crate) fn set_revisions(&mut self, revision: Revision) {
+        self.names.revision = revision;
         for column in &mut self.columns {
             column.revision = revision;
         }
@@ -241,7 +252,7 @@ fn check_values(column: &NewColumn, num_rows: u32) -> Result<(), CommandError> {
     let num_values = column.values.len();
     if num_values != usize_from(num_rows) {
         return Err(CommandError::ColumnLength {
-            column: column.name.clone(),
+            column_name: column.name.clone(),
             num_values: u64_from(num_values),
             num_rows,
         });
@@ -251,7 +262,7 @@ fn check_values(column: &NewColumn, num_rows: u32) -> Result<(), CommandError> {
             for (row, value) in rows(values) {
                 if value.is_some_and(|value| !value.is_finite()) {
                     return Err(CommandError::NonFiniteNumber {
-                        column: column.name.clone(),
+                        column_name: column.name.clone(),
                         row,
                     });
                 }
@@ -270,7 +281,7 @@ fn check_categorical(name: &str, categorical: &Categorical) -> Result<(), Comman
         .ok()
         .filter(|num| *num <= MAX_LEVELS)
         .ok_or_else(|| CommandError::TooManyLevels {
-            column: name.to_owned(),
+            column_name: name.to_owned(),
             num_levels: u64_from(levels.len()),
             max_levels: MAX_LEVELS,
         })?;
@@ -278,13 +289,13 @@ fn check_categorical(name: &str, categorical: &Categorical) -> Result<(), Comman
     for (code, level) in (0..=u16::MAX).zip(levels) {
         if level.name().is_empty() {
             return Err(CommandError::EmptyLevelName {
-                column: name.to_owned(),
+                column_name: name.to_owned(),
                 code: LevelCode::new(code),
             });
         }
         if !seen.insert(level.name()) {
             return Err(CommandError::DuplicateLevel {
-                column: name.to_owned(),
+                column_name: name.to_owned(),
                 level: level.name().to_owned(),
             });
         }
@@ -294,7 +305,7 @@ fn check_categorical(name: &str, categorical: &Categorical) -> Result<(), Comman
             && u32::from(code.get()) >= num_levels
         {
             return Err(CommandError::CodeWithoutLevel {
-                column: name.to_owned(),
+                column_name: name.to_owned(),
                 row,
                 code: *code,
                 num_levels,

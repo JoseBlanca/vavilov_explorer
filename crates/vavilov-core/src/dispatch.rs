@@ -18,7 +18,7 @@ use crate::message::{MessageKind, MessageWriter, whole_state};
 use crate::row_set::RowSet;
 use crate::session::{
     Active, History, HistoryStep, Interaction, OpenProject, Project, SendFailed, Session,
-    SessionState,
+    SharedState,
 };
 use crate::table::{Categorical, Column, ColumnValues, Table};
 
@@ -267,17 +267,17 @@ impl Session {
                 Changed::State(revision)
             }
             Change::Selection(rows) => {
-                let open = self.state.project.open_mut()?;
+                let open = open_for_commit(&mut self.state.project)?;
                 open.interaction.selection = rows;
                 Changed::State(revision)
             }
             Change::Active(active) => {
-                let open = self.state.project.open_mut()?;
+                let open = open_for_commit(&mut self.state.project)?;
                 open.interaction.active = active;
                 Changed::State(revision)
             }
             Change::Hover { row, seq } => {
-                let open = self.state.project.open_mut()?;
+                let open = open_for_commit(&mut self.state.project)?;
                 open.interaction.hover = row;
                 self.state.hover_seq = seq;
                 Changed::Hover(seq)
@@ -287,7 +287,7 @@ impl Session {
                 codes,
                 step,
             } => {
-                let open = self.state.project.open_mut()?;
+                let open = open_for_commit(&mut self.state.project)?;
                 let Column {
                     revision: column_revision,
                     values,
@@ -352,7 +352,7 @@ enum StepKind {
 }
 
 fn plan_load(
-    state: &SessionState,
+    state: &SharedState,
     mut table: Table,
     active_classification: Option<ColumnId>,
     sent_at: Option<SentAt>,
@@ -394,7 +394,7 @@ fn plan_load(
 }
 
 fn plan_active(
-    state: &SessionState,
+    state: &SharedState,
     active: Option<Active>,
     sent_at: Option<SentAt>,
 ) -> Result<Option<Plan>, CommandError> {
@@ -411,7 +411,7 @@ fn plan_active(
 /// Plans an edit of the document: the codes it gives, and its reverse
 /// for the history. An edit that changes no row changes nothing.
 fn plan_edit(
-    state: &SessionState,
+    state: &SharedState,
     open: &OpenProject,
     edit: Edit,
     kind: StepKind,
@@ -454,7 +454,7 @@ fn plan_edit(
     let revision = state.revision.next()?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.codes(column, revision, &codes)?;
-    message.columns(std::iter::once((column, revision)))?;
+    message.columns(&[(column, revision)])?;
     message.undo(open.history.after(&step))?;
     Ok(Some(Plan {
         revision,
@@ -494,6 +494,9 @@ fn active_classification(open: &OpenProject, column: ColumnId) -> Result<Active,
 
 /// The values of a categorical column of the table.
 fn categorical(table: &Table, column: ColumnId) -> Result<&Categorical, CommandError> {
+    if column == table.names().id() {
+        return Err(CommandError::NotCategorical { column });
+    }
     table
         .column(column)
         .ok_or(CommandError::UnknownColumn { column })?
@@ -534,6 +537,14 @@ fn check_row_set(rows: &RowSet, num_rows: u32) -> Result<(), CommandError> {
 /// The code of `row`, which the lasso checked is in the table.
 fn code_of(codes: &[Option<LevelCode>], row: RowIndex) -> Option<LevelCode> {
     codes.get(usize_from(row.get())).copied().flatten()
+}
+
+/// The open project a planned change applies to; the plan checked it is
+/// open, so its absence is a defect, not a refusal.
+fn open_for_commit(project: &mut Project) -> Result<&mut OpenProject, CommandError> {
+    project.open_mut().map_err(|_| CommandError::Defect {
+        what: "a change planned for an open project, and none is open".to_owned(),
+    })
 }
 
 fn defect(column: ColumnId, what: &str) -> CommandError {

@@ -5,9 +5,9 @@ members = ["src-tauri", "crates/*"]
 # A workspace with no package of its own does not take the resolver from
 # the edition.
 resolver = "3"
-# The spikes and the scratch projects have Cargo.toml files of their own
-# that are not members.
-exclude = ["spikes", "tmp"]
+# The scratch projects of the sessions have Cargo.toml files of their own
+# that are not members; the spike declares a workspace of its own.
+exclude = ["tmp"]
 
 [workspace.package]
 edition = "2024"

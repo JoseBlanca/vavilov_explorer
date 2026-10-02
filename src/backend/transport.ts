@@ -3,11 +3,23 @@
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 
+/** The app's commands, as `src-tauri/src/commands.rs` names them. */
+export type CommandName =
+  | "subscribe"
+  | "set_selection"
+  | "assign_rows"
+  | "unassign_rows"
+  | "set_hover"
+  | "set_active_classification"
+  | "select_population"
+  | "undo"
+  | "redo";
+
 /** The calls to the backend and the channel a window subscribes with. */
 export interface Transport {
   /** Invokes a command with JSON arguments, or with raw bytes and headers. */
   readonly invoke: (
-    command: string,
+    command: CommandName,
     args: Readonly<Record<string, unknown>> | Uint8Array,
     headers?: Readonly<Record<string, string>>,
   ) => Promise<unknown>;

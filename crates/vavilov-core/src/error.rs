@@ -19,7 +19,6 @@ use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, WindowLabel};
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-#[non_exhaustive]
 pub enum CommandError {
     /// The command needs a table and no project is open.
     #[error("no project is open")]
@@ -174,10 +173,10 @@ pub enum CommandError {
     },
 
     /// A column has another number of values than the table has rows.
-    #[error("column {column:?} has {num_values} values for {num_rows} rows")]
+    #[error("column {column_name:?} has {num_values} values for {num_rows} rows")]
     ColumnLength {
         /// The name of the column.
-        column: String,
+        column_name: String,
         /// The values it has.
         num_values: u64,
         /// The rows of the table.
@@ -185,19 +184,21 @@ pub enum CommandError {
     },
 
     /// A numeric column holds a value that is not finite.
-    #[error("column {column:?} holds a value that is not a finite number in row {row}")]
+    #[error("column {column_name:?} holds a value that is not a finite number in row {row}")]
     NonFiniteNumber {
         /// The name of the column.
-        column: String,
+        column_name: String,
         /// The row, from 0.
         row: RowIndex,
     },
 
     /// A categorical column of more levels than [`crate::MAX_LEVELS`].
-    #[error("column {column:?} has {num_levels} levels, more than the {max_levels} the app takes")]
+    #[error(
+        "column {column_name:?} has {num_levels} levels, more than the {max_levels} the app takes"
+    )]
     TooManyLevels {
         /// The name of the column.
-        column: String,
+        column_name: String,
         /// The levels it has.
         num_levels: u64,
         /// [`crate::MAX_LEVELS`].
@@ -205,30 +206,30 @@ pub enum CommandError {
     },
 
     /// A level of a categorical column has an empty name.
-    #[error("level {code} of column {column:?} has no name")]
+    #[error("level {code} of column {column_name:?} has no name")]
     EmptyLevelName {
         /// The name of the column.
-        column: String,
+        column_name: String,
         /// The code of the level.
         code: LevelCode,
     },
 
     /// Two levels of a categorical column have the same name.
-    #[error("two levels of column {column:?} are named {level:?}")]
+    #[error("two levels of column {column_name:?} are named {level:?}")]
     DuplicateLevel {
         /// The name of the column.
-        column: String,
+        column_name: String,
         /// The name of the level.
         level: String,
     },
 
     /// A row of a categorical column holds a code with no level.
     #[error(
-        "row {row} of column {column:?} holds code {code}, and the column has {num_levels} levels"
+        "row {row} of column {column_name:?} holds code {code}, and the column has {num_levels} levels"
     )]
     CodeWithoutLevel {
         /// The name of the column.
-        column: String,
+        column_name: String,
         /// The row, from 0.
         row: RowIndex,
         /// The code it holds.

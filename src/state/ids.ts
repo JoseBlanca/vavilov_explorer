@@ -13,7 +13,7 @@ export type Revision = number & { readonly __brand: "Revision" };
 /** The sequence number of a hover, which takes no revision. */
 export type HoverSeq = number & { readonly __brand: "HoverSeq" };
 
-/** The `u32` that means no column, and no row. */
+/** The `u32` that means no column. */
 export const NO_COLUMN = 0xffff_ffff;
 /** The `u32` that means no row in the hover. */
 export const NO_ROW = 0xffff_ffff;
@@ -43,6 +43,9 @@ export function isLevelCode(value: number): value is LevelCode {
 export function isRevision(value: number): value is Revision {
   return Number.isSafeInteger(value) && value >= 0;
 }
+
+/** The most rows a table may have, `MAX_ROWS` of the core. */
+export const MAX_ROWS = 268_435_456;
 
 /** Whether `value` can be a hover's sequence number, by the bound of a revision. */
 export function isHoverSeq(value: number): value is HoverSeq {

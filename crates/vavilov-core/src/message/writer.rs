@@ -98,17 +98,14 @@ impl MessageWriter {
     }
 
     /// The revisions of some columns.
-    pub(crate) fn columns(
-        &mut self,
-        columns: impl ExactSizeIterator<Item = (ColumnId, Revision)>,
-    ) -> Result<(), CommandError> {
+    pub(crate) fn columns(&mut self, columns: &[(ColumnId, Revision)]) -> Result<(), CommandError> {
         let num_columns = u32::try_from(columns.len()).map_err(|_| CommandError::Defect {
             what: format!("a message about {} columns", columns.len()),
         })?;
         self.part(PartKind::Columns, |payload| {
             payload.extend_from_slice(&num_columns.to_le_bytes());
             payload.extend_from_slice(&[0; 4]);
-            for (column, revision) in columns {
+            for (column, revision) in columns.iter().copied() {
                 payload.extend_from_slice(&column.get().to_le_bytes());
                 payload.extend_from_slice(&[0; 4]);
                 payload.extend_from_slice(&revision.get().to_le_bytes());

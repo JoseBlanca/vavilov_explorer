@@ -30,7 +30,10 @@ seconds, and when it fails says only that something on the path broke.
   undo.
 - The tests of the commands use `tauri::test`, Tauri's mock runtime,
   which the `test` feature of the `tauri` crate turns on for the tests
-  only: `mock_builder()`, `mock_context(noop_assets())`, a window made
+  only: `mock_builder()`, the real context, `tauri::generate_context!(test
+  = true)`, so that every call is checked against the real capabilities
+  (with `mock_context(noop_assets())` there are none, and a window outside
+  the capability would pass), a window made
   with `WebviewWindowBuilder`, and `get_ipc_response` to call a command as
   a window would. The mock runtime has no web view, so these tests check
   the wiring, not what a window draws. They call every command once,

@@ -147,7 +147,7 @@ fn a_column_of_another_length_than_the_names_is_refused() {
             ],
         ),
         CommandError::ColumnLength {
-            column: "seeds".to_owned(),
+            column_name: "seeds".to_owned(),
             num_values: 3,
             num_rows: 2
         }
@@ -167,7 +167,7 @@ fn a_number_that_is_not_finite_is_refused() {
                 )],
             ),
             CommandError::NonFiniteNumber {
-                column: "height".to_owned(),
+                column_name: "height".to_owned(),
                 row: RowIndex::new(1)
             }
         );
@@ -189,7 +189,7 @@ fn a_code_with_no_level_is_refused() {
             )],
         ),
         CommandError::CodeWithoutLevel {
-            column: "origin".to_owned(),
+            column_name: "origin".to_owned(),
             row: RowIndex::new(1),
             code: LevelCode::new(2),
             num_levels: 2,
@@ -209,7 +209,7 @@ fn a_level_with_no_name_is_refused() {
             )]
         ),
         CommandError::EmptyLevelName {
-            column: "origin".to_owned(),
+            column_name: "origin".to_owned(),
             code: LevelCode::new(1)
         }
     );
@@ -227,7 +227,7 @@ fn two_levels_of_one_name_are_refused() {
             )],
         ),
         CommandError::DuplicateLevel {
-            column: "origin".to_owned(),
+            column_name: "origin".to_owned(),
             level: "Spain".to_owned()
         }
     );
@@ -262,7 +262,7 @@ fn a_column_of_65535_levels_is_accepted_and_one_of_65536_refused() {
             )],
         ),
         CommandError::TooManyLevels {
-            column: "origin".to_owned(),
+            column_name: "origin".to_owned(),
             num_levels: 65_536,
             max_levels: 65_535
         }

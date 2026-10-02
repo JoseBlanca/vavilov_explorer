@@ -11,8 +11,9 @@ export default defineConfig({
     watch: { ignored: ["**/src-tauri/**", "**/spikes/**"] },
   },
   // The spikes are throwaway experiments with runners of their own; their
-  // WebDriver tests are not Vitest tests.
+  // WebDriver tests are not Vitest tests. The worktrees of the reviewers
+  // hold copies of the tests at other commits.
   test: {
-    exclude: [...configDefaults.exclude, "spikes/**"],
+    exclude: [...configDefaults.exclude, "spikes/**", ".claude/**"],
   },
 });

@@ -145,13 +145,10 @@ fn the_undo_part_has_a_byte_for_undo_and_one_for_redo() {
 #[test]
 fn the_columns_part_lists_each_column_with_its_revision() {
     let message = written(|m| {
-        m.columns(
-            [
-                (ColumnId::new(1), Revision::new(3)),
-                (ColumnId::new(2), Revision::new(4)),
-            ]
-            .into_iter(),
-        )
+        m.columns(&[
+            (ColumnId::new(1), Revision::new(3)),
+            (ColumnId::new(2), Revision::new(4)),
+        ])
         .unwrap();
     });
     assert_eq!(
