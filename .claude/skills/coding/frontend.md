@@ -42,8 +42,13 @@ of truth: no controller, view or plot keeps its own copy of a part of it.
   object of functions: `apply(message)`, the getters, and
   `subscribe(aspect, listener)`, which returns the function that
   unsubscribes.
-- **Aspects** are what changes together: the table, the active
-  classification, the selection, the hover, the layout. A component
+- **Aspects** are what changes together: `table` (the project and the
+  revisions of the columns), `classification` (the active classification
+  and the selected population), `codes`, `selection`, `hover` and `undo`
+  (`src/state/windowState.ts`), and later the layout. A change of
+  several aspects calls each listener once, after the whole message is
+  applied; a message whose part does not fit leaves the copy as it was.
+  A component
   subscribes to the aspects it shows, so that the hover, which can change
   sixty times a second, redraws only what shows the hover.
 - `apply` ignores a message whose revision is not newer than the copy's,
