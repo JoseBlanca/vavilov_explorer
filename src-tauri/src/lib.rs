@@ -37,6 +37,7 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
         })
         .invoke_handler(tauri::generate_handler![
             commands::subscribe,
+            commands::describe_table,
             commands::set_selection,
             commands::assign_rows,
             commands::unassign_rows,

@@ -9,11 +9,11 @@ export type MessagePart =
   | { readonly kind: "noProject" }
   /** A project is open, with its number of rows and the revision of its load. */
   | { readonly kind: "project"; readonly numRows: number; readonly loadedAt: Revision }
-  /** The active classification and its selected population, each `null` for none. */
+  /** The active classification and what is selected in it, each `null` for none. */
   | {
       readonly kind: "active";
       readonly column: ColumnId | null;
-      readonly selected: LevelCode | null;
+      readonly selected: Selected | null;
     }
   /**
    * The selection, one bit per row: row `i` is bit `i % 8` of byte `i / 8`, and
@@ -36,6 +36,13 @@ export type MessagePart =
   | { readonly kind: "columns"; readonly columns: readonly ColumnRevision[] }
   /** The individual under the pointer, `null` for none, and its sequence number. */
   | { readonly kind: "hover"; readonly seq: HoverSeq; readonly row: RowIndex | null };
+
+/**
+ * What is selected for editing in the active classification, as `Selected`
+ * in the core: a population, or its unassigned individuals.
+ */
+export type Selected =
+  { readonly kind: "population"; readonly code: LevelCode } | { readonly kind: "unassigned" };
 
 /** Whether there is something to undo and something to redo, as `UndoRedo` in the core. */
 export interface UndoRedo {

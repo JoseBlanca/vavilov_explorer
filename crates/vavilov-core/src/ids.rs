@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::CommandError;
 
@@ -70,7 +70,7 @@ impl fmt::Display for RowIndex {
 /// The code of a level of a categorical column: its place in the
 /// column's ordered list of levels, from 0. In a classification, a level
 /// is a population.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct LevelCode(u16);
 

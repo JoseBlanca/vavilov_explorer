@@ -5,6 +5,7 @@ use crate::command::{Command, Request};
 use crate::dispatch::{Changed, Dropped};
 use crate::fixtures::{code, decode, part_kinds, plants};
 use crate::ids::{ColumnId, LevelCode, MAX_EXACT_IN_JAVASCRIPT, SentAt};
+use crate::session::Selected;
 use crate::table::{ColumnValues, Table};
 
 const PROJECT: u16 = 1;
@@ -104,7 +105,7 @@ fn editing_spain() -> (Session, Recorder) {
         &mut session,
         Command::SelectPopulation {
             column: ORIGIN,
-            population: Some(SPAIN),
+            selected: Some(Selected::Population(SPAIN)),
         },
     );
     recorder.take();
@@ -138,7 +139,7 @@ fn assign(session: &Session, population: LevelCode, lasso: &[u32]) -> Request {
         session,
         Command::AssignRows {
             column: ORIGIN,
-            population,
+            target: Selected::Population(population),
             rows: rows(session, lasso),
         },
     )
@@ -434,7 +435,7 @@ fn changing_the_active_classification_clears_the_selected_population() {
     );
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![3, 0, 0, 0, 255, 255])]
+        [(ACTIVE, vec![3, 0, 0, 0, 255, 255, 0])]
     );
     assert_eq!(
         apply(
@@ -502,7 +503,7 @@ fn a_population_is_selected_in_the_active_classification_only() {
             &mut session,
             Command::SelectPopulation {
                 column: ORIGIN,
-                population: Some(PERU)
+                selected: Some(Selected::Population(PERU))
             }
         ),
         Changed::State(Revision::new(2))
@@ -511,18 +512,18 @@ fn a_population_is_selected_in_the_active_classification_only() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(PERU)
+            selected: Some(Selected::Population(PERU))
         })
     );
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![2, 0, 0, 0, 1, 0])]
+        [(ACTIVE, vec![2, 0, 0, 0, 1, 0, 1])]
     );
     let request = at(
         &session,
         Command::SelectPopulation {
             column: CLUSTER,
-            population: Some(PERU),
+            selected: Some(Selected::Population(PERU)),
         },
     );
     assert_refused(
@@ -534,7 +535,7 @@ fn a_population_is_selected_in_the_active_classification_only() {
         &session,
         Command::SelectPopulation {
             column: ORIGIN,
-            population: Some(LevelCode::new(2)),
+            selected: Some(Selected::Population(LevelCode::new(2))),
         },
     );
     assert_refused(
@@ -633,20 +634,22 @@ fn a_lasso_needs_the_active_classification_and_its_selected_population() {
         &mut session,
         Command::SelectPopulation {
             column: ORIGIN,
-            population: Some(SPAIN),
+            selected: Some(Selected::Population(SPAIN)),
         },
     );
     let request = assign(&session, PERU, &[1]);
     assert_refused(
         &mut session,
         request,
-        CommandError::NotSelectedPopulation { code: PERU },
+        CommandError::NotSelected {
+            target: Selected::Population(PERU),
+        },
     );
     let request = at(
         &session,
         Command::AssignRows {
             column: CLUSTER,
-            population: SPAIN,
+            target: Selected::Population(SPAIN),
             rows: rows(&session, &[1]),
         },
     );
@@ -659,7 +662,7 @@ fn a_lasso_needs_the_active_classification_and_its_selected_population() {
         &session,
         Command::AssignRows {
             column: ORIGIN,
-            population: SPAIN,
+            target: Selected::Population(SPAIN),
             rows: RowSet::empty(8),
         },
     );
@@ -683,13 +686,15 @@ fn a_lasso_made_before_another_population_was_selected_is_refused() {
         &mut session,
         Command::SelectPopulation {
             column: ORIGIN,
-            population: Some(PERU),
+            selected: Some(Selected::Population(PERU)),
         },
     );
     assert_refused(
         &mut session,
         lasso,
-        CommandError::NotSelectedPopulation { code: SPAIN },
+        CommandError::NotSelected {
+            target: Selected::Population(SPAIN),
+        },
     );
     assert_eq!(
         codes_of(&session, ORIGIN),
@@ -1096,7 +1101,7 @@ const SNAPSHOT_AFTER_EDITS: [u8; 328] = [
     0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // snapshot at 4
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0, // no time; project part
     1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
-    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 6, 0, 0, 0, // loaded at 1; active part
+    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, // loaded at 1; active part
     3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
@@ -1147,7 +1152,7 @@ fn selecting_the_population_already_selected_changes_nothing() {
             &mut session,
             Command::SelectPopulation {
                 column: ORIGIN,
-                population: Some(SPAIN)
+                selected: Some(Selected::Population(SPAIN))
             }
         ),
         Changed::Nothing
@@ -1189,4 +1194,105 @@ fn the_undo_part_says_what_can_be_undone_and_redone_after_two_lassos() {
             expected
         );
     }
+}
+
+#[test]
+fn the_unassigned_individuals_can_be_selected_like_a_population() {
+    let (mut session, recorder) = loaded();
+    assert_eq!(
+        apply(
+            &mut session,
+            Command::SelectPopulation {
+                column: ORIGIN,
+                selected: Some(Selected::Unassigned)
+            }
+        ),
+        Changed::State(Revision::new(2))
+    );
+    assert_eq!(
+        session.active(),
+        Some(Active {
+            column: ORIGIN,
+            selected: Some(Selected::Unassigned)
+        })
+    );
+    assert_eq!(
+        decode(&recorder.take()[0]).parts,
+        [(ACTIVE, vec![2, 0, 0, 0, 255, 255, 2])]
+    );
+}
+
+#[test]
+fn a_lasso_with_the_unassigned_selected_unassigns_its_rows_from_every_population() {
+    let (mut session, _recorder) = loaded();
+    apply(
+        &mut session,
+        Command::SelectPopulation {
+            column: ORIGIN,
+            selected: Some(Selected::Unassigned),
+        },
+    );
+    // origin is Spain, Peru, missing, Spain; the lasso takes rows 0 to 2.
+    let request = at(
+        &session,
+        Command::AssignRows {
+            column: ORIGIN,
+            target: Selected::Unassigned,
+            rows: rows(&session, &[0, 1, 2]),
+        },
+    );
+    assert_eq!(
+        session.dispatch(request).unwrap().changed,
+        Changed::State(Revision::new(3))
+    );
+    assert_eq!(codes_of(&session, ORIGIN), [None, None, None, code(0)]);
+    apply(&mut session, Command::Undo);
+    assert_eq!(
+        codes_of(&session, ORIGIN),
+        [code(0), code(1), None, code(0)]
+    );
+}
+
+#[test]
+fn a_lasso_whose_target_is_not_what_is_selected_is_refused() {
+    let (mut session, _recorder) = editing_spain();
+    let request = at(
+        &session,
+        Command::AssignRows {
+            column: ORIGIN,
+            target: Selected::Unassigned,
+            rows: rows(&session, &[1]),
+        },
+    );
+    assert_refused(
+        &mut session,
+        request,
+        CommandError::NotSelected {
+            target: Selected::Unassigned,
+        },
+    );
+    apply(
+        &mut session,
+        Command::SelectPopulation {
+            column: ORIGIN,
+            selected: Some(Selected::Unassigned),
+        },
+    );
+    // Remove mode is disabled with the unassigned selected: a window that
+    // sends it all the same is refused.
+    let request = at(
+        &session,
+        Command::UnassignRows {
+            column: ORIGIN,
+            population: SPAIN,
+            rows: rows(&session, &[0]),
+        },
+    );
+    assert_refused(
+        &mut session,
+        request,
+        CommandError::NotSelected {
+            target: Selected::Population(SPAIN),
+        },
+    );
 }

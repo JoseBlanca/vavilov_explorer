@@ -7,7 +7,9 @@ use std::sync::{Mutex, MutexGuard};
 
 use tauri::ipc::{Channel, InvokeResponseBody, Response};
 use tauri::{AppHandle, Manager, Runtime, State, WebviewWindow};
-use vavilov_core::{CommandError, Dropped, SendFailed, Session, Subscriber, WindowLabel};
+use vavilov_core::{
+    CommandError, Dropped, SendFailed, Session, Subscriber, TableDescription, WindowLabel,
+};
 
 use crate::calls;
 
@@ -40,6 +42,31 @@ pub fn subscribe<R: Runtime>(
     }
 }
 
+/// The description of the table: its columns, their types, and the names
+/// and colours of the levels. Takes no arguments.
+///
+/// # Errors
+///
+/// `NoProject`, or the refusals of [`calls::call`].
+#[tauri::command]
+pub fn describe_table(
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<TableDescription, CommandError> {
+    let mut session = lock(&session)?;
+    match calls::call(
+        &mut session,
+        "describe_table",
+        request.body(),
+        request.headers(),
+    )? {
+        calls::Reply::Description(description) => Ok(description),
+        calls::Reply::Applied(_) => Err(CommandError::Defect {
+            what: "describe_table applied a command".to_owned(),
+        }),
+    }
+}
+
 /// Sets the selection: the body is one bit per row, with the headers
 /// `based-on` and `sent-at`.
 ///
@@ -55,9 +82,9 @@ pub fn set_selection<R: Runtime>(
     run(&app, &session, "set_selection", &request)
 }
 
-/// Assigns the rows of a lasso to the selected population: the body is one
-/// bit per row, with the headers `column`, `population`, `based-on` and
-/// `sent-at`.
+/// Assigns the rows of a lasso to what is selected: the body is one bit
+/// per row, with the headers `column`, `target` (a code, or `unassigned`),
+/// `based-on` and `sent-at`.
 ///
 /// # Errors
 ///
@@ -72,7 +99,8 @@ pub fn assign_rows<R: Runtime>(
 }
 
 /// Leaves unassigned the rows of a lasso that are in the selected
-/// population, with the body and the headers of [`assign_rows`].
+/// population: the body is one bit per row, with the headers `column`,
+/// `population`, `based-on` and `sent-at`.
 ///
 /// # Errors
 ///
@@ -114,8 +142,10 @@ pub fn set_active_classification<R: Runtime>(
     run(&app, &session, "set_active_classification", &request)
 }
 
-/// Selects a population of the active classification for editing, or
-/// none: `{ column, population, basedOn, sentAt }`.
+/// Selects a population of the active classification, or its unassigned
+/// individuals, for editing, or nothing: `{ column, selected, basedOn,
+/// sentAt }`, `selected` being `{ population: code }`, `"unassigned"` or
+/// `null`.
 ///
 /// # Errors
 ///
@@ -176,10 +206,17 @@ fn run<R: Runtime>(
     request: &tauri::ipc::Request<'_>,
 ) -> Result<(), CommandError> {
     let mut session = lock(session)?;
-    let dropped = calls::call(&mut session, command, request.body(), request.headers())?.dropped;
+    let reply = calls::call(&mut session, command, request.body(), request.headers())?;
     drop(session);
-    report_dropped(app, dropped);
-    Ok(())
+    match reply {
+        calls::Reply::Applied(outcome) => {
+            report_dropped(app, outcome.dropped);
+            Ok(())
+        }
+        calls::Reply::Description(_) => Err(CommandError::Defect {
+            what: format!("the command {command} gave a description"),
+        }),
+    }
 }
 
 fn lock<'a>(session: &'a SessionState<'_>) -> Result<MutexGuard<'a, Session>, CommandError> {

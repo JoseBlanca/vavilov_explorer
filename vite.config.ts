@@ -15,5 +15,8 @@ export default defineConfig({
   // hold copies of the tests at other commits.
   test: {
     exclude: [...configDefaults.exclude, "spikes/**", ".claude/**"],
+    // Vitest gives a stylesheet it does not process as an empty string; the
+    // test of the tokens reads them.
+    css: { include: [/tokens\.css/] },
   },
 });

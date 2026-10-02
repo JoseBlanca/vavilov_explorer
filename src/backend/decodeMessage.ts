@@ -17,7 +17,7 @@ import {
   isRowIndex,
 } from "../state/ids.ts";
 import type { ColumnId, HoverSeq, LevelCode, Revision, RowIndex } from "../state/ids.ts";
-import type { ColumnRevision, Message, MessagePart } from "../state/message.ts";
+import type { ColumnRevision, Message, MessagePart, Selected } from "../state/message.ts";
 
 const HEADER_BYTES = 24;
 const PART_HEADER_BYTES = 8;
@@ -111,13 +111,13 @@ function decodePart(
     case PROJECT:
       return projectPart(view, start, length);
     case ACTIVE: {
-      expectLength("active", length, 6);
+      expectLength("active", length, 7);
       const column = view.getUint32(start, true);
-      const selected = view.getUint16(start + 4, true);
+      const code = view.getUint16(start + 4, true);
       return {
         kind: "active",
         column: column === NO_COLUMN ? null : columnId(column),
-        selected: selected === NO_CODE ? null : levelCode(selected),
+        selected: selectedOf(view.getUint8(start + 6), code),
       };
     }
     case SELECTION:
@@ -217,6 +217,29 @@ function columnsPart(view: DataView, start: number, length: number): MessagePart
     });
   }
   return { kind: "columns", columns };
+}
+
+/**
+ * What is selected, from the kind byte of the active part, 0 nothing, 1 a
+ * population, 2 the unassigned individuals, and the code, `NO_CODE` but
+ * for a population.
+ */
+function selectedOf(kind: number, code: number): Selected | null {
+  if (kind === 1) {
+    return { kind: "population", code: levelCode(code) };
+  }
+  if (code !== NO_CODE) {
+    throw defect(
+      `a code ${String(code)} in an active part whose selection is of kind ${String(kind)}`,
+    );
+  }
+  if (kind === 0) {
+    return null;
+  }
+  if (kind === 2) {
+    return { kind: "unassigned" };
+  }
+  throw defect(`a kind of selection ${String(kind)}`);
 }
 
 /** Checks what a message of each kind must hold. */

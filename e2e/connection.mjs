@@ -30,8 +30,7 @@ for (const engine of Object.keys(ENGINES)) {
   const app = await launch({ engine, backend: true });
   try {
     const { page, errors, backend } = app;
-    const loaded = await backend.send({ command: "e2e:load", table: PLANTS });
-    assert.deepEqual(loaded, { id: 1, ok: null });
+    assert.equal((await backend.send({ command: "e2e:load", table: PLANTS })).ok, null);
 
     await page.evaluate(async () => {
       const { connect } = await import("/src/backend/connection.ts");
@@ -48,7 +47,9 @@ for (const engine of Object.keys(ENGINES)) {
         ([name, values]) =>
           globalThis.__connection[name](
             ...values.map((value) =>
-              value !== null && typeof value === "object" ? new Uint8Array(value.bytes) : value,
+              value !== null && typeof value === "object" && "bytes" in value
+                ? new Uint8Array(value.bytes)
+                : value,
             ),
           ),
         [method, args],
@@ -72,10 +73,19 @@ for (const engine of Object.keys(ENGINES)) {
     const rows = (bits) => ({ bytes: [bits] });
 
     assert.equal((await stateAt(1)).revision, 1);
-    assert.deepEqual(await send("selectPopulation", 1, 1), applied);
-    assert.deepEqual((await stateAt(2)).active, { column: 1, selected: 1 });
+    const peru = { kind: "population", code: 1 };
+    const description = await page.evaluate(() => globalThis.__connection.describeTable());
+    assert.deepEqual(
+      description.value.columns.map((column) => [column.name, column.type]),
+      [
+        ["origin", "categorical"],
+        ["height", "numeric"],
+      ],
+    );
+    assert.deepEqual(await send("selectPopulation", 1, peru), applied);
+    assert.deepEqual((await stateAt(2)).active, { column: 1, selected: peru });
     // Rows 2 and 3 into Peru.
-    assert.deepEqual(await send("assignRows", 1, 1, rows(0b1100)), applied);
+    assert.deepEqual(await send("assignRows", 1, peru, rows(0b1100)), applied);
     assert.deepEqual((await stateAt(3)).codes, [0, 1, 1, 1]);
     // Rows 0 to 2 out of Peru: rows 1 and 2 are in it, row 0 is in Spain.
     assert.deepEqual(await send("unassignRows", 1, 1, rows(0b0111)), applied);
@@ -85,14 +95,18 @@ for (const engine of Object.keys(ENGINES)) {
     assert.deepEqual(await send("redo"), applied);
     assert.deepEqual((await stateAt(6)).undoRedo, { canUndo: true, canRedo: false });
     // A lasso for Spain while Peru is selected is refused, as a value.
-    assert.deepEqual(await send("assignRows", 1, 0, rows(0b0001)), {
+    assert.deepEqual(await send("assignRows", 1, { kind: "population", code: 0 }, rows(0b0001)), {
       ok: false,
-      error: { kind: "notSelectedPopulation", code: 0 },
+      error: { kind: "notSelected", target: { population: 0 } },
     });
     assert.deepEqual(await send("setSelection", rows(0b0110)), applied);
     assert.deepEqual((await stateAt(7)).selection, [0b0110]);
+    // The unassigned individuals selected, a lasso of row 3 unassigns it.
+    assert.deepEqual(await send("selectPopulation", 1, { kind: "unassigned" }), applied);
+    assert.deepEqual(await send("assignRows", 1, { kind: "unassigned" }, rows(0b1000)), applied);
+    assert.deepEqual((await stateAt(9)).codes, [0, 0xffff, 0xffff, 0xffff]);
     assert.deepEqual(await send("setActiveClassification", null), applied);
-    assert.equal((await stateAt(8)).active, null);
+    assert.equal((await stateAt(10)).active, null);
     assert.deepEqual(await send("setHover", 2), applied);
     await page.waitForFunction(() => globalThis.__connection.state.hover() === 2);
 

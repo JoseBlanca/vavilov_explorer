@@ -4,7 +4,7 @@ use crate::error::CommandError;
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt};
 use crate::message::{MessageKind, NO_CODE, NO_COLUMN, NO_ROW, PartKind};
 use crate::row_set::RowSet;
-use crate::session::{Active, UndoRedo};
+use crate::session::{Active, Selected, UndoRedo};
 
 /// Every payload, and so every message, is padded to a multiple of this.
 const ALIGNMENT: usize = 8;
@@ -51,11 +51,16 @@ impl MessageWriter {
     pub(crate) fn active(&mut self, active: Option<Active>) -> Result<(), CommandError> {
         self.part(PartKind::Active, |payload| {
             let column = active.map_or(NO_COLUMN, |active| active.column.get());
-            let code = active
-                .and_then(|active| active.selected)
-                .map_or(NO_CODE, LevelCode::get);
+            // The kind of the selection, 0 nothing, 1 a population, 2 the
+            // unassigned individuals; the code only for a population.
+            let (kind, code) = match active.and_then(|active| active.selected) {
+                None => (0_u8, NO_CODE),
+                Some(Selected::Population(code)) => (1, code.get()),
+                Some(Selected::Unassigned) => (2, NO_CODE),
+            };
             payload.extend_from_slice(&column.to_le_bytes());
             payload.extend_from_slice(&code.to_le_bytes());
+            payload.push(kind);
             Ok(())
         })
     }

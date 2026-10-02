@@ -161,8 +161,14 @@ describe("applying a change", () => {
   test("a new active classification and population", () => {
     const state = createWindowState(snapshot(1));
     const called = recordAspects(state);
-    state.apply(change(2, { kind: "active", column: CLUSTER, selected: code(1) }));
-    expect(state.active()).toEqual({ column: CLUSTER, selected: 1 });
+    state.apply(
+      change(2, {
+        kind: "active",
+        column: CLUSTER,
+        selected: { kind: "population", code: code(1) },
+      }),
+    );
+    expect(state.active()).toEqual({ column: CLUSTER, selected: { kind: "population", code: 1 } });
     state.apply(change(3, { kind: "active", column: null, selected: null }));
     expect(state.active()).toBeNull();
     expect(called).toEqual(["classification", "classification"]);

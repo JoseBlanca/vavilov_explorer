@@ -13,10 +13,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run --passWithNoTests",
-    "test:e2e": "node e2e/smoke.mjs && node e2e/connection.mjs"
+    "test:e2e": "node e2e/smoke.mjs && node e2e/connection.mjs && node e2e/populationsPanel.mjs"
   },
   "dependencies": {
-    "@tauri-apps/api": "2.12.1"
+    "@tauri-apps/api": "2.12.1",
+    "lit-html": "3.3.3"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

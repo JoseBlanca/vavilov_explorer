@@ -6,6 +6,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 /** The app's commands, as `src-tauri/src/commands.rs` names them. */
 export type CommandName =
   | "subscribe"
+  | "describe_table"
   | "set_selection"
   | "assign_rows"
   | "unassign_rows"

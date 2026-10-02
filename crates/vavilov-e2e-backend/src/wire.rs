@@ -39,6 +39,7 @@ pub(crate) fn answer(
     match outcome(session, line, subscriber) {
         Ok(Answer::Bytes(bytes)) => json!({ "id": id, "bytes": bytes }),
         Ok(Answer::Done) => json!({ "id": id, "ok": null }),
+        Ok(Answer::Value(value)) => json!({ "id": id, "ok": value }),
         Err(Failure::Refused(error)) => match serde_json::to_value(&error) {
             Ok(error) => json!({ "id": id, "error": error }),
             Err(serialised) => json!({ "id": id, "e2e": serialised.to_string() }),
@@ -49,6 +50,7 @@ pub(crate) fn answer(
 
 enum Answer {
     Bytes(Vec<u8>),
+    Value(Value),
     Done,
 }
 
@@ -95,8 +97,12 @@ fn outcome(
                 }
             };
             let headers = headers(line.headers.unwrap_or_default())?;
-            calls::call(session, command, &body, &headers)?;
-            Ok(Answer::Done)
+            match calls::call(session, command, &body, &headers)? {
+                calls::Reply::Applied(_) => Ok(Answer::Done),
+                calls::Reply::Description(description) => serde_json::to_value(description)
+                    .map(Answer::Value)
+                    .map_err(|error| Failure::Harness(error.to_string())),
+            }
         }
     }
 }

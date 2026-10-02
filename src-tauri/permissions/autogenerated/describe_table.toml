@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-describe-table"
+description = "Enables the describe_table command without any pre-configured scope."
+commands.allow = ["describe_table"]
+
+[[permission]]
+identifier = "deny-describe-table"
+description = "Denies the describe_table command without any pre-configured scope."
+commands.deny = ["describe_table"]

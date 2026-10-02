@@ -2,7 +2,7 @@ use super::*;
 use crate::fixtures::{code, decode};
 use crate::ids::{ColumnId, LevelCode, RowIndex};
 use crate::row_set::RowSet;
-use crate::session::{Active, UndoRedo};
+use crate::session::{Active, Selected, UndoRedo};
 
 fn written(write: impl FnOnce(&mut MessageWriter)) -> Vec<u8> {
     let mut message = MessageWriter::new(MessageKind::Change, Revision::new(5), None);
@@ -68,18 +68,18 @@ fn the_active_part_has_the_column_and_the_population_or_their_none() {
     let some = written(|m| {
         m.active(Some(Active {
             column: ColumnId::new(2),
-            selected: Some(LevelCode::new(1)),
+            selected: Some(Selected::Population(LevelCode::new(1))),
         }))
         .unwrap();
     });
     assert_eq!(
         after_header(&some),
-        [2, 0, 0, 0, 6, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0]
+        [2, 0, 0, 0, 7, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0]
     );
     let none = written(|m| m.active(None).unwrap());
     assert_eq!(
         after_header(&none),
-        [2, 0, 0, 0, 6, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0]
+        [2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0]
     );
     let no_population = written(|m| {
         m.active(Some(Active {
@@ -90,7 +90,18 @@ fn the_active_part_has_the_column_and_the_population_or_their_none() {
     });
     assert_eq!(
         after_header(&no_population),
-        [2, 0, 0, 0, 6, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0]
+        [2, 0, 0, 0, 7, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0]
+    );
+    let unassigned = written(|m| {
+        m.active(Some(Active {
+            column: ColumnId::new(3),
+            selected: Some(Selected::Unassigned),
+        }))
+        .unwrap()
+    });
+    assert_eq!(
+        after_header(&unassigned),
+        [2, 0, 0, 0, 7, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 0]
     );
 }
 
@@ -194,7 +205,7 @@ fn parts_follow_one_another_each_at_a_multiple_of_8() {
         [
             (5, vec![0, 1]),
             (7, vec![1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255]),
-            (2, vec![255, 255, 255, 255, 255, 255]),
+            (2, vec![255, 255, 255, 255, 255, 255, 0]),
         ]
     );
 }

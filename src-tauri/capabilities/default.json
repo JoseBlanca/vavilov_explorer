@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "allow-subscribe",
+    "allow-describe-table",
     "allow-set-selection",
     "allow-assign-rows",
     "allow-unassign-rows",

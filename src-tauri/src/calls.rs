@@ -11,12 +11,13 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    ColumnId, Command, CommandError, LevelCode, Outcome, Request, Revision, RowIndex, SentAt,
-    Session,
+    ColumnId, Command, CommandError, LevelCode, Outcome, Request, Revision, RowIndex, Selected,
+    SentAt, Session, TableDescription,
 };
 
 /// The commands `call` takes, every command of the app but `subscribe`.
 pub const COMMANDS: &[&str] = &[
+    "describe_table",
     "set_selection",
     "assign_rows",
     "unassign_rows",
@@ -29,8 +30,9 @@ pub const COMMANDS: &[&str] = &[
 
 /// Applies the call of `command` with its body and headers to the session.
 /// A command with rows takes them as a raw body, one bit per row, with the
-/// headers `based-on`, `sent-at` and, for a lasso, `column` and
-/// `population`; the others take JSON arguments in camelCase, and an
+/// headers `based-on`, `sent-at` and, for a lasso, `column` and `target`
+/// (add mode: a code, or `unassigned`) or `population` (remove mode); the
+/// others take JSON arguments in camelCase, and an
 /// argument the command does not have is refused, so that a name that
 /// drifts between a window and the app fails at once.
 ///
@@ -44,7 +46,11 @@ pub fn call(
     command: &str,
     body: &InvokeBody,
     headers: &HeaderMap,
-) -> Result<Outcome, CommandError> {
+) -> Result<Reply, CommandError> {
+    if command == "describe_table" {
+        json_args::<Nothing>(command, body)?;
+        return session.describe().map(Reply::Description);
+    }
     let request = match command {
         "set_selection" => {
             let based_on = Revision::new(header(headers, "based-on")?);
@@ -56,27 +62,34 @@ pub fn call(
                 sent_at,
             }
         }
-        "assign_rows" | "unassign_rows" => {
+        "assign_rows" => {
+            let column = ColumnId::new(header(headers, "column")?);
+            let target = target_header(headers)?;
+            let based_on = Revision::new(header(headers, "based-on")?);
+            let sent_at = sent_at_header(headers)?;
+            let rows = session.rows_from_window(raw_body(body)?, based_on)?;
+            Request {
+                command: Command::AssignRows {
+                    column,
+                    target,
+                    rows,
+                },
+                based_on,
+                sent_at,
+            }
+        }
+        "unassign_rows" => {
             let column = ColumnId::new(header(headers, "column")?);
             let population = LevelCode::new(header(headers, "population")?);
             let based_on = Revision::new(header(headers, "based-on")?);
             let sent_at = sent_at_header(headers)?;
             let rows = session.rows_from_window(raw_body(body)?, based_on)?;
-            let command = if command == "assign_rows" {
-                Command::AssignRows {
-                    column,
-                    population,
-                    rows,
-                }
-            } else {
-                Command::UnassignRows {
-                    column,
-                    population,
-                    rows,
-                }
-            };
             Request {
-                command,
+                command: Command::UnassignRows {
+                    column,
+                    population,
+                    rows,
+                },
                 based_on,
                 sent_at,
             }
@@ -104,7 +117,7 @@ pub fn call(
             let args: PopulationArgs = json_args(command, body)?;
             let command = Command::SelectPopulation {
                 column: ColumnId::new(args.column),
-                population: args.population.map(LevelCode::new),
+                selected: args.selected,
             };
             request(command, args.based_on, args.sent_at)?
         }
@@ -122,8 +135,22 @@ pub fn call(
             });
         }
     };
-    session.dispatch(request)
+    session.dispatch(request).map(Reply::Applied)
 }
+
+/// What a call gives back.
+#[derive(Debug)]
+pub enum Reply {
+    /// A command applied, with the windows whose channel failed.
+    Applied(Outcome),
+    /// The description of the table, for `describe_table`.
+    Description(TableDescription),
+}
+
+/// The arguments of a command that takes none.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Nothing {}
 
 /// The arguments of undo and redo: the revision and the time every JSON
 /// call carries. Each struct names them itself, since serde does not refuse
@@ -155,7 +182,7 @@ struct ActiveArgs {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PopulationArgs {
     column: u32,
-    population: Option<u16>,
+    selected: Option<Selected>,
     based_on: u64,
     sent_at: Option<f64>,
 }
@@ -214,6 +241,20 @@ fn optional_header<T: FromStr>(headers: &HeaderMap, name: &str) -> Result<Option
         .map(Some)
         .ok_or_else(|| CommandError::Defect {
             what: format!("a header {name} that does not parse"),
+        })
+}
+
+/// The target of a lasso in add mode, the header `target`: the code of a
+/// population, or `unassigned`.
+fn target_header(headers: &HeaderMap) -> Result<Selected, CommandError> {
+    let text: String = header(headers, "target")?;
+    if text == "unassigned" {
+        return Ok(Selected::Unassigned);
+    }
+    text.parse()
+        .map(|code| Selected::Population(LevelCode::new(code)))
+        .map_err(|_| CommandError::Defect {
+            what: format!("a header target of {text:?}"),
         })
 }
 

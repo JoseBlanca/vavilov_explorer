@@ -7,6 +7,7 @@
 /// (`tauri-2.12.1/src/webview/mod.rs`, the check of the ACL).
 const COMMANDS: &[&str] = &[
     "subscribe",
+    "describe_table",
     "set_selection",
     "assign_rows",
     "unassign_rows",

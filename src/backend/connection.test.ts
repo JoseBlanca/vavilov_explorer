@@ -24,7 +24,7 @@ const SNAPSHOT = buffer(
   ...[
     1, 0, 0, 0, 24, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
   ],
-  ...[2, 0, 0, 0, 6, 0, 0, 0, 2, 0, 0, 0, 255, 255, 0, 0],
+  ...[2, 0, 0, 0, 7, 0, 0, 0, 2, 0, 0, 0, 255, 255, 0, 0],
   ...[3, 0, 0, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[5, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[
@@ -178,7 +178,9 @@ describe("a command", () => {
     const connection = await connect(transport, failOnDefect);
     deliver(selectionAt(2, 0));
     expect(await connection.setHover(row(3))).toEqual({ ok: true, value: "applied" });
-    await connection.selectPopulation(column(2), code(0));
+    await connection.selectPopulation(column(2), { kind: "population", code: code(0) });
+    await connection.selectPopulation(column(2), { kind: "unassigned" });
+    await connection.selectPopulation(column(2), null);
     await connection.setActiveClassification(null);
     await connection.undo();
     await connection.redo();
@@ -190,7 +192,17 @@ describe("a command", () => {
       },
       {
         command: "select_population",
-        args: { column: 2, population: 0, basedOn: 2, sentAt: 1_727_865_600_000.5 },
+        args: { column: 2, selected: { population: 0 }, basedOn: 2, sentAt: 1_727_865_600_000.5 },
+        headers: undefined,
+      },
+      {
+        command: "select_population",
+        args: { column: 2, selected: "unassigned", basedOn: 2, sentAt: 1_727_865_600_000.5 },
+        headers: undefined,
+      },
+      {
+        command: "select_population",
+        args: { column: 2, selected: null, basedOn: 2, sentAt: 1_727_865_600_000.5 },
         headers: undefined,
       },
       {
@@ -207,14 +219,25 @@ describe("a command", () => {
     const { transport, calls } = fakeTransport();
     const connection = await connect(transport, failOnDefect);
     const bits = new Uint8Array([0b0110]);
-    await connection.assignRows(column(2), code(0), bits);
+    await connection.assignRows(column(2), { kind: "population", code: code(0) }, bits);
+    await connection.assignRows(column(2), { kind: "unassigned" }, bits);
     await connection.unassignRows(column(2), code(1), bits);
     await connection.setSelection(bits);
     expect(calls.slice(1)).toEqual([
       {
         command: "assign_rows",
         args: bits,
-        headers: { column: "2", population: "0", "based-on": "1", "sent-at": "1727865600000.5" },
+        headers: { column: "2", target: "0", "based-on": "1", "sent-at": "1727865600000.5" },
+      },
+      {
+        command: "assign_rows",
+        args: bits,
+        headers: {
+          column: "2",
+          target: "unassigned",
+          "based-on": "1",
+          "sent-at": "1727865600000.5",
+        },
       },
       {
         command: "unassign_rows",
@@ -231,12 +254,18 @@ describe("a command", () => {
 
   test("refused gives the refusal as a value", async () => {
     const { transport } = fakeTransport({
-      answer: () => refusedWith({ kind: "notSelectedPopulation", code: 0 }),
+      answer: () => refusedWith({ kind: "notSelected", target: { population: 0 } }),
     });
     const connection = await connect(transport, failOnDefect);
-    expect(await connection.assignRows(column(2), code(0), new Uint8Array([1]))).toEqual({
+    expect(
+      await connection.assignRows(
+        column(2),
+        { kind: "population", code: code(0) },
+        new Uint8Array([1]),
+      ),
+    ).toEqual({
       ok: false,
-      error: { kind: "notSelectedPopulation", code: 0 },
+      error: { kind: "notSelected", target: { population: 0 } },
     });
   });
 
@@ -349,5 +378,62 @@ describe("through Tauri's real channel", () => {
     expect(defects).toHaveLength(1);
     expect(defects[0]).toMatch(/revision 2 is missing/);
     expect(connection.state.revision()).toBe(1);
+  });
+});
+
+describe("the description of the table", () => {
+  const DESCRIPTION = {
+    loadedAt: 1,
+    numRows: 4,
+    names: { id: 0, header: "accession" },
+    columns: [
+      { id: 1, name: "height", revision: 1, type: "numeric" },
+      {
+        id: 2,
+        name: "origin",
+        revision: 1,
+        type: "categorical",
+        levels: [
+          { name: "Spain", colour: "#e69f00" },
+          { name: "Peru", colour: "#56b4e9" },
+        ],
+      },
+    ],
+  };
+
+  test("comes back as it was sent, once checked", async () => {
+    const { transport, calls } = fakeTransport({ answer: () => Promise.resolve(DESCRIPTION) });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.describeTable()).toEqual({ ok: true, value: DESCRIPTION });
+    expect(calls.at(-1)).toEqual({ command: "describe_table", args: {}, headers: undefined });
+  });
+
+  test("with no project open is a refusal", async () => {
+    const { transport } = fakeTransport({ answer: () => refusedWith({ kind: "noProject" }) });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.describeTable()).toEqual({ ok: false, error: { kind: "noProject" } });
+  });
+
+  test("that does not fit is a defect", async () => {
+    for (const wrong of [
+      { ...DESCRIPTION, numRows: -1 },
+      { ...DESCRIPTION, columns: [{ id: 1, name: "height", revision: 1, type: "date" }] },
+      {
+        ...DESCRIPTION,
+        columns: [
+          {
+            id: 2,
+            name: "origin",
+            revision: 1,
+            type: "categorical",
+            levels: [{ name: "Spain", colour: "red" }],
+          },
+        ],
+      },
+    ]) {
+      const { transport } = fakeTransport({ answer: () => Promise.resolve(wrong) });
+      const connection = await connect(transport, failOnDefect);
+      await expect(connection.describeTable()).rejects.toThrow(/defect: a description/);
+    }
   });
 });

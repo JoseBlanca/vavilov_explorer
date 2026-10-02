@@ -41,7 +41,7 @@ fn json_call(
     session: &mut Session,
     command: &str,
     args: serde_json::Value,
-) -> Result<Outcome, CommandError> {
+) -> Result<Reply, CommandError> {
     call(session, command, &InvokeBody::Json(args), &HeaderMap::new())
 }
 
@@ -51,14 +51,14 @@ fn a_json_call_reaches_the_session() {
     json_call(
         &mut session,
         "select_population",
-        json!({ "column": 1, "population": 1, "basedOn": 1 }),
+        json!({ "column": 1, "selected": { "population": 1 }, "basedOn": 1 }),
     )
     .unwrap();
     assert_eq!(
         session.active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(1),
-            selected: Some(LevelCode::new(1))
+            selected: Some(Selected::Population(LevelCode::new(1)))
         })
     );
 }
@@ -87,8 +87,8 @@ fn an_argument_the_command_does_not_have_is_a_defect() {
 fn an_unknown_command_and_a_body_of_the_wrong_form_are_defects() {
     let mut session = loaded();
     assert_eq!(
-        json_call(&mut session, "set_pointer_mode", json!({ "basedOn": 1 })),
-        Err(CommandError::Defect {
+        json_call(&mut session, "set_pointer_mode", json!({ "basedOn": 1 })).unwrap_err(),
+        (CommandError::Defect {
             what: "a call to an unknown command set_pointer_mode".to_owned()
         })
     );
@@ -98,8 +98,9 @@ fn an_unknown_command_and_a_body_of_the_wrong_form_are_defects() {
             "undo",
             &InvokeBody::Raw(vec![0]),
             &HeaderMap::new()
-        ),
-        Err(CommandError::Defect {
+        )
+        .unwrap_err(),
+        (CommandError::Defect {
             what: "undo, which takes JSON arguments, was given raw bytes".to_owned()
         })
     );

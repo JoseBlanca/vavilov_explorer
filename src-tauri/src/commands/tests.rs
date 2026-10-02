@@ -129,6 +129,7 @@ fn codes(app: &App<MockRuntime>) -> Vec<Option<u16>> {
 fn lasso_headers(population: u16, based_on: u64) -> Vec<(&'static str, String)> {
     vec![
         ("column", ORIGIN.to_string()),
+        ("target", population.to_string()),
         ("population", population.to_string()),
         ("based-on", based_on.to_string()),
     ]
@@ -150,7 +151,7 @@ fn every_command_is_registered_and_finds_the_session() {
         ),
         (
             "select_population",
-            json!({ "column": 1, "population": null, "basedOn": 0 }),
+            json!({ "column": 1, "selected": null, "basedOn": 0 }),
         ),
         ("undo", json!({ "basedOn": 0 })),
         ("redo", json!({ "basedOn": 0, "sentAt": 1.5 })),
@@ -203,7 +204,7 @@ fn a_lasso_and_its_undo_through_the_commands_change_the_codes() {
     json_command(
         &window,
         "select_population",
-        json!({ "column": ORIGIN, "population": 0, "basedOn": 1 }),
+        json!({ "column": ORIGIN, "selected": { "population": 0 }, "basedOn": 1 }),
     )
     .unwrap();
     // Rows 1 and 2 into Spain, at revision 2.
@@ -257,7 +258,7 @@ fn a_refusal_crosses_as_its_kind_and_its_fields() {
         json_command(
             &window,
             "select_population",
-            json!({ "column": 9, "population": 0, "basedOn": 1 })
+            json!({ "column": 9, "selected": { "population": 0 }, "basedOn": 1 })
         )
         .unwrap_err(),
         json!({ "kind": "notActiveClassification", "column": 9 })
@@ -404,14 +405,14 @@ fn a_lasso_in_remove_mode_and_a_redo_through_the_commands() {
     json_command(
         &window,
         "select_population",
-        json!({ "column": ORIGIN, "population": 1, "basedOn": 1 }),
+        json!({ "column": ORIGIN, "selected": { "population": 1 }, "basedOn": 1 }),
     )
     .unwrap();
     assert_eq!(
         session_of(&app).active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: Some(LevelCode::new(1))
+            selected: Some(vavilov_core::Selected::Population(LevelCode::new(1)))
         })
     );
     // Rows 0 and 1 out of Peru, at revision 2: only row 1 is in Peru.
@@ -446,4 +447,56 @@ fn every_command_that_calls_takes_is_registered_with_tauri() {
             assert!(!text.contains("not found"), "{command}: {text}");
         }
     }
+}
+
+#[test]
+fn the_description_of_the_table_comes_back_as_json() {
+    let (app, window) = app();
+    load(&app);
+    let InvokeResponseBody::Json(text) =
+        json_command(&window, "describe_table", json!({})).unwrap()
+    else {
+        panic!("a description as raw bytes");
+    };
+    let description: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(
+        description,
+        json!({
+            "loadedAt": 1,
+            "numRows": 3,
+            "names": { "id": 0, "header": "accession" },
+            "columns": [{
+                "id": 1, "name": "origin", "revision": 1, "type": "categorical",
+                "levels": [
+                    { "name": "Spain", "colour": "#0072b2" },
+                    { "name": "Peru", "colour": "#0072b2" },
+                ],
+            }],
+        })
+    );
+}
+
+#[test]
+fn a_lasso_with_the_unassigned_selected_unassigns_through_the_commands() {
+    let (app, window) = app();
+    load(&app);
+    json_command(
+        &window,
+        "select_population",
+        json!({ "column": ORIGIN, "selected": "unassigned", "basedOn": 1 }),
+    )
+    .unwrap();
+    let headers = [
+        ("column", ORIGIN.to_string()),
+        ("target", "unassigned".to_owned()),
+        ("based-on", "2".to_owned()),
+    ];
+    invoke(
+        &window,
+        "assign_rows",
+        InvokeBody::Raw(vec![0b011]),
+        &headers,
+    )
+    .unwrap();
+    assert_eq!(codes(&app), [None, None, None]);
 }

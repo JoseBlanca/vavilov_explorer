@@ -1,0 +1,38 @@
+/* A small reset, the body, and the default focus ring
+   (.claude/skills/coding/css.md, "Global CSS is three files"). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  font-size: var(--font-size-body);
+  color: var(--color-text);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

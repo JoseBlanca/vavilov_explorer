@@ -3,8 +3,8 @@
 // "The window's copy of the state"; docs/core.md, section 5).
 
 import { defect } from "./defect.ts";
-import type { ColumnId, HoverSeq, LevelCode, Revision, RowIndex } from "./ids.ts";
-import type { Message, MessagePart, UndoRedo } from "./message.ts";
+import type { ColumnId, HoverSeq, Revision, RowIndex } from "./ids.ts";
+import type { Message, MessagePart, Selected, UndoRedo } from "./message.ts";
 
 /** What changes together, so that a component redraws only for what it shows. */
 export type Aspect = "table" | "classification" | "codes" | "selection" | "hover" | "undoRedo";
@@ -18,8 +18,8 @@ export type ProjectState =
 export interface Active {
   /** The column of the active classification. */
   readonly column: ColumnId;
-  /** The population selected for editing, or `null`. */
-  readonly selected: LevelCode | null;
+  /** What is selected for editing, or `null`. */
+  readonly selected: Selected | null;
 }
 
 /** The window's copy of the shared state. */

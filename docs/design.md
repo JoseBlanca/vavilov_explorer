@@ -80,7 +80,18 @@ it.
 - The populations panel lists the populations of the active
   classification, each with its colour, name and number of individuals. A
   dropdown above it chooses the active classification. It is where a
-  population is selected and edited.
+  population is selected and edited. It sits left of the table, as a
+  sidebar. Its last row is the unassigned individuals, with their number,
+  and it can be selected like any population: then + makes every
+  individual inside a lasso unassigned, whatever population it was in,
+  and − is shown disabled, with the reason "Unassigned individuals are in
+  no population to remove them from". Its first version chooses
+  the active classification, shows the populations, selects one and sets
+  the pointer's mode; adding, renaming and removing populations and
+  changing a colour come after, each with its command in the core.
+  Decided by the owner on 2 October 2026. Whether the pointer's mode is
+  one for all windows or one per window is decided once the owner has
+  seen it in the plots; until then it is the main window's own.
 - With no project open, the main window shows an empty state: Open
   project…, Import table…, the recent projects, and dropping a file on
   the window, which opens a `.vav` and imports a CSV, TSV or xlsx. An
@@ -612,7 +623,9 @@ Raised on 2 October 2026 while the skills of the project were written
   David Tolnay. Approved by the owner on 2 October 2026. The same day
   the owner approved `serde_json` as a development dependency of the
   core, to test the shape of its errors as a window receives them; it
-  too is in `Cargo.lock` already, through Tauri.
+  too is in `Cargo.lock` already, through Tauri. And
+  `tauri-plugin-dialog`, Tauri's plugin for the system's Open and Save
+  dialogs, for Open project… and Import table….
 
 The builds are tried on the owner's machines: the Mac, a Windows
 machine, and a Linux virtual machine with both a Wayland and an X11

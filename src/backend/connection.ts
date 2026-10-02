@@ -4,6 +4,9 @@
 
 import { isCommandError } from "../state/commandError.ts";
 import type { Refusal } from "../state/commandError.ts";
+import { isTableDescription } from "../state/description.ts";
+import type { TableDescription } from "../state/description.ts";
+import type { Selected } from "../state/message.ts";
 import { defect } from "../state/defect.ts";
 import type { ColumnId, LevelCode, RowIndex } from "../state/ids.ts";
 import type { Result } from "../state/result.ts";
@@ -29,14 +32,16 @@ export interface Connection {
   readonly setHover: (row: RowIndex | null) => Promise<Answer>;
   /** Sets the active classification, or none. */
   readonly setActiveClassification: (column: ColumnId | null) => Promise<Answer>;
-  /** Selects a population of the active classification for editing, or none. */
-  readonly selectPopulation: (column: ColumnId, population: LevelCode | null) => Promise<Answer>;
-  /** Assigns the rows of a lasso, one bit per row, to the selected population. */
-  readonly assignRows: (
-    column: ColumnId,
-    population: LevelCode,
-    rows: Uint8Array,
-  ) => Promise<Answer>;
+  /**
+   * Selects a population of the active classification, or its unassigned
+   * individuals, for editing, or nothing.
+   */
+  readonly selectPopulation: (column: ColumnId, selected: Selected | null) => Promise<Answer>;
+  /**
+   * Assigns the rows of a lasso, one bit per row, to what is selected; with
+   * the unassigned individuals selected, leaves them unassigned.
+   */
+  readonly assignRows: (column: ColumnId, target: Selected, rows: Uint8Array) => Promise<Answer>;
   /** Leaves unassigned the rows of a lasso that are in the selected population. */
   readonly unassignRows: (
     column: ColumnId,
@@ -47,6 +52,8 @@ export interface Connection {
   readonly undo: () => Promise<Answer>;
   /** Redoes the last edit undone. */
   readonly redo: () => Promise<Answer>;
+  /** The description of the table, or the refusal when no project is open. */
+  readonly describeTable: () => Promise<Result<TableDescription, Refusal>>;
 }
 
 /**
@@ -142,21 +149,43 @@ export async function connect(
       }),
     );
 
-  const lassoHeaders = (column: ColumnId, population: LevelCode): Record<string, string> => ({
-    column: String(column),
-    population: String(population),
-  });
+  /** A selection as the backend reads one in JSON. */
+  const selectedArg = (selected: Selected | null): unknown =>
+    selected === null
+      ? null
+      : selected.kind === "unassigned"
+        ? "unassigned"
+        : { population: selected.code };
 
   return {
     state: ready,
     setSelection: (rows) => withRows("set_selection", rows, {}),
     setHover: (row) => command("set_hover", { row }),
     setActiveClassification: (column) => command("set_active_classification", { column }),
-    selectPopulation: (column, population) => command("select_population", { column, population }),
-    assignRows: (column, population, rows) =>
-      withRows("assign_rows", rows, lassoHeaders(column, population)),
+    selectPopulation: (column, selected) =>
+      command("select_population", { column, selected: selectedArg(selected) }),
+    assignRows: (column, target, rows) =>
+      withRows("assign_rows", rows, {
+        column: String(column),
+        target: target.kind === "unassigned" ? "unassigned" : String(target.code),
+      }),
     unassignRows: (column, population, rows) =>
-      withRows("unassign_rows", rows, lassoHeaders(column, population)),
+      withRows("unassign_rows", rows, { column: String(column), population: String(population) }),
+    describeTable: async () => {
+      let description: unknown;
+      try {
+        description = await transport.invoke("describe_table", {});
+      } catch (error: unknown) {
+        if (!isCommandError(error) || error.kind === "defect" || error.kind === "madeBeforeLoad") {
+          throw defect(`describe_table failed with ${describe(error)}`);
+        }
+        return { ok: false, error };
+      }
+      if (!isTableDescription(description)) {
+        throw defect(`a description of the table that does not fit: ${describe(description)}`);
+      }
+      return { ok: true, value: description };
+    },
     undo: () => command("undo", {}),
     redo: () => command("redo", {}),
   };

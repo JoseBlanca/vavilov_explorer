@@ -17,7 +17,7 @@ use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt, Wind
 use crate::message::{MessageKind, MessageWriter, whole_state};
 use crate::row_set::RowSet;
 use crate::session::{
-    Active, History, HistoryStep, Interaction, OpenProject, Project, SendFailed, Session,
+    Active, History, HistoryStep, Interaction, OpenProject, Project, Selected, SendFailed, Session,
     SharedState,
 };
 use crate::table::{Categorical, Column, ColumnValues, Table};
@@ -172,34 +172,31 @@ impl Session {
                 });
                 plan_active(state, active, sent_at)
             }
-            Command::SelectPopulation { column, population } => {
+            Command::SelectPopulation { column, selected } => {
                 let open = state.project.open()?;
                 let active = active_classification(open, column)?;
-                if let Some(code) = population {
+                if let Some(Selected::Population(code)) = selected {
                     check_level(&open.table, column, code)?;
                 }
-                if active.selected == population {
+                if active.selected == selected {
                     return Ok(None);
                 }
-                plan_active(
-                    state,
-                    Some(Active {
-                        column,
-                        selected: population,
-                    }),
-                    sent_at,
-                )
+                plan_active(state, Some(Active { column, selected }), sent_at)
             }
             Command::AssignRows {
                 column,
-                population,
+                target,
                 rows,
             } => {
                 let open = state.project.open()?;
-                let codes = lasso(open, column, population, &rows)?;
+                let codes = lasso(open, column, target, &rows)?;
+                let new = match target {
+                    Selected::Population(code) => Some(code),
+                    Selected::Unassigned => None,
+                };
                 let changes = rows
                     .rows()
-                    .zip(std::iter::repeat(Some(population)))
+                    .zip(std::iter::repeat(new))
                     .filter(|(row, new)| code_of(codes, *row) != *new)
                     .collect();
                 plan_edit(
@@ -216,7 +213,7 @@ impl Session {
                 rows,
             } => {
                 let open = state.project.open()?;
-                let codes = lasso(open, column, population, &rows)?;
+                let codes = lasso(open, column, Selected::Population(population), &rows)?;
                 let changes = rows
                     .rows()
                     .filter(|row| code_of(codes, *row) == Some(population))
@@ -467,18 +464,18 @@ fn plan_edit(
     }))
 }
 
-/// The codes of the active classification, for a lasso on `population`
-/// with `rows`, once the lasso is checked against the session.
+/// The codes of the active classification, for a lasso on `target` with
+/// `rows`, once the lasso is checked against the session.
 fn lasso<'a>(
     open: &'a OpenProject,
     column: ColumnId,
-    population: LevelCode,
+    target: Selected,
     rows: &RowSet,
 ) -> Result<&'a [Option<LevelCode>], CommandError> {
     let active = active_classification(open, column)?;
     let selected = active.selected.ok_or(CommandError::NoPopulationSelected)?;
-    if selected != population {
-        return Err(CommandError::NotSelectedPopulation { code: population });
+    if selected != target {
+        return Err(CommandError::NotSelected { target });
     }
     check_row_set(rows, open.table.num_rows())?;
     Ok(categorical(&open.table, column)?.codes())

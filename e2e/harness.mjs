@@ -55,6 +55,7 @@ export async function launch({
   if (backend === null) {
     await page.addInitScript((replies) => {
       globalThis.__TAURI_INTERNALS__ = {
+        metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
         invoke: async (cmd) => {
           if (!(cmd in replies)) throw new Error(`e2e: no mocked reply for Tauri command "${cmd}"`);
           return structuredClone(replies[cmd]);
@@ -63,7 +64,7 @@ export async function launch({
       };
     }, commands);
   } else {
-    await connectPage(page, backend);
+    await connectPage(page, backend, errors);
   }
 
   await page.goto(`http://localhost:${PORT}`);
@@ -129,12 +130,19 @@ async function startBackend() {
  * headers, and resolves or rejects as Tauri does; each channel message is
  * passed to the channel's callback with the index Tauri numbers them by.
  */
-async function connectPage(page, backend) {
-  await page.exposeFunction("__e2eCall", (call) => backend.send({ window: "main", ...call }));
+async function connectPage(page, backend, errors) {
+  // Tauri numbers the messages of each channel from 0, and a subscribe
+  // brings a new channel.
+  let index = 0;
+  await page.exposeFunction("__e2eCall", (call) => {
+    if (call.command === "subscribe") index = 0;
+    return backend.send({ window: "main", ...call });
+  });
   await page.addInitScript(() => {
     const callbacks = new Map();
     let nextCallback = 1;
     globalThis.__TAURI_INTERNALS__ = {
+      metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
       transformCallback: (callback) => {
         const id = nextCallback++;
         callbacks.set(id, callback);
@@ -166,12 +174,18 @@ async function connectPage(page, backend) {
       callback({ index, message: new Uint8Array(bytes).buffer });
     };
   });
-  let index = 0;
   let delivery = Promise.resolve();
   backend.onChannel((_window, message) => {
     const at = index++;
-    delivery = delivery.then(() =>
-      page.evaluate(([i, m]) => globalThis.__e2eDeliver(i, m), [at, message]),
-    );
+    delivery = delivery
+      .then(() =>
+        page.isClosed()
+          ? undefined
+          : page.evaluate(([i, m]) => globalThis.__e2eDeliver(i, m), [at, message]),
+      )
+      .catch((error) => {
+        // A page closed while a message was on its way has nothing to show.
+        if (!page.isClosed()) errors.push(`e2e: a channel message not delivered: ${error}`);
+      });
   });
 }

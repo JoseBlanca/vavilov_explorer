@@ -49,3 +49,21 @@ fn revisions_rows_and_labels_cross_as_plain_values() {
         json!({ "kind": "unknownWindow", "label": "scatter3d-1" })
     );
 }
+
+#[test]
+fn a_target_crosses_as_its_population_or_as_unassigned() {
+    assert_eq!(
+        serde_json::to_value(CommandError::NotSelected {
+            target: Selected::Population(LevelCode::new(2))
+        })
+        .unwrap(),
+        json!({ "kind": "notSelected", "target": { "population": 2 } })
+    );
+    assert_eq!(
+        serde_json::to_value(CommandError::NotSelected {
+            target: Selected::Unassigned
+        })
+        .unwrap(),
+        json!({ "kind": "notSelected", "target": "unassigned" })
+    );
+}

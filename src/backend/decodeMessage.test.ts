@@ -88,13 +88,16 @@ describe("the parts", () => {
   });
 
   test("the active part gives the column and the population, or null for none", () => {
-    expect(parts(...[2, 0, 0, 0, 6, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0])).toEqual([
-      { kind: "active", column: 2, selected: 1 },
+    expect(parts(...[2, 0, 0, 0, 7, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0])).toEqual([
+      { kind: "active", column: 2, selected: { kind: "population", code: 1 } },
     ]);
-    expect(parts(...[2, 0, 0, 0, 6, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0])).toEqual([
+    expect(parts(...[2, 0, 0, 0, 7, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 0])).toEqual([
+      { kind: "active", column: 3, selected: { kind: "unassigned" } },
+    ]);
+    expect(parts(...[2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0])).toEqual([
       { kind: "active", column: null, selected: null },
     ]);
-    expect(parts(...[2, 0, 0, 0, 6, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0])).toEqual([
+    expect(parts(...[2, 0, 0, 0, 7, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0])).toEqual([
       { kind: "active", column: 3, selected: null },
     ]);
   });
@@ -156,7 +159,7 @@ describe("the parts", () => {
       parts(
         ...[5, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
         ...[7, 0, 0, 0, 12, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0],
-        ...[2, 0, 0, 0, 6, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0],
+        ...[2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0],
       ),
     ).toEqual([
       { kind: "undo", canUndo: false, canRedo: true },
@@ -247,7 +250,7 @@ describe("the snapshot after edits that the core's tests write", () => {
   // Spain at 3, a hover on row 2, and cluster made active at 4.
   const SNAPSHOT_AFTER_EDITS = [
     0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0,
-    1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 6, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0,
     3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,

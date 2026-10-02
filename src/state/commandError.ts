@@ -5,9 +5,11 @@
 
 import { isColumnId, isLevelCode, isRevision, isRowIndex } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision, RowIndex } from "./ids.ts";
+import type { Selected } from "./message.ts";
 
 /** The type of a field: an id, a count, or a text from the user's file. */
-type FieldType = "columnId" | "levelCode" | "rowIndex" | "revision" | "number" | "string";
+type FieldType =
+  "columnId" | "levelCode" | "rowIndex" | "revision" | "selected" | "number" | "string";
 
 /** The fields of each kind of refusal, and the type of each. */
 const FIELDS = {
@@ -19,7 +21,7 @@ const FIELDS = {
   notActiveClassification: { column: "columnId" },
   unknownLevel: { column: "columnId", code: "levelCode", numLevels: "number" },
   noPopulationSelected: {},
-  notSelectedPopulation: { code: "levelCode" },
+  notSelected: { target: "selected" },
   rowSetLength: { numRows: "number", numBytes: "number" },
   rowSetUnusedBits: { numRows: "number" },
   rowOutOfRange: { row: "rowIndex", numRows: "number" },
@@ -47,12 +49,16 @@ const FIELDS = {
 
 type Fields = typeof FIELDS;
 
+/** A selection as the backend serialises one, `{ "population": code }` or `"unassigned"`. */
+export type SelectedOnWire = { readonly population: LevelCode } | "unassigned";
+
 /** The TypeScript type of each type of field. */
 interface TypeOf {
   readonly columnId: ColumnId;
   readonly levelCode: LevelCode;
   readonly rowIndex: RowIndex;
   readonly revision: Revision;
+  readonly selected: SelectedOnWire;
   readonly number: number;
   readonly string: string;
 }
@@ -90,7 +96,27 @@ function hasType(value: unknown, type: FieldType): boolean {
       return typeof value === "number" && isRowIndex(value);
     case "revision":
       return typeof value === "number" && isRevision(value);
+    case "selected":
+      return selectedOf(value) !== null;
   }
+}
+
+/**
+ * The selection a window works with, from one as the backend serialises
+ * it, or `null` when `value` is not one.
+ */
+export function selectedOf(value: unknown): Selected | null {
+  if (value === "unassigned") {
+    return { kind: "unassigned" };
+  }
+  if (typeof value === "object" && value !== null && "population" in value) {
+    const entries = Object.keys(value);
+    const { population } = value;
+    if (entries.length === 1 && typeof population === "number" && isLevelCode(population)) {
+      return { kind: "population", code: population };
+    }
+  }
+  return null;
 }
 
 /**

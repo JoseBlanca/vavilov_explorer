@@ -4,6 +4,7 @@
 use serde::Serialize;
 
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, WindowLabel};
+use crate::session::Selected;
 
 /// Why a command was refused, or a table could not be built.
 ///
@@ -79,12 +80,13 @@ pub enum CommandError {
     #[error("no population is selected")]
     NoPopulationSelected,
 
-    /// The command names a population that is not the selected one: it
-    /// was made before another population was selected.
-    #[error("population {code} is not the selected population")]
-    NotSelectedPopulation {
-        /// The code the command gave.
-        code: LevelCode,
+    /// The command names a target that is not what is selected: it was
+    /// made before something else was selected, or it removes from the
+    /// unassigned individuals, which are in no population.
+    #[error("{target:?} is not what is selected")]
+    NotSelected {
+        /// What the command named.
+        target: Selected,
     },
 
     /// A set of rows has as many bytes as a table of another number of

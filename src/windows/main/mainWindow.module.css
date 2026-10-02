@@ -1,0 +1,37 @@
+.window {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: var(--panel-width) 1fr;
+  min-height: 0;
+}
+
+.hidden {
+  display: none;
+}
+
+.panel {
+  display: grid;
+  min-height: 0;
+}
+
+.table {
+  min-width: 0;
+  min-height: 0;
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}

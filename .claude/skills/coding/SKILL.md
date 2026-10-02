@@ -143,14 +143,19 @@ possible break and a possible abandonment.
   pinned revision; `thiserror`, for the error enums, and `serde`, for
   what crosses to a window, approved by the owner on 2 October 2026
   (Tauri depends on `serde` already); `serde_json`, as a development
-  dependency of the core only, approved the same day.
+  dependency, approved the same day; `tauri-plugin-dialog` and its npm
+  package `@tauri-apps/plugin-dialog`, 2.8, for the system's Open and Save
+  dialogs, approved the same day.
 - **Named by these skills and not yet decided**, each to be proposed when
   the first code needs it: a
   Parquet crate and a zip crate for the project file (`docs/design.md`,
   section 8); `world-atlas` and `topojson-client` for the map's borders,
   as in the prototype; WebdriverIO's Tauri service and
   `tauri-plugin-wdio-webdriver` for the tests of the real app, as in the
-  windowing spike; Tauri's single-instance plugin, for a `.vav` opened
+  windowing spike; `tauri-plugin-opener`, 2.7, to show an exported file in
+  Finder or Explorer or open it in its program, looked at on 2 October
+  2026 and to be taken with the first feature that needs it; Tauri's
+  single-instance plugin, for a `.vav` opened
   from the file manager on Windows and Linux.
 - **npm versions are exact** in `package.json`, by `save-exact=true` in
   `.npmrc`, and `package-lock.json` and `Cargo.lock` are committed. An

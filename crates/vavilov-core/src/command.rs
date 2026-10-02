@@ -3,6 +3,7 @@
 
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, SentAt};
 use crate::row_set::RowSet;
+use crate::session::Selected;
 use crate::table::Table;
 
 /// A change to the document or the interaction. Each names what it acts
@@ -35,20 +36,21 @@ pub enum Command {
         /// A categorical column, or `None` for no classification.
         column: Option<ColumnId>,
     },
-    /// Selects a population of the active classification for editing, or
-    /// none.
+    /// Selects a population of the active classification, or its
+    /// unassigned individuals, for editing, or nothing.
     SelectPopulation {
         /// The active classification.
         column: ColumnId,
-        /// The population, or `None`.
-        population: Option<LevelCode>,
+        /// What to select, or `None`.
+        selected: Option<Selected>,
     },
-    /// Assigns the rows to the selected population: a lasso in add mode.
+    /// Assigns the rows to what is selected: a lasso in add mode, which
+    /// with the unassigned individuals selected leaves the rows unassigned.
     AssignRows {
         /// The active classification.
         column: ColumnId,
-        /// The selected population.
-        population: LevelCode,
+        /// What is selected.
+        target: Selected,
         /// The rows inside the lasso.
         rows: RowSet,
     },

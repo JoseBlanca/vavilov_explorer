@@ -5,6 +5,8 @@ import { isCommandError } from "./commandError.ts";
 describe("a refusal of the backend", () => {
   test("is recognised by its kind and exactly its fields", () => {
     expect(isCommandError({ kind: "noProject" })).toBe(true);
+    expect(isCommandError({ kind: "notSelected", target: { population: 1 } })).toBe(true);
+    expect(isCommandError({ kind: "notSelected", target: "unassigned" })).toBe(true);
     expect(isCommandError({ kind: "nonFiniteNumber", columnName: "height", row: 1 })).toBe(true);
     expect(isCommandError({ kind: "nonFiniteNumber", column: "height", row: 1 })).toBe(false);
     expect(isCommandError({ kind: "unknownLevel", column: 3, code: 7, numLevels: 2 })).toBe(true);
@@ -22,7 +24,11 @@ describe("a refusal of the backend", () => {
     expect(isCommandError({ kind: "unknownLevel", column: 3, code: 7, toString: 2 })).toBe(false);
     // An id out of its range: u32::MAX means no column, 0xFFFF no code.
     expect(isCommandError({ kind: "unknownColumn", column: 0xffff_ffff })).toBe(false);
-    expect(isCommandError({ kind: "notSelectedPopulation", code: 0xffff })).toBe(false);
+    expect(isCommandError({ kind: "notSelected", target: { population: 0xffff } })).toBe(false);
+    expect(isCommandError({ kind: "notSelected", target: "everyone" })).toBe(false);
+    expect(isCommandError({ kind: "notSelected", target: { population: 1, extra: 2 } })).toBe(
+      false,
+    );
     expect(isCommandError({ kind: "rowSetLength", numRows: -1, numBytes: 2 })).toBe(false);
     expect(isCommandError("noProject")).toBe(false);
     expect(isCommandError(null)).toBe(false);
