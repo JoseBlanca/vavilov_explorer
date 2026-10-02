@@ -17,6 +17,7 @@
     "allow-undo",
     "allow-redo",
     "allow-import-table",
-    "allow-export-table"
+    "allow-export-table",
+    "allow-region-decimal-mark"
   ]
 }

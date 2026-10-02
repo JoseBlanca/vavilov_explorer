@@ -82,6 +82,13 @@ export interface Connection {
    */
   readonly exportTable: (format: ExportFormat) => Promise<Result<ExportAnswer | "stale", Refusal>>;
   /**
+   * The decimal mark of the system's region, which Excel follows and the
+   * window's language may not: `,`, `.`, or another the user set.
+   *
+   * @throws A defect when the backend could not read it, or gave no mark.
+   */
+  readonly regionDecimalMark: () => Promise<string>;
+  /**
    * Calls `listener` with each item of the menu the backend hands to the
    * window, and returns the function that stops it.
    */
@@ -313,6 +320,18 @@ export async function connect(
         throw defect(`an answer of export_table that does not fit: ${describe(answer)}`);
       }
       return { ok: true, value };
+    },
+    regionDecimalMark: async () => {
+      let mark: unknown;
+      try {
+        mark = await transport.invoke("region_decimal_mark", {});
+      } catch (error: unknown) {
+        throw defect(`the decimal mark of the region could not be read: ${describe(error)}`);
+      }
+      if (typeof mark !== "string" || mark === "") {
+        throw defect(`a decimal mark of the region that is not one: ${describe(mark)}`);
+      }
+      return mark;
     },
     onAction: (listener) => {
       actionListeners.add(listener);

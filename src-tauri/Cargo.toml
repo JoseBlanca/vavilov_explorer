@@ -33,6 +33,17 @@ serde.workspace = true
 tauri-plugin-dialog = "2.8.1"
 vavilov-core = { path = "../crates/vavilov-core" }
 
+# The decimal mark of the system's region (src/region.rs), from crates
+# Tauri depends on already; approved by the owner on 2 October 2026.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSLocale", "NSString"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_Globalization"] }
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+libc = "0.2.186"
+
 [dev-dependencies]
 # Tauri's mock runtime, for the tests of the commands (testing.md).
 tauri = { version = "2", features = ["isolation", "test"] }

@@ -7,6 +7,7 @@ pub mod commands;
 pub mod demo;
 pub mod dialogs;
 pub mod menu;
+pub mod region;
 pub mod transfer;
 
 use std::sync::Mutex;
@@ -75,5 +76,6 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::redo,
             commands::import_table,
             commands::export_table,
+            commands::region_decimal_mark,
         ])
 }

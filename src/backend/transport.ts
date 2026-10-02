@@ -18,7 +18,8 @@ export type CommandName =
   | "undo"
   | "redo"
   | "import_table"
-  | "export_table";
+  | "export_table"
+  | "region_decimal_mark";
 
 /** The calls to the backend and the channel a window subscribes with. */
 export interface Transport {

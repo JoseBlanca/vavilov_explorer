@@ -28,6 +28,9 @@ struct Line {
     /// For `e2e:action`: the item of the menu the user chose, as the window
     /// names it, `importTable`, `exportCsv` or `exportXlsx`.
     action: Option<String>,
+    /// For `e2e:region`: the decimal mark of the system's region.
+    #[serde(rename = "decimalMark")]
+    decimal_mark: Option<String>,
 }
 
 /// The file the next dialog of an import or an export gives, as the test
@@ -35,11 +38,22 @@ struct Line {
 /// `Some(None)` for a dialog the user closed.
 pub(crate) type Picked = Option<Option<std::path::PathBuf>>;
 
+/// What the test stands in for, in the place of the user and the system.
+#[derive(Default)]
+pub(crate) struct StandIns {
+    /// The file the next dialog gives.
+    picked: Picked,
+    /// The decimal mark of the system's region, as the test set it with
+    /// `e2e:region`, so that a test does not depend on the region of the
+    /// machine it runs on; `None` until set.
+    decimal_mark: Option<String>,
+}
+
 /// The answer to one line of the harness. A line that is not one the
 /// harness writes is answered with an `e2e` error, which fails the test.
 pub(crate) fn answer(
     session: &mut Session,
-    picked: &mut Picked,
+    stand_ins: &mut StandIns,
     line: &str,
     subscriber: impl FnOnce(WindowLabel) -> Box<dyn Subscriber>,
 ) -> Value {
@@ -50,7 +64,7 @@ pub(crate) fn answer(
         }
     };
     let id = line.id;
-    match outcome(session, picked, line, subscriber) {
+    match outcome(session, stand_ins, line, subscriber) {
         Ok(Answer::Bytes(bytes)) => json!({ "id": id, "bytes": bytes }),
         Ok(Answer::Done) => json!({ "id": id, "ok": null }),
         Ok(Answer::Value(value)) => json!({ "id": id, "ok": value }),
@@ -83,7 +97,7 @@ impl From<CommandError> for Failure {
 
 fn outcome(
     session: &mut Session,
-    picked: &mut Picked,
+    stand_ins: &mut StandIns,
     line: Line,
     subscriber: impl FnOnce(WindowLabel) -> Box<dyn Subscriber>,
 ) -> Result<Answer, Failure> {
@@ -108,9 +122,22 @@ fn outcome(
                 ))),
             }
         }
-        "e2e:picking" => Ok(Answer::Value(Value::Bool(picked.is_some()))),
+        "e2e:picking" => Ok(Answer::Value(Value::Bool(stand_ins.picked.is_some()))),
+        "e2e:region" => {
+            stand_ins.decimal_mark =
+                Some(line.decimal_mark.ok_or_else(|| {
+                    Failure::Harness("e2e:region without a decimal mark".to_owned())
+                })?);
+            Ok(Answer::Done)
+        }
+        "region_decimal_mark" => match &stand_ins.decimal_mark {
+            Some(mark) => Ok(Answer::Value(Value::String(mark.clone()))),
+            None => Err(Failure::Harness(
+                "region_decimal_mark before the test set the region with e2e:region".to_owned(),
+            )),
+        },
         "e2e:pick" => {
-            *picked = Some(match (line.path, line.cancel) {
+            stand_ins.picked = Some(match (line.path, line.cancel) {
                 (Some(path), None) => Some(std::path::PathBuf::from(path)),
                 (None, Some(true)) => None,
                 _ => {
@@ -127,7 +154,7 @@ fn outcome(
             window(line.window)?;
             let args: transfer::ImportArgs =
                 calls::json_args("import_table", &json_body(line.json)?)?;
-            let Some(path) = take(picked)? else {
+            let Some(path) = take(&mut stand_ins.picked)? else {
                 return value(&transfer::ImportAnswer::Cancelled);
             };
             let (file_name, imported) = transfer::read(&path)?;
@@ -141,7 +168,7 @@ fn outcome(
                 calls::json_args("export_table", &json_body(line.json)?)?;
             let table = session.table_to_export(args.based_on())?;
             let bytes = export_table(&table, args.format())?;
-            let Some(path) = take(picked)? else {
+            let Some(path) = take(&mut stand_ins.picked)? else {
                 return value(&transfer::ExportAnswer::Cancelled);
             };
             value(&transfer::write(&path, &bytes)?)

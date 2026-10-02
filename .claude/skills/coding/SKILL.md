@@ -145,7 +145,9 @@ possible break and a possible abandonment.
   (Tauri depends on `serde` already); `serde_json`, as a development
   dependency, approved the same day; `tauri-plugin-dialog` and its npm
   package `@tauri-apps/plugin-dialog`, 2.8, for the system's Open and Save
-  dialogs, approved the same day.
+  dialogs, approved the same day; `objc2-foundation` on macOS, `windows`
+  on Windows and `libc` on Linux, already in `Cargo.lock` through Tauri,
+  to read the decimal mark of the system's region, approved the same day.
 - **Named by these skills and not yet decided**, each to be proposed when
   the first code needs it: a
   Parquet crate and a zip crate for the project file (`docs/design.md`,

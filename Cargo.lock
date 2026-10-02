@@ -3975,12 +3975,15 @@ dependencies = [
 name = "vavilov-explorer"
 version = "0.1.0"
 dependencies = [
+ "libc",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
  "vavilov-core",
+ "windows",
 ]
 
 [[package]]

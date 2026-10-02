@@ -15,6 +15,7 @@ use vavilov_core::{
 use crate::calls;
 use crate::dialogs;
 use crate::menu;
+use crate::region;
 use crate::transfer::{self, ExportAnswer, ImportAnswer};
 
 /// The session, as every command takes it.
@@ -378,3 +379,15 @@ impl Subscriber for ChannelSubscriber {
 
 #[cfg(test)]
 mod tests;
+
+/// The decimal mark of the system's region, `,` or `.` or another the user
+/// set, which the export of a CSV starts from (`docs/design.md`,
+/// section 7). It needs no table.
+///
+/// # Errors
+///
+/// A `Defect` when the system cannot give it.
+#[tauri::command]
+pub fn region_decimal_mark() -> Result<String, CommandError> {
+    region::decimal_mark()
+}

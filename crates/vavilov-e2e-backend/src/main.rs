@@ -22,6 +22,8 @@
 //!   its dialog, so that a test knows the window took it;
 //! - `{"id", "command": "e2e:action", "action": "importTable"}` hands an
 //!   item of the menu to the main window, as a click in the app's menu;
+//! - `{"id", "command": "e2e:region", "decimalMark": ","}` sets the decimal
+//!   mark of the system's region, which `region_decimal_mark` gives;
 //! - `{"window", "message": [...]}` is a message of the window's channel.
 
 mod load;
@@ -34,7 +36,7 @@ use vavilov_core::{SendFailed, Session, Subscriber, WindowLabel};
 
 fn main() -> ExitCode {
     let mut session = Session::new();
-    let mut picked: wire::Picked = None;
+    let mut stand_ins = wire::StandIns::default();
     for line in std::io::stdin().lock().lines() {
         let line = match line {
             Ok(line) => line,
@@ -43,7 +45,7 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
-        let answer = wire::answer(&mut session, &mut picked, &line, |label| {
+        let answer = wire::answer(&mut session, &mut stand_ins, &line, |label| {
             Box::new(Stdout { label })
         });
         if let Err(error) = write_line(&answer) {

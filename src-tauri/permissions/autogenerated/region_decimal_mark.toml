@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-region-decimal-mark"
+description = "Enables the region_decimal_mark command without any pre-configured scope."
+commands.allow = ["region_decimal_mark"]
+
+[[permission]]
+identifier = "deny-region-decimal-mark"
+description = "Denies the region_decimal_mark command without any pre-configured scope."
+commands.deny = ["region_decimal_mark"]

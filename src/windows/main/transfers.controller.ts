@@ -6,7 +6,7 @@ import { csvDefaults } from "../../state/transfer.ts";
 import type { ExportFormat, MenuAction } from "../../state/transfer.ts";
 import type { Dialog } from "../shared/dialog.controller.ts";
 import type { Notice } from "../shared/notice.controller.ts";
-import { countText, decimalMark } from "../shared/numbers.ts";
+import { countText } from "../shared/numbers.ts";
 import type { CsvDialog } from "./csvDialog.controller.ts";
 
 /** The main window's import and export, which the menu starts. */
@@ -52,7 +52,7 @@ export function createTransfers(
   const exportTable = async (kind: ExportFormat["kind"]): Promise<void> => {
     let format: ExportFormat = { kind: "xlsx" };
     if (kind === "csv") {
-      const choices = await csvDialog.ask(csvDefaults(decimalMark()));
+      const choices = await csvDialog.ask(csvDefaults(await connection.regionDecimalMark()));
       if (choices === null) {
         return;
       }

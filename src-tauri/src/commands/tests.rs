@@ -184,6 +184,11 @@ fn every_command_is_registered_and_finds_the_session() {
             "{cmd}"
         );
     }
+    // The region's decimal mark needs no table.
+    assert!(matches!(
+        json_command(&window, "region_decimal_mark", json!({})),
+        Ok(InvokeResponseBody::Json(mark)) if mark.starts_with('"')
+    ));
     // An export with no table is refused before the Save dialog opens.
     assert_eq!(
         json_command(

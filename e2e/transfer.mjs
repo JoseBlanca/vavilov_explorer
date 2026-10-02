@@ -48,11 +48,19 @@ try {
       engine,
       backend: true,
       viewport: { width: 1000, height: 560 },
-      // Spanish, so that the CSV starts from ; and a decimal comma.
+      // Spanish, which writes a decimal comma; the CSV starts from the
+      // region's decimal mark, which the test sets, not from the language.
       locale: "es-ES",
     });
     try {
       const { page, errors, backend } = app;
+      /** Sets the decimal mark of the system's region, as the system would. */
+      const region = async (decimalMark) => {
+        const set = await backend.send({ command: "e2e:region", decimalMark });
+        assert.equal(set.ok, null, JSON.stringify(set));
+      };
+      // A Spanish region, so that the CSV starts from ; and a decimal comma.
+      await region(",");
       await page.getByRole("heading", { name: "Vavilov Explorer" }).waitFor();
       const grid = page.getByRole("grid", { name: "Individuals" });
       /**
@@ -164,10 +172,22 @@ try {
       await focusOn(page, "Role of origin");
 
       // Cancel in the dialog of the choices writes nothing, and leaves the
-      // file picked for the Save dialog untaken.
+      // file picked for the Save dialog untaken. With a region of the
+      // decimal point, as with English as the language and the United
+      // States as the region, the choices start from , and a point,
+      // although the window's language writes a decimal comma.
       const cancelled = path.join(folder, `cancelled-${engine}.csv`);
+      await region(".");
       await choose("exportCsv");
       await choices.waitFor();
+      assert.equal(
+        await choices.getByRole("combobox", { name: "Separator" }).inputValue(),
+        "Comma (,)",
+      );
+      assert.equal(
+        await choices.getByRole("combobox", { name: "Decimal mark" }).inputValue(),
+        "Point (1.5)",
+      );
       const picked = await backend.send({ command: "e2e:pick", path: cancelled });
       assert.equal(picked.ok, null, JSON.stringify(picked));
       await choices.getByRole("button", { name: "Cancel" }).click();
@@ -175,6 +195,7 @@ try {
       await quiet(page);
       assert.equal((await backend.send({ command: "e2e:picking" })).ok, true);
       assert.equal(fs.existsSync(cancelled), false);
+      await region(",");
 
       // An export as CSV with other choices than a Spanish Excel's: ",", a
       // point, UTF-8 without its mark, and NA. Choosing the comma as the

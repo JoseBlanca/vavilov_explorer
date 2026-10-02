@@ -662,3 +662,28 @@ describe("an import and an export", () => {
     );
   });
 });
+
+describe("the decimal mark of the system's region", () => {
+  test("comes back as the backend reads it", async () => {
+    const { transport, calls } = fakeTransport({ answer: () => Promise.resolve(",") });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.regionDecimalMark()).toBe(",");
+    expect(calls.at(-1)).toEqual({
+      command: "region_decimal_mark",
+      args: {},
+      headers: undefined,
+    });
+  });
+
+  test("that is not a mark, or that the backend could not read, is a defect", async () => {
+    for (const answer of [
+      () => Promise.resolve(""),
+      () => Promise.resolve(44),
+      () => refusedWith({ kind: "defect", what: "no region" }),
+    ]) {
+      const { transport } = fakeTransport({ answer });
+      const connection = await connect(transport, failOnDefect);
+      await expect(connection.regionDecimalMark()).rejects.toThrow(/defect: .*decimal mark/);
+    }
+  });
+});

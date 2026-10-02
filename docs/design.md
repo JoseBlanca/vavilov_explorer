@@ -504,18 +504,23 @@ Vavilov Explorer takes `table_io` by git at the revision of its release
 `js-v0.2.0-dev.1`, c99b3e6, and imports a file of at most 20 MB and an
 xlsx of at most 2,000,000 cells, popnei_web's limits (decided by the
 owner on 2 October 2026). The export of a CSV asks for the separator,
-the decimal mark, the encoding (UTF-8, UTF-8 with the mark Excel
-writes, or Windows-1252) and the text of a missing value (empty or
-`NA`), and starts from `;` and a decimal comma when the user's language
-writes numbers with a comma, from `,` and a point otherwise, from UTF-8
-with the mark, and from an empty missing value; the export of an xlsx
-asks nothing. With the comma as the separator, the point is the only
-decimal mark offered: `table_io` would write each decimal number in
-quotes, `"1,5"`, which the import reads back as text, and a column's
-storage type never changes (decided by the owner on 2 October 2026).
-The default file name of an export is `table.csv` or `table.xlsx`
-(decided the same day). An export that is refused is a pop-up that names the
-column and the row (decided by the owner on 2 October 2026).
+the decimal mark, the encoding (UTF-8, UTF-8 with the mark Excel writes,
+or Windows-1252) and the text of a missing value (empty or `NA`), and
+starts from `;` and a decimal comma when the system's region writes
+numbers with a comma, from `,` and a point otherwise, from UTF-8 with
+the mark, and from an empty missing value; the export of an xlsx asks
+nothing. The region is read by the backend from the operating system,
+because Excel takes its decimal mark from the region and the web view
+from the language: on macOS with English as the language and Spain as
+the region, the web view writes 1.5 and Excel 1,5 (measured on 2 October
+2026; decided by the owner the same day). With the comma as the
+separator, the point is the only decimal mark offered: `table_io` would
+write each decimal number in quotes, `"1,5"`, which the import reads
+back as text, and a column's storage type never changes (decided by the
+owner on 2 October 2026). The default file name of an export is
+`table.csv` or `table.xlsx` (decided the same day). An export that is
+refused is a pop-up that names the column and the row (decided by the
+owner on 2 October 2026).
 
 Polars was considered for the table and not taken. Its Rust version does
 not read xlsx, so an Excel reader is needed anyway, and type guessing of
@@ -793,7 +798,11 @@ Raised on 2 October 2026 while the skills of the project were written
   core, to test the shape of its errors as a window receives them; it
   too is in `Cargo.lock` already, through Tauri. And
   `tauri-plugin-dialog`, Tauri's plugin for the system's Open and Save
-  dialogs, for Open project… and Import table….
+  dialogs, for Open project… and Import table…. And, to read the decimal
+  mark of the system's region (section 7), one crate per platform, each
+  in `Cargo.lock` already through Tauri: `objc2-foundation` on macOS,
+  `windows` on Windows and `libc` on Linux, approved by the owner on
+  2 October 2026.
 
 The builds are tried on the owner's machines: the Mac, a Windows
 machine, and a Linux virtual machine with both a Wayland and an X11

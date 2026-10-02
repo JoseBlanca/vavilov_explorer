@@ -99,9 +99,9 @@ export function exportAnswerOf(value: unknown): ExportAnswer | null {
 
 /**
  * The choices an export of a CSV starts from, by the decimal mark of the
- * user's language, `mark`: `;` and a decimal comma where numbers are
- * written with a comma, as a Spanish Excel reads them, and `,` and a point
- * otherwise; UTF-8 with the mark, which Excel reads as UTF-8; and a missing
+ * system's region, `mark`, which Excel follows: `;` and a decimal comma
+ * where numbers are written with a comma, as a Spanish Excel reads them,
+ * and `,` and a point otherwise; UTF-8 with the mark, which Excel reads as UTF-8; and a missing
  * value as an empty cell (decided by the owner on 2 October 2026,
  * docs/design.md, section 7).
  */

@@ -20,6 +20,7 @@ const COMMANDS: &[&str] = &[
     "redo",
     "import_table",
     "export_table",
+    "region_decimal_mark",
 ];
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
