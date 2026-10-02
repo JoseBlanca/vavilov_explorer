@@ -1,0 +1,28 @@
+[package]
+name = "vavilov-explorer"
+version = "0.1.0"
+description = "Integrated exploration of populations and biodiversity: 3D, geographic and distribution views of the same individuals"
+authors = ["Jose Blanca <jblanca@upv.es>"]
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+
+[lib]
+# The `_lib` suffix keeps the lib name distinct from the bin name, which
+# otherwise collide on Windows: https://github.com/rust-lang/cargo/issues/8519
+name = "vavilov_explorer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+# https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
