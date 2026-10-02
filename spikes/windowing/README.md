@@ -116,7 +116,10 @@ windows checked afterwards:
 An earlier version of the views projected the points for picking before
 the camera's view matrix was computed, so nothing was ever picked; a
 WebDriver test, "picks the point under the pointer", now fails on that
-version and passes on the fixed one.
+version and passes on the fixed one. Its first version passed on the
+broken code too: the test before it leaves the hover at 4242, so its
+check that the hover was "not -1" was already true before the pointer
+moved. It now waits for a hover that is neither -1 nor 4242.
 
 ## The manual checks
 

@@ -23,7 +23,17 @@ These are the owner's standing rules for AI-assisted work on this project:
   user-facing features.
 - Debug code must never crash production.
 
+## Skills
+
+The skills are under `.claude/skills/` and the subagents under
+`.claude/agents/`. The `writing` skill is read before anything a person
+will read is written, and the `coding` skill, with the topic files beside
+it, before any code. Ideas are discussed with the owner first, then coded;
+there are no specs or implementation plans. A review is made only when the
+owner asks, as the `code-review` skill says.
+
 ## Checks
 
-Before calling a change done: `npx tsc --noEmit`, `npm test`,
-`npm run test:e2e` and, in `src-tauri/`, `cargo test` and `cargo clippy`.
+Before calling a change done, run every check listed in the `coding`
+skill, "Before the work is called done"
+(`.claude/skills/coding/SKILL.md`), which is the one list.

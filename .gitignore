@@ -25,3 +25,6 @@ dist-ssr
 
 # Playwright screenshots
 e2e/output
+
+# Scratch files of the sessions and reviewers
+tmp/

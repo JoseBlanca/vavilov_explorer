@@ -239,7 +239,10 @@ The messages are binary and carry whole values, not differences:
 Sending only differences is left until a measurement shows whole values
 are too slow. The window under the pointer sends at most one hover per
 frame it draws. The backend drops a hover it has not yet sent when a
-newer one arrives, so a slow window never falls behind. On macOS a hover
+newer one arrives, so a slow window never falls behind. For that reason
+the hover takes no revision, whose sequence a dropped hover would break:
+it carries a sequence number of its own, and a window keeps the hover
+with the highest number it has seen. On macOS a hover
 reached another window in 1 to 3 ms at the median and was drawn on its
 next frame (section 12).
 
@@ -507,7 +510,11 @@ measured.
 
 ## 11. Testing
 
-There are three layers, from the most tests to the fewest.
+There are three layers, from the most tests to the fewest. The skills add
+two narrower ones (`.claude/skills/coding/testing.md`): the Tauri
+commands of the app tested with Tauri's mock runtime, which checks their
+wiring with no web view, and the Vitest tests of the frontend's pure
+functions.
 
 1. **The Rust core**, with `cargo test`: the commands and their refusals,
    the revisions, the atomic subscribe, the dropped hovers, undo, the
@@ -542,11 +549,46 @@ There are three layers, from the most tests to the fewest.
 
 ## 12. Open decisions
 
-One decision is open:
+Open decisions:
 
 - A compact key of the populations, with a line saying which population
   is being edited, in each plot window. Deferred by the owner until the
   first views exist.
+
+Raised on 2 October 2026 while the skills of the project were written
+(`.claude/skills/`), and decided by the owner the same day:
+
+- A defect of the app, a bug of ours rather than a problem of the user's
+  file, is shown as a red bar across the top of the window: "Vavilov
+  Explorer hit an internal error. Your data has not been changed. Please
+  save your work and report this.", with a button that copies the
+  technical details for the report. The sentence about the data holds
+  because the core applies each command whole or not at all.
+- A lost WebGL context, a 3D view whose drawing the graphics card dropped
+  after a reset, is shown as a short message over that view: "The 3D view
+  was lost by the graphics card and is being restored.", which goes away
+  once the view is drawn again.
+- The population of one individual is changed from the table by typing
+  the population's name in the cell of the active classification, with
+  the names of its populations suggested as the user types. What a name
+  that is not yet a population does is decided when the cell is built.
+
+- The oldest platforms supported: macOS 14, Windows 10 and 11, and Linux
+  with WebKitGTK 2.44, such as Ubuntu 24.04. Their engines are about
+  Safari 17, which sets the web features the code may use
+  (`.claude/skills/coding/typescript.md`, "The engines").
+- Tauri's isolation pattern is used, which Tauri recommends against a
+  malicious frontend dependency; it is reconsidered only if it causes
+  problems in real work, such as the hover's latency or raw payloads.
+- Light and dark follow the system's appearance, and the app has a
+  setting of its own, system, light or dark, so that a user can choose a
+  mode for Vavilov Explorer other than the system's. The setting belongs
+  to the app, not to a project, and every window follows it. Where it is
+  set in the interface is decided when it is built.
+- The colours of the populations start from Okabe and Ito's list, which
+  people with the common kinds of colour blindness can tell apart.
+- The fonts are the system's.
+- Accessibility follows WCAG 2.2 at level AA, as popnei_web does.
 
 The builds are tried on the owner's machines: the Mac, a Windows
 machine, and a Linux virtual machine with both a Wayland and an X11
