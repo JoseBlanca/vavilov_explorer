@@ -3761,9 +3761,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "vavilov-e2e-backend"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "vavilov-core",
+ "vavilov-explorer",
+]
+
+[[package]]
 name = "vavilov-explorer"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "serde_json",
  "tauri",
  "tauri-build",

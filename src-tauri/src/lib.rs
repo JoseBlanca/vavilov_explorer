@@ -1,6 +1,7 @@
 //! The Tauri app of Vavilov Explorer: its commands, channels and windows,
 //! each a thin layer over the core (.claude/skills/coding/SKILL.md).
 
+pub mod calls;
 pub mod commands;
 
 use std::sync::Mutex;

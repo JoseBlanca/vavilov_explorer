@@ -192,7 +192,8 @@ needs them:
 
 - the folders of `src/` (`backend`, `state`, `plots`, `windows`), whose
   import rules `eslint.config.js` already holds;
-- the harness's several pages and the test-only backend (`testing.md`).
+- the harness's several pages (`testing.md`); the test-only backend
+  exists, for one page.
 
 Until a part exists, a session follows the rule and reports the check as
 not there.

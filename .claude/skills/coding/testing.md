@@ -69,17 +69,26 @@ Windows; both run, since a page can work in one and not the other:
 harness takes its port, 1430, from `E2E_PORT` when that is set, so that
 reviewers in parallel worktrees do not collide.
 
-Today the harness opens one page and answers each command with a fixed
-value the test gives. The design extends it (`docs/design.md`, section
-11), and the extension is built with the first code that needs it:
+The harness opens one page, in one of two modes:
+
+- **Fixed replies**: each command answers with a value the test gives, and
+  a command the test did not mention fails loudly (`e2e/smoke.mjs`).
+- **The real core behind it**, `launch({ engine, backend: true })`: the
+  harness builds and starts the test-only program of
+  `crates/vavilov-e2e-backend`, forwards every call of the page to it as a
+  line of JSON, and passes each channel message back to the channel's
+  callback with Tauri's `{ index, message }` shape. The program reads each
+  call with the app's own `calls::call`, which refuses an argument the
+  command does not have, so a name that drifts between the TypeScript and
+  the app fails there (`e2e/connection.mjs`). A test loads a table with
+  the program's own `e2e:load` until the import exists. A page imports
+  the modules it tests from the dev server, `await
+  import("/src/backend/connection.ts")`, until a window uses them.
+
+The design extends it (`docs/design.md`, section 11), and the extension
+is built with the first code that needs it:
 
 - **One page per window**, in one browser, each with its window's label.
-- **The real core behind them**: the harness forwards every command to a
-  small test-only Rust program that runs the same dispatcher as the app,
-  and delivers its channel messages back to each page, by
-  `window.__TAURI_INTERNALS__.runCallback` with Tauri's `{ index, message }`
-  shape. The backend logic in these tests is then the real one, and only
-  the transport is replaced.
 - **Opening and closing windows** goes through the core's interface for
   windows, which the test program implements by asking the harness to
   open and close pages.

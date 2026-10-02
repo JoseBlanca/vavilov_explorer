@@ -1,0 +1,22 @@
+[package]
+name = "vavilov-e2e-backend"
+version = "0.1.0"
+description = "The test-only program behind the e2e harness: the real core and the app's reading of every call, with the harness in place of Tauri's IPC"
+authors = ["Jose Blanca <jblanca@upv.es>"]
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+# To read and write the lines of JSON the harness exchanges with it; a
+# test-only program, as for the tests (docs/design.md, section 12).
+serde_json.workspace = true
+# For the types of a call, InvokeBody and HeaderMap, which calls::call takes.
+tauri = { version = "2", features = ["isolation"] }
+vavilov-core = { path = "../vavilov-core" }
+vavilov-explorer = { path = "../../src-tauri" }
+
+[lints]
+workspace = true

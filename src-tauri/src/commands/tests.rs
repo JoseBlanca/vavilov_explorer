@@ -4,7 +4,10 @@ use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponseBody};
 use tauri::test::{INVOKE_KEY, MockRuntime, get_ipc_response, mock_builder};
 use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
-use vavilov_core::{Categorical, Colour, ColumnValues, Level, NewColumn, Table, UndoRedo};
+use vavilov_core::{
+    Categorical, Colour, ColumnId, ColumnValues, Command, Level, LevelCode, NewColumn, Request,
+    RowIndex, Table, UndoRedo,
+};
 
 use super::*;
 use crate::with_session;
@@ -431,4 +434,16 @@ fn a_lasso_in_remove_mode_and_a_redo_through_the_commands() {
             can_redo: false
         }
     );
+}
+
+#[test]
+fn every_command_that_calls_takes_is_registered_with_tauri() {
+    let (app, window) = app();
+    load(&app);
+    for command in crate::calls::COMMANDS {
+        let answer = json_command(&window, command, json!({ "basedOn": 1 }));
+        if let Err(Value::String(text)) = &answer {
+            assert!(!text.contains("not found"), "{command}: {text}");
+        }
+    }
 }

@@ -20,6 +20,7 @@ tauri-build = { version = "2", features = ["isolation"] }
 # "isolation": the isolation pattern of tauri.conf.json needs it, although
 # Tauri's guide says no feature is required (spikes/windowing/README.md).
 tauri = { version = "2", features = ["isolation"] }
+serde.workspace = true
 vavilov-core = { path = "../crates/vavilov-core" }
 
 [dev-dependencies]

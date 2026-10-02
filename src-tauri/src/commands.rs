@@ -1,17 +1,15 @@
-//! The Tauri commands: each takes the session's lock, turns its arguments
-//! into a request of the core, and calls the dispatcher, which sends the
-//! change to every window before it returns (`docs/core.md`, section 4).
-//! No rule about the data is here.
+//! The Tauri commands: each takes the session's lock and hands its call to
+//! [`calls::call`], which reads its arguments and calls the dispatcher;
+//! the dispatcher sends the change to every window before it returns
+//! (`docs/core.md`, section 4). No rule about the data is here.
 
-use std::str::FromStr;
 use std::sync::{Mutex, MutexGuard};
 
-use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Response};
+use tauri::ipc::{Channel, InvokeResponseBody, Response};
 use tauri::{AppHandle, Manager, Runtime, State, WebviewWindow};
-use vavilov_core::{
-    ColumnId, Command, CommandError, Dropped, LevelCode, Request, Revision, RowIndex, SendFailed,
-    SentAt, Session, Subscriber, WindowLabel,
-};
+use vavilov_core::{CommandError, Dropped, SendFailed, Session, Subscriber, WindowLabel};
+
+use crate::calls;
 
 /// The session, as every command takes it.
 pub type SessionState<'a> = State<'a, Mutex<Session>>;
@@ -42,48 +40,35 @@ pub fn subscribe<R: Runtime>(
     }
 }
 
-/// Sets the selection: the body is one bit per row, and the headers
-/// `based-on` and, when given, `sent-at`.
+/// Sets the selection: the body is one bit per row, with the headers
+/// `based-on` and `sent-at`.
 ///
 /// # Errors
 ///
-/// The refusals of the dispatcher and of the bits.
+/// The refusals of [`calls::call`].
 #[tauri::command]
 pub fn set_selection<R: Runtime>(
     app: AppHandle<R>,
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    let based_on = Revision::new(header(&request, "based-on")?);
-    let sent_at = sent_at_header(&request)?;
-    let mut session = lock(&session)?;
-    let rows = session.rows_from_window(raw_body(&request)?, based_on)?;
-    let dropped = session
-        .dispatch(Request {
-            command: Command::SetSelection { rows },
-            based_on,
-            sent_at,
-        })?
-        .dropped;
-    drop(session);
-    report_dropped(&app, dropped);
-    Ok(())
+    run(&app, &session, "set_selection", &request)
 }
 
-/// Assigns the rows of a lasso to the selected population: the body is
-/// one bit per row, and the headers `column`, `population`, `based-on`
-/// and, when given, `sent-at`.
+/// Assigns the rows of a lasso to the selected population: the body is one
+/// bit per row, with the headers `column`, `population`, `based-on` and
+/// `sent-at`.
 ///
 /// # Errors
 ///
-/// The refusals of the dispatcher and of the bits.
+/// The refusals of [`calls::call`].
 #[tauri::command]
 pub fn assign_rows<R: Runtime>(
     app: AppHandle<R>,
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    lasso(&app, &request, &session, Lasso::Add)
+    run(&app, &session, "assign_rows", &request)
 }
 
 /// Leaves unassigned the rows of a lasso that are in the selected
@@ -91,103 +76,85 @@ pub fn assign_rows<R: Runtime>(
 ///
 /// # Errors
 ///
-/// The refusals of the dispatcher and of the bits.
+/// The refusals of [`calls::call`].
 #[tauri::command]
 pub fn unassign_rows<R: Runtime>(
     app: AppHandle<R>,
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    lasso(&app, &request, &session, Lasso::Remove)
+    run(&app, &session, "unassign_rows", &request)
 }
 
-/// Sets the individual under the pointer, or none.
+/// Sets the individual under the pointer, or none: `{ row, basedOn, sentAt }`.
 ///
 /// # Errors
 ///
-/// The refusals of the dispatcher.
+/// The refusals of [`calls::call`].
 #[tauri::command]
 pub fn set_hover<R: Runtime>(
     app: AppHandle<R>,
-    row: Option<u32>,
-    based_on: u64,
-    sent_at: Option<f64>,
+    request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    let command = Command::SetHover {
-        row: row.map(RowIndex::new),
-    };
-    dispatch(&app, &session, command, based_on, sent_at)
+    run(&app, &session, "set_hover", &request)
 }
 
-/// Sets the active classification, or none.
+/// Sets the active classification, or none: `{ column, basedOn, sentAt }`.
 ///
 /// # Errors
 ///
-/// The refusals of the dispatcher.
+/// The refusals of [`calls::call`].
 #[tauri::command]
 pub fn set_active_classification<R: Runtime>(
     app: AppHandle<R>,
-    column: Option<u32>,
-    based_on: u64,
-    sent_at: Option<f64>,
+    request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    let command = Command::SetActiveClassification {
-        column: column.map(ColumnId::new),
-    };
-    dispatch(&app, &session, command, based_on, sent_at)
+    run(&app, &session, "set_active_classification", &request)
 }
 
-/// Selects a population of the active classification for editing, or none.
+/// Selects a population of the active classification for editing, or
+/// none: `{ column, population, basedOn, sentAt }`.
 ///
 /// # Errors
 ///
-/// The refusals of the dispatcher.
+/// The refusals of [`calls::call`].
 #[tauri::command]
 pub fn select_population<R: Runtime>(
     app: AppHandle<R>,
-    column: u32,
-    population: Option<u16>,
-    based_on: u64,
-    sent_at: Option<f64>,
+    request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    let command = Command::SelectPopulation {
-        column: ColumnId::new(column),
-        population: population.map(LevelCode::new),
-    };
-    dispatch(&app, &session, command, based_on, sent_at)
+    run(&app, &session, "select_population", &request)
 }
 
-/// Undoes the last edit of the document.
+/// Undoes the last edit of the document: `{ basedOn, sentAt }`.
 ///
 /// # Errors
 ///
-/// The refusals of the dispatcher.
+/// The refusals of [`calls::call`].
 #[tauri::command]
 pub fn undo<R: Runtime>(
     app: AppHandle<R>,
-    based_on: u64,
-    sent_at: Option<f64>,
+    request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    dispatch(&app, &session, Command::Undo, based_on, sent_at)
+    run(&app, &session, "undo", &request)
 }
 
-/// Redoes the last edit undone.
+/// Redoes the last edit undone: `{ basedOn, sentAt }`.
 ///
 /// # Errors
 ///
-/// The refusals of the dispatcher.
+/// The refusals of [`calls::call`].
 #[tauri::command]
 pub fn redo<R: Runtime>(
     app: AppHandle<R>,
-    based_on: u64,
-    sent_at: Option<f64>,
+    request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    dispatch(&app, &session, Command::Redo, based_on, sent_at)
+    run(&app, &session, "redo", &request)
 }
 
 /// Forgets the subscriber of a window that was closed.
@@ -200,63 +167,17 @@ pub(crate) fn unsubscribe(session: &Mutex<Session>, label: &str) {
     }
 }
 
-/// The mode of a lasso.
-#[derive(Clone, Copy)]
-enum Lasso {
-    Add,
-    Remove,
-}
-
-fn lasso<R: Runtime>(
+/// Calls `command` under the session's lock, then reports the windows
+/// whose channel failed, once the lock is released.
+fn run<R: Runtime>(
     app: &AppHandle<R>,
+    session: &SessionState<'_>,
+    command: &str,
     request: &tauri::ipc::Request<'_>,
-    session: &SessionState<'_>,
-    mode: Lasso,
 ) -> Result<(), CommandError> {
-    let column = ColumnId::new(header(request, "column")?);
-    let population = LevelCode::new(header(request, "population")?);
-    let based_on = Revision::new(header(request, "based-on")?);
-    let sent_at = sent_at_header(request)?;
     let mut session = lock(session)?;
-    let rows = session.rows_from_window(raw_body(request)?, based_on)?;
-    let command = match mode {
-        Lasso::Add => Command::AssignRows {
-            column,
-            population,
-            rows,
-        },
-        Lasso::Remove => Command::UnassignRows {
-            column,
-            population,
-            rows,
-        },
-    };
-    let dropped = session
-        .dispatch(Request {
-            command,
-            based_on,
-            sent_at,
-        })?
-        .dropped;
+    let dropped = calls::call(&mut session, command, request.body(), request.headers())?.dropped;
     drop(session);
-    report_dropped(app, dropped);
-    Ok(())
-}
-
-fn dispatch<R: Runtime>(
-    app: &AppHandle<R>,
-    session: &SessionState<'_>,
-    command: Command,
-    based_on: u64,
-    sent_at: Option<f64>,
-) -> Result<(), CommandError> {
-    let sent_at = sent_at.map(SentAt::new).transpose()?;
-    let request = Request {
-        command,
-        based_on: Revision::new(based_on),
-        sent_at,
-    };
-    let dropped = lock(session)?.dispatch(request)?.dropped;
     report_dropped(app, dropped);
     Ok(())
 }
@@ -303,48 +224,6 @@ fn close_later<R: Runtime>(window: &WebviewWindow<R>) {
             window.label()
         );
     }
-}
-
-/// The bytes of a raw body.
-fn raw_body<'a>(request: &'a tauri::ipc::Request<'_>) -> Result<&'a [u8], CommandError> {
-    match request.body() {
-        InvokeBody::Raw(bytes) => Ok(bytes),
-        InvokeBody::Json(_) => Err(CommandError::Defect {
-            what: "a command that takes raw bytes was given JSON, as Tauri sends every \
-                   body once a window has fallen back from its custom IPC protocol to postMessage"
-                .to_owned(),
-        }),
-    }
-}
-
-/// The value of a header the command needs.
-fn header<T: FromStr>(request: &tauri::ipc::Request<'_>, name: &str) -> Result<T, CommandError> {
-    optional_header(request, name)?.ok_or_else(|| CommandError::Defect {
-        what: format!("a command without its header {name}"),
-    })
-}
-
-fn optional_header<T: FromStr>(
-    request: &tauri::ipc::Request<'_>,
-    name: &str,
-) -> Result<Option<T>, CommandError> {
-    let Some(value) = request.headers().get(name) else {
-        return Ok(None);
-    };
-    value
-        .to_str()
-        .ok()
-        .and_then(|text| text.parse().ok())
-        .map(Some)
-        .ok_or_else(|| CommandError::Defect {
-            what: format!("a header {name} that does not parse"),
-        })
-}
-
-fn sent_at_header(request: &tauri::ipc::Request<'_>) -> Result<Option<SentAt>, CommandError> {
-    optional_header::<f64>(request, "sent-at")?
-        .map(SentAt::new)
-        .transpose()
 }
 
 /// The core's subscriber over a Tauri channel: each message arrives in the
