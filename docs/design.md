@@ -404,6 +404,13 @@ facts, taken from the Tauri 2.12 documentation and source and from tao
   Keyboard shortcuts, such as Enter to apply a lasso and Esc to cancel
   it, are handled by one TypeScript module present in every window and
   turned into commands, so they do not depend on where the menu is.
+- **Hover in an inactive window on macOS.** WebKit sends mouse movement
+  only to the active window, so on macOS a widget shows a hover only once
+  it is active: the user clicks a view before hovering in it. The hover
+  still shows in every other window. The owner accepted this on
+  2 October 2026. A workaround would watch the pointer with native macOS
+  code and pass its position to the page; it was not tried. Windows and
+  Linux have not been checked.
 - **The first click in an inactive window.** On macOS the first click in
   a window that is not active only activates it, and the window never
   sees the click, unless the window sets `acceptFirstMouse`. On Windows
@@ -481,6 +488,15 @@ machine, and a Linux virtual machine with both a Wayland and an X11
 session. A virtual machine usually draws WebGL without the GPU, so on
 Linux the experiment checks behaviour, and its times are not taken as
 those of a real machine.
+
+The experiment below was run on macOS on 2 October 2026, in
+`spikes/windowing/`, whose README has the numbers. A change made in one
+window reached another in 1 to 3 ms at the median and 13 ms at most, so
+it is drawn on the other window's next frame, as it would be within one
+window. Messages arrived as `ArrayBuffer`s and in order, a minimized
+window received every message, WebDriver drove the three windows, and a
+window that is not active received no pointer movement (section 9). It
+still has to be run on Windows and Linux.
 
 Before the real code, a throwaway experiment should answer what the
 design assumes and has not measured. The proposed bar for the hover is

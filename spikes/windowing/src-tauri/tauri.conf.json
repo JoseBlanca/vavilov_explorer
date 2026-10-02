@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Windowing Spike",
+  "version": "0.0.0",
+  "identifier": "es.upv.vavilov-windowing-spike",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1440",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Spike: control",
+        "width": 420,
+        "height": 600,
+        "x": 20,
+        "y": 60,
+        "backgroundThrottling": "disabled"
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+  }
+}
