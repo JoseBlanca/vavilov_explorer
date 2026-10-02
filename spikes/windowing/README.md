@@ -1,7 +1,7 @@
 # Windowing spike
 
 2 October 2026. A throwaway experiment for the questions at the end of
-section 11 of `docs/design.md`, run on macOS only so far. It is not part of
+section 12 of `docs/design.md`, run on macOS only so far. It is not part of
 the app: nothing here is built, tested or linted by the app's checks, and
 no code here is meant to be reused.
 
@@ -59,7 +59,7 @@ largest maximum of the three.
   start of a frame and the receiver draws it at the start of its next
   one. A change made and drawn within one window would also wait for that
   next frame, so the window boundary adds the 1 to 3 ms of "received" and
-  no frame. Whether the bar of design section 11, "within one frame of a
+  no frame. Whether the bar of design section 12, "within one frame of a
   60 Hz screen", is met depends on that reading: the change is on screen
   one frame after it was made, the same as in a single window.
 - Messages under 1,024 bytes, the hover, are delivered by Tauri by

@@ -3,9 +3,9 @@
 2 October 2026, before any code. This document records the design the
 owner agreed that day for the first version of Vavilov Explorer. It
 covers what the user works with, the windows, where the shared state lives
-and how it reaches each window, the table and the project file, the
-platforms, and how all of it is tested. Decisions still open are in
-section 11. What an earlier prototype taught, about rendering, the map
+and how it reaches each window, the table and the project file, what
+the frontend is built with, the platforms, and how all of it is tested. Decisions still open are in
+section 12. What an earlier prototype taught, about rendering, the map
 and the lasso, is in `prototype-lessons.md`. That document is the
 starting point for the views and is not repeated here. The library that
 reads and writes tables, `table_io`, lives in its own repository and is
@@ -139,7 +139,7 @@ them. Positions are checked against the monitors present, which may not
 be the ones the project was saved with. Windows are created hidden, given
 their size and position, and then shown, so they do not flash in the wrong place.
 Under Wayland on Linux an app can neither set nor read the position of
-its windows (section 9), so there the layout restores the widgets and
+its windows (section 10), so there the layout restores the widgets and
 their sizes but not their positions. Outside the project the app keeps
 only the list of recent projects and the size and position of the main
 window.
@@ -172,8 +172,8 @@ it, applies it, increases a revision number and sends the change to every
 window. It refuses a command it cannot apply, with a reason the window
 shows. The window that sent a command does not change its own display
 first. It waits for the change to come back from the backend, like every
-other window. This costs one round trip to the backend, which has not
-been measured (section 11), and in exchange no two windows can show
+other window. This costs one round trip to the backend, 1 to 3 ms at the
+median on macOS (section 12), and in exchange no two windows can show
 different states.
 
 The backend keeps the undo history. Every command on the document records
@@ -189,7 +189,7 @@ one place and the computation has one implementation.
 All of this lives in a Rust core that does not depend on Tauri: a
 session, which holds the state, and a dispatcher, which applies commands
 to it. The Tauri commands are thin wrappers around the dispatcher. This
-is what lets the tests of section 10 run the real backend without Tauri.
+is what lets the tests of section 11 run the real backend without Tauri.
 
 Making the main window's JavaScript the owner of the state was
 considered and not taken. Reloading or closing that window would lose
@@ -224,7 +224,7 @@ change after r, each with its revision. Registering the channel and taking
 the snapshot happen as one step in the backend, so a window that opens
 while the user is editing cannot miss a change or apply one twice. The
 same subscribe is how a window recovers after it is reloaded, which the
-web view may do on its own (section 9).
+web view may do on its own (section 10).
 
 Every column has a revision of its own, and a message about a column
 carries it, so a window fetches again only the columns that changed.
@@ -239,8 +239,9 @@ The messages are binary and carry whole values, not differences:
 Sending only differences is left until a measurement shows whole values
 are too slow. The window under the pointer sends at most one hover per
 frame it draws. The backend drops a hover it has not yet sent when a
-newer one arrives, so a slow window never falls behind. How long a hover
-takes to appear in the other windows has not been measured (section 11).
+newer one arrives, so a slow window never falls behind. On macOS a hover
+reached another window in 1 to 3 ms at the median and was drawn on its
+next frame (section 12).
 
 ## 5. The table
 
@@ -375,7 +376,71 @@ leave the user with two files to keep together. Storing the project in
 the user's xlsx would lose its other sheets, formulas and formatting,
 which the writer cannot keep.
 
-## 9. Platforms and their constraints
+## 9. The frontend
+
+Every window runs TypeScript, with strict type checking, on the plain DOM
+and CSS, with lit-html for the parts drawn as HTML, D3 for the 2D plots
+and Three.js for the point views.
+
+What each part of the interface is drawn with:
+
+- **The 3D scatter and the map**: Three.js on a canvas, as in the
+  prototype (`prototype-lessons.md`). A hover or a selection writes
+  straight into the buffers of the points that the GPU draws.
+- **The histograms and the bar plots**: D3, the most widely used library
+  of data visualization on the web, drawing SVG. D3 gives the parts of a
+  plot rather than finished charts, and these modules are used:
+  `d3-array` to bin the values of a histogram, `d3-scale` and `d3-axis`
+  for the scales and the axes, `d3-selection` to create and update the
+  bars, and `d3-brush` for dragging across bins to select them. A plot
+  has a few dozen bars, whatever the number of individuals, and a new
+  selection changes only the height of the selected share of each bar.
+  D3 owns the SVG of its plot, and lit-html never renders inside it, so
+  that no element is changed by both. D3 is not used for the point
+  views: 50,000 points in SVG would be slow, and Plotly, tried in the
+  prototype, sent every point again on each edit (`prototype-lessons.md`).
+- **The table**: rows of a fixed height, of which only those on screen
+  are in the DOM, written for the app.
+- **Everything else drawn as HTML**: the populations panel, the
+  dropdowns of the column types, the dialogs, the empty state, the
+  messages. These are rendered with lit-html, a library of about 3 kB
+  (version 3.3) that updates the DOM from a template and does nothing
+  else. A view is a function from the state to a template, and its
+  controller calls it whenever the state changes, so a list whose
+  populations are added, renamed or removed cannot be left with stale
+  rows, listeners or focus.
+
+Native HTML elements are used where they exist: `<select>` for the types
+and for the active classification, `<dialog>` for the dialogs, and
+`<input type="color">` for the colour of a population, which opens the
+system's colour picker. They bring the keyboard handling and the
+accessibility that would otherwise come from a library of components.
+
+In each window, the state is the window's copy of the backend's state
+(section 3), plus the window's own, such as the camera of a 3D view, held
+by the window's controller. Nothing else in the window holds state.
+
+React was considered and not taken. Its components hold state of their
+own, `useState` and effects, and syncing them with the window's copy of
+the backend's state would put the state in two places. Its strengths are
+that it is the framework language models know best and that its
+ecosystem of components is the largest. They would matter if the
+interface grew into many complex forms. Since every view here is a
+function of the state, moving them to another library later would touch
+the views and not the controllers.
+
+The tools:
+
+- Vite builds the frontend, Vitest runs the unit tests and Playwright
+  the end-to-end tests (section 11).
+- ESLint with typescript-eslint, in its strict configuration. Its rule
+  `no-floating-promises` makes a promise whose failure nobody handles,
+  such as an unawaited call to the backend, an error, so a failed command
+  cannot pass silently. The windowing spike wrote such calls as
+  `void invoke(...)`, which hides a failure.
+- Prettier formats the code.
+
+## 10. Platforms and their constraints
 
 The app targets macOS and Windows, and Linux as well. Each uses a
 different web view: WKWebView on macOS, WebView2, which is Chromium, on
@@ -440,7 +505,7 @@ Each window is a separate web view, with its own process and its own
 WebGL context, so memory grows with every window open. It has not been
 measured.
 
-## 10. Testing
+## 11. Testing
 
 There are three layers, from the most tests to the fewest.
 
@@ -475,7 +540,7 @@ There are three layers, from the most tests to the fewest.
    cannot: the real IPC, real windows, throttling and quitting. Whether
    the plugin handles several windows on macOS has not been checked.
 
-## 11. Open decisions
+## 12. Open decisions
 
 One decision is open:
 
@@ -495,7 +560,7 @@ window reached another in 1 to 3 ms at the median and 13 ms at most, so
 it is drawn on the other window's next frame, as it would be within one
 window. Messages arrived as `ArrayBuffer`s and in order, a minimized
 window received every message, WebDriver drove the three windows, and a
-window that is not active received no pointer movement (section 9). It
+window that is not active received no pointer movement (section 10). It
 still has to be run on Windows and Linux.
 
 Before the real code, a throwaway experiment should answer what the
