@@ -1,0 +1,23 @@
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-text);
+  background: var(--color-selected-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.text {
+  flex: 1;
+  margin: 0;
+}
+
+.dismiss {
+  min-width: var(--target-size);
+  min-height: var(--target-size);
+  padding: 0;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  background: var(--color-panel);
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-import-table"
+description = "Enables the import_table command without any pre-configured scope."
+commands.allow = ["import_table"]
+
+[[permission]]
+identifier = "deny-import-table"
+description = "Denies the import_table command without any pre-configured scope."
+commands.deny = ["import_table"]

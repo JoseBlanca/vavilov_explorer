@@ -11,6 +11,10 @@ publish = false
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true
+# The import and the export of CSV, TSV and xlsx, the owner's library, by
+# git at the revision of its release js-v0.2.0-dev.1 (docs/design.md,
+# section 7). Only import.rs and export.rs name it.
+table_io = { git = "https://github.com/JoseBlanca/table_io", rev = "c99b3e69f08da9a88eec30f0d3dd26de4d3092d6" }
 
 [dev-dependencies]
 # To test the shape of the errors as a window receives them, approved by

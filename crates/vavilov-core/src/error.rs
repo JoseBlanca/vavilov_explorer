@@ -1,6 +1,10 @@
 //! The one error enum of the core, which is also what a window receives
 //! when a command is refused (`docs/core.md`, section 6).
 
+mod file;
+
+pub use file::{ExportRefusal, ImportRefusal, IoFailure};
+
 use serde::Serialize;
 
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, WindowLabel};
@@ -325,6 +329,55 @@ pub enum CommandError {
         code: LevelCode,
         /// The levels of the column.
         num_levels: u32,
+    },
+
+    /// A file the user chose to import was refused, and nothing loaded.
+    #[error("{file_name:?} was not imported: {refusal:?}")]
+    ImportRefused {
+        /// The name of the file, without its folder.
+        file_name: String,
+        /// Why.
+        refusal: ImportRefusal,
+    },
+
+    /// A file the user chose to import could not be read as what its first
+    /// bytes say it is, a damaged xlsx.
+    #[error("{file_name:?} could not be read: {message}")]
+    ImportUnreadable {
+        /// The name of the file, without its folder.
+        file_name: String,
+        /// The reader's message, for the technical details.
+        message: String,
+    },
+
+    /// A file the user chose could not be read from the disk.
+    #[error("{file_name:?} could not be read from the disk: {message}")]
+    FileNotRead {
+        /// The name of the file, without its folder.
+        file_name: String,
+        /// What the system refused.
+        io: IoFailure,
+        /// The system's message, for the technical details.
+        message: String,
+    },
+
+    /// The table was not exported, and no file was written.
+    #[error("the table was not exported: {refusal:?}")]
+    ExportRefused {
+        /// Why.
+        refusal: ExportRefusal,
+    },
+
+    /// The file the user chose could not be written to the disk; a file
+    /// that was there is left as it was.
+    #[error("{file_name:?} could not be written: {message}")]
+    FileNotWritten {
+        /// The name of the file, without its folder.
+        file_name: String,
+        /// What the system refused.
+        io: IoFailure,
+        /// The system's message, for the technical details.
+        message: String,
     },
 
     /// A defect of the app: a state the code is meant to make impossible.

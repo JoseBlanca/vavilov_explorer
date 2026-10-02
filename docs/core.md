@@ -403,7 +403,7 @@ numbers are little-endian, the order of every platform the app targets.
 
 | bytes | field |
 |---|---|
-| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows (below) |
+| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows, 4 action (below) |
 | 1 | flags: bit 0 set when the time below was given, the other bits zero |
 | 2 to 7 | zero |
 | 8 to 15 | the revision, `u64` |
@@ -566,10 +566,19 @@ text, and a poisoned lock is a `Defect`.
   the window from the kind and the data (`writing` skill, "The text of
   the app").
 - No case holds a type of a dependency. `std::io::Error` is not
-  serialisable, so the file module of a later slice gives a case with the
-  path, an enum of our own for the kind of failure and its message as
-  text. That field cannot be named `kind`, which serde refuses beside
-  the tag `kind`; it is named `io`.
+  serialisable, so a case of a failure of the disk holds the file's
+  name, an enum of our own for the kind of failure, `IoFailure`, and the
+  system's message as text. That field cannot be named `kind`, which
+  serde refuses beside the tag `kind`; it is named `io`.
+- The cases of the import and the export (section 8): `ImportRefused`, a
+  file the import refused, with an `ImportRefusal` that says why;
+  `ImportUnreadable`, an xlsx too damaged to read, with the reader's
+  message; `FileNotRead`, a file the disk did not give; `ExportRefused`,
+  a table the export refused, with an `ExportRefusal` that names the
+  column and the individual; and `FileNotWritten`, a file the disk did
+  not take. Each that names a file carries its name without its folder,
+  `plants.csv`, as the user saw it in the dialog, and never the path, so
+  that no message shows the folders of the user's disk.
 - The cases of the first slice: no project open; an unknown column; a
   column that is not categorical; a column that is not the active
   classification; an unknown level; no population selected; a population
@@ -615,24 +624,61 @@ the session no longer has. A window that fails to open is reported to
 the session by a command that removes it from the widgets, so that the
 session does not keep a widget no window shows.
 
-## 8. Receiving a table before table_io exists
+## 8. The import and the export
 
-`table_io` is being built in parallel, and its interface is not settled.
-Its draft spec (`xlsx_rs`, `docs/specs/import.md` and `values.md`, as of
-2 October 2026) gives the first column apart and four types, integer,
-float, boolean and text, each as a vector of `Option`, and leaves which
-column is categorical to the application.
+`import.rs` and `export.rs` are the only modules that name `table_io`,
+taken by git at the revision of its release `js-v0.2.0-dev.1`, c99b3e6
+(`design.md`, section 7). `import_table` gives `table_io` the bytes of a
+file, with the limits the owner chose, 20 MB and 2,000,000 cells of an
+xlsx, and turns what it gives into the core's: each refusal into a case
+of `ImportRefusal` inside `CommandError::ImportRefused`, with the file's
+name, a line or a row and a column as the user will find them, and
+whether they are those of a text file or of a sheet; the first column's
+header checked as `IndividualID`; and the role of each other column
+guessed by `design.md`, section 6, `MAX_GUESSED_LEVELS` distinct values
+of text at most for a category. A table the core then refuses is a
+defect, since `table_io` makes it impossible: a text is never empty
+there, and a file of 20 MB has fewer rows than `MAX_ROWS`.
 
-The core does not wait for it. It has its own input, `ImportedTable`: the
-header and names of the first column, and for each other column its
-name, its number in the file and its values in one of those four types.
-It builds its table from that, and that is where it decides which text
-columns are categorical, by the rule of `table_io-needs.md`, section 3,
-and orders their levels and gives them colours (`design.md`, section 5).
-One module, `import.rs`, will turn `table_io`'s result into an
-`ImportedTable` and its refusals into cases of `CommandError`, and is the
-only module that names `table_io`. Until it exists, the tests build an
-`ImportedTable` themselves.
+`export_table` gives `table_io` the columns as stored, a category as its
+values and a category of countries as their codes, the first column
+headed `IndividualID`, and turns its refusals into `ExportRefusal`
+inside `CommandError::ExportRefused`, each place named by the column's
+name and the individual's, which the core has and a window would have to
+look up. `Session::table_to_export` copies the table under the lock, so
+that the file is written once it is released.
+
+`files.rs` is the one module of the core that touches the file system:
+it reads the file of an import, refusing one larger than 20 MB from its
+size before it reads it, and writes the file of an export to a temporary
+file beside it, renamed over it, so that a failure leaves a file that was
+there whole. The temporary file is always a new one, named
+`.vavilov-<process>-<n>.tmp` with the first `n` from 0 that no file in
+the folder has, and opened so that it fails on any file of that name,
+a link among them: an export never writes or removes a file of the
+user's other than the one chosen, never writes through a link into
+another folder, and the name chosen can be as long as the system takes.
+A file replaced keeps its permissions on macOS and Linux, so that a file
+only its owner may read stays so. On a failure the temporary file is
+removed, and a failure to remove it is written to the log.
+
+The system's dialogs are the app's. A Tauri command, `import_table` or
+`export_table`, opens them on the backend, so that no window sends a
+path (`design.md`, section 2.1); `src-tauri/src/transfer.rs` holds the
+steps between, which the test program of the e2e harness runs too, with
+the file a test picked in the place of the dialog's.
+
+### The menu's actions
+
+The File menu is the backend's, and an item the user chooses there is
+carried out by the main window, so that the window shows the answer of
+the command, a refusal in its dialog, as it would for a control of its
+own. The backend hands the item to the window as a message of the kind
+action, 4, whose header has the current revision, which takes no part
+in the order, and whose one part, kind 12, holds the item's code as a
+`u16`, 1 Import table…, 2 Export as CSV…, 3 Export as Excel…, and six
+zero bytes. An action changes no state. A window keeps an action that
+comes before it listens for one, as while it starts.
 
 ## 9. The first slice, and what comes later
 

@@ -18,6 +18,8 @@ const COMMANDS: &[&str] = &[
     "set_role",
     "undo",
     "redo",
+    "import_table",
+    "export_table",
 ];
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

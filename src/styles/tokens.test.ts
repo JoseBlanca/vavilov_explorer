@@ -45,10 +45,12 @@ const PAIRS: readonly (readonly [string, string, number])[] = [
   ["--color-text", "--color-selected-surface", 4.5],
   ["--color-text-muted", "--color-selected-surface", 4.5],
   ["--color-control-border", "--color-panel", 3],
+  ["--color-control-border", "--color-selected-surface", 3],
   ["--color-accent", "--color-panel", 3],
   ["--color-accent", "--color-selected-surface", 3],
   ["--color-focus", "--color-panel", 3],
   ["--color-focus", "--color-surface", 3],
+  ["--color-focus", "--color-selected-surface", 3],
   ["--color-danger-text", "--color-danger-surface", 4.5],
 ];
 

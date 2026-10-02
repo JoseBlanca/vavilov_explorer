@@ -29,6 +29,39 @@ text, not missing values. Do not use `NA` or `-` for a real value: in a
 column of two-letter country codes, Namibia's code `NA` is read as a
 missing value, so write Namibia as `NAM` or `Namibia`.
 
+## Importing it
+
+Choose File, Import table… and pick the file. A CSV or a TSV is read
+with the separator, the decimal mark and the encoding found in it, and
+an Excel workbook from its first sheet that is not hidden. The file can
+be of up to 20 MB, and the sheet of up to 2,000,000 cells, counted from
+its first value to its last. A file that
+cannot be imported loads nothing, and the message says what was found
+and where, by its line in a CSV, or its row and column in the sheet.
+
+Each column but the first gets a role from its values, which you can
+change: a column of numbers is a number, or a latitude or a longitude
+when its header is `lat` or `latitude`, `lon`, `long` or `longitude` and
+its values fit; a column of `TRUE` and `FALSE` is a category; a column
+of text is a category when it has from 1 to 20 different values, not
+counting missing ones, and text when it has more. A column with no
+values, every cell missing, is text. The leftmost category becomes the
+Classification column of the populations panel, so its populations show
+at once; a table with no category starts with None there.
+
+## Exporting it
+
+File, Export as CSV… and Export as Excel… write the table to a new file.
+A CSV asks for its separator, its decimal mark, its encoding and how a
+missing value is written. With the comma as the separator, the decimal
+mark is the point: a decimal comma would put every decimal number in
+quotes, and the table would not import back as numbers. Choose UTF-8 for
+Excel when the file will be opened in Excel: Excel shows the accents of
+a plain UTF-8 file wrongly. A category is written as its values, and a
+column of countries as their three-letter codes. The export refuses a
+value that would not read back as itself, such as a text `NA`, and the
+message names its column and its individual.
+
 ## What each column is for
 
 After the import, each column but the first has a role, which you choose

@@ -7,6 +7,9 @@ import { isColumnId, isLevelCode, isRevision, isRowIndex } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision, RowIndex } from "./ids.ts";
 import type { Selected } from "./message.ts";
 import { isRole, isStorageType } from "./description.ts";
+import { isExportRefusal, isImportRefusal } from "./fileRefusal.ts";
+import type { ExportRefusal, ImportRefusal } from "./fileRefusal.ts";
+import { hasFieldsOf } from "./tagged.ts";
 import type { Role, StorageType } from "./description.ts";
 
 /** The type of a field: an id, a count, or a text from the user's file. */
@@ -19,7 +22,10 @@ type FieldType =
   | "storage"
   | "role"
   | "number"
-  | "string";
+  | "string"
+  | "importRefusal"
+  | "exportRefusal"
+  | "ioFailure";
 
 /** The fields of each kind of refusal, and the type of each. */
 const FIELDS = {
@@ -62,6 +68,11 @@ const FIELDS = {
     code: "levelCode",
     numLevels: "number",
   },
+  importRefused: { fileName: "string", refusal: "importRefusal" },
+  importUnreadable: { fileName: "string", message: "string" },
+  fileNotRead: { fileName: "string", io: "ioFailure", message: "string" },
+  exportRefused: { refusal: "exportRefusal" },
+  fileNotWritten: { fileName: "string", io: "ioFailure", message: "string" },
   defect: { what: "string" },
 } as const satisfies Record<string, Record<string, FieldType>>;
 
@@ -81,7 +92,13 @@ interface TypeOf {
   readonly role: Role;
   readonly number: number;
   readonly string: string;
+  readonly importRefusal: ImportRefusal;
+  readonly exportRefusal: ExportRefusal;
+  readonly ioFailure: IoFailure;
 }
+
+/** What the file system refused, as `IoFailure` in the core. */
+export type IoFailure = "notFound" | "permissionDenied" | "other";
 
 /** Why the backend refused a command; a refused command changed nothing. */
 export type CommandError = {
@@ -122,6 +139,12 @@ function hasType(value: unknown, type: FieldType): boolean {
       return isStorageType(value);
     case "role":
       return isRole(value);
+    case "importRefusal":
+      return isImportRefusal(value);
+    case "exportRefusal":
+      return isExportRefusal(value);
+    case "ioFailure":
+      return value === "notFound" || value === "permissionDenied" || value === "other";
   }
 }
 
@@ -148,26 +171,5 @@ export function selectedOf(value: unknown): Selected | null {
  * and exactly the fields of that kind, each of its type.
  */
 export function isCommandError(value: unknown): value is CommandError {
-  if (typeof value !== "object" || value === null || !("kind" in value)) {
-    return false;
-  }
-  const { kind } = value;
-  if (typeof kind !== "string") {
-    return false;
-  }
-  const fields = FIELDS_OF_KIND.get(kind);
-  if (fields === undefined) {
-    return false;
-  }
-  const entries = Object.entries(value);
-  if (entries.length !== Object.keys(fields).length + 1) {
-    return false;
-  }
-  return entries.every(([name, field]) => {
-    if (name === "kind") {
-      return true;
-    }
-    const type = Object.hasOwn(fields, name) ? fields[name] : undefined;
-    return type !== undefined && hasType(field, type);
-  });
+  return hasFieldsOf(value, FIELDS_OF_KIND, hasType);
 }

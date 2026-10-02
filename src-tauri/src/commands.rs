@@ -9,9 +9,13 @@ use tauri::ipc::{Channel, InvokeResponseBody, Response};
 use tauri::{AppHandle, Manager, Runtime, State, WebviewWindow};
 use vavilov_core::{
     CommandError, Dropped, SendFailed, Session, Subscriber, TableDescription, WindowLabel,
+    export_table as export_bytes,
 };
 
 use crate::calls;
+use crate::dialogs;
+use crate::menu;
+use crate::transfer::{self, ExportAnswer, ImportAnswer};
 
 /// The session, as every command takes it.
 pub type SessionState<'a> = State<'a, Mutex<Session>>;
@@ -230,6 +234,58 @@ pub fn redo<R: Runtime>(
     run(&app, &session, "redo", &request)
 }
 
+/// Imports a table: asks the user for a file with the system's Open
+/// dialog over the calling window, reads and imports it, and loads its
+/// table, which replaces the one there was: `{ sentAt }`. The file is read
+/// before the session's lock is taken.
+///
+/// # Errors
+///
+/// `ImportRefused`, `ImportUnreadable` and `FileNotRead`, with the file's
+/// name; the refusals of a load; or a `Defect`.
+#[tauri::command]
+pub async fn import_table<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<ImportAnswer, CommandError> {
+    let args: transfer::ImportArgs = calls::json_args("import_table", request.body())?;
+    let Some(path) = dialogs::open(&window).await? else {
+        return Ok(ImportAnswer::Cancelled);
+    };
+    let (file_name, imported) = transfer::read(&path)?;
+    let (answer, outcome) = transfer::load(&mut *lock(&session)?, file_name, imported, args)?;
+    report_dropped(&app, outcome.dropped);
+    menu::enable_table_items(&app);
+    Ok(answer)
+}
+
+/// Exports the table of the window's copy: `{ format, basedOn }`. It
+/// writes the bytes of the file, refused before anything is asked when a
+/// value would not read back as itself, then asks the user where to save
+/// it with the system's Save dialog over the calling window, and writes it
+/// there.
+///
+/// # Errors
+///
+/// `ExportRefused` and `FileNotWritten`, `MadeBeforeLoad` and `NoProject`,
+/// or a `Defect`.
+#[tauri::command]
+pub async fn export_table<R: Runtime>(
+    window: WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<ExportAnswer, CommandError> {
+    let args: transfer::ExportArgs = calls::json_args("export_table", request.body())?;
+    let table = lock(&session)?.table_to_export(args.based_on())?;
+    let bytes = export_bytes(&table, args.format())?;
+    let Some(path) = dialogs::save(&window, args.format()).await? else {
+        return Ok(ExportAnswer::Cancelled);
+    };
+    transfer::write(&path, &bytes)
+}
+
 /// Forgets the subscriber of a window that was closed.
 pub(crate) fn unsubscribe(session: &Mutex<Session>, label: &str) {
     match session.lock() {
@@ -271,7 +327,7 @@ fn lock<'a>(session: &'a SessionState<'_>) -> Result<MutexGuard<'a, Session>, Co
 /// A window whose channel failed receives nothing more until it
 /// subscribes again: reported as a defect, and reloaded when it is still
 /// open, so that it subscribes. Called once the lock is released.
-fn report_dropped<R: Runtime>(app: &AppHandle<R>, dropped: Vec<Dropped>) {
+pub(crate) fn report_dropped<R: Runtime>(app: &AppHandle<R>, dropped: Vec<Dropped>) {
     for Dropped { label, reason } in dropped {
         eprintln!(
             "Vavilov Explorer defect: the channel of window {label} failed and was dropped: {}",

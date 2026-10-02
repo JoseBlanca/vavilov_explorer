@@ -26,6 +26,8 @@ import { tableView } from "./table.view.ts";
 export interface Table {
   /** Draws the table again, when the description of the table has changed. */
   readonly redraw: () => void;
+  /** Gives the focus to the table, when it shows one. */
+  readonly focus: () => void;
   /** Unsubscribes, stops watching the size and empties the element. */
   readonly destroy: () => void;
 }
@@ -41,13 +43,16 @@ const PAGES_KEPT = 3;
  * (docs/design.md, section 2.1). It keeps the pages it fetched, the scroll and
  * the row of the last click, the anchor of a shift-click; everything else is
  * the window's copy of the state. A change of role that would stop the
- * active classification is put to the user with `ask` first.
+ * active classification is put to the user with `ask` first, and the
+ * question is withdrawn when another table is loaded meanwhile. When
+ * another table takes the place of the one drawn, the focus goes to its
+ * grid from a control of the table it replaced, or from nowhere.
  */
 export function createTable(
   element: HTMLElement,
   connection: Connection,
   description: () => DescriptionNow,
-  ask: (question: Question) => Promise<boolean>,
+  ask: (question: Question, withdrawn: AbortSignal) => Promise<boolean>,
   report: (error: unknown) => void,
 ): Table {
   const { state } = connection;
@@ -59,6 +64,8 @@ export function createTable(
   let anchor: RowIndex | null = null;
   let frame: number | null = null;
   let destroyed = false;
+  /** The question about a role being asked, and the load of the table it is about. */
+  let asking: { readonly loadedAt: Revision; readonly withdraw: AbortController } | null = null;
 
   const part = (name: string): HTMLElement | null => {
     const found = element.querySelector(`[data-${name}]`);
@@ -125,7 +132,8 @@ export function createTable(
     if (scroller === null || names === null || !(target instanceof Element)) {
       return;
     }
-    if (names.contains(target)) {
+    // The grid itself takes the focus too, and is no control to keep clear.
+    if (names.contains(target) || target === part("grid")) {
       return;
     }
     const hidden = names.getBoundingClientRect().right - target.getBoundingClientRect().left;
@@ -153,8 +161,15 @@ export function createTable(
       send();
       return;
     }
-    ask(question).then((confirmed) => {
-      if (confirmed) {
+    const withdraw = new AbortController();
+    asking = { loadedAt: table.loadedAt, withdraw };
+    ask(question, withdraw.signal).then((confirmed) => {
+      if (asking?.withdraw === withdraw) {
+        asking = null;
+      }
+      // A column of another table has the same id: the answer is about the
+      // table asked about, which must still be the one loaded.
+      if (confirmed && isLoaded(table.loadedAt)) {
         send();
       } else {
         schedule();
@@ -176,9 +191,24 @@ export function createTable(
       .then(answered("selecting rows", schedule), report);
   };
 
+  /** Whether the table loaded at `at` is the one the copy holds. */
+  const isLoaded = (at: Revision): boolean => {
+    const project = state.project();
+    return project.kind === "open" && project.loadedAt === at;
+  };
+
+  /** Gives the focus to the grid, when it is drawn. */
+  const focusGrid = (): void => {
+    part("grid")?.focus({ preventScroll: true });
+  };
+
   const draw = (): void => {
     if (destroyed) {
       return;
+    }
+    if (asking !== null && !isLoaded(asking.loadedAt)) {
+      asking.withdraw.abort();
+      asking = null;
     }
     const now = description();
     if (now.kind === "none") {
@@ -192,7 +222,10 @@ export function createTable(
       return;
     }
     const table = now.description;
-    if (table.loadedAt !== loadedAt) {
+    const replaced = table.loadedAt !== loadedAt;
+    /** Whether this table takes the place of another the table showed. */
+    const another = replaced && loadedAt !== null;
+    if (replaced) {
       pages.clear();
       fetching.clear();
       loadedAt = table.loadedAt;
@@ -256,6 +289,12 @@ export function createTable(
       }),
       element,
     );
+    if (another) {
+      const focused = document.activeElement;
+      if (focused === null || focused === document.body || element.contains(focused)) {
+        focusGrid();
+      }
+    }
     // The first draw has nothing to measure yet: draw again once it has.
     if ((measured === null || measured.rowHeight === 0) && table.numRows > 0) {
       schedule();
@@ -287,6 +326,7 @@ export function createTable(
   draw();
   return {
     redraw: draw,
+    focus: focusGrid,
     destroy: () => {
       destroyed = true;
       resized.disconnect();

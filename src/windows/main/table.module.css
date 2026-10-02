@@ -1,3 +1,10 @@
+/* The table's place in the window, over which the grid's focus ring is
+   drawn. */
+.frame {
+  position: relative;
+  height: 100%;
+}
+
 .scroller {
   position: relative;
   height: 100%;
@@ -21,6 +28,25 @@
   width: max-content;
   min-width: 100%;
   font-variant-numeric: tabular-nums;
+}
+
+/* The grid takes the focus when another table is drawn. Its ring is drawn
+   over the frame instead, inside its edge, since the scroller cuts off what
+   is outside the grid and the header and the column of the names, which
+   stay in place over the rows, would cover a ring drawn on the grid. */
+.grid:focus-visible {
+  outline: none;
+}
+
+.frame:has(.grid:focus-visible)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Above the header, the highest part of the table. */
+  z-index: 3;
+  pointer-events: none;
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 .header,

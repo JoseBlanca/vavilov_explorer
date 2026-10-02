@@ -184,6 +184,37 @@ fn every_command_is_registered_and_finds_the_session() {
             "{cmd}"
         );
     }
+    // An export with no table is refused before the Save dialog opens.
+    assert_eq!(
+        json_command(
+            &window,
+            "export_table",
+            json!({ "format": { "kind": "xlsx" }, "basedOn": 0 })
+        )
+        .unwrap_err(),
+        no_project
+    );
+}
+
+#[test]
+fn a_window_cannot_name_the_file_of_an_import() {
+    let (_app, window) = app();
+    // The file comes from the system's dialog alone: a path is an argument
+    // import_table does not have, refused before any dialog opens.
+    let refused = json_command(
+        &window,
+        "import_table",
+        json!({ "sentAt": 1.5, "path": "/etc/passwd" }),
+    )
+    .unwrap_err();
+    assert_eq!(refused["kind"], "defect");
+    assert!(
+        refused["what"]
+            .as_str()
+            .unwrap()
+            .contains("unknown field `path`"),
+        "{refused}"
+    );
 }
 
 #[test]
@@ -597,4 +628,39 @@ fn a_role_the_storage_type_cannot_take_crosses_as_its_refusal() {
         .unwrap_err(),
         json!({ "kind": "roleNotPossible", "column": 1, "storage": "text", "role": "number" })
     );
+}
+
+#[test]
+fn every_window_of_the_configuration_turns_off_background_throttling() {
+    let context: tauri::Context<MockRuntime> = tauri::generate_context!(test = true);
+    let windows = &context.config().app.windows;
+    assert!(!windows.is_empty());
+    for window in windows {
+        assert_eq!(
+            window.background_throttling,
+            Some(tauri::utils::config::BackgroundThrottlingPolicy::Disabled),
+            "window {}",
+            window.label
+        );
+    }
+}
+
+#[test]
+fn the_main_window_cannot_call_tauri_s_own_functions_it_does_not_use() {
+    let (_app, main) = app();
+    for cmd in [
+        "plugin:window|title",
+        "plugin:window|create",
+        "plugin:event|listen",
+        "plugin:webview|create_webview_window",
+        "plugin:app|version",
+    ] {
+        let refusal = json_command(&main, cmd, json!({})).unwrap_err();
+        assert!(
+            refusal
+                .as_str()
+                .is_some_and(|text| text.contains("not allowed")),
+            "{cmd}: {refusal}"
+        );
+    }
 }

@@ -4,8 +4,8 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::http::{HeaderMap, HeaderName, HeaderValue};
 use tauri::ipc::InvokeBody;
-use vavilov_core::{CommandError, Session, Subscriber, WindowLabel};
-use vavilov_explorer_lib::calls;
+use vavilov_core::{CommandError, Session, Subscriber, WindowLabel, export_table};
+use vavilov_explorer_lib::{calls, menu, transfer};
 
 use crate::load;
 
@@ -20,12 +20,26 @@ struct Line {
     raw: Option<Vec<u8>>,
     headers: Option<serde_json::Map<String, Value>>,
     table: Option<load::TableSpec>,
+    /// For `e2e:pick`: the file the next dialog gives.
+    path: Option<String>,
+    /// For `e2e:pick`: `true` for a dialog the user closed, in the place of
+    /// a path.
+    cancel: Option<bool>,
+    /// For `e2e:action`: the item of the menu the user chose, as the window
+    /// names it, `importTable`, `exportCsv` or `exportXlsx`.
+    action: Option<String>,
 }
+
+/// The file the next dialog of an import or an export gives, as the test
+/// set it with `e2e:pick`, the user's choice in the app; `None` until set,
+/// `Some(None)` for a dialog the user closed.
+pub(crate) type Picked = Option<Option<std::path::PathBuf>>;
 
 /// The answer to one line of the harness. A line that is not one the
 /// harness writes is answered with an `e2e` error, which fails the test.
 pub(crate) fn answer(
     session: &mut Session,
+    picked: &mut Picked,
     line: &str,
     subscriber: impl FnOnce(WindowLabel) -> Box<dyn Subscriber>,
 ) -> Value {
@@ -36,7 +50,7 @@ pub(crate) fn answer(
         }
     };
     let id = line.id;
-    match outcome(session, line, subscriber) {
+    match outcome(session, picked, line, subscriber) {
         Ok(Answer::Bytes(bytes)) => json!({ "id": id, "bytes": bytes }),
         Ok(Answer::Done) => json!({ "id": id, "ok": null }),
         Ok(Answer::Value(value)) => json!({ "id": id, "ok": value }),
@@ -69,6 +83,7 @@ impl From<CommandError> for Failure {
 
 fn outcome(
     session: &mut Session,
+    picked: &mut Picked,
     line: Line,
     subscriber: impl FnOnce(WindowLabel) -> Box<dyn Subscriber>,
 ) -> Result<Answer, Failure> {
@@ -79,6 +94,57 @@ fn outcome(
                 .ok_or_else(|| Failure::Harness("e2e:load without a table".to_owned()))?;
             load::load(session, table)?;
             Ok(Answer::Done)
+        }
+        "e2e:action" => {
+            let action = line
+                .action
+                .as_deref()
+                .and_then(menu::action_named)
+                .ok_or_else(|| Failure::Harness(format!("e2e:action of {:?}", line.action)))?;
+            match session.send_action(&WindowLabel::main(), action)? {
+                None => Ok(Answer::Done),
+                Some(dropped) => Err(Failure::Harness(format!(
+                    "the action {action:?} failed on its channel: {dropped:?}"
+                ))),
+            }
+        }
+        "e2e:picking" => Ok(Answer::Value(Value::Bool(picked.is_some()))),
+        "e2e:pick" => {
+            *picked = Some(match (line.path, line.cancel) {
+                (Some(path), None) => Some(std::path::PathBuf::from(path)),
+                (None, Some(true)) => None,
+                _ => {
+                    return Err(Failure::Harness(
+                        "e2e:pick without exactly one of a path and cancel: true".to_owned(),
+                    ));
+                }
+            });
+            Ok(Answer::Done)
+        }
+        // The app's steps of an import and an export, with the file the
+        // test picked in the place of the system's dialog.
+        "import_table" => {
+            window(line.window)?;
+            let args: transfer::ImportArgs =
+                calls::json_args("import_table", &json_body(line.json)?)?;
+            let Some(path) = take(picked)? else {
+                return value(&transfer::ImportAnswer::Cancelled);
+            };
+            let (file_name, imported) = transfer::read(&path)?;
+            let (answer, outcome) = transfer::load(session, file_name, imported, args)?;
+            channels_sent("import_table", &outcome)?;
+            value(&answer)
+        }
+        "export_table" => {
+            window(line.window)?;
+            let args: transfer::ExportArgs =
+                calls::json_args("export_table", &json_body(line.json)?)?;
+            let table = session.table_to_export(args.based_on())?;
+            let bytes = export_table(&table, args.format())?;
+            let Some(path) = take(picked)? else {
+                return value(&transfer::ExportAnswer::Cancelled);
+            };
+            value(&transfer::write(&path, &bytes)?)
         }
         "subscribe" => {
             let label = WindowLabel::new(window(line.window)?);
@@ -98,13 +164,10 @@ fn outcome(
             };
             let headers = headers(line.headers.unwrap_or_default())?;
             match calls::call(session, command, &body, &headers)? {
-                calls::Reply::Applied(outcome) if outcome.dropped.is_empty() => Ok(Answer::Done),
-                // The program's channels write to its output, so a failed
-                // send is a fault of the test run, said rather than lost.
-                calls::Reply::Applied(outcome) => Err(Failure::Harness(format!(
-                    "{command} was applied, and these channels failed: {:?}",
-                    outcome.dropped
-                ))),
+                calls::Reply::Applied(outcome) => {
+                    channels_sent(command, &outcome)?;
+                    Ok(Answer::Done)
+                }
                 calls::Reply::Rows(bytes) => Ok(Answer::Bytes(bytes)),
                 calls::Reply::Description(description) => serde_json::to_value(description)
                     .map(Answer::Value)
@@ -112,6 +175,37 @@ fn outcome(
             }
         }
     }
+}
+
+/// The program's channels write to its output, so a failed send is a fault
+/// of the test run, said rather than lost.
+fn channels_sent(command: &str, outcome: &vavilov_core::Outcome) -> Result<(), Failure> {
+    if outcome.dropped.is_empty() {
+        Ok(())
+    } else {
+        Err(Failure::Harness(format!(
+            "{command} was applied, and these channels failed: {:?}",
+            outcome.dropped
+        )))
+    }
+}
+
+/// The file the test picked, taken, so that each dialog needs its own pick.
+fn take(picked: &mut Picked) -> Result<Option<std::path::PathBuf>, Failure> {
+    picked
+        .take()
+        .ok_or_else(|| Failure::Harness("a dialog with no e2e:pick before it".to_owned()))
+}
+
+fn json_body(json: Option<Value>) -> Result<InvokeBody, Failure> {
+    json.map(InvokeBody::Json)
+        .ok_or_else(|| Failure::Harness("a call without its JSON arguments".to_owned()))
+}
+
+fn value(answer: &impl serde::Serialize) -> Result<Answer, Failure> {
+    serde_json::to_value(answer)
+        .map(Answer::Value)
+        .map_err(|error| Failure::Harness(error.to_string()))
 }
 
 fn window(window: Option<String>) -> Result<String, Failure> {

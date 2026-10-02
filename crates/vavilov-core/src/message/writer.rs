@@ -47,6 +47,15 @@ impl MessageWriter {
         })
     }
 
+    /// The code of an item of the menu, then six zero bytes.
+    pub(crate) fn action(&mut self, code: u16) -> Result<(), CommandError> {
+        self.part(PartKind::Action, |payload| {
+            payload.extend_from_slice(&code.to_le_bytes());
+            payload.extend_from_slice(&[0; 6]);
+            Ok(())
+        })
+    }
+
     /// The revision at which the columns, their names or their roles last
     /// changed.
     pub(crate) fn shape(&mut self, shape_at: Revision) -> Result<(), CommandError> {

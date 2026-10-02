@@ -28,6 +28,16 @@ opt-level = 3
 panic = "abort"
 strip = true
 
+# calamine, the reader of xlsx under table_io, adds and multiplies the row
+# and column numbers of a cell with plain operators: on a damaged xlsx, a
+# cell reference such as ZZZZZZZ3, they overflow, which panics in a
+# development build and in the tests, and wraps in a release build, where
+# table_io refuses the file. With the checks off, the development build
+# reads the file as the release build does (table_io's
+# docs/architecture.md, sections 8 and 11).
+[profile.dev.package.calamine]
+overflow-checks = false
+
 # The lint table of .claude/skills/coding/rust.md, whose reasons are there.
 [workspace.lints.rust]
 unsafe_code = "deny"

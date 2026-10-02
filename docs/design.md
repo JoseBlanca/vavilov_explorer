@@ -111,7 +111,23 @@ it.
   example "line 1,203: 14 fields, expected 12", and loads nothing. A
   separate launcher window was considered and not taken: it would be one
   more window to open and close, and the window would jump in size when
-  the data arrived.
+  the data arrived. Until the project file exists, the import and the
+  export start from the File menu alone, Import table…, Export as CSV…
+  and Export as Excel…, with no keyboard shortcut, and the empty state
+  shows the title; an import replaces the table there is without
+  asking, since there is no project to save yet (decided by the owner on
+  2 October 2026).
+- The Open and Save dialogs of an import and an export are the system's,
+  opened by the backend, so that no window sends the backend the path of
+  a file (decided by the owner on 2 October 2026). The dialog of Import
+  table… shows only `.csv`, `.tsv`, `.txt` and `.xlsx` files, and that
+  of Open project… only `.vav` files (decided the same day).
+- An import that is refused is a pop-up that says what happened and how
+  to put it right, in the names of the user's file, with OK. An import
+  that read a character it could not decode shows a notice, dismissed
+  with ×, that names its line. Choosing the separator, the decimal mark
+  or the encoding by hand, and importing again, comes later. Decided by
+  the owner on 2 October 2026.
 
 ### 2.2 Widgets
 
@@ -127,7 +143,10 @@ A widget is a window with one view of some columns:
 The same kind of widget can be open more than once, for example two
 scatters of different principal components. A widget is created from a
 Plot menu, which opens a small dialog to choose the columns, filled in
-from the columns selected in the table. It can also be created by
+from the columns selected in the table. The dialog offers every column
+whose role fits, so that a table with two latitude columns, `lat` and
+`Latitude`, offers both to the map (decided by the owner on 2 October
+2026). It can also be created by
 right-clicking a column header or a group of selected headers. Both ask
 the backend for the same thing.
 
@@ -442,8 +461,13 @@ current or two former countries would share is left out.
 The import guesses the role: number for whole and decimal numbers,
 latitude or longitude for a column of numbers whose header is `lat` or
 `latitude`, or `lon`, `long` or `longitude`, case ignored, and whose
-values fit; category for yes or no and for text of at most 20 distinct
-values, and text for the rest.
+values fit; category for yes or no and for text of 1 to 20 distinct
+values, and text for the rest. A column with no value is text, whatever
+its header: a category of no levels would be offered as a classification
+with every individual unassigned (decided by the owner on 2 October
+2026). After an import the first category, of countries or not, is the
+active classification, so that its populations show at once, and none is
+when the table has no category (decided the same day).
 
 ## 7. table_io
 
@@ -475,6 +499,23 @@ feature, and not the WebAssembly package. popnei_web installs the
 `table_io` release is published under the new name and popnei_web
 changes its URL in the same step. What Vavilov Explorer needs of
 `table_io`, in detail, is in `table_io-needs.md`.
+
+Vavilov Explorer takes `table_io` by git at the revision of its release
+`js-v0.2.0-dev.1`, c99b3e6, and imports a file of at most 20 MB and an
+xlsx of at most 2,000,000 cells, popnei_web's limits (decided by the
+owner on 2 October 2026). The export of a CSV asks for the separator,
+the decimal mark, the encoding (UTF-8, UTF-8 with the mark Excel
+writes, or Windows-1252) and the text of a missing value (empty or
+`NA`), and starts from `;` and a decimal comma when the user's language
+writes numbers with a comma, from `,` and a point otherwise, from UTF-8
+with the mark, and from an empty missing value; the export of an xlsx
+asks nothing. With the comma as the separator, the point is the only
+decimal mark offered: `table_io` would write each decimal number in
+quotes, `"1,5"`, which the import reads back as text, and a column's
+storage type never changes (decided by the owner on 2 October 2026).
+The default file name of an export is `table.csv` or `table.xlsx`
+(decided the same day). An export that is refused is a pop-up that names the
+column and the row (decided by the owner on 2 October 2026).
 
 Polars was considered for the table and not taken. Its Rust version does
 not read xlsx, so an Excel reader is needed anyway, and type guessing of

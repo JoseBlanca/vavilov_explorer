@@ -182,8 +182,13 @@ backend never sends text meant for the user: the words are the window's.
   `scatter3d-1`, `histogram-2`. A label never contains a user's text.
 - **One capability file covers them** with a pattern of labels,
   `"windows": ["main", "scatter3d-*", ...]`, and grants the fewest
-  permissions that work: `core:default` and what a command of ours needs,
-  never a plugin's whole set when one permission is used.
+  permissions that work: the `allow-` of each command of ours a window
+  calls, and of Tauri's own functions only those a window calls, never a
+  whole set such as `core:default` when one permission is used. The
+  windows call none of Tauri's own today: the window's label is read
+  without a call, and a channel's fetch is exempt from the check
+  (`tauri-2.12.1/src/webview/mod.rs`). A test of the commands checks
+  that the main window is refused the ones it does not use.
 - **Our commands are listed in `src-tauri/build.rs`**, in the
   `AppManifest` given to `tauri_build::try_build`. Without the list Tauri
   checks the capabilities only for its own and plugins' commands, and any

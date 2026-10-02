@@ -42,3 +42,39 @@ describe("a refusal of the backend", () => {
     expect(isCommandError(new Error("noProject"))).toBe(false);
   });
 });
+
+describe("a refusal of a file", () => {
+  // The JSON the core writes in crates/vavilov-core/src/error/tests.rs.
+  test("is recognised with the refusal inside it", () => {
+    for (const text of [
+      '{"kind":"importRefused","fileName":"plants.csv","refusal":{"kind":"raggedRow","line":3,"expected":2,"found":1,"separator":"comma"}}',
+      '{"kind":"exportRefused","refusal":{"kind":"cannotCarry","columnName":"IndividualID","individual":"Ősz","character":"Ő"}}',
+      '{"kind":"exportRefused","refusal":{"kind":"spacesAtEnds","columnName":"height ","individual":null}}',
+      '{"kind":"fileNotRead","fileName":"gone.csv","io":"notFound","message":"No such file"}',
+    ]) {
+      expect(isCommandError(JSON.parse(text)), text).toBe(true);
+    }
+  });
+
+  test("is not one whose inner refusal is unknown or mistyped", () => {
+    expect(
+      isCommandError({ kind: "importRefused", fileName: "a.csv", refusal: { kind: "nope" } }),
+    ).toBe(false);
+    expect(
+      isCommandError({
+        kind: "importRefused",
+        fileName: "a.csv",
+        refusal: { kind: "raggedRow", line: 3, expected: 2, found: 1, separator: ";" },
+      }),
+    ).toBe(false);
+    expect(
+      isCommandError({
+        kind: "exportRefused",
+        refusal: { kind: "cannotCarry", columnName: "x", individual: null, character: "ab" },
+      }),
+    ).toBe(false);
+    expect(
+      isCommandError({ kind: "fileNotRead", fileName: "a.csv", io: "gone", message: "" }),
+    ).toBe(false);
+  });
+});

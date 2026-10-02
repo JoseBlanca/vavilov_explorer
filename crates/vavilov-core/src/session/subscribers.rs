@@ -39,6 +39,31 @@ impl Subscribers {
         self.windows.retain(|(registered, _)| registered != label);
     }
 
+    /// Sends `message` to the window `label`: `None` when it has no
+    /// subscriber, and `Some` of the failure, its subscriber removed, when
+    /// its subscriber failed.
+    pub(crate) fn send_to(
+        &mut self,
+        label: &WindowLabel,
+        message: &[u8],
+    ) -> Option<Option<SendFailed>> {
+        let index = self
+            .windows
+            .iter()
+            .position(|(registered, _)| registered == label)?;
+        let sent = self
+            .windows
+            .get(index)
+            .map(|(_, subscriber)| subscriber.send(message.to_vec()))?;
+        Some(match sent {
+            Ok(()) => None,
+            Err(reason) => {
+                self.windows.remove(index);
+                Some(reason)
+            }
+        })
+    }
+
     /// Sends `message` to every window, and removes and returns those whose
     /// subscriber failed.
     pub(crate) fn broadcast(&mut self, message: &[u8]) -> Vec<(WindowLabel, SendFailed)> {

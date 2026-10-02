@@ -1,6 +1,8 @@
 .window {
   display: grid;
-  grid-template-rows: auto 1fr;
+  /* The defect bar, the notice, then the body; the slots of the dialogs
+     after them take no space. */
+  grid-template-rows: auto auto 1fr;
   height: 100%;
 }
 

@@ -14,7 +14,14 @@
 //!   the table, `{"id", "bytes": [...]}` with a page of rows, or `{"id",
 //!   "error": {...}}` with the refusal as a window receives it;
 //! - `{"id", "command": "e2e:load", "table": {...}}` loads a table the test
-//!   describes, as the import will;
+//!   describes;
+//! - `{"id", "command": "e2e:pick", "path": "..."}` gives the file the next
+//!   dialog of `import_table` or `export_table` gives, or with `"cancel":
+//!   true` in the place of the path, a dialog the user closed;
+//! - `{"id", "command": "e2e:picking"}` answers whether a pick waits for
+//!   its dialog, so that a test knows the window took it;
+//! - `{"id", "command": "e2e:action", "action": "importTable"}` hands an
+//!   item of the menu to the main window, as a click in the app's menu;
 //! - `{"window", "message": [...]}` is a message of the window's channel.
 
 mod load;
@@ -27,6 +34,7 @@ use vavilov_core::{SendFailed, Session, Subscriber, WindowLabel};
 
 fn main() -> ExitCode {
     let mut session = Session::new();
+    let mut picked: wire::Picked = None;
     for line in std::io::stdin().lock().lines() {
         let line = match line {
             Ok(line) => line,
@@ -35,7 +43,9 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
-        let answer = wire::answer(&mut session, &line, |label| Box::new(Stdout { label }));
+        let answer = wire::answer(&mut session, &mut picked, &line, |label| {
+            Box::new(Stdout { label })
+        });
         if let Err(error) = write_line(&answer) {
             eprintln!("vavilov-e2e-backend: writing to the harness: {error}");
             return ExitCode::FAILURE;

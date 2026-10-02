@@ -1,0 +1,150 @@
+[
+  {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": { "kind": "tooLarge", "size": 20000001, "maxBytes": 20000000 }
+  },
+  { "kind": "importRefused", "fileName": "plants.xls", "refusal": { "kind": "oldExcel" } },
+  { "kind": "importRefused", "fileName": "plants.xlsx", "refusal": { "kind": "encrypted" } },
+  { "kind": "importRefused", "fileName": "notes.docx", "refusal": { "kind": "notWorkbook" } },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.xlsx",
+    "refusal": { "kind": "emptySheet", "sheet": "Hoja1" }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.xlsx",
+    "refusal": { "kind": "cellError", "error": "#GETTING_DATA" }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.xlsx",
+    "refusal": {
+      "kind": "sheetTooLarge",
+      "sheet": "Sheet1",
+      "firstRow": 2,
+      "firstColumn": 3,
+      "numRows": 1000001,
+      "numColumns": 4,
+      "maxCells": 2000000
+    }
+  },
+  { "kind": "importRefused", "fileName": "plants.txt", "refusal": { "kind": "cutShort" } },
+  { "kind": "importRefused", "fileName": "plants.png", "refusal": { "kind": "notText" } },
+  { "kind": "importRefused", "fileName": "calls.vcf", "refusal": { "kind": "variantsFile" } },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.tsv",
+    "refusal": { "kind": "unclosedQuote", "line": 7, "separator": "tab" }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.xlsx",
+    "refusal": { "kind": "headerError", "row": 1, "column": 5, "error": "#VALUE!" }
+  },
+  { "kind": "importRefused", "fileName": "plants.csv", "refusal": { "kind": "empty" } },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": { "kind": "unnamedColumn", "format": "text", "column": 4 }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": {
+      "kind": "raggedRow",
+      "line": 3,
+      "expected": 3,
+      "found": 2,
+      "separator": "semicolon"
+    }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": { "kind": "raggedRow", "line": 9, "expected": 2, "found": 5, "separator": "comma" }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.xlsx",
+    "refusal": {
+      "kind": "duplicateColumn",
+      "format": "xlsx",
+      "name": "height",
+      "firstColumn": 2,
+      "secondColumn": 6
+    }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.xlsx",
+    "refusal": { "kind": "emptyIndividual", "format": "xlsx", "row": 8 }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": {
+      "kind": "duplicateIndividual",
+      "format": "text",
+      "name": "p2",
+      "firstRow": 3,
+      "secondRow": 11
+    }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": { "kind": "notIndividualId", "header": "accession" }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": { "kind": "namedIndividualId", "format": "text", "column": 3 }
+  },
+  {
+    "kind": "importUnreadable",
+    "fileName": "plants.xlsx",
+    "message": "invalid Zip archive: Could not find EOCD"
+  },
+  { "kind": "fileNotRead", "fileName": "gone.csv", "io": "notFound", "message": "No such file" },
+  { "kind": "exportRefused", "refusal": { "kind": "noIndividual" } },
+  {
+    "kind": "exportRefused",
+    "refusal": { "kind": "readsAsMissing", "columnName": "note", "individual": "p2" }
+  },
+  { "kind": "exportRefused", "refusal": { "kind": "errorAsName", "columnName": "#N/A" } },
+  {
+    "kind": "exportRefused",
+    "refusal": { "kind": "spacesAtEnds", "columnName": "height ", "individual": null }
+  },
+  {
+    "kind": "exportRefused",
+    "refusal": { "kind": "integerTooLarge", "columnName": "seeds", "individual": "p3" }
+  },
+  {
+    "kind": "exportRefused",
+    "refusal": {
+      "kind": "cannotCarry",
+      "columnName": "IndividualID",
+      "individual": "Ősz",
+      "character": "Ő"
+    }
+  },
+  {
+    "kind": "exportRefused",
+    "refusal": { "kind": "textTooLong", "columnName": "note", "individual": "p1", "length": 40000 }
+  },
+  {
+    "kind": "exportRefused",
+    "refusal": { "kind": "tooLargeForSheet", "rows": 1048577, "columns": 3 }
+  },
+  { "kind": "exportRefused", "refusal": { "kind": "readsAsVariantsFile" } },
+  {
+    "kind": "fileNotWritten",
+    "fileName": "plants.csv",
+    "io": "permissionDenied",
+    "message": "Permission denied"
+  },
+  { "kind": "fileNotWritten", "fileName": "plants.csv", "io": "other", "message": "Disk full" }
+]

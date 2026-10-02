@@ -16,7 +16,9 @@ export type CommandName =
   | "select_population"
   | "set_role"
   | "undo"
-  | "redo";
+  | "redo"
+  | "import_table"
+  | "export_table";
 
 /** The calls to the backend and the channel a window subscribes with. */
 export interface Transport {

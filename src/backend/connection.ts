@@ -11,8 +11,11 @@ import { defect } from "../state/defect.ts";
 import type { ColumnId, LevelCode, RowIndex } from "../state/ids.ts";
 import type { Result } from "../state/result.ts";
 import type { RowPage } from "../state/rowPage.ts";
+import { exportAnswerOf, importAnswerOf } from "../state/transfer.ts";
+import type { ExportAnswer, ExportFormat, ImportAnswer, MenuAction } from "../state/transfer.ts";
 import { createWindowState } from "../state/windowState.ts";
 import type { WindowState } from "../state/windowState.ts";
+import { decodeAction, isActionMessage } from "./decodeAction.ts";
 import { decodeMessage } from "./decodeMessage.ts";
 import { decodeRows } from "./decodeRows.ts";
 import type { CommandName, Transport } from "./transport.ts";
@@ -68,6 +71,21 @@ export interface Connection {
     count: number,
     columns: readonly ColumnId[],
   ) => Promise<Result<RowPage | "stale", Refusal>>;
+  /**
+   * Imports a table: the backend asks the user for the file with the
+   * system's dialog, and loads its table, or gives the refusal.
+   */
+  readonly importTable: () => Promise<Result<ImportAnswer | "stale", Refusal>>;
+  /**
+   * Exports the table of the window's copy: the backend refuses a table
+   * that would not read back as itself, then asks the user where to save it.
+   */
+  readonly exportTable: (format: ExportFormat) => Promise<Result<ExportAnswer | "stale", Refusal>>;
+  /**
+   * Calls `listener` with each item of the menu the backend hands to the
+   * window, and returns the function that stops it.
+   */
+  readonly onAction: (listener: (action: MenuAction) => void) => () => void;
 }
 
 /**
@@ -93,8 +111,26 @@ export async function connect(
   onDefect: (error: Error) => void,
 ): Promise<Connection> {
   const early: ArrayBuffer[] = [];
+  const actionListeners = new Set<(action: MenuAction) => void>();
+  /** Actions that came before the window listened for them, as while it starts. */
+  const waitingActions: MenuAction[] = [];
   let state: WindowState | null = null;
   let broken = false;
+  /** A message of the channel: an action goes to its listeners, the rest to the copy. */
+  const take = (ready: WindowState, message: ArrayBuffer): void => {
+    if (isActionMessage(message)) {
+      const action = decodeAction(message);
+      if (actionListeners.size === 0) {
+        waitingActions.push(action);
+        return;
+      }
+      for (const listener of actionListeners) {
+        listener(action);
+      }
+      return;
+    }
+    ready.apply(decodeMessage(message));
+  };
   const channel = transport.channel((message) => {
     if (broken) {
       return;
@@ -108,7 +144,7 @@ export async function connect(
       if (state === null) {
         early.push(message);
       } else {
-        state.apply(decodeMessage(message));
+        take(state, message);
       }
     } catch (error: unknown) {
       broken = true;
@@ -129,10 +165,10 @@ export async function connect(
     );
   }
   const ready = createWindowState(decodeMessage(snapshot));
-  for (const message of early.splice(0)) {
-    ready.apply(decodeMessage(message));
-  }
   state = ready;
+  for (const message of early.splice(0)) {
+    take(ready, message);
+  }
 
   /** The window's clock, which must give a finite time. */
   const now = (): number => {
@@ -250,6 +286,43 @@ export async function connect(
     setRole: (column, role) => command("set_role", { column, role }),
     undo: () => command("undo", {}),
     redo: () => command("redo", {}),
+    importTable: async () => {
+      checkSound("import_table");
+      let answer: unknown;
+      try {
+        answer = await transport.invoke("import_table", { sentAt: now() });
+      } catch (error: unknown) {
+        return refusal("import_table", error);
+      }
+      const value = importAnswerOf(answer);
+      if (value === null) {
+        throw defect(`an answer of import_table that does not fit: ${describe(answer)}`);
+      }
+      return { ok: true, value };
+    },
+    exportTable: async (format) => {
+      checkSound("export_table");
+      let answer: unknown;
+      try {
+        answer = await transport.invoke("export_table", { format, basedOn: ready.revision() });
+      } catch (error: unknown) {
+        return refusal("export_table", error);
+      }
+      const value = exportAnswerOf(answer);
+      if (value === null) {
+        throw defect(`an answer of export_table that does not fit: ${describe(answer)}`);
+      }
+      return { ok: true, value };
+    },
+    onAction: (listener) => {
+      actionListeners.add(listener);
+      for (const action of waitingActions.splice(0)) {
+        listener(action);
+      }
+      return () => {
+        actionListeners.delete(listener);
+      };
+    },
   };
 }
 

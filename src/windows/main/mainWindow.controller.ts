@@ -4,11 +4,14 @@ import { connect } from "../../backend/connection.ts";
 import { tauriTransport } from "../../backend/transport.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow, TableDescription } from "../../state/description.ts";
-import { createConfirmDialog } from "../shared/confirmDialog.controller.ts";
+import { createDialog } from "../shared/dialog.controller.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
+import { createNotice } from "../shared/notice.controller.ts";
+import { createCsvDialog } from "./csvDialog.controller.ts";
 import { mainWindowView } from "./mainWindow.view.ts";
 import { createPopulationsPanel } from "./populationsPanel.controller.ts";
 import { createTable } from "./table.controller.ts";
+import { createTransfers } from "./transfers.controller.ts";
 
 function slot(root: HTMLElement, name: string): HTMLElement {
   const element = root.querySelector(`[data-slot="${name}"]`);
@@ -51,12 +54,19 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       describedNow,
       defectBar.show,
     );
-    const dialog = createConfirmDialog(slot(root, "dialog"));
+    const dialog = createDialog(slot(root, "dialog"));
     const table = createTable(
       slot(root, "table"),
       connection,
       describedNow,
       dialog.ask,
+      defectBar.show,
+    );
+    createTransfers(
+      connection,
+      dialog,
+      createNotice(slot(root, "notice"), table.focus),
+      createCsvDialog(slot(root, "export")),
       defectBar.show,
     );
 

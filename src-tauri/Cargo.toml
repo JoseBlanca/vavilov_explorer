@@ -27,6 +27,10 @@ tauri-build = { version = "2", features = ["isolation"] }
 # Tauri's guide says no feature is required (spikes/windowing/README.md).
 tauri = { version = "2", features = ["isolation"] }
 serde.workspace = true
+# The system's Open and Save dialogs of the import and the export, opened
+# from the backend so that no window sends a path (docs/design.md,
+# section 2.1); approved by the owner on 2 October 2026.
+tauri-plugin-dialog = "2.8.1"
 vavilov-core = { path = "../crates/vavilov-core" }
 
 [dev-dependencies]

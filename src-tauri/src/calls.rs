@@ -229,7 +229,17 @@ struct RoleArgs {
     sent_at: Option<f64>,
 }
 
-fn request(command: Command, based_on: u64, sent_at: Option<f64>) -> Result<Request, CommandError> {
+/// The request of `command`, made at revision `based_on` and sent at
+/// `sent_at`, as a window's JSON arguments give them.
+///
+/// # Errors
+///
+/// A `Defect` when the time is not finite.
+pub fn request(
+    command: Command,
+    based_on: u64,
+    sent_at: Option<f64>,
+) -> Result<Request, CommandError> {
     let sent_at = sent_at.map(SentAt::new).transpose()?;
     Ok(Request {
         command,
@@ -239,7 +249,12 @@ fn request(command: Command, based_on: u64, sent_at: Option<f64>) -> Result<Requ
 }
 
 /// The JSON arguments of a call, with none missing and none unknown.
-fn json_args<T: for<'de> Deserialize<'de>>(
+///
+/// # Errors
+///
+/// A `Defect` when one is missing, unknown or of the wrong type, or the
+/// body is raw bytes.
+pub fn json_args<T: for<'de> Deserialize<'de>>(
     command: &str,
     body: &InvokeBody,
 ) -> Result<T, CommandError> {

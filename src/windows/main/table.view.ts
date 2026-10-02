@@ -99,81 +99,86 @@ function cellView(cell: Cell, first: boolean): TemplateResult {
  * click selects a row, and a shift-click the rows from the last one clicked.
  * Only the rows of `range` are drawn, between blank space as tall as the
  * rows above and below them, so the scroll bar is that of the whole table.
+ * The grid can take the focus from the controller, not from Tab.
  */
 export function tableView(props: TableProps): TemplateResult {
   const columns = props.columns.map((column) => WIDTHS[column.kind]).join(" ");
-  return html`<div
-    class=${classOf(styles, "scroller")}
-    data-scroller
-    @scroll=${props.onScroll}
-    @focusin=${props.onFocusIn}
-  >
-    <div class=${classOf(styles, "probe")} data-probe aria-hidden="true"></div>
+  return html`<div class=${classOf(styles, "frame")}>
     <div
-      role="grid"
-      class=${classOf(styles, "grid")}
-      style=${styleMap({ gridTemplateColumns: columns })}
-      aria-label="Individuals"
-      aria-rowcount=${String(props.numRows + 1)}
-      aria-colcount=${String(props.columns.length)}
-      aria-multiselectable="true"
+      class=${classOf(styles, "scroller")}
+      data-scroller
+      @scroll=${props.onScroll}
+      @focusin=${props.onFocusIn}
     >
-      <div role="row" class=${classOf(styles, "header")} aria-rowindex="1">
+      <div class=${classOf(styles, "probe")} data-probe aria-hidden="true"></div>
+      <div
+        role="grid"
+        class=${classOf(styles, "grid")}
+        data-grid
+        tabindex="-1"
+        style=${styleMap({ gridTemplateColumns: columns })}
+        aria-label="Individuals"
+        aria-rowcount=${String(props.numRows + 1)}
+        aria-colcount=${String(props.columns.length)}
+        aria-multiselectable="true"
+      >
+        <div role="row" class=${classOf(styles, "header")} aria-rowindex="1">
+          ${repeat(
+            props.columns,
+            (column) => column.id,
+            (column, index) =>
+              html`<div
+                role="columnheader"
+                ?data-names=${index === 0}
+                class="${classOf(styles, index === 0 ? "nameHeading" : "heading")} ${classOf(
+                  styles,
+                  column.alignEnd ? "end" : "start",
+                )}"
+              >
+                <span class=${classOf(styles, "headingName")} title=${column.name}>
+                  ${column.name}
+                </span>
+                ${column.kind === "names" ? nothing : roleSelect(column, props.onRole)}
+              </div>`,
+          )}
+        </div>
+        ${blank(props.range.first)}
         ${repeat(
-          props.columns,
-          (column) => column.id,
-          (column, index) =>
+          props.rows,
+          (row) => row.row,
+          (row) =>
             html`<div
-              role="columnheader"
-              ?data-names=${index === 0}
-              class="${classOf(styles, index === 0 ? "nameHeading" : "heading")} ${classOf(
-                styles,
-                column.alignEnd ? "end" : "start",
-              )}"
+              role="row"
+              class=${classOf(styles, "row")}
+              aria-rowindex=${String(row.row + 2)}
+              aria-selected=${row.selected ? "true" : "false"}
+              aria-busy=${row.cells === null ? "true" : "false"}
+              @mousedown=${(event: MouseEvent) => {
+                // A shift-click extends the selection, and must not select
+                // the text of the rows between.
+                if (event.shiftKey) {
+                  event.preventDefault();
+                }
+              }}
+              @click=${(event: MouseEvent) => {
+                props.onRowClick(row.row, event.shiftKey);
+              }}
             >
-              <span class=${classOf(styles, "headingName")} title=${column.name}>
-                ${column.name}
-              </span>
-              ${column.kind === "names" ? nothing : roleSelect(column, props.onRole)}
+              ${
+                row.cells === null
+                  ? props.columns.map(
+                      (_, index) =>
+                        html`<div
+                          role="gridcell"
+                          class=${classOf(styles, index === 0 ? "nameCell" : "cell")}
+                        ></div>`,
+                    )
+                  : row.cells.map((cell, index) => cellView(cell, index === 0))
+              }
             </div>`,
         )}
+        ${blank(props.numRows - props.range.end)}
       </div>
-      ${blank(props.range.first)}
-      ${repeat(
-        props.rows,
-        (row) => row.row,
-        (row) =>
-          html`<div
-            role="row"
-            class=${classOf(styles, "row")}
-            aria-rowindex=${String(row.row + 2)}
-            aria-selected=${row.selected ? "true" : "false"}
-            aria-busy=${row.cells === null ? "true" : "false"}
-            @mousedown=${(event: MouseEvent) => {
-              // A shift-click extends the selection, and must not select
-              // the text of the rows between.
-              if (event.shiftKey) {
-                event.preventDefault();
-              }
-            }}
-            @click=${(event: MouseEvent) => {
-              props.onRowClick(row.row, event.shiftKey);
-            }}
-          >
-            ${
-              row.cells === null
-                ? props.columns.map(
-                    (_, index) =>
-                      html`<div
-                        role="gridcell"
-                        class=${classOf(styles, index === 0 ? "nameCell" : "cell")}
-                      ></div>`,
-                  )
-                : row.cells.map((cell, index) => cellView(cell, index === 0))
-            }
-          </div>`,
-      )}
-      ${blank(props.numRows - props.range.end)}
     </div>
   </div>`;
 }

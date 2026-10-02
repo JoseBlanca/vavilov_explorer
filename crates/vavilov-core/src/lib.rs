@@ -8,6 +8,7 @@
 
 #![forbid(unsafe_code)]
 
+mod action;
 mod command;
 mod convert;
 mod countries;
@@ -15,25 +16,36 @@ mod description;
 mod dispatch;
 mod edit;
 mod error;
+mod export;
+mod files;
 #[cfg(test)]
 mod fixtures;
+mod formats;
 mod ids;
+mod import;
 mod message;
 mod row_set;
 mod rows;
 mod session;
 mod table;
 
+pub use action::MenuAction;
 pub use command::{Command, Request};
 pub use countries::country_code;
 pub use description::{
     ColumnDescription, LevelDescription, LevelValue, NamesDescription, TableDescription,
 };
 pub use dispatch::{Changed, Dropped, Outcome};
-pub use error::CommandError;
+pub use error::{CommandError, ExportRefusal, ImportRefusal, IoFailure};
+pub use export::export_table;
+pub use files::{file_name, read_for_import, write_export};
+pub use formats::{
+    CsvChoices, CsvEncoding, DecimalMark, ExportFormat, FileFormat, MissingText, Separator,
+};
 pub use ids::{
     ColumnId, HoverSeq, LevelCode, MAX_EXACT_IN_JAVASCRIPT, Revision, RowIndex, SentAt, WindowLabel,
 };
+pub use import::{Imported, MAX_GUESSED_LEVELS, MAX_IMPORT_BYTES, MAX_IMPORT_CELLS, import_table};
 pub use row_set::RowSet;
 pub use rows::RowsRequest;
 pub use session::{Active, Selected, SendFailed, Session, Subscriber, UndoRedo};

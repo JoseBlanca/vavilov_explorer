@@ -5,6 +5,9 @@ pub mod calls;
 pub mod commands;
 #[cfg(any(feature = "demo", test))]
 pub mod demo;
+pub mod dialogs;
+pub mod menu;
+pub mod transfer;
 
 use std::sync::Mutex;
 
@@ -18,12 +21,23 @@ use vavilov_core::Session;
 /// Tauri's error when it cannot start the app, for example when the
 /// system's web view is missing.
 pub fn run() -> tauri::Result<()> {
-    let builder = with_session(tauri::Builder::default());
-    // A build with the feature `demo` opens with the demo table; one that
-    // cannot load it does not start.
-    #[cfg(feature = "demo")]
-    let builder = builder.setup(|app| demo::load(&app.state::<Mutex<Session>>()));
-    builder.run(tauri::generate_context!())
+    with_session(tauri::Builder::default())
+        // The menu is made in the setup, once the main window exists
+        // (menu::install), so Tauri's default menu of macOS is not made.
+        .enable_macos_default_menu(false)
+        .on_menu_event(menu::chosen)
+        .setup(|app| {
+            menu::install(app.handle())?;
+            // A build with the feature `demo` opens with the demo table;
+            // one that cannot load it does not start.
+            #[cfg(feature = "demo")]
+            {
+                demo::load(&app.state::<Mutex<Session>>())?;
+                menu::enable_table_items(app.handle());
+            }
+            Ok(())
+        })
+        .run(tauri::generate_context!())
 }
 
 /// The builder with the session, every command, and the window events the
@@ -31,6 +45,10 @@ pub fn run() -> tauri::Result<()> {
 pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder
         .manage(Mutex::new(Session::new()))
+        // The system's dialogs of the import and the export; registered
+        // here, so that the tests of the commands have them too, since a
+        // command that asks for the dialogs without it panics.
+        .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
                 match window.try_state::<Mutex<Session>>() {
@@ -55,5 +73,7 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::set_role,
             commands::undo,
             commands::redo,
+            commands::import_table,
+            commands::export_table,
         ])
 }

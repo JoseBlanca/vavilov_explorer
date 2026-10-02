@@ -582,3 +582,83 @@ describe("setting a role", () => {
     expect(await connection.setRole(column(2), "number")).toEqual({ ok: false, error: refusal });
   });
 });
+
+/** The message of an action of `code`, as the core writes it (crates/vavilov-core/src/action/tests.rs). */
+function actionAt(code: number): ArrayBuffer {
+  // prettier-ignore
+  return buffer(
+    4, 0, 0, 0, 0, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    12, 0, 0, 0, 8, 0, 0, 0,
+    code, 0, 0, 0, 0, 0, 0, 0,
+  );
+}
+
+describe("an item of the menu", () => {
+  test("goes to the window's listener, and not to its copy of the state", async () => {
+    const { transport, deliver } = fakeTransport();
+    const connection = await connect(transport, failOnDefect);
+    const actions: string[] = [];
+    connection.onAction((action) => actions.push(action));
+    deliver(actionAt(1));
+    deliver(actionAt(3));
+    expect(actions).toEqual(["importTable", "exportXlsx"]);
+    expect(connection.state.revision()).toBe(1);
+  });
+
+  test("that comes before the window listens waits for it", async () => {
+    const { transport, deliver } = fakeTransport({ early: [actionAt(2)] });
+    const connection = await connect(transport, failOnDefect);
+    deliver(actionAt(1));
+    const actions: string[] = [];
+    connection.onAction((action) => actions.push(action));
+    expect(actions).toEqual(["exportCsv", "importTable"]);
+  });
+});
+
+describe("an import and an export", () => {
+  test("send the time of an import and the revision of an export, and give the backend's answer", async () => {
+    const answers: unknown[] = [
+      { kind: "imported", fileName: "plants.csv", undecodedLine: 3 },
+      { kind: "exported", fileName: "plants.xlsx" },
+    ];
+    const { transport, calls } = fakeTransport({
+      answer: () => Promise.resolve(answers.shift()),
+    });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.importTable()).toEqual({
+      ok: true,
+      value: { kind: "imported", fileName: "plants.csv", undecodedLine: 3 },
+    });
+    expect(await connection.exportTable({ kind: "xlsx" })).toEqual({
+      ok: true,
+      value: { kind: "exported", fileName: "plants.xlsx" },
+    });
+    expect(calls.slice(1).map((call) => [call.command, call.args])).toEqual([
+      ["import_table", { sentAt: 1_727_865_600_000.5 }],
+      ["export_table", { format: { kind: "xlsx" }, basedOn: 1 }],
+    ]);
+  });
+
+  test("refused give the refusal of the file as a value", async () => {
+    const refused = {
+      kind: "importRefused",
+      fileName: "plants.csv",
+      refusal: { kind: "empty" },
+    };
+    const { transport } = fakeTransport({ answer: () => refusedWith(refused) });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.importTable()).toEqual({ ok: false, error: refused });
+  });
+
+  test("with an answer that does not fit are a defect", async () => {
+    const { transport } = fakeTransport({
+      answer: () => Promise.resolve({ kind: "imported", fileName: "plants.csv" }),
+    });
+    const connection = await connect(transport, failOnDefect);
+    await expect(connection.importTable()).rejects.toThrow(
+      /defect: an answer of import_table that does not fit/,
+    );
+  });
+});
