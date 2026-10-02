@@ -170,7 +170,11 @@ a window to the backend, such as "assign these rows to population A",
 "set the selection to these rows" or "add a column". The backend checks
 it, applies it, increases a revision number and sends the change to every
 window. It refuses a command it cannot apply, with a reason the window
-shows. The window that sent a command does not change its own display
+shows. The one exception is a command made just before another project
+was opened, which names the old table: it is refused, and the window
+writes the refusal to the app's log and shows nothing, since the user
+already sees the project they opened (decided by the owner on 2 October
+2026, `core.md`, section 4). The window that sent a command does not change its own display
 first. It waits for the change to come back from the backend, like every
 other window. This costs one round trip to the backend, 1 to 3 ms at the
 median on macOS (section 12), and in exchange no two windows can show
@@ -238,11 +242,15 @@ The messages are binary and carry whole values, not differences:
 
 Sending only differences is left until a measurement shows whole values
 are too slow. The window under the pointer sends at most one hover per
-frame it draws. The backend drops a hover it has not yet sent when a
-newer one arrives, so a slow window never falls behind. For that reason
-the hover takes no revision, whose sequence a dropped hover would break:
-it carries a sequence number of its own, and a window keeps the hover
-with the highest number it has seen. On macOS a hover
+frame it draws. The backend keeps no queue of hovers: a hover replaces
+the last one and is handed to every window at once, which Tauri does
+within the call (`core.md`, section 5). If hovers are seen to lag on
+Windows or Linux, a queue per window that keeps only the newest is added
+to the app, so that a slow window never falls behind; the owner decided
+on 2 October 2026 to wait for that measurement. So that hovers can be
+dropped without breaking the sequence of revisions, the hover takes no
+revision: it carries a sequence number of its own, and a window keeps
+the hover with the highest number it has seen. On macOS a hover
 reached another window in 1 to 3 ms at the median and was drawn on its
 next frame (section 12).
 
@@ -517,7 +525,7 @@ wiring with no web view, and the Vitest tests of the frontend's pure
 functions.
 
 1. **The Rust core**, with `cargo test`: the commands and their refusals,
-   the revisions, the atomic subscribe, the dropped hovers, undo, the
+   the revisions, the atomic subscribe, the hover's sequence number, undo, the
    checks of a layout against the monitors, the guessing of types, and
    the project file written and read back.
 2. **The windows, in WebKit and in Chromium, against the real core.**
@@ -592,6 +600,14 @@ Raised on 2 October 2026 while the skills of the project were written
   people with the common kinds of colour blindness can tell apart.
 - The fonts are the system's.
 - Accessibility follows WCAG 2.2 at level AA, as popnei_web does.
+- Two Rust dependencies are taken: `thiserror`, which writes the
+  `Display` and `Error` code of the error enums, and `serde`, which
+  serialises what crosses to a window, such as an error a command
+  returns. Tauri depends on `serde` already, and both are maintained by
+  David Tolnay. Approved by the owner on 2 October 2026. The same day
+  the owner approved `serde_json` as a development dependency of the
+  core, to test the shape of its errors as a window receives them; it
+  too is in `Cargo.lock` already, through Tauri.
 
 The builds are tried on the owner's machines: the Mac, a Windows
 machine, and a Linux virtual machine with both a Wayland and an X11

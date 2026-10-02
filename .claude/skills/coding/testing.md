@@ -12,7 +12,7 @@ a check that could not be run is reported as not run.
 
 | part | tool | where it runs | what it checks |
 |---|---|---|---|
-| the core: table, session, commands, undo, project file, import and export | `cargo test` | `crates/vavilov-core` | the rules of the data, every refusal, the revisions, the atomic subscribe, the dropped hovers |
+| the core: table, session, commands, undo, project file, import and export | `cargo test` | `crates/vavilov-core` | the rules of the data, every refusal, the revisions, the atomic subscribe, the hover's sequence number |
 | the commands of the app | `cargo test`, with Tauri's mock runtime | `src-tauri` | every command is registered, finds its state, and serialises its errors as `tauri.md` says |
 | the window's state, the decoding of messages, the pure functions of the plots and point views | Vitest, in node | `src/**/*.test.ts` | derivations, decoding against bytes written by the Rust tests, projections, bins |
 | the windows | Playwright, in WebKit and Chromium | `e2e/` | what the user does and sees, in one window and across several |

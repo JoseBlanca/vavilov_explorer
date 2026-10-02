@@ -41,9 +41,10 @@ overflow; in a debug build they panic; `/` and `%` by zero panic in both;
   for the range first: `f64::NAN as usize` is 0.
 - A row index is a `u32` in everything that crosses to a window, since
   the selection, the codes and the hover are sent as arrays of fixed
-  width; a table of more rows than `u32` holds, over four thousand
-  million, is refused on import, a limit no table of individuals reaches.
-  Inside the core it may be a `usize` for indexing.
+  width; a table of more than `MAX_ROWS` rows, 2^28, is refused when it
+  is built, so that every message about it fits the lengths of the
+  layout (`docs/core.md`, section 2), a limit no table of individuals
+  reaches. Inside the core it may be a `usize` for indexing.
 
 ## Floats
 
@@ -74,8 +75,8 @@ overflow; in a debug build they panic; `/` and `%` by zero panic in both;
   a reason in a comment. An error turned into an empty table, a zero or a
   missing value is the defect this rule is for.
 - Each crate has one error enum, `#[non_exhaustive]`, written with
-  `thiserror` (a dependency to propose to the owner, as `SKILL.md` says),
-  to which each module adds its cases. A case names what was being done,
+  `thiserror` (approved by the owner on 2 October 2026, `SKILL.md`,
+  "Dependencies"), to which each module adds its cases. A case names what was being done,
   `ImportRaggedRow`, `ProjectVersionTooNew`, and carries what finds the
   cause: the path, the line, the column, the value. No error type of a
   dependency is in a public case, so that a user of the core does not

@@ -135,15 +135,17 @@ possible break and a possible abandonment.
   not, who maintains it, its size and what it pulls in (`npm view <name>
   dependencies`, `cargo tree`), and wait. The decision is recorded in
   `docs/design.md`.
-- **Decided** (`docs/design.md`, sections 7 and 9, and
+- **Decided** (`docs/design.md`, sections 7, 9 and 12, and
   `docs/table_io-needs.md`, section 8): lit-html; the D3 modules
   `d3-array`, `d3-scale`, `d3-axis`, `d3-selection`, `d3-brush`;
   Three.js; Vite, Vitest, Playwright, TypeScript, ESLint with
   typescript-eslint, Prettier; Tauri 2. In Rust, `table_io`, by git at a
-  pinned revision.
+  pinned revision; `thiserror`, for the error enums, and `serde`, for
+  what crosses to a window, approved by the owner on 2 October 2026
+  (Tauri depends on `serde` already); `serde_json`, as a development
+  dependency of the core only, approved the same day.
 - **Named by these skills and not yet decided**, each to be proposed when
-  the first code needs it: `thiserror` for the error enums and `serde`
-  for what crosses to a window (Tauri depends on `serde` already); a
+  the first code needs it: a
   Parquet crate and a zip crate for the project file (`docs/design.md`,
   section 8); `world-atlas` and `topojson-client` for the map's borders,
   as in the prototype; WebdriverIO's Tauri service and

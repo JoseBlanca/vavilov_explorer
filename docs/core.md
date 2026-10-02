@@ -1,0 +1,664 @@
+# The core of Vavilov Explorer
+
+2 October 2026, before any code of the core, reviewed and with the
+owner's answers to its questions. The core is the Rust crate that holds
+the table of individuals, the session every window shares, and the
+commands that change it. This document outlines how it is built: the
+crate and the Cargo workspace, the table, the session and its three
+tiers of state, the commands and their undo, how a window subscribes,
+the binary messages, how the core opens windows, its errors, and how it
+receives a table before `table_io` exists. It ends with what the first
+slice of code builds, what the owner decided, and the three points still
+open, none of which the first slice needs. The design it rests on is `design.md`, sections
+1, 3, 4, 5, 6, 8, 11 and 12; the rules of the code are in
+`.claude/skills/coding/`, mainly `rust.md` and `tauri.md`; what the core
+needs from `table_io` is in `table_io-needs.md`.
+
+The words of the app are those of `design.md`, section 1: the **active
+classification** is the categorical column that colours every view, a
+**population** is one of its values, the **selected population** is the
+one the user is editing, and a **lasso** is the outline the user draws
+around points in a plot to add them to the selected population or to
+remove them from it. A **widget** is a window with one plot, a 3D
+scatter, a map, a histogram or a bar plot. `table_io` is the owner's
+library that reads and writes CSV and xlsx files, being built in its own
+repository. The **e2e harness** is the program that runs the windows of
+the app in a test browser, with the backend behind them
+(`design.md`, section 11).
+
+Some words of Tauri and of the web are used throughout:
+
+- **A window** is a Tauri window, a web view with its own JavaScript.
+  Nothing in one window is visible to another; each has a **label**, a
+  name fixed when it is created, such as `main` or `scatter3d-1`.
+- **A Tauri command** is a call from a window to the Rust side, which
+  returns a value or an error. **Invoking** it is making that call.
+- **A channel** is a stream of messages from the Rust side to one window,
+  delivered in the order they were sent. Each window hands one to the
+  backend when it subscribes.
+- **An `ArrayBuffer`** is a block of raw bytes in JavaScript. A **typed
+  array**, such as a `Uint16Array`, reads it as numbers of one width
+  without copying it, but only from an offset that is a multiple of that
+  width: a `Float64Array` that starts at byte 12 is refused.
+
+## 1. The crate and the workspace
+
+The core is the library crate `vavilov-core`, in `crates/vavilov-core/`.
+It has no Tauri and no GUI. The Tauri app, `src-tauri/`, depends on it
+and is a thin layer of commands, channels and windows over it
+(`coding/SKILL.md`, "The layers"). The core has no Tauri so that
+`cargo test` covers the whole backend logic without a window, and so that
+the test program of the e2e harness (section 7) runs the same dispatcher
+as the app.
+
+A Cargo workspace at the root of the repository holds both crates:
+
+- `Cargo.toml` at the root has `members = ["src-tauri", "crates/*"]`,
+  `resolver = "3"`, and `exclude = ["spikes", "tmp"]`. A workspace with no
+  package of its own does not take the resolver from the edition, and
+  Cargo warns and uses the old one unless it is written. The windowing
+  spike, the throwaway experiment in `spikes/windowing/`, has a
+  `Cargo.toml` under the root; Cargo refuses to build a package that sits
+  inside a workspace without being one of its members, unless the
+  workspace excludes it. `tmp/` is where sessions and reviewers make
+  scratch Cargo projects, and is excluded for the same reason.
+- The lint table of `rust.md` moves from `src-tauri/Cargo.toml` to
+  `[workspace.lints]`, and each crate takes it with `[lints] workspace =
+  true`. `edition`, `rust-version` and `license` move to
+  `[workspace.package]`.
+- `[profile.release]`, with `panic = "abort"`, moves to the root: Cargo
+  reads profiles only from the root of a workspace and ignores, with a
+  warning, those of a member.
+- `clippy.toml` moves to the root, where clippy finds it from each crate
+  by looking in the parent directories; `Cargo.lock` moves to the root,
+  where Cargo writes it; the build goes to `target/` at the root, which
+  `.gitignore` gets.
+- The `cargo` checks of `coding/SKILL.md` then run at the root.
+
+The core starts with two dependencies, both approved on 2 October 2026:
+`thiserror` and `serde`, with its `derive` feature. Both are in
+`Cargo.lock` already, through Tauri, so they add no crate to the build.
+
+The crate is split into one file per piece, each named by what it holds:
+
+| file | holds |
+|---|---|
+| `ids.rs` | the newtypes of section 2: `ColumnId`, `RowIndex`, `LevelCode`, `Revision`, `HoverSeq`, `WindowLabel` |
+| `row_set.rs` | `RowSet`, a set of rows as one bit per row |
+| `table/` | the table, its columns, the levels of a categorical column, the colours |
+| `session/` | the session, the document with its undo history, the interaction, the subscribers |
+| `command.rs`, `dispatch.rs`, `edit.rs` | the commands, the dispatcher, and the edits of the document with their reverses |
+| `message/` | the binary layout of the messages |
+| `error.rs` | `CommandError` |
+
+## 2. The table
+
+The table has a fixed number of rows, one per individual, and a list of
+columns. Rows are never added or removed while a project is open
+(`design.md`, section 1, lists the edits, and none adds a row), so a row
+index checked once against the number of rows stays valid until another
+table is loaded.
+
+- **The first column** names the individuals. It is held apart from the
+  others, as a header and one text per row, and has no type: the names
+  are text as written, none empty and no two the same, checked when the
+  table is built. Holding it apart lets the types say what `design.md`
+  section 5 says: it cannot be retyped or removed, and its values are
+  never missing.
+- **A column id**, `ColumnId(u32)`, is given when a column is created and
+  never changes, so that a widget or a message names a column by its id
+  and a rename breaks nothing. The first column has one too. A table
+  keeps the next id to give, which only grows: a column that is added and
+  then undone does not give its id back, so a stale window that still
+  names it is refused rather than pointed at a newer column. `u32::MAX`
+  is never an id, because the messages use it for "no column"; the
+  counter is checked against it before an id is given.
+- **A name** is unique within the table, compared exactly, and not empty.
+  The header of the first column may be empty, as `table_io`'s draft
+  allows, and is compared with the others only when it is not.
+- **The types** are numeric, integer, text, boolean and categorical. The
+  values are held as `Vec<Option<f64>>`, `Vec<Option<i64>>`,
+  `Vec<Option<String>>` and `Vec<Option<bool>>`, one per row, with `None`
+  for a missing value. `rust.md` asks for the values with "which rows
+  are missing" apart, and never a NaN; an `Option` keeps the missing
+  rows apart in the type itself, so no code can read a missing value as a
+  number, where a vector of values with a mask beside it holds a
+  placeholder in each missing row that a reader can take for data. It
+  costs 16 bytes a row instead of 8 and a bit, 800 kB for a numeric
+  column of 50,000 rows. A numeric value is always finite, checked when
+  the table is built, since a project file could hold a NaN.
+- **A categorical column** holds, for each row, a code, `LevelCode(u16)`,
+  that points into its ordered list of levels, or `None` for a missing
+  value: in a classification, an unassigned individual. A level has a
+  name, unique within the column and not empty, and a colour. Codes on
+  the wire are 16 bits with `0xFFFF` for missing (section 5), so a column
+  has at most 65,535 levels. Levels that no row uses are allowed, which
+  is how a new, empty population exists.
+- **A colour** is three bytes of sRGB. Every categorical column has a
+  colour per level, since any of them can become the active
+  classification.
+- **Each column has a revision**, the revision of the session (section 4)
+  at which it last changed, so that a window fetches again only the
+  columns that changed (`design.md`, section 4).
+
+A table is built by one constructor that checks all of the above and
+returns an error naming what failed: two columns of one name, a row of
+one column missing in another, a code with no level, a non-finite
+number. Every way a table reaches the core, the project file and the
+import, goes through it, so a table in a session always holds these
+rules.
+
+The table has at most `MAX_ROWS` rows, 2^28, 268,435,456, and at most
+`MAX_COLUMNS` columns, 2^24, 16,777,216. The limits come from the
+messages: a part gives its length as a `u32` (section 5), and with these
+limits the largest part, a column of 8-byte values or the list of every
+column's revision at 16 bytes a column, takes 2^31 bytes and a few dozen
+more for its headers, half of the 2^32 a `u32` counts to, so every
+message of a table the constructor accepted can be encoded. `rust.md` sets the row index at `u32`; this limit is lower and
+leaves `u32::MAX` free to mean "no row" in the hover. The tables of the
+app have tens of thousands of rows.
+
+## 3. The session
+
+The session is the one owner of the shared state (`design.md`, section
+3). The app holds it once, in a `Mutex`, and every command takes that
+lock (`tauri.md`). It is in one of two states: no project open, or a
+project open, as `enum Project { None, Open(OpenProject) }`, so that a
+command on the table with no table loaded is a refusal the type makes
+the code write, not a check that can be forgotten.
+
+`design.md`, section 3, divides the state into three tiers by who shares
+it and whether it is undone. `OpenProject` holds the first two:
+
+- **The document**: the table, with its columns, types, levels and
+  colours, and the undo and redo history of edits to it. It is what the
+  project file saves, the history apart.
+- **The interaction**: the active classification, the selected
+  population, the selection, the hover, and later the open widgets. The
+  active classification and the selected population are one value,
+  `Option<Active { column, selected: Option<LevelCode> }>`, so that a
+  selected population cannot exist without the classification it belongs
+  to; a selected population is a value of the active classification
+  (`design.md`, section 1), so changing the active classification clears
+  it. The selection is a `RowSet` with as many bits as the table has
+  rows. The hover is an `Option<RowIndex>`.
+- **The window's own** state, the camera of a 3D view or the scroll of
+  the table, is not in the session.
+
+Because the history and the interaction are inside `OpenProject`, loading
+a table replaces all of them with the table: nothing of the old project,
+an edit to undo, a hover beyond the new number of rows, a selection of
+the old length, survives into the new one.
+
+Outside `OpenProject`, the session holds what lasts across projects: the
+revision, the hover's sequence number `HoverSeq(u64)` (section 5), the
+revision at which the current table was loaded, and the subscribers of
+section 5. The revision belongs to the session, not to a project: it
+keeps growing when another project is opened, so a window cannot take a
+message about the new project for one about the old.
+
+## 4. Commands and the dispatcher
+
+Every change to the document or the interaction is a `Command`, an enum.
+The dispatcher is the one function that applies a command to the
+session, `Session::dispatch(&mut self, request)`, and every Tauri command
+that changes something calls it. A
+request is the command, the revision of the window's copy when it made
+the command, and the time the window gave, which the core copies into the
+message and never reads a clock for (`tauri.md`). A command from the
+backend itself, the menu's Undo, gives the current revision and no time.
+
+### Whole or not at all
+
+The dispatcher works in two steps. The first checks the command against
+the session and builds a plan, everything the change needs: the rows, the
+codes, the new revision, the reverse for undo, and the bytes of the
+message it will send. It can fail, and it changes nothing. The second
+applies the plan, records the reverse and sends the message, and cannot
+fail: its function returns no `Result`, so a change half made cannot be
+written. All the arithmetic that can overflow, the next revision and the
+length of each part included, is done in the first step, with
+`checked_add` and `try_from`.
+
+The revision and the hover's sequence number are `u64`, and a window
+reads them as JavaScript numbers, which are exact up to 2^53 − 1. The
+first step refuses, as a defect, a revision or a sequence number that
+would pass it. At a thousand commands a second that takes 285,000
+years, so the refusal is never met, but it is what keeps a window from
+reading a wrong revision in silence.
+
+A refused command leaves the session as it was. Each refusal has a test
+that compares the whole session before and after it, every field but the
+subscribers: the table, the history, the interaction, the counters of
+ids and labels, the revision and the revision of the load. When a window
+meets a defect of the app, it shows a red bar that says "Your data has
+not been changed" (`design.md`, section 12), and this is what makes it
+true. The test is shown to fail on a version of a command broken on
+purpose to change one field before it refuses.
+
+### The revision only grows
+
+A command that changes something takes the next revision, `r + 1`, and
+sends one message to every window. One command is one revision and one
+message, even when it changes several things: undoing an assignment to a
+population changes the codes and what can be undone and redone, and both
+travel in the same message (section 5). A window then never shows half
+of a command.
+
+A command that changes nothing, a selection set to the one there is, a
+lasso over individuals already in the population, takes no revision,
+sends nothing and records nothing to undo, so that Undo always undoes a
+change the user can see. The owner decided so on 2 October 2026.
+
+A window checks that each message with a revision, every kind but the
+hover, is one revision after the last it applied, and treats a gap as a
+defect (`testing.md`). The dispatcher
+sends every message while the session's lock is held, so the messages of
+two commands cannot be sent out of their order. Commands in Tauri run
+either on the main thread or, when `async`, on a pool of threads
+(`tauri.md`), so two can run at once and only the lock orders them.
+
+### Stale commands
+
+A window makes a command from its copy, which can be behind: a lasso made
+just before another project was opened names rows and columns of the old
+table. Every value of a command is checked against the session: a column
+id that is not in the table, a code with no level, a `RowSet` of the
+wrong length. That does not catch a value that is valid in both tables,
+such as column 3, which exists in both. So the dispatcher also refuses a
+command made before the current table was loaded: the request's revision
+is lower than the revision of the load. Such a command reaches the
+backend after the load, and is refused then; the window receives the
+message of the load on its channel, which replaces its copy with the new
+table, whether before or after the refusal. The window shows the user
+nothing of such a refusal and writes it to the app's log, because the
+user's own action, opening the other project, has already replaced what
+the command was about (decided by the owner on 2 October 2026).
+
+A command also names what it acts on rather than leaning on the
+session's current value. Assigning rows names the column and the code of
+the population, and is refused unless they are still the active
+classification and the selected population: otherwise a lasso drawn
+while population A was selected would land in population B, which
+another window selected a moment before. Removing rows from the selected
+population leaves unassigned those of its rows that are inside the
+lasso, and leaves the others as they are.
+
+Within one table, a column id is never given twice and rows do not
+change, so these checks are enough for the first slice. When levels can
+be removed or reordered, a code can come to mean another population.
+Each categorical column then gets a second revision, that of its levels,
+and a command that names a level is refused when the column's levels
+changed after the request's revision. It is a revision of the levels
+alone, so that a lasso, which changes codes and not levels, does not
+make a lasso in another window stale.
+
+### Undo
+
+Each command on the document is turned into an `Edit`, and applying an
+edit returns the edit that reverses it, which goes on the undo history.
+Undo applies the reverse and puts its own reverse on the redo history; a
+new edit clears the redo history. Assigning rows to a population becomes
+`SetCodes { column, changes }`, with the rows whose code changes and
+their new codes, and its reverse is the same edit with the codes they
+had. Only rows that change are stored, 8 bytes each in memory, a
+`RowIndex` and an `Option<LevelCode>`: a lasso over all of 50,000 rows
+stores 400 kB.
+
+- **Undo restores the data, not the revisions.** An undo is a command
+  that takes the next revision, and the columns it touches take that
+  revision too, so that a window that cached a column fetches it again.
+- **The interaction is not undone.** It is kept valid after every edit
+  instead: when a later edit can remove a column or a level, the
+  dispatcher clears an active classification or a selected population
+  that no longer exists, in the same command.
+- **A test for every edit** applies it and its reverse to a small table
+  and compares the table with the one it started from, field by field,
+  and then redoes it and compares with the table after the edit.
+- **The history belongs to the project** (section 3): after a load
+  there is nothing to undo, which a test checks with an edit made before
+  the load.
+- The history has no bound in the first slice. Its memory has not been
+  measured; a bound would change how far back the user can undo, and is
+  proposed to the owner if it is needed.
+
+## 5. Subscribing and the messages
+
+### Subscribing
+
+A window subscribes when it starts and again after a reload: it gives the
+backend its channel and gets back a snapshot, the whole shared state at
+one revision. `Session::subscribe(label, subscriber)` registers the
+window's subscriber and returns the snapshot at the current revision `r`,
+in one call on
+`&mut Session`, so in one hold of the lock: no change can fall between
+the two. A window that subscribes again, after a reload, replaces its
+subscriber; the session keeps one per label.
+
+A subscriber is the core's trait for the window's end of a channel:
+
+```rust
+pub trait Subscriber: Send {
+    fn send(&self, message: Vec<u8>) -> Result<(), SendFailed>;
+}
+```
+
+The app implements it over a Tauri `Channel<InvokeResponseBody>`, the
+test program of the e2e harness by passing the bytes to the harness, and
+the tests of the core by recording what they receive.
+
+- **A closed window is unsubscribed by the app**, from Tauri's event
+  that the window was destroyed. A failed send cannot be relied on for
+  it: Tauri's `Channel::send` returns `Ok` when the window's web view is
+  gone (`tauri-2.12.1/src/ipc/channel.rs`, the `is_registered` checks).
+- **A subscriber whose `send` fails** is removed, and the dispatcher
+  returns its label and the reason to the app; the command itself has
+  been applied and is not failed for it. The window then receives
+  nothing more until it subscribes again, so the app reports the failure
+  as a defect and reloads the window if it is still open.
+- **A label must be one the session knows**: `main`, or an open widget
+  (section 7). A window that subscribes with another label is refused,
+  and the app closes it.
+
+The snapshot comes back as the response of the subscribe command, and the
+channel can deliver a message before the window has read that response.
+So a window keeps what its channel delivers until its snapshot arrives,
+and then goes through it in the order it arrived, by kind:
+
+- a message with a revision is dropped when its revision is `r` or
+  lower, which the snapshot already holds, and applied otherwise;
+- a hover is applied only when its sequence number is higher than the
+  snapshot's. The revision in its header plays no part.
+
+What a window asks for itself with a
+command, rather than receives on its channel, the description of the
+table and each column it draws, comes with the revision it was read at,
+so the window can tell which of two copies is newer.
+
+### The layout
+
+Every message has a header of 24 bytes and then a list of parts. All
+numbers are little-endian, the order of every platform the app targets.
+
+| bytes | field |
+|---|---|
+| 0 | the kind of message: snapshot, change, hover, column |
+| 1 | flags: bit 0 set when the time below was given, the other bits zero |
+| 2 to 7 | zero |
+| 8 to 15 | the revision, `u64` |
+| 16 to 23 | the time the sending window gave, `f64` milliseconds, or zero when bit 0 is clear |
+
+A part is a header of 8 bytes, its kind as a `u16`, two zero bytes and
+the length of its payload in bytes as a `u32`, then the payload, padded
+with zeros to a multiple of 8. Every payload then starts at an offset
+that is a multiple of 8, and a window reads its codes or its values with
+a typed array over the message's `ArrayBuffer`, without a copy. The
+parts of the first slice:
+
+| part | payload |
+|---|---|
+| project | whether a project is open, a byte, and seven zero bytes; when one is, the number of rows, `u32`, four zero bytes, and the revision at which its table was loaded, `u64` |
+| active | the active classification's column id, `u32::MAX` for none; the selected population's code, `0xFFFF` for none |
+| selection | the number of rows, `u32`; four zero bytes; one bit per row, row `i` in bit `i % 8` of byte `i / 8`, the unused bits of the last byte zero |
+| codes | the column id, `u32`; four zero bytes; the column's revision, `u64`; one `u16` per row, `0xFFFF` for missing |
+| undo | whether there is something to undo and something to redo, a byte each |
+| columns | the number of columns listed, `u32`; four zero bytes; then for each its id, `u32`, four zero bytes and its revision, `u64` |
+| hover | the hover's sequence number, `u64`; the row, `u32`, `u32::MAX` for none |
+
+A snapshot carries every part, with every column in the columns part. A
+change carries the parts of what the command changed, by two rules that
+hold for every command:
+
+- every column whose revision changed is listed in a columns part, so
+  that a window that draws it, the active classification or not, fetches
+  it again;
+- the codes of a categorical column that changed travel in a codes part,
+  whichever column it is: undoing a lasso on a column that is no longer
+  the active classification still reaches a bar plot of that column.
+
+So a lasso sends codes, columns and undo; a new selection sends
+selection. Loading a table sends every part, as a snapshot does, with a
+new hover sequence number and no hover. Parts let one command change
+several things in one message without a kind of message for every
+combination.
+
+A window decodes every length against the bytes it has, refuses a
+reserved byte that is not zero, and treats an unknown kind as a defect.
+The backend and the windows are built together and ship in one app, so a
+message needs no version: a new part or a new kind is added to the Rust
+encoder and the TypeScript decoder in the same commit, and each side has
+a test against the same literal bytes (`testing.md`). The zero bytes are
+checked so that a later use of them cannot be read as zero by a window
+that was not changed.
+
+### The hover's sequence number
+
+The hover takes no revision (`design.md`, section 4), so that hovers can
+be dropped on the way, by the queue described below if it is ever
+needed: a dropped message with a revision would leave a gap that a
+window treats as a defect. Every new hover increments `HoverSeq`, and the hover message carries it in its hover part;
+the header's revision is the current revision, unchanged, and a window
+does not check it for gaps. A window keeps the hover with the highest
+sequence number it has seen, the snapshot's included, so that a hover
+that arrives before the snapshot it follows is not applied over it.
+
+The core keeps no queue of hovers, as the owner decided on 2 October
+2026; `design.md` had said the backend drops a hover it has not yet
+sent, and now says this. A hover replaces the last one and is handed to
+every subscriber at once. The hover is a synchronous Tauri command, which runs
+on the main thread, and from there Tauri hands a channel's message to
+the web view within the call (`tauri-runtime-wry`, `send_user_message`),
+so no hover waits in the backend to be dropped. A web view slow to run
+them would hold its own queue of hovers and draw each in turn, behind
+the pointer. On the owner's Mac a hover reached the other window in 1
+to 3 ms at the median (`spikes/windowing/README.md`); on Windows and
+Linux it has not been measured. If hovers pile up there, a queue per
+window that keeps only the newest goes into the app, and the sequence
+number is what lets it drop hovers without breaking the revisions. The
+core's tests check the sequence number: it grows with each hover, and hovers between two changes leave the revisions without a gap.
+
+## 6. Errors
+
+The core has one error enum, `CommandError`, written with `thiserror`,
+`#[non_exhaustive]`, and serialised by `serde` as an object with a
+`kind` and the data its message needs (`tauri.md`, "Errors across the
+boundary"):
+
+```rust
+#[derive(Debug, thiserror::Error, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[non_exhaustive]
+pub enum CommandError {
+    #[error("no project is open")]
+    NoProject,
+    #[error("column {column} is not in the table")]
+    UnknownColumn { column: ColumnId },
+    #[error("column {column} has {num_levels} levels and no level {code}")]
+    UnknownLevel { column: ColumnId, code: u16, num_levels: u32 },
+    // ...
+    #[error("defect: {what}")]
+    Defect { what: String },
+}
+```
+
+It is the core's and not the app's so that the app and the test program
+of the e2e harness return the same errors in the same shape. The app's
+Tauri commands return `Result<T, CommandError>`. The app has no error
+enum of its own for what crosses to a window: a window that could not be
+created is the core's `WindowFailed`, which the core's `WindowHost`
+returns (section 7) and which the app fills with Tauri's message as
+text, and a poisoned lock is a `Defect`.
+
+- `rename_all` names the kinds in camelCase; `rename_all_fields` does the
+  same for the fields, which `rename_all` alone leaves in snake_case.
+- The `#[error]` text is for the technical details a user copies into a
+  report of a defect, and for logs. The words a user reads are written by
+  the window from the kind and the data (`writing` skill, "The text of
+  the app").
+- No case holds a type of a dependency. `std::io::Error` is not
+  serialisable, so the file module of a later slice gives a case with the
+  path, an enum of our own for the kind of failure and its message as
+  text. That field cannot be named `kind`, which serde refuses beside
+  the tag `kind`; it is named `io`.
+- The cases of the first slice: no project open; an unknown column; a
+  column that is not categorical; a column that is not the active
+  classification; an unknown level; no population selected; a population
+  that is not the selected one; a row set or a row index that does not
+  fit the table; nothing to undo or to redo; a command made before the
+  current table was loaded; a label the session does not know; the
+  refusals of the table's constructor (section 2); and `Defect`, for a
+  state our code makes impossible, such as a revision that would pass
+  2^53 − 1.
+
+## 7. Opening and closing windows
+
+Some rules about windows are rules about the data, and belong in the
+core: removing a column closes every widget that shows it (`design.md`,
+section 2.2). The session keeps the open widgets, each with its label,
+its kind and its columns, and gives the labels, `scatter3d-1` and on,
+from a counter that only grows, so that a label is never given twice.
+
+A command does not open or close a window itself. It returns, with its
+outcome, the windows to open and close, and the caller does it once it
+has released the lock, through the core's trait:
+
+```rust
+pub trait WindowHost {
+    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), WindowFailed>;
+    fn close(&mut self, label: &WindowLabel) -> Result<(), WindowFailed>;
+}
+```
+
+The app implements it with Tauri windows and the e2e test program by
+asking the harness to open and close pages (`design.md`, section 11).
+The windows are opened outside the lock for two reasons: a new window
+subscribes as it starts, which takes the lock, and in Tauri a window
+created from a synchronous command deadlocks on Windows (`tauri.md`).
+
+Because the lock is released before the windows are opened, two
+commands can interleave there: one adds widget W and releases the lock,
+a second removes W's column and asks to close W before W's window
+exists, and then the first opens it. The session is what settles it: a
+window subscribes with its label as it starts, and the session refuses a
+label that is not an open widget (section 5), so the app closes a window
+the session no longer has. A window that fails to open is reported to
+the session by a command that removes it from the widgets, so that the
+session does not keep a widget no window shows.
+
+## 8. Receiving a table before table_io exists
+
+`table_io` is being built in parallel, and its interface is not settled.
+Its draft spec (`xlsx_rs`, `docs/specs/import.md` and `values.md`, as of
+2 October 2026) gives the first column apart and four types, integer,
+float, boolean and text, each as a vector of `Option`, and leaves which
+column is categorical to the application.
+
+The core does not wait for it. It has its own input, `ImportedTable`: the
+header and names of the first column, and for each other column its
+name, its number in the file and its values in one of those four types.
+It builds its table from that, and that is where it decides which text
+columns are categorical, by the rule of `table_io-needs.md`, section 3,
+and orders their levels and gives them colours (`design.md`, section 5).
+One module, `import.rs`, will turn `table_io`'s result into an
+`ImportedTable` and its refusals into cases of `CommandError`, and is the
+only module that names `table_io`. Until it exists, the tests build an
+`ImportedTable` themselves.
+
+## 9. The first slice, and what comes later
+
+The first slice is the core without files, with tests:
+
+- the workspace and the crate of section 1, with the lint table moved,
+  and the checks run at the root;
+- the newtypes, `RowSet`, the table and its constructor with every
+  refusal of section 2, tested on tables written in the tests;
+- the session with no project and with one, and a command that loads a
+  table into it, which the project file and the import will both use;
+- the commands: set the selection, set the hover, set the active
+  classification, select a population, assign rows to the selected
+  population or remove them from it, undo and redo;
+- subscribe and unsubscribe, the snapshot, the broadcast, and a
+  subscriber that fails;
+- the encoder of the messages of section 5, each part tested against
+  literal bytes;
+- `CommandError` with the cases of the first slice.
+
+Its tests include:
+
+- every refusal leaves every field of the session as it was;
+- every edit and its reverse give back the table, and redo gives back
+  the edited one;
+- after a load there is nothing to undo, and a command made before the
+  load is refused;
+- a lasso is refused when another population was selected after it was
+  made;
+- a subscriber that subscribed at `r` receives `r + 1` and then every
+  revision with no gap, with hovers in between that take none. The
+  atomicity itself is held by the signature, one call on `&mut
+  Session`, so no test can break it; the test checks what the window
+  relies on, that the snapshot's revision and the first message's agree;
+- undoing a lasso on a column that is no longer the active
+  classification sends its codes and its revision;
+- a label the session does not know is refused;
+- the boundaries: a table of zero rows; a selection of 8 and of 9 rows,
+  whose last byte has unused bits; a `RowSet` with an unused bit set; a
+  column of 65,535 levels and one of 65,536; a revision at 2^53 − 1.
+
+Later, each in its own slice:
+
+- the import through `table_io`, with the guess of categorical columns,
+  the order of their levels and their colours;
+- the commands on the shape of the table: adding, removing and renaming
+  columns, changing a type (`design.md`, section 6), adding, renaming
+  and removing populations, changing a colour;
+- the description of the table as JSON and the fetching of columns, with
+  their layouts;
+- the widgets and `WindowHost`, with the e2e test program, and the
+  layouts of `design.md`, section 2.4;
+- the project file, a zip of Parquet and JSON (`design.md`, section 8),
+  whose two crates the owner has not approved, and the flag of unsaved
+  changes;
+- export.
+
+## 10. Decided by the owner, and still open
+
+Decided by the owner on 2 October 2026, and written above where each
+applies:
+
+- A command that changes nothing, such as a lasso over individuals
+  already in the selected population, leaves nothing to undo
+  (section 4).
+- The core keeps no queue of hovers; one is added to the app only if
+  hovers are seen to lag on Windows or Linux (section 5). `design.md`,
+  `tauri.md` and `testing.md` were changed to say so.
+- A window shows nothing of a command refused because another project
+  was opened after it was made, and writes it to the app's log
+  (section 4).
+- `serde_json` is a development dependency of the core, to test the
+  shape of `CommandError` as a window receives it. It is in `Cargo.lock`
+  already, through Tauri, and is maintained with `serde`.
+
+Still open, none of them needed by the first slice:
+
+1. **The order of the levels** of a categorical column made by the
+   import. `table_io-needs.md` says alphabetical. The proposal is case
+   ignored and the numbers inside a name compared as numbers, so that
+   `pop2` comes before `pop10`, with ties broken by the exact text; the
+   other is the order of the characters' codes, in which `Pop10` comes
+   before `pop2`. Needed for the import's slice.
+2. **The colours.** `design.md` takes Okabe and Ito's list, eight
+   colours that people with the common kinds of colour blindness can
+   tell apart, whose first colour is black. The proposal leaves black
+   out, since a black point is hard to see on a dark background, which
+   leaves seven colours, from orange, in the list's order. For the
+   levels after the seventh, `design.md` goes through the list again,
+   lighter or darker; the proposal is the list mixed with 40 % white for
+   the second round and 40 % black for the third, 21 colours in all, and
+   the owner sees them before they are taken. What a column of more than
+   21 levels gets is left to that look. Needed for the import's slice.
+3. **The mode of the pointer**, move, add or remove (`design.md`,
+   section 1). Section 3 there does not place it in a tier. It goes with
+   the selected population, which every window shares, so the proposal
+   is to put it in the interaction, one for all windows. It changes no
+   command of the first slice, since the window sends add or remove
+   either way. Needed when the populations panel is built.

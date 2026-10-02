@@ -133,11 +133,15 @@ follows:
 - **A channel that fails to send is dropped and reported**, as a closed
   window's would be; never kept, never ignored in silence.
 - **The hover is the latest value only**: the window sends at most one per
-  frame it draws, and the backend drops a hover it has not sent when a
-  newer one arrives. So the hover does not take a revision, whose
-  sequence a dropped message would break: it carries a sequence number
-  of its own, and a window keeps the highest it has seen
-  (`frontend.md`).
+  frame it draws, and the backend keeps no queue of hovers: the hover is
+  a synchronous command, so it runs on the main thread, from where Tauri
+  hands a channel's message to the web view within the call
+  (`tauri-runtime-wry`, `send_user_message`). A queue per window that
+  keeps only the newest hover is added to the app if hovers are seen to
+  lag on Windows or Linux (`docs/core.md`, section 5). The hover does not
+  take a revision, whose sequence a dropped message would break: it
+  carries a sequence number of its own, and a window keeps the highest
+  it has seen (`frontend.md`).
 
 ## Errors across the boundary
 
