@@ -32,8 +32,10 @@ uses on macOS, and mock only Tauri's IPC (`e2e/harness.mjs`).
 
 ## Background
 
-`docs/prototype-lessons.md` collects what an earlier prototype taught
-about the design: what to keep, and the pitfalls already found.
+`docs/design.md` records the agreed design: windows, shared state, the
+table, the project file, platforms and testing, with the decisions still
+open. `docs/prototype-lessons.md` collects what an earlier prototype
+taught: what to keep, and the pitfalls already found.
 
 ## Licence
 

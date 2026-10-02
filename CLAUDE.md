@@ -2,8 +2,9 @@
 
 A Tauri 2 desktop app (Rust backend, TypeScript frontend) to explore
 populations and biodiversity: the same individuals in linked 3D,
-geographic and distribution views. See `README.md` for commands and
-`docs/prototype-lessons.md` for what an earlier prototype taught.
+geographic and distribution views. See `README.md` for commands,
+`docs/design.md` for the agreed design and `docs/prototype-lessons.md`
+for what an earlier prototype taught.
 
 ## Working rules
 
