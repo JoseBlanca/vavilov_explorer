@@ -132,6 +132,78 @@ impl MessageWriter {
         })
     }
 
+    /// The first part of a message of rows: the load of the table, the
+    /// first row of the page and its number of rows.
+    pub(crate) fn page(
+        &mut self,
+        loaded_at: Revision,
+        first: RowIndex,
+        count: u32,
+    ) -> Result<(), CommandError> {
+        self.part(PartKind::Page, |payload| {
+            payload.extend_from_slice(&loaded_at.get().to_le_bytes());
+            payload.extend_from_slice(&first.get().to_le_bytes());
+            payload.extend_from_slice(&count.to_le_bytes());
+            Ok(())
+        })
+    }
+
+    /// The names of the rows of a page, as a text list.
+    pub(crate) fn names(&mut self, names: &[String]) -> Result<(), CommandError> {
+        self.part(PartKind::Names, |payload| {
+            text_list(payload, names.iter().map(String::as_str))
+        })
+    }
+
+    /// The values of one column in the rows of a page.
+    pub(crate) fn values(
+        &mut self,
+        column: ColumnId,
+        revision: Revision,
+        values: PageValues<'_>,
+    ) -> Result<(), CommandError> {
+        self.part(PartKind::Values, |payload| {
+            payload.extend_from_slice(&column.get().to_le_bytes());
+            payload.push(values.type_byte());
+            payload.extend_from_slice(&[0; 3]);
+            payload.extend_from_slice(&revision.get().to_le_bytes());
+            // A missing row holds zero, which the layout asks for and the
+            // window checks; the bits before say which rows are missing.
+            match values {
+                PageValues::Numeric(values) => {
+                    missing(payload, values)?;
+                    for value in values {
+                        payload.extend_from_slice(&value.unwrap_or(0.0).to_le_bytes());
+                    }
+                }
+                PageValues::Integer(values) => {
+                    missing(payload, values)?;
+                    for value in values {
+                        payload.extend_from_slice(&value.unwrap_or(0).to_le_bytes());
+                    }
+                }
+                PageValues::Text(values) => {
+                    missing(payload, values)?;
+                    text_list(
+                        payload,
+                        values.iter().map(|value| value.as_deref().unwrap_or("")),
+                    )?;
+                }
+                PageValues::Boolean(values) => {
+                    missing(payload, values)?;
+                    payload.extend(values.iter().map(|value| u8::from(value.unwrap_or(false))));
+                }
+                PageValues::Categorical(codes) => {
+                    for code in codes {
+                        payload
+                            .extend_from_slice(&code.map_or(NO_CODE, LevelCode::get).to_le_bytes());
+                    }
+                }
+            }
+            Ok(())
+        })
+    }
+
     /// A part: its kind, two zero bytes, the length of its payload as a
     /// `u32`, then the payload written by `write`, padded with zeros.
     fn part(
@@ -167,6 +239,72 @@ impl MessageWriter {
         self.bytes.resize(padded, 0);
         Ok(())
     }
+}
+
+/// The values of one column in the rows of a page, by type.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PageValues<'a> {
+    Numeric(&'a [Option<f64>]),
+    Integer(&'a [Option<i64>]),
+    Text(&'a [Option<String>]),
+    Boolean(&'a [Option<bool>]),
+    Categorical(&'a [Option<LevelCode>]),
+}
+
+impl PageValues<'_> {
+    /// The byte of the type in the header of a values part.
+    const fn type_byte(self) -> u8 {
+        match self {
+            Self::Numeric(_) => 0,
+            Self::Integer(_) => 1,
+            Self::Text(_) => 2,
+            Self::Boolean(_) => 3,
+            Self::Categorical(_) => 4,
+        }
+    }
+}
+
+/// The bit of each row within its byte, row `i` in bit `i % 8`.
+const BITS: [u8; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
+
+/// Which values are missing, one bit per value, set when missing, padded
+/// with zeros to a multiple of 8 bytes of the message.
+fn missing<T>(bytes: &mut Vec<u8>, values: &[Option<T>]) -> Result<(), CommandError> {
+    for chunk in values.chunks(BITS.len()) {
+        let byte = BITS
+            .iter()
+            .zip(chunk)
+            .filter(|(_, value)| value.is_none())
+            .fold(0_u8, |byte, (bit, _)| byte | bit);
+        bytes.push(byte);
+    }
+    let padded = bytes
+        .len()
+        .checked_next_multiple_of(ALIGNMENT)
+        .ok_or_else(|| defect("a message too long to pad"))?;
+    bytes.resize(padded, 0);
+    Ok(())
+}
+
+/// A text list: a first offset of 0, then the end of each text as a
+/// `u32` offset into the bytes that follow, then the texts in UTF-8.
+fn text_list<'a>(
+    bytes: &mut Vec<u8>,
+    texts: impl Iterator<Item = &'a str> + Clone,
+) -> Result<(), CommandError> {
+    let mut end: u32 = 0;
+    bytes.extend_from_slice(&end.to_le_bytes());
+    for text in texts.clone() {
+        end = u32::try_from(text.len())
+            .ok()
+            .and_then(|len| end.checked_add(len))
+            .ok_or_else(|| defect("texts of more than 4 GiB in one part"))?;
+        bytes.extend_from_slice(&end.to_le_bytes());
+    }
+    for text in texts {
+        bytes.extend_from_slice(text.as_bytes());
+    }
+    Ok(())
 }
 
 fn defect(what: &str) -> CommandError {

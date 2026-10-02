@@ -99,6 +99,7 @@ fn outcome(
             let headers = headers(line.headers.unwrap_or_default())?;
             match calls::call(session, command, &body, &headers)? {
                 calls::Reply::Applied(_) => Ok(Answer::Done),
+                calls::Reply::Rows(bytes) => Ok(Answer::Bytes(bytes)),
                 calls::Reply::Description(description) => serde_json::to_value(description)
                     .map(Answer::Value)
                     .map_err(|error| Failure::Harness(error.to_string())),

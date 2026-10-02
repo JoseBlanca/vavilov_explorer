@@ -51,7 +51,7 @@ export function populationsPanelView(props: PopulationsPanelProps): TemplateResu
   return html`<section class=${classOf(styles, "panel")} aria-labelledby="populations-heading">
     <h2 id="populations-heading" class=${classOf(styles, "heading")}>Populations</h2>
     <label class=${classOf(styles, "field")}>
-      <span>Classification</span>
+      <span>Classification column</span>
       <select
         class=${classOf(styles, "select")}
         @change=${(event: Event) => {

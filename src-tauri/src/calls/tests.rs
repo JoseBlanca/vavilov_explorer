@@ -132,3 +132,37 @@ fn a_time_that_is_not_finite_is_a_defect_in_both_forms_of_call() {
         .is_err()
     );
 }
+
+#[test]
+fn a_page_of_rows_is_read_from_its_json_arguments() {
+    let mut session = loaded();
+    let Reply::Rows(bytes) = json_call(
+        &mut session,
+        "fetch_rows",
+        json!({ "first": 2, "count": 1, "columns": [1], "basedOn": 1 }),
+    )
+    .unwrap() else {
+        panic!("another reply than rows");
+    };
+    // The page part: loaded at 1, from row 2, 1 row.
+    assert_eq!(
+        &bytes[24..48],
+        [
+            8, 0, 0, 0, 16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0
+        ]
+    );
+}
+
+#[test]
+fn a_page_of_rows_with_an_argument_it_does_not_have_is_a_defect() {
+    let mut session = loaded();
+    let refused = json_call(
+        &mut session,
+        "fetch_rows",
+        json!({ "first": 0, "count": 1, "columns": [1], "basedOn": 1, "sentAt": 2.0 }),
+    );
+    assert!(
+        matches!(&refused, Err(CommandError::Defect { what }) if what.contains("sentAt")),
+        "{refused:?}"
+    );
+}

@@ -389,7 +389,7 @@ numbers are little-endian, the order of every platform the app targets.
 
 | bytes | field |
 |---|---|
-| 0 | the kind of message: snapshot, change, hover, column |
+| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows (below) |
 | 1 | flags: bit 0 set when the time below was given, the other bits zero |
 | 2 to 7 | zero |
 | 8 to 15 | the revision, `u64` |
@@ -437,6 +437,49 @@ encoder and the TypeScript decoder in the same commit, and each side has
 a test against the same literal bytes (`testing.md`). The zero bytes are
 checked so that a later use of them cannot be read as zero by a window
 that was not changed.
+
+### A page of rows
+
+The table of the main window draws only the rows on screen and asks the
+backend for them a page at a time (`design.md`, section 2.1). The
+command `fetch_rows` takes, as JSON, the first row of the page, the
+number of rows, the ids of the columns wanted, in the order wanted, and
+the revision of the window's copy, `{ first, count, columns, basedOn }`.
+It changes nothing and takes no revision. It is refused as a command
+made before the current table was loaded when `basedOn` is older than
+the load, which the window takes as stale (section 4); as
+`RowsOutOfRange` when the page goes past the last row; and as
+`UnknownColumn` for an id the table does not have, the first column's
+included, since the names come with every page.
+
+The answer is raw bytes in the layout above, a message of a fourth kind,
+rows, whose header has the current revision and no time, so that the
+window can tell which of two pages of a row is newer and whether a page
+is older than a column's last change. It is bytes and not JSON because a
+JSON number cannot hold every 64-bit integer exactly, and a window would
+read an integer of 2^53 or more as another. Its parts, in this order:
+
+| part | payload |
+|---|---|
+| page | the revision at which the table was loaded, `u64`; the first row, `u32`; the number of rows, `u32` |
+| names | the names of the page's rows, as a text list (below) |
+| values, one per column asked for | the column id, `u32`; its type, a byte, 0 numeric, 1 integer, 2 text, 3 boolean, 4 categorical; three zero bytes; the column's revision, `u64`; then its values |
+
+The values of a categorical column are its codes, one `u16` per row,
+`0xFFFF` for missing, as in a codes part. Those of the other four types
+start with which rows are missing, one bit per row of the page, set when
+missing, in the order of the selection's bits, the unused bits of the
+last byte zero, padded with zeros to a multiple of 8 bytes. Then:
+
+- numeric, an `f64` per row; integer, an `i64` per row; boolean, a byte
+  per row, 0 or 1. A missing row holds zero, which the window checks, so
+  that no value stands in a missing row a reader could take for data.
+- text, a text list, in which a missing row has an empty text.
+
+A text list is the end of each text, as an offset into the bytes that
+follow, one `u32` per row after a first 0, then the texts one after the
+other in UTF-8. A window that finds an offset that goes back or past the
+bytes, or bytes that are not UTF-8, treats the message as a defect.
 
 ### The hover's sequence number
 

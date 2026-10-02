@@ -10,9 +10,11 @@ import type { Selected } from "../state/message.ts";
 import { defect } from "../state/defect.ts";
 import type { ColumnId, LevelCode, RowIndex } from "../state/ids.ts";
 import type { Result } from "../state/result.ts";
+import type { RowPage } from "../state/rowPage.ts";
 import { createWindowState } from "../state/windowState.ts";
 import type { WindowState } from "../state/windowState.ts";
 import { decodeMessage } from "./decodeMessage.ts";
+import { decodeRows } from "./decodeRows.ts";
 import type { CommandName, Transport } from "./transport.ts";
 
 /**
@@ -54,6 +56,16 @@ export interface Connection {
   readonly redo: () => Promise<Answer>;
   /** The description of the table, or the refusal when no project is open. */
   readonly describeTable: () => Promise<Result<TableDescription, Refusal>>;
+  /**
+   * `count` rows from `first`, with the names and the values of `columns` in
+   * that order, or "stale" when the table was replaced after the window's
+   * copy was made, or the backend's refusal.
+   */
+  readonly fetchRows: (
+    first: RowIndex,
+    count: number,
+    columns: readonly ColumnId[],
+  ) => Promise<Result<RowPage | "stale", Refusal>>;
 }
 
 /**
@@ -186,6 +198,37 @@ export async function connect(
       }
       return { ok: true, value: description };
     },
+    fetchRows: async (first, count, columns) => {
+      let page: unknown;
+      try {
+        page = await transport.invoke("fetch_rows", {
+          first,
+          count,
+          columns,
+          basedOn: ready.revision(),
+        });
+      } catch (error: unknown) {
+        return refusal("fetch_rows", error);
+      }
+      if (!(page instanceof ArrayBuffer)) {
+        throw defect(
+          `a page of rows that is not bytes, as after Tauri's fallback to postMessage: ${describe(page)}`,
+        );
+      }
+      const decoded = decodeRows(page);
+      const given = decoded.columns.map((column) => column.id);
+      if (
+        decoded.first !== first ||
+        decoded.count !== count ||
+        given.length !== columns.length ||
+        given.some((id, index) => id !== columns[index])
+      ) {
+        throw defect(
+          `a page of ${String(decoded.count)} rows from row ${String(decoded.first)} with columns ${given.join(", ")}, asked for as ${String(count)} rows from row ${String(first)} with columns ${columns.join(", ")}`,
+        );
+      }
+      return { ok: true, value: decoded };
+    },
     undo: () => command("undo", {}),
     redo: () => command("redo", {}),
   };
@@ -200,20 +243,28 @@ async function answer(name: CommandName, call: Promise<unknown>): Promise<Answer
     await call;
     return { ok: true, value: "applied" };
   } catch (error: unknown) {
-    if (!isCommandError(error)) {
-      throw defect(`the command ${name} failed with ${describe(error)}`);
-    }
-    if (error.kind === "defect") {
-      throw defect(`the backend, on the command ${name}: ${error.what}`);
-    }
-    if (error.kind === "madeBeforeLoad") {
-      console.warn(
-        `Vavilov Explorer: the command ${name}, made at revision ${String(error.basedOn)}, came after the table loaded at ${String(error.loadedAt)}, and was not applied`,
-      );
-      return { ok: true, value: "stale" };
-    }
-    return { ok: false, error };
+    return refusal(name, error);
   }
+}
+
+/**
+ * A command's failure as a value: stale, or the backend's refusal. A refusal
+ * as a defect, or a failure that is not a refusal, is thrown.
+ */
+function refusal(name: CommandName, error: unknown): Result<"stale", Refusal> {
+  if (!isCommandError(error)) {
+    throw defect(`the command ${name} failed with ${describe(error)}`);
+  }
+  if (error.kind === "defect") {
+    throw defect(`the backend, on the command ${name}: ${error.what}`);
+  }
+  if (error.kind === "madeBeforeLoad") {
+    console.warn(
+      `Vavilov Explorer: the command ${name}, made at revision ${String(error.basedOn)}, came after the table loaded at ${String(error.loadedAt)}, and was not applied`,
+    );
+    return { ok: true, value: "stale" };
+  }
+  return { ok: false, error };
 }
 
 /** A value of unknown type, as text for a defect's message. */

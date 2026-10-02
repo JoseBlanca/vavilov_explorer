@@ -7,6 +7,7 @@
     "core:default",
     "allow-subscribe",
     "allow-describe-table",
+    "allow-fetch-rows",
     "allow-set-selection",
     "allow-assign-rows",
     "allow-unassign-rows",

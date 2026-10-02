@@ -10,7 +10,9 @@
 //!   answers `{"id", "bytes": [...]}` with the snapshot;
 //! - `{"id", "window", "command", "json": {...}}`, or `"raw": [...]` with
 //!   `"headers": {...}`, is a call of a page, answered `{"id", "ok": null}`
-//!   or `{"id", "error": {...}}` with the refusal as a window receives it;
+//!   for a command applied, `{"id", "ok": value}` with the description of
+//!   the table, `{"id", "bytes": [...]}` with a page of rows, or `{"id",
+//!   "error": {...}}` with the refusal as a window receives it;
 //! - `{"id", "command": "e2e:load", "table": {...}}` loads a table the test
 //!   describes, as the import will;
 //! - `{"window", "message": [...]}` is a message of the window's channel.

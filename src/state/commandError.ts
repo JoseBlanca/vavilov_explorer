@@ -25,6 +25,7 @@ const FIELDS = {
   rowSetLength: { numRows: "number", numBytes: "number" },
   rowSetUnusedBits: { numRows: "number" },
   rowOutOfRange: { row: "rowIndex", numRows: "number" },
+  rowsOutOfRange: { first: "number", count: "number", numRows: "number" },
   nothingToUndo: {},
   nothingToRedo: {},
   tooManyRows: { numRows: "number", maxRows: "number" },

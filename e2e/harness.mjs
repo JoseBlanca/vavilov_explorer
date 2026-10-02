@@ -27,13 +27,16 @@ export const ENGINES = { webkit, chromium };
 /**
  * Starts the dev server and a page with the app loaded, in `engine`, one of
  * the keys of ENGINES. `commands` maps a Tauri command name to the value
- * its invoke resolves to.
+ * its invoke resolves to. `locale`, such as "es-ES", is the language of the
+ * page, which sets how numbers are written; without it the page takes the
+ * machine's.
  */
 export async function launch({
   engine,
   commands = {},
   backend: withBackend = false,
   viewport = { width: 1400, height: 900 },
+  locale,
 }) {
   const browserType = ENGINES[engine];
   if (browserType === undefined) throw new Error(`e2e: no engine "${engine}"`);
@@ -45,7 +48,7 @@ export async function launch({
   });
   await server.listen();
   const browser = await browserType.launch();
-  const page = await browser.newPage({ viewport });
+  const page = await browser.newPage(locale === undefined ? { viewport } : { viewport, locale });
 
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));

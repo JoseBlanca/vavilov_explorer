@@ -61,8 +61,35 @@ pub fn describe_table(
         request.headers(),
     )? {
         calls::Reply::Description(description) => Ok(description),
-        calls::Reply::Applied(_) => Err(CommandError::Defect {
-            what: "describe_table applied a command".to_owned(),
+        calls::Reply::Applied(_) | calls::Reply::Rows(_) => Err(CommandError::Defect {
+            what: "describe_table gave another reply than a description".to_owned(),
+        }),
+    }
+}
+
+/// A page of rows of the table, as raw bytes: `{ first, count, columns,
+/// basedOn }`, with the ids of the columns wanted in their order. It
+/// changes nothing.
+///
+/// # Errors
+///
+/// `MadeBeforeLoad`, `NoProject`, `RowsOutOfRange`, `UnknownColumn`, or
+/// the refusals of [`calls::call`].
+#[tauri::command]
+pub fn fetch_rows(
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<Response, CommandError> {
+    let mut session = lock(&session)?;
+    match calls::call(
+        &mut session,
+        "fetch_rows",
+        request.body(),
+        request.headers(),
+    )? {
+        calls::Reply::Rows(bytes) => Ok(Response::new(bytes)),
+        calls::Reply::Applied(_) | calls::Reply::Description(_) => Err(CommandError::Defect {
+            what: "fetch_rows gave another reply than rows".to_owned(),
         }),
     }
 }
@@ -213,8 +240,8 @@ fn run<R: Runtime>(
             report_dropped(app, outcome.dropped);
             Ok(())
         }
-        calls::Reply::Description(_) => Err(CommandError::Defect {
-            what: format!("the command {command} gave a description"),
+        calls::Reply::Description(_) | calls::Reply::Rows(_) => Err(CommandError::Defect {
+            what: format!("the command {command} gave a reply of a read, not an outcome"),
         }),
     }
 }

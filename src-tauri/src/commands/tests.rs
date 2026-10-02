@@ -155,6 +155,10 @@ fn every_command_is_registered_and_finds_the_session() {
         ),
         ("undo", json!({ "basedOn": 0 })),
         ("redo", json!({ "basedOn": 0, "sentAt": 1.5 })),
+        (
+            "fetch_rows",
+            json!({ "first": 0, "count": 0, "columns": [], "basedOn": 0 }),
+        ),
     ] {
         assert_eq!(
             json_command(&window, cmd, args).unwrap_err(),
@@ -499,4 +503,46 @@ fn a_lasso_with_the_unassigned_selected_unassigns_through_the_commands() {
     )
     .unwrap();
     assert_eq!(codes(&app), [None, None, None]);
+}
+
+#[test]
+fn a_page_of_rows_comes_back_as_raw_bytes() {
+    let (app, window) = app();
+    load(&app);
+    let answer = json_command(
+        &window,
+        "fetch_rows",
+        json!({ "first": 1, "count": 2, "columns": [ORIGIN], "basedOn": 1 }),
+    )
+    .unwrap();
+    let InvokeResponseBody::Raw(bytes) = answer else {
+        panic!("a page of rows as JSON");
+    };
+    #[rustfmt::skip]
+    let expected: Vec<u8> = vec![
+        3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // page: loaded at 1, from row 1, 2 rows
+        8, 0, 0, 0, 16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0,
+        // names: p2, p3
+        9, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, b'p', b'2', b'p', b'3',
+        // origin: Peru, missing
+        10, 0, 0, 0, 20, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        1, 0, 0xFF, 0xFF, 0, 0, 0, 0,
+    ];
+    assert_eq!(bytes, expected);
+}
+
+#[test]
+fn a_page_past_the_last_row_crosses_as_its_refusal() {
+    let (app, window) = app();
+    load(&app);
+    assert_eq!(
+        json_command(
+            &window,
+            "fetch_rows",
+            json!({ "first": 2, "count": 2, "columns": [], "basedOn": 1 }),
+        )
+        .unwrap_err(),
+        json!({ "kind": "rowsOutOfRange", "first": 2, "count": 2, "numRows": 3 })
+    );
 }

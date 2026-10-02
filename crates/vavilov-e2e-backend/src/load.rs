@@ -7,7 +7,8 @@ use vavilov_core::{
 };
 
 /// A table as a test describes it: the first column, then columns of
-/// numbers or of codes, `null` for a missing value.
+/// numbers, whole numbers, texts, booleans or codes, `null` for a missing
+/// value.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct TableSpec {
@@ -22,6 +23,9 @@ pub(crate) struct TableSpec {
 struct ColumnSpec {
     name: String,
     numeric: Option<Vec<Option<f64>>>,
+    integer: Option<Vec<Option<i64>>>,
+    text: Option<Vec<Option<String>>>,
+    boolean: Option<Vec<Option<bool>>>,
     levels: Option<Vec<(String, [u8; 3])>>,
     codes: Option<Vec<Option<u16>>>,
 }
@@ -47,9 +51,19 @@ pub(crate) fn load(session: &mut Session, spec: TableSpec) -> Result<(), Command
 }
 
 fn column(spec: ColumnSpec) -> Result<NewColumn, CommandError> {
-    let values = match (spec.numeric, spec.levels, spec.codes) {
-        (Some(values), None, None) => ColumnValues::Numeric(values),
-        (None, Some(levels), Some(codes)) => {
+    let values = match (
+        spec.numeric,
+        spec.integer,
+        spec.text,
+        spec.boolean,
+        spec.levels,
+        spec.codes,
+    ) {
+        (Some(values), None, None, None, None, None) => ColumnValues::Numeric(values),
+        (None, Some(values), None, None, None, None) => ColumnValues::Integer(values),
+        (None, None, Some(values), None, None, None) => ColumnValues::Text(values),
+        (None, None, None, Some(values), None, None) => ColumnValues::Boolean(values),
+        (None, None, None, None, Some(levels), Some(codes)) => {
             let levels = levels
                 .into_iter()
                 .map(|(name, [red, green, blue])| Level::new(name, Colour { red, green, blue }))
@@ -63,7 +77,7 @@ fn column(spec: ColumnSpec) -> Result<NewColumn, CommandError> {
         _ => {
             return Err(CommandError::Defect {
                 what: format!(
-                    "column {} of a test is neither numeric nor categorical",
+                    "column {} of a test has not exactly one type of values",
                     spec.name
                 ),
             });

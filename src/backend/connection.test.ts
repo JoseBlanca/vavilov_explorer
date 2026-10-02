@@ -437,3 +437,87 @@ describe("the description of the table", () => {
     }
   });
 });
+
+/**
+ * Rows 1 and 2 of `origin`, column 1, at revision 1 of a table loaded at
+ * 1: p2 in Peru, p3 missing, as the core writes them in
+ * src-tauri/src/commands/tests.rs.
+ */
+// prettier-ignore
+const PAGE = buffer(
+  ...header(3, 1),
+  ...[8, 0, 0, 0, 16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0],
+  ...[9, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0x70, 0x32, 0x70, 0x33],
+  ...[10, 0, 0, 0, 20, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+  ...[1, 0, 0xff, 0xff, 0, 0, 0, 0],
+);
+
+describe("fetching rows", () => {
+  test("asks with the window's revision and no time, and gives the page decoded", async () => {
+    const { transport, calls } = fakeTransport({ answer: () => Promise.resolve(PAGE) });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.fetchRows(row(1), 2, [column(1)])).toEqual({
+      ok: true,
+      value: {
+        revision: 1,
+        loadedAt: 1,
+        first: 1,
+        count: 2,
+        names: ["p2", "p3"],
+        columns: [{ id: 1, revision: 1, type: "categorical", codes: [1, null] }],
+      },
+    });
+    expect(calls.at(-1)).toEqual({
+      command: "fetch_rows",
+      args: { first: 1, count: 2, columns: [1], basedOn: 1 },
+      headers: undefined,
+    });
+  });
+
+  test("asked before the table was replaced is stale", async () => {
+    const { transport } = fakeTransport({
+      answer: () => refusedWith({ kind: "madeBeforeLoad", basedOn: 1, loadedAt: 2 }),
+    });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.fetchRows(row(1), 2, [column(1)])).toEqual({
+      ok: true,
+      value: "stale",
+    });
+  });
+
+  test("refused gives the refusal as a value", async () => {
+    const refusal = { kind: "rowsOutOfRange", first: 3, count: 2, numRows: 4 };
+    const { transport } = fakeTransport({ answer: () => refusedWith(refusal) });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.fetchRows(row(3), 2, [])).toEqual({ ok: false, error: refusal });
+  });
+
+  test("refused as a defect is a defect", async () => {
+    const { transport } = fakeTransport({
+      answer: () => refusedWith({ kind: "defect", what: "a broken page" }),
+    });
+    const connection = await connect(transport, failOnDefect);
+    await expect(connection.fetchRows(row(1), 2, [column(1)])).rejects.toThrow(
+      /defect: the backend, on the command fetch_rows: a broken page/,
+    );
+  });
+
+  test("answered with what is not bytes is a defect", async () => {
+    const { transport } = fakeTransport({ answer: () => Promise.resolve([3, 0, 0]) });
+    const connection = await connect(transport, failOnDefect);
+    await expect(connection.fetchRows(row(1), 2, [column(1)])).rejects.toThrow(
+      /defect: a page of rows that is not bytes, as after Tauri's fallback to postMessage/,
+    );
+  });
+
+  test("answered with another page than the one asked for is a defect", async () => {
+    const { transport } = fakeTransport({ answer: () => Promise.resolve(PAGE) });
+    const connection = await connect(transport, failOnDefect);
+    await expect(connection.fetchRows(row(0), 2, [column(1)])).rejects.toThrow(
+      /defect: a page of 2 rows from row 1 with columns 1, asked for as 2 rows from row 0 with columns 1/,
+    );
+    await expect(connection.fetchRows(row(1), 2, [column(1), column(2)])).rejects.toThrow(
+      /defect: a page of 2 rows from row 1 with columns 1, asked for as 2 rows from row 1 with columns 1, 2/,
+    );
+  });
+});

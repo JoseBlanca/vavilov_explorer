@@ -7,6 +7,7 @@ import type { TableDescription } from "../../state/description.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
 import { mainWindowView } from "./mainWindow.view.ts";
 import { createPopulationsPanel } from "./populationsPanel.controller.ts";
+import { createTable } from "./table.controller.ts";
 
 function slot(root: HTMLElement, name: string): HTMLElement {
   const element = root.querySelector(`[data-slot="${name}"]`);
@@ -18,7 +19,7 @@ function slot(root: HTMLElement, name: string): HTMLElement {
 
 /**
  * Starts the main window in `root`: the frame, the bar of a defect, the
- * connection to the backend, and the populations panel, with the description
+ * connection to the backend, the populations panel and the table, with the description
  * of the table asked again whenever another table is loaded.
  */
 export async function startMainWindow(root: HTMLElement): Promise<void> {
@@ -34,6 +35,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       () => description,
       defectBar.show,
     );
+    const table = createTable(slot(root, "table"), connection, () => description, defectBar.show);
 
     /** Asks for the description of the table the copy holds, once per load. */
     const describe = async (): Promise<void> => {
@@ -42,6 +44,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       if (project.kind === "noProject") {
         description = null;
         panel.redraw();
+        table.redraw();
         return;
       }
       if (description?.loadedAt === project.loadedAt) {
@@ -65,6 +68,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       }
       description = answer.value;
       panel.redraw();
+      table.redraw();
     };
 
     state.subscribe("table", () => {

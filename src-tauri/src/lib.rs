@@ -3,6 +3,8 @@
 
 pub mod calls;
 pub mod commands;
+#[cfg(any(feature = "demo", test))]
+pub mod demo;
 
 use std::sync::Mutex;
 
@@ -16,7 +18,12 @@ use vavilov_core::Session;
 /// Tauri's error when it cannot start the app, for example when the
 /// system's web view is missing.
 pub fn run() -> tauri::Result<()> {
-    with_session(tauri::Builder::default()).run(tauri::generate_context!())
+    let builder = with_session(tauri::Builder::default());
+    // A build with the feature `demo` opens with the demo table; one that
+    // cannot load it does not start.
+    #[cfg(feature = "demo")]
+    let builder = builder.setup(|app| demo::load(&app.state::<Mutex<Session>>()));
+    builder.run(tauri::generate_context!())
 }
 
 /// The builder with the session, every command, and the window events the
@@ -38,6 +45,7 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
         .invoke_handler(tauri::generate_handler![
             commands::subscribe,
             commands::describe_table,
+            commands::fetch_rows,
             commands::set_selection,
             commands::assign_rows,
             commands::unassign_rows,

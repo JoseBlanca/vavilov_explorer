@@ -1,0 +1,51 @@
+// Which rows of the table are on screen, and the pages they are fetched in
+// (.claude/skills/coding/frontend.md, "The table").
+
+/** The rows of a page, the unit the table fetches from the backend. */
+export const PAGE_ROWS = 100;
+
+/** Rows from `first` to before `end`. */
+export interface RowRange {
+  /** The first row. */
+  readonly first: number;
+  /** The row after the last, `first` for no row. */
+  readonly end: number;
+}
+
+/**
+ * The rows to draw: those under the viewport of a scroll at `scrollTop`,
+ * and `margin` rows more on each side, within the table.
+ */
+export function rowsInView(
+  scrollTop: number,
+  viewportHeight: number,
+  rowHeight: number,
+  numRows: number,
+  margin: number,
+): RowRange {
+  if (rowHeight <= 0) {
+    return { first: 0, end: 0 };
+  }
+  const top = Math.floor(scrollTop / rowHeight);
+  const bottom = Math.ceil((scrollTop + viewportHeight) / rowHeight);
+  const first = Math.min(numRows, Math.max(0, top - margin));
+  return { first, end: Math.max(first, Math.min(numRows, bottom + margin)) };
+}
+
+/** The pages that hold the rows of `range`, in order. */
+export function pagesOf(range: RowRange): number[] {
+  if (range.end <= range.first) {
+    return [];
+  }
+  const pages: number[] = [];
+  for (let page = Math.floor(range.first / PAGE_ROWS); page * PAGE_ROWS < range.end; page += 1) {
+    pages.push(page);
+  }
+  return pages;
+}
+
+/** The rows of page `page` of a table of `numRows`. */
+export function rowsOfPage(page: number, numRows: number): RowRange {
+  const first = page * PAGE_ROWS;
+  return { first, end: Math.min(numRows, first + PAGE_ROWS) };
+}

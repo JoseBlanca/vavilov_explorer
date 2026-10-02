@@ -96,7 +96,7 @@ impl Session {
 
     /// Refuses a command made at a revision still to come, a defect, or
     /// before the current table was loaded.
-    fn check_based_on(&self, based_on: Revision) -> Result<(), CommandError> {
+    pub(crate) fn check_based_on(&self, based_on: Revision) -> Result<(), CommandError> {
         let state = &self.state;
         if based_on > state.revision {
             return Err(CommandError::Defect {

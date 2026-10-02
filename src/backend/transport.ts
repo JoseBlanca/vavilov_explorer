@@ -7,6 +7,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 export type CommandName =
   | "subscribe"
   | "describe_table"
+  | "fetch_rows"
   | "set_selection"
   | "assign_rows"
   | "unassign_rows"

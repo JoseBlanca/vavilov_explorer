@@ -75,6 +75,13 @@ it.
 - The table is linked like every other view. Selected rows are
   highlighted, clicking and shift-clicking rows selects individuals, and a
   filter shows all rows, only the selection, or only one population.
+- A missing value is shown as an empty cell, which a screen reader
+  announces as "missing". A number is shown in the shortest form that
+  gives back the same value, with the decimal mark of the user's
+  language and never rounded: `1.50` in the file is shown as `1.5`, or
+  `1,5` in Spanish. The core keeps the number and not the text the file
+  had, so showing the file's own text would need a second copy of every
+  numeric cell. Both decided by the owner on 2 October 2026.
 - On top of each column, a dropdown shows its type and lets the user
   change it (section 6).
 - The populations panel lists the populations of the active
@@ -89,9 +96,12 @@ it.
   the active classification, shows the populations, selects one and sets
   the pointer's mode; adding, renaming and removing populations and
   changing a colour come after, each with its command in the core.
-  Decided by the owner on 2 October 2026. Whether the pointer's mode is
-  one for all windows or one per window is decided once the owner has
-  seen it in the plots; until then it is the main window's own.
+  Decided by the owner on 2 October 2026. Having seen the panel the
+  same day, the owner decided that the control of the pointer's mode
+  belongs in the windows where a lasso makes sense, the plots, and not
+  in the panel; it stays in the panel until the first plot exists.
+  Whether the mode is one for all windows or one per window is decided
+  then; until then it is the main window's own.
 - With no project open, the main window shows an empty state: Open
   project…, Import table…, the recent projects, and dropping a file on
   the window, which opens a `.vav` and imports a CSV, TSV or xlsx. An

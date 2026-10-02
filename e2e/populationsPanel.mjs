@@ -44,7 +44,10 @@ for (const engine of Object.keys(ENGINES)) {
 
     const panel = page.getByRole("region", { name: "Populations" });
     await panel.waitFor();
-    const classification = panel.getByRole("combobox", { name: "Classification" });
+    const classification = panel.getByRole("combobox", {
+      name: "Classification column",
+      exact: true,
+    });
     assert.equal(await classification.inputValue(), "2");
     assert.deepEqual(await classification.locator("option").allTextContents().then(trim), [
       "None",

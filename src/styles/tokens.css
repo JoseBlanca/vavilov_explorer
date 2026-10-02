@@ -30,6 +30,12 @@
   --panel-width: 18rem;
   --swatch-size: 0.875rem;
   --target-size: 1.5rem;
+  --row-height: 1.75rem;
+  --column-names: 9rem;
+  --column-number: 7.5rem;
+  --column-text: 10rem;
+  --column-categorical: 8rem;
+  --column-boolean: 5rem;
   --duration-short: 120ms;
 }
 

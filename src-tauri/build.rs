@@ -8,6 +8,7 @@
 const COMMANDS: &[&str] = &[
     "subscribe",
     "describe_table",
+    "fetch_rows",
     "set_selection",
     "assign_rows",
     "unassign_rows",

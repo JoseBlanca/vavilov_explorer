@@ -115,6 +115,17 @@ pub enum CommandError {
         num_rows: u32,
     },
 
+    /// A page of rows that goes past the last row of the table.
+    #[error("{count} rows from row {first} go past the {num_rows} rows of the table")]
+    RowsOutOfRange {
+        /// The first row the window asked for.
+        first: u32,
+        /// The number of rows it asked for.
+        count: u32,
+        /// The rows of the table.
+        num_rows: u32,
+    },
+
     /// Undo with nothing to undo.
     #[error("there is nothing to undo")]
     NothingToUndo,

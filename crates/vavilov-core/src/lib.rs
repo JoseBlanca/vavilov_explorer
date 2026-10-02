@@ -19,6 +19,7 @@ mod fixtures;
 mod ids;
 mod message;
 mod row_set;
+mod rows;
 mod session;
 mod table;
 
@@ -32,6 +33,7 @@ pub use ids::{
     ColumnId, HoverSeq, LevelCode, MAX_EXACT_IN_JAVASCRIPT, Revision, RowIndex, SentAt, WindowLabel,
 };
 pub use row_set::RowSet;
+pub use rows::RowsRequest;
 pub use session::{Active, Selected, SendFailed, Session, Subscriber, UndoRedo};
 pub use table::{
     Categorical, Colour, Column, ColumnValues, Level, MAX_COLUMNS, MAX_LEVELS, MAX_ROWS,

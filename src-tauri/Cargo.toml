@@ -13,6 +13,12 @@ license.workspace = true
 name = "vavilov_explorer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# The demo table loaded at start (src/demo.rs), for trying the windows
+# before the import exists: `npm run tauri dev -- --features demo`. Never
+# in a release build.
+demo = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = ["isolation"] }
 

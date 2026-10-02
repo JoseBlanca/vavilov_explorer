@@ -11,13 +11,14 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    ColumnId, Command, CommandError, LevelCode, Outcome, Request, Revision, RowIndex, Selected,
-    SentAt, Session, TableDescription,
+    ColumnId, Command, CommandError, LevelCode, Outcome, Request, Revision, RowIndex, RowsRequest,
+    Selected, SentAt, Session, TableDescription,
 };
 
 /// The commands `call` takes, every command of the app but `subscribe`.
 pub const COMMANDS: &[&str] = &[
     "describe_table",
+    "fetch_rows",
     "set_selection",
     "assign_rows",
     "unassign_rows",
@@ -50,6 +51,16 @@ pub fn call(
     if command == "describe_table" {
         json_args::<Nothing>(command, body)?;
         return session.describe().map(Reply::Description);
+    }
+    if command == "fetch_rows" {
+        let args: RowsArgs = json_args(command, body)?;
+        let request = RowsRequest {
+            first: RowIndex::new(args.first),
+            count: args.count,
+            columns: args.columns.into_iter().map(ColumnId::new).collect(),
+            based_on: Revision::new(args.based_on),
+        };
+        return session.rows(&request).map(Reply::Rows);
     }
     let request = match command {
         "set_selection" => {
@@ -145,6 +156,8 @@ pub enum Reply {
     Applied(Outcome),
     /// The description of the table, for `describe_table`.
     Description(TableDescription),
+    /// A page of rows, as the bytes of a message of rows, for `fetch_rows`.
+    Rows(Vec<u8>),
 }
 
 /// The arguments of a command that takes none.
@@ -160,6 +173,17 @@ struct Nothing {}
 struct At {
     based_on: u64,
     sent_at: Option<f64>,
+}
+
+/// The arguments of `fetch_rows`, which changes nothing and so carries
+/// no time.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RowsArgs {
+    first: u32,
+    count: u32,
+    columns: Vec<u32>,
+    based_on: u64,
 }
 
 #[derive(Deserialize)]

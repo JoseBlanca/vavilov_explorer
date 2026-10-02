@@ -7,7 +7,7 @@
 
 mod writer;
 
-pub(crate) use writer::MessageWriter;
+pub(crate) use writer::{MessageWriter, PageValues};
 
 use crate::error::CommandError;
 use crate::ids::{ColumnId, HoverSeq, Revision, SentAt};
@@ -29,6 +29,8 @@ pub(crate) enum MessageKind {
     Change,
     /// A hover, which takes no revision: the header has the current one.
     Hover,
+    /// A page of rows a window asked for, at the current revision.
+    Rows,
 }
 
 impl MessageKind {
@@ -37,6 +39,7 @@ impl MessageKind {
             Self::Snapshot => 0,
             Self::Change => 1,
             Self::Hover => 2,
+            Self::Rows => 3,
         }
     }
 }
@@ -51,6 +54,9 @@ pub(crate) enum PartKind {
     Undo,
     Columns,
     Hover,
+    Page,
+    Names,
+    Values,
 }
 
 impl PartKind {
@@ -63,6 +69,9 @@ impl PartKind {
             Self::Undo => 5,
             Self::Columns => 6,
             Self::Hover => 7,
+            Self::Page => 8,
+            Self::Names => 9,
+            Self::Values => 10,
         }
     }
 }

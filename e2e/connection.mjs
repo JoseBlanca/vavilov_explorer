@@ -8,7 +8,10 @@
 import assert from "node:assert/strict";
 import { ENGINES, launch } from "./harness.mjs";
 
-/** Four plants, `origin` (Spain, Peru) as column 1, active. */
+/**
+ * Four plants, `origin` (Spain, Peru) as column 1, active, then 2 `height`,
+ * 3 `seeds`, 4 `fertile` and 5 `note`.
+ */
 const PLANTS = {
   header: "accession",
   names: ["p1", "p2", "p3", "p4"],
@@ -22,6 +25,9 @@ const PLANTS = {
       codes: [0, 1, null, 0],
     },
     { name: "height", numeric: [1.5, null, 2, 3.25] },
+    { name: "seeds", integer: [10, 12, null, -7] },
+    { name: "fertile", boolean: [true, false, null, true] },
+    { name: "note", text: ["NA", null, "", "Ñandú"] },
   ],
   activeClassification: 1,
 };
@@ -80,8 +86,43 @@ for (const engine of Object.keys(ENGINES)) {
       [
         ["origin", "categorical"],
         ["height", "numeric"],
+        ["seeds", "integer"],
+        ["fertile", "boolean"],
+        ["note", "text"],
       ],
     );
+    /** A page of rows, its integers as text, which a page cannot return. */
+    const fetchRows = (first, count, columns) =>
+      page.evaluate(
+        async ([f, c, ids]) =>
+          JSON.parse(
+            JSON.stringify(await globalThis.__connection.fetchRows(f, c, ids), (_, value) =>
+              typeof value === "bigint" ? `${String(value)}n` : value,
+            ),
+          ),
+        [first, count, columns],
+      );
+    assert.deepEqual(await fetchRows(1, 3, [5, 2, 3, 4, 1]), {
+      ok: true,
+      value: {
+        revision: 1,
+        loadedAt: 1,
+        first: 1,
+        count: 3,
+        names: ["p2", "p3", "p4"],
+        columns: [
+          { id: 5, revision: 1, type: "text", values: [null, "", "Ñandú"] },
+          { id: 2, revision: 1, type: "numeric", values: [null, 2, 3.25] },
+          { id: 3, revision: 1, type: "integer", values: ["12n", null, "-7n"] },
+          { id: 4, revision: 1, type: "boolean", values: [false, null, true] },
+          { id: 1, revision: 1, type: "categorical", codes: [1, null, 0] },
+        ],
+      },
+    });
+    assert.deepEqual(await fetchRows(3, 2, []), {
+      ok: false,
+      error: { kind: "rowsOutOfRange", first: 3, count: 2, numRows: 4 },
+    });
     assert.deepEqual(await send("selectPopulation", 1, peru), applied);
     assert.deepEqual((await stateAt(2)).active, { column: 1, selected: peru });
     // Rows 2 and 3 into Peru.

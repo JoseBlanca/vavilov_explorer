@@ -16,6 +16,7 @@ frontend in the system webview.
 ```sh
 npm install
 npm run tauri dev      # the app, with hot reload
+npm run tauri dev -- --features demo   # the app with the demo table loaded
 npm run tauri build    # a packaged app in target/release/bundle/
 ```
 

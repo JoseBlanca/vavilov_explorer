@@ -1,0 +1,107 @@
+.scroller {
+  position: relative;
+  height: 100%;
+  overflow: auto;
+  background: var(--color-panel);
+}
+
+/* An element of one row's height, which the controller measures to turn a
+   scroll into rows. */
+.probe {
+  position: absolute;
+  visibility: hidden;
+  height: var(--row-height);
+}
+
+.grid {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.header,
+.row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.blank {
+  grid-column: 1 / -1;
+}
+
+.heading,
+.nameHeading,
+.cell,
+.nameCell {
+  height: var(--row-height);
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  line-height: var(--row-height);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.heading,
+.nameHeading {
+  background: var(--color-surface);
+  font-weight: 600;
+}
+
+.nameHeading,
+.nameCell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  border-right: 1px solid var(--color-border);
+}
+
+.nameCell {
+  background: var(--color-panel);
+}
+
+.row {
+  cursor: default;
+}
+
+.row:hover .cell,
+.row:hover .nameCell {
+  background: var(--color-surface);
+}
+
+.row[aria-selected="true"] .cell,
+.row[aria-selected="true"] .nameCell {
+  background: var(--color-selected-surface);
+}
+
+/* The mark of a selected row beside its colour, so that the colour is not
+   the only sign (css.md, "Contrast and colour"). */
+.row[aria-selected="true"] .nameCell {
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.start {
+  text-align: start;
+}
+
+.end {
+  text-align: end;
+}
+
+/* Text for a screen reader alone. */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
