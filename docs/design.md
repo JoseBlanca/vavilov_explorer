@@ -356,29 +356,70 @@ Every column but the first has two types, decided by the owner on
 
 Which roles each storage type can take:
 
-| storage type | number | category | classification | text |
+| storage type | number, latitude, longitude | category, country category | classification, country classification | text |
 |---|---|---|---|---|
-| whole numbers | yes | yes | yes | no |
-| decimal numbers | yes | yes | yes | no |
-| yes or no | no | yes | yes | no |
-| text | no | yes | yes | yes |
+| whole numbers | yes | yes, not country | yes, not country | no |
+| decimal numbers | yes | yes, not country | yes, not country | no |
+| yes or no | no | yes, not country | yes, not country | no |
+| text | no | yes, and country | yes, and country | yes |
 
-The dropdown offers only the roles the column can take, and a category
-or a classification only when its distinct values fit the 65,535 codes
-of a column; a role it cannot take is not shown, as the owner decided on
-2 October 2026. A change
-of role never changes a value: it builds or drops the list of levels.
-The levels of a category or a classification keep the storage type, so
-that population codes 1, 2 and 10 are ordered as numbers, and an export
+Three roles are sub-roles of others, decided by the owner on 2 October
+2026: they behave as the role above them, and add a check of every value
+and what the views can do with it.
+
+- **latitude** and **longitude**, sub-roles of number, offered only when
+  every value is from −90 to 90, and from −180 to 180, missing values
+  allowed. A latitude is still a number for a histogram or an axis; the
+  map takes its columns from them. Coordinates in metres, a longitude
+  from 0 to 360, or degrees written as text such as `40°25'N` can be
+  numbers but not these.
+- **country**, a sub-role of category and of classification, for text,
+  offered only when every value names a country of ISO 3166-1, or a
+  former one of ISO 3166-3: by its two- or three-letter code, by its ISO
+  name in English, or by its name in Natural Earth, the data behind the
+  map's borders; case and surrounding spaces are ignored, accents are
+  not. A two- or three-letter code that ISO gave to a current country
+  after a former one means the current country (`AI` is Anguilla, not the
+  French Territory of the Afars and the Issas); a former country is then
+  named by its name, its four-letter code (`SUHH`), or a three-letter code
+  no current country uses (`SUN`). Each value is shown as its country's
+  three-letter code, whatever the file wrote, so that `ES` and `Spain`
+  are one level, `ESP`; a former country whose three-letter code a
+  current one uses is shown by its four-letter code. A new population of
+  a country classification must be a country.
+
+The dropdown offers, of number, latitude, longitude, category, country
+category, classification, country classification and text, only those
+the column can take: by its storage type, a category or a
+classification only when its distinct values fit the 65,535 codes of a
+column, and a sub-role only when every value passes its check. A role it
+cannot take is not shown, as the owner decided on 2 October 2026.
+
+A change of role never changes a value, but for country, which writes
+each value as its code: it builds or drops the list of levels. The
+levels of a category or a classification keep the storage type, so that
+population codes 1, 2 and 10 are ordered as numbers, and an export
 writes them back as numbers. A change of role is a command and can be
-undone. Only a classification can be the active classification, so that
-no lasso edits a trait the user measured; a classification whose role is
-changed stops being the active one.
+undone, and undoing a change to country gives back the file's
+spellings. Only a classification, of countries or not, can be the active
+classification, so that no lasso edits a trait the user measured; a
+classification whose role is changed to another than classification
+stops being the active one, and one whose levels are built again loses
+its selected population.
+
+The list of countries is a table in the core, generated once from the
+data of Debian's `iso-codes` (ISO 3166-1 and 3166-3, their codes, names
+and official names) and from Natural Earth's names as `world-atlas` gives
+them, and committed with its sources and their date; it is generated
+again when ISO changes a country. A name that two countries would share
+is left out of it.
 
 The import guesses the role: number for whole and decimal numbers,
-category for yes or no and for text of at most 20 distinct values, and
-text for the rest. No column is made a classification by the import: the
-user chooses which, in its dropdown.
+latitude or longitude for a column of numbers whose header is `lat` or
+`latitude`, or `lon`, `long` or `longitude`, case ignored, and whose
+values fit; category for yes or no and for text of at most 20 distinct
+values, and text for the rest. No column is made a classification by the
+import: the user chooses which, in its dropdown.
 
 ## 7. table_io
 

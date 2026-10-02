@@ -37,7 +37,7 @@ const DESCRIPTION: TableDescription = {
       revision: revision(1),
       storage: "float",
       role: "number",
-      numDistinct: 6,
+      roles: ["number"],
     },
     {
       id: ORIGIN,
@@ -45,6 +45,7 @@ const DESCRIPTION: TableDescription = {
       revision: revision(1),
       storage: "text",
       role: "classification",
+      roles: ["classification"],
       levels: [
         { value: "Spain", colour: "#e69f00" },
         { value: "Peru", colour: "#56b4e9" },
@@ -57,7 +58,7 @@ const DESCRIPTION: TableDescription = {
       revision: revision(1),
       storage: "integer",
       role: "number",
-      numDistinct: 6,
+      roles: ["number"],
     },
     {
       id: CLUSTER,
@@ -65,6 +66,7 @@ const DESCRIPTION: TableDescription = {
       revision: revision(1),
       storage: "integer",
       role: "classification",
+      roles: ["classification"],
       levels: [
         { value: "1", colour: "#0072b2" },
         { value: "20", colour: "#d55e00" },

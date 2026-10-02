@@ -239,6 +239,29 @@ pub enum CommandError {
         max_levels: u32,
     },
 
+    /// A value of the column that the sub-role asked for does not take: a
+    /// latitude or a longitude out of its range, or a text that names no
+    /// country.
+    #[error("row {row} of column {column} cannot be a {role:?}")]
+    ValueNotFor {
+        /// The column the command gave.
+        column: ColumnId,
+        /// The sub-role asked for.
+        role: Role,
+        /// The first row whose value it does not take.
+        row: RowIndex,
+    },
+
+    /// A level of a country category or classification that is not the
+    /// code a country is shown by.
+    #[error("level {level:?} of column {column_name:?} is no country's code")]
+    NotACountry {
+        /// The name of the column.
+        column_name: String,
+        /// The level.
+        level: String,
+    },
+
     /// A category or a classification has another number of colours than
     /// levels.
     #[error("column {column_name:?} has {num_levels} levels and {num_colours} colours")]

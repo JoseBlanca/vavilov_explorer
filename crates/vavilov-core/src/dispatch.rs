@@ -20,7 +20,7 @@ use crate::session::{
     Active, History, HistoryStep, Interaction, OpenProject, Project, Selected, SendFailed, Session,
     SharedState,
 };
-use crate::table::{Categorical, Column, ColumnValues, Role, Table};
+use crate::table::{Categorical, Column, ColumnValues, Table};
 
 /// What a command applied.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -313,9 +313,7 @@ impl Session {
                     .table
                     .column_mut(column)
                     .ok_or_else(|| defect(column, "is gone"))?;
-                let (ColumnValues::Category(categorical)
-                | ColumnValues::Classification(categorical)) = values
-                else {
+                let Some(categorical) = values.categorical_mut() else {
                     return Err(defect(
                         column,
                         "is no longer a category or a classification",
@@ -491,8 +489,9 @@ fn step_of(kind: StepKind, reverse: Edit) -> HistoryStep {
 }
 
 /// Plans new values of a column, a change of role or its reverse: the
-/// column and the shape of the table take the new revision, and a
-/// classification that stops being one stops being the active one.
+/// column and the shape of the table take the new revision; an active
+/// classification that stops being one stops being active, and one that
+/// stays one loses its selected population.
 fn plan_values(
     state: &SharedState,
     open: &OpenProject,
@@ -512,19 +511,26 @@ fn plan_values(
             values: old.values().clone(),
         },
     );
+    // The active classification stays active while it is a classification,
+    // but its levels may have been built again, so its codes may mean other
+    // populations: what was selected for editing is cleared.
     let active = open
         .interaction
         .active
-        .filter(|active| active.column == column && values.role() != Role::Classification)
-        .map(|_| None);
+        .filter(|active| active.column == column)
+        .map(|_| {
+            values.role().is_classification().then_some(Active {
+                column,
+                selected: None,
+            })
+        });
     let revision = state.revision.next()?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.shape(revision)?;
     if let Some(active) = active {
         message.active(active)?;
     }
-    if let ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) = &values
-    {
+    if let Some(categorical) = values.categorical() {
         message.codes(column, revision, categorical.codes())?;
     }
     message.columns(&[(column, revision)])?;

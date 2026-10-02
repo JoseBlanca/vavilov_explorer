@@ -478,6 +478,10 @@ fn the_description_of_the_table_comes_back_as_json() {
             "columns": [{
                 "id": 1, "name": "origin", "revision": 1,
                 "storage": "text", "role": "classification",
+                "roles": [
+                    "category", "countryCategory", "classification",
+                    "countryClassification", "text",
+                ],
                 "levels": [
                     { "value": "Spain", "colour": "#0072b2" },
                     { "value": "Peru", "colour": "#0072b2" },

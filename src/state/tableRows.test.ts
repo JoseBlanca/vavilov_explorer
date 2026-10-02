@@ -37,7 +37,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "float",
       role: "number",
-      numDistinct: 3,
+      roles: ["number", "latitude", "longitude", "category", "classification"],
     },
     {
       id: column(2),
@@ -45,6 +45,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "text",
       role: "classification",
+      roles: ["category", "countryCategory", "classification", "countryClassification", "text"],
       levels: [
         { value: "Spain", colour: "#e69f00" },
         { value: "Peru", colour: "#56b4e9" },
@@ -56,7 +57,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "integer",
       role: "number",
-      numDistinct: 3,
+      roles: ["number", "category", "classification"],
     },
     {
       id: column(4),
@@ -64,6 +65,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "boolean",
       role: "category",
+      roles: ["category", "classification"],
       levels: [
         { value: false, colour: "#e69f00" },
         { value: true, colour: "#56b4e9" },
@@ -75,7 +77,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "text",
       role: "text",
-      numDistinct: 2,
+      roles: ["category", "classification", "text"],
     },
     {
       id: column(6),
@@ -83,6 +85,7 @@ const PLANTS: TableDescription = {
       revision: revision(1),
       storage: "float",
       role: "category",
+      roles: ["number", "category", "classification"],
       levels: [
         { value: 0.5, colour: "#e69f00" },
         { value: 2, colour: "#56b4e9" },
@@ -125,8 +128,20 @@ describe("the columns of the table", () => {
       ]),
     ).toEqual([
       [0, "IndividualID", "names", false, []],
-      [1, "height", "number", true, ["Number", "Category", "Classification"]],
-      [2, "origin", "classification", false, ["Category", "Classification", "Text"]],
+      [
+        1,
+        "height",
+        "number",
+        true,
+        ["Number", "Latitude", "Longitude", "Category", "Classification"],
+      ],
+      [
+        2,
+        "origin",
+        "classification",
+        false,
+        ["Category", "Country category", "Classification", "Country classification", "Text"],
+      ],
       [3, "seeds", "number", true, ["Number", "Category", "Classification"]],
       [4, "fertile", "category", false, ["Category", "Classification"]],
       [5, "note", "text", false, ["Category", "Classification", "Text"]],

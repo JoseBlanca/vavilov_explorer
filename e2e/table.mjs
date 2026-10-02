@@ -65,8 +65,21 @@ for (const engine of Object.keys(ENGINES)) {
       "note",
     ]);
     // Each column but the first has the dropdown of the roles it can take.
-    assert.deepEqual(await roleOptions(grid, "height"), ["Number", "Category", "Classification"]);
-    assert.deepEqual(await roleOptions(grid, "origin"), ["Category", "Classification", "Text"]);
+    // height, from 100 to 174.75, fits a longitude but not a latitude.
+    assert.deepEqual(await roleOptions(grid, "height"), [
+      "Number",
+      "Longitude",
+      "Category",
+      "Classification",
+    ]);
+    // origin, Spain and Peru, names countries.
+    assert.deepEqual(await roleOptions(grid, "origin"), [
+      "Category",
+      "Country category",
+      "Classification",
+      "Country classification",
+      "Text",
+    ]);
     assert.deepEqual(await roleOptions(grid, "fertile"), ["Category", "Classification"]);
     assert.equal(await roleOf(grid, "seeds").inputValue(), "number");
     assert.equal(await grid.getByRole("combobox", { name: "Role of IndividualID" }).count(), 0);
@@ -136,6 +149,15 @@ for (const engine of Object.keys(ENGINES)) {
     await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).waitFor();
     assert.equal(await roleOf(grid, "origin").inputValue(), "text");
     assert.deepEqual(errors, [], "no page errors after origin was made text");
+
+    // origin made a country classification: each value is its code, and the
+    // panel can choose it again.
+    await roleOf(grid, "origin").selectOption("countryClassification");
+    await rowNamed(grid, "p2").getByRole("gridcell", { name: "ESP" }).waitFor();
+    await classification.locator("option", { hasText: "origin" }).waitFor({ state: "attached" });
+    await classification.selectOption({ label: "origin" });
+    await panel.getByRole("button", { name: /^ESP/ }).waitFor();
+    await shoot(page, engine, "table-countries");
 
     // A scroll to the end draws the last rows, from pages fetched then.
     await page.locator("[data-scroller]").evaluate((scroller) => {

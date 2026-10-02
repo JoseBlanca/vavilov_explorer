@@ -367,3 +367,54 @@ fn levels_of_decimal_numbers_must_be_finite_and_0_and_minus_0_are_one() {
         }
     );
 }
+
+#[test]
+fn a_latitude_out_of_its_range_is_refused_when_the_table_is_built() {
+    assert_eq!(
+        refusal(
+            "IndividualID",
+            &["p1", "p2"],
+            vec![column(
+                "lat",
+                ColumnValues::Latitude(Numbers::Float(vec![Some(10.0), Some(-91.0)]))
+            )]
+        ),
+        CommandError::ValueNotFor {
+            column: ColumnId::new(1),
+            role: Role::Latitude,
+            row: RowIndex::new(1),
+        }
+    );
+}
+
+#[test]
+fn a_level_of_a_country_category_that_is_no_country_s_code_is_refused() {
+    let values = |levels: Vec<&str>| {
+        let colours = vec![VERMILLION; levels.len()];
+        ColumnValues::CountryCategory(Categorical::new(
+            LevelValues::Text(levels.into_iter().map(str::to_owned).collect()),
+            colours,
+            vec![None],
+        ))
+    };
+    // Spain names a country, but a country column holds its code.
+    assert_eq!(
+        refusal(
+            "IndividualID",
+            &["p1"],
+            vec![column("origin", values(vec!["ESP", "Spain"]))]
+        ),
+        CommandError::NotACountry {
+            column_name: "origin".to_owned(),
+            level: "Spain".to_owned(),
+        }
+    );
+    assert!(
+        Table::new(
+            "IndividualID",
+            names(&["p1"]),
+            vec![column("origin", values(vec!["ESP", "SUN"]))]
+        )
+        .is_ok()
+    );
+}

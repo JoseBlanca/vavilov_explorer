@@ -388,13 +388,14 @@ describe("the description of the table", () => {
     numRows: 4,
     names: { id: 0, header: "IndividualID" },
     columns: [
-      { id: 1, name: "height", revision: 1, storage: "float", role: "number", numDistinct: 3 },
+      { id: 1, name: "height", revision: 1, storage: "float", role: "number", roles: ["number"] },
       {
         id: 2,
         name: "origin",
         revision: 1,
         storage: "text",
         role: "classification",
+        roles: ["category", "classification", "text"],
         levels: [
           { value: "Spain", colour: "#e69f00" },
           { value: "Peru", colour: "#56b4e9" },
@@ -406,6 +407,7 @@ describe("the description of the table", () => {
         revision: 1,
         storage: "integer",
         role: "category",
+        roles: ["number", "category", "classification"],
         levels: [{ value: "-12", colour: "#e69f00" }],
       },
     ],
@@ -425,8 +427,15 @@ describe("the description of the table", () => {
   });
 
   test("that does not fit is a defect", async () => {
-    const height = { id: 1, name: "height", revision: 1, storage: "float", numDistinct: 3 };
-    const origin = { id: 2, name: "origin", revision: 1, storage: "text", role: "category" };
+    const height = { id: 1, name: "height", revision: 1, storage: "float", roles: ["number"] };
+    const origin = {
+      id: 2,
+      name: "origin",
+      revision: 1,
+      storage: "text",
+      role: "category",
+      roles: ["category"],
+    };
     const withoutShape = Object.fromEntries(
       Object.entries(DESCRIPTION).filter(([key]) => key !== "shapeAt"),
     );
@@ -437,6 +446,10 @@ describe("the description of the table", () => {
       // A number of text, and text of numbers, which the core never sends.
       { ...DESCRIPTION, columns: [{ ...height, storage: "text", role: "number" }] },
       { ...DESCRIPTION, columns: [{ ...height, role: "text" }] },
+      // A role not among the roles the column can take.
+      { ...DESCRIPTION, columns: [{ ...height, role: "latitude" }] },
+      // Levels on a number.
+      { ...DESCRIPTION, columns: [{ ...height, role: "number", levels: [] }] },
       { ...DESCRIPTION, columns: [{ ...origin, levels: [{ value: "Spain", colour: "red" }] }] },
       { ...DESCRIPTION, columns: [{ ...origin, levels: [{ value: "", colour: "#e69f00" }] }] },
       // A whole number as a JSON number, which cannot hold every one.

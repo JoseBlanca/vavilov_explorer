@@ -75,7 +75,8 @@ pub fn load(session: &Mutex<Session>) -> Result<(), Box<dyn Error>> {
 }
 
 /// The demo table: plants named `VAV-0001` and on, with two
-/// classifications, coordinates, three principal components, a height, a
+/// classifications, country of origin a classification of countries,
+/// coordinates as a latitude and a longitude, three principal components, a height, a
 /// count of seeds, whether each is fertile and the colour of its flower,
 /// two categories, and a note. Some values of every column are missing.
 /// Each column is built by the core from its stored values and its role,
@@ -134,10 +135,14 @@ pub fn table() -> Result<Table, CommandError> {
     }
     let [pc1, pc2, pc3] = components;
     let columns = [
-        ("country", Stored::Text(country), Role::Classification),
+        (
+            "country",
+            Stored::Text(country),
+            Role::CountryClassification,
+        ),
         ("cluster", Stored::Text(cluster), Role::Classification),
-        ("latitude", Stored::Float(latitude), Role::Number),
-        ("longitude", Stored::Float(longitude), Role::Number),
+        ("latitude", Stored::Float(latitude), Role::Latitude),
+        ("longitude", Stored::Float(longitude), Role::Longitude),
         ("PC1", Stored::Float(pc1), Role::Number),
         ("PC2", Stored::Float(pc2), Role::Number),
         ("PC3", Stored::Float(pc3), Role::Number),

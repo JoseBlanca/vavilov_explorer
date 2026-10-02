@@ -1461,3 +1461,69 @@ fn a_role_the_storage_type_cannot_take_and_the_first_column_are_refused() {
         assert_refused(&mut session, request, expected);
     }
 }
+
+#[test]
+fn the_active_classification_made_one_of_countries_stays_active_without_its_population() {
+    let (mut session, recorder) = editing_spain();
+    apply(&mut session, set_role(ORIGIN, Role::CountryClassification));
+    assert_eq!(
+        session.active(),
+        Some(Active {
+            column: ORIGIN,
+            selected: None
+        })
+    );
+    // Spain and Peru as their codes, in their order: ESP, PER.
+    assert_eq!(
+        session
+            .table()
+            .unwrap()
+            .column(ORIGIN)
+            .unwrap()
+            .categorical()
+            .unwrap()
+            .levels(),
+        &LevelValues::Text(vec!["ESP".to_owned(), "PER".to_owned()])
+    );
+    let messages = recorder.take();
+    assert_eq!(
+        part_kinds(&messages[0]),
+        [SHAPE, ACTIVE, CODES, COLUMNS, UNDO]
+    );
+}
+
+#[test]
+fn a_role_whose_check_a_value_fails_is_refused_with_the_row() {
+    let (mut session, _recorder) = loaded();
+    // cluster's levels, A, B and C, name no country.
+    let request = at(&session, set_role(CLUSTER, Role::CountryCategory));
+    assert_refused(
+        &mut session,
+        request,
+        CommandError::ValueNotFor {
+            column: CLUSTER,
+            role: Role::CountryCategory,
+            row: RowIndex::new(1),
+        },
+    );
+}
+
+#[test]
+fn a_lasso_on_a_classification_of_countries_assigns_its_rows() {
+    let (mut session, _recorder) = loaded();
+    apply(&mut session, set_role(ORIGIN, Role::CountryClassification));
+    // ESP is code 0, PER code 1.
+    apply(
+        &mut session,
+        Command::SelectPopulation {
+            column: ORIGIN,
+            selected: Some(Selected::Population(PERU)),
+        },
+    );
+    let request = assign(&session, PERU, &[0, 2]);
+    session.dispatch(request).unwrap();
+    assert_eq!(
+        codes_of(&session, ORIGIN),
+        [code(1), code(1), code(1), code(0)]
+    );
+}

@@ -10,6 +10,7 @@
 
 mod command;
 mod convert;
+mod countries;
 mod description;
 mod dispatch;
 mod edit;
@@ -24,9 +25,9 @@ mod session;
 mod table;
 
 pub use command::{Command, Request};
+pub use countries::country_code;
 pub use description::{
-    ColumnDescription, LevelDescription, LevelValue, NamesDescription, RoleDescription,
-    TableDescription,
+    ColumnDescription, LevelDescription, LevelValue, NamesDescription, TableDescription,
 };
 pub use dispatch::{Changed, Dropped, Outcome};
 pub use error::CommandError;

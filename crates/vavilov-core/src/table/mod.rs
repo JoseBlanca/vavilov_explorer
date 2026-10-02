@@ -9,6 +9,7 @@ pub use colour::{Colour, PALETTE, palette};
 pub use column::{
     Categorical, Column, ColumnValues, LevelValues, Numbers, Role, StorageType, Stored,
 };
+pub(crate) use column::{LATITUDE, LONGITUDE, check_range};
 
 use std::collections::{HashMap, HashSet};
 
@@ -29,6 +30,9 @@ pub const MAX_COLUMNS: u32 = 16_777_216;
 /// The most levels a category or a classification may have: a code is 16
 /// bits, and `0xFFFF` means missing in the messages.
 pub const MAX_LEVELS: u32 = 65_535;
+
+/// [`MAX_LEVELS`] as a count of values.
+pub(crate) const MAX_LEVELS_USIZE: usize = 65_535;
 
 /// The header of the first column, which the app shows and an export
 /// writes (`docs/design.md`, section 5, decided by the owner on 2 October
@@ -133,8 +137,9 @@ impl Table {
         check_num_columns(columns.len())?;
         check_names(&names)?;
         check_column_names(&columns)?;
-        for column in &columns {
-            check_values(column, num_rows)?;
+        // The ids are given below, 1 and on, in the order of the columns.
+        for (id, column) in (1..=u32::MAX).zip(&columns) {
+            check_values(column, ColumnId::new(id), num_rows)?;
         }
         // The first column is 0 and the others follow; their number was
         // checked to be at most MAX_COLUMNS, so no id reaches u32::MAX.
@@ -269,7 +274,7 @@ fn check_column_names(columns: &[NewColumn]) -> Result<(), CommandError> {
 }
 
 /// Checks a column's length, its numbers and its levels and codes.
-fn check_values(column: &NewColumn, num_rows: u32) -> Result<(), CommandError> {
+fn check_values(column: &NewColumn, id: ColumnId, num_rows: u32) -> Result<(), CommandError> {
     let num_values = column.values.len();
     if num_values != usize_from(num_rows) {
         return Err(CommandError::ColumnLength {
@@ -278,22 +283,65 @@ fn check_values(column: &NewColumn, num_rows: u32) -> Result<(), CommandError> {
             num_rows,
         });
     }
-    match &column.values {
-        ColumnValues::Number(Numbers::Float(values)) => {
-            for (row, value) in rows(values) {
-                if value.is_some_and(|value| !value.is_finite()) {
-                    return Err(CommandError::NonFiniteNumber {
-                        column_name: column.name.clone(),
-                        row,
-                    });
-                }
+    if let Some(Numbers::Float(values)) = column.values.numbers() {
+        for (row, value) in rows(values) {
+            if value.is_some_and(|value| !value.is_finite()) {
+                return Err(CommandError::NonFiniteNumber {
+                    column_name: column.name.clone(),
+                    row,
+                });
             }
-            Ok(())
+        }
+    }
+    match &column.values {
+        ColumnValues::Latitude(numbers) | ColumnValues::Longitude(numbers) => {
+            let role = column.values.role();
+            let range = if role == Role::Latitude {
+                &LATITUDE
+            } else {
+                &LONGITUDE
+            };
+            check_range(numbers, range, id, role)
+        }
+        ColumnValues::CountryCategory(categorical)
+        | ColumnValues::CountryClassification(categorical) => {
+            check_categorical(&column.name, categorical)?;
+            check_countries(&column.name, categorical, id, column.values.role())
         }
         ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) => {
             check_categorical(&column.name, categorical)
         }
-        ColumnValues::Number(Numbers::Integer(_)) | ColumnValues::Text(_) => Ok(()),
+        ColumnValues::Number(_) | ColumnValues::Text(_) => Ok(()),
+    }
+}
+
+/// Checks that every level of a country role is a country's code, as the
+/// country is shown.
+fn check_countries(
+    name: &str,
+    categorical: &Categorical,
+    column: ColumnId,
+    role: Role,
+) -> Result<(), CommandError> {
+    let not_a_country = |level: String| CommandError::NotACountry {
+        column_name: name.to_owned(),
+        level,
+    };
+    match categorical.levels() {
+        LevelValues::Text(levels) => match levels
+            .iter()
+            .find(|level| crate::countries::country_code(level) != Some(level.as_str()))
+        {
+            Some(level) => Err(not_a_country(level.clone())),
+            None => Ok(()),
+        },
+        LevelValues::Integer(_) | LevelValues::Float(_) | LevelValues::Boolean(_) => {
+            Err(CommandError::RoleNotPossible {
+                column,
+                storage: categorical.storage_type(),
+                role,
+            })
+        }
     }
 }
 

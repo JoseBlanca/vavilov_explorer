@@ -81,7 +81,14 @@ fn column(id: ColumnId, spec: ColumnSpec) -> Result<NewColumn, CommandError> {
             match spec.role.unwrap_or(Role::Classification) {
                 Role::Classification => ColumnValues::Classification(categorical),
                 Role::Category => ColumnValues::Category(categorical),
-                Role::Number | Role::Text => return Err(not_one()),
+                // A column of countries is given by its values, which the
+                // core turns into codes.
+                Role::CountryCategory
+                | Role::CountryClassification
+                | Role::Number
+                | Role::Latitude
+                | Role::Longitude
+                | Role::Text => return Err(not_one()),
             }
         }
         (numeric, integer, text, boolean, None, None) => {

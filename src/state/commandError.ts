@@ -31,6 +31,7 @@ const FIELDS = {
   unknownColumn: { column: "columnId" },
   notClassification: { column: "columnId" },
   roleNotPossible: { column: "columnId", storage: "storage", role: "role" },
+  valueNotFor: { column: "columnId", role: "role", row: "rowIndex" },
   notActiveClassification: { column: "columnId" },
   unknownLevel: { column: "columnId", code: "levelCode", numLevels: "number" },
   noPopulationSelected: {},
@@ -53,6 +54,7 @@ const FIELDS = {
   tooManyLevels: { columnName: "string", numLevels: "number", maxLevels: "number" },
   levelColours: { columnName: "string", numLevels: "number", numColours: "number" },
   nonFiniteLevel: { columnName: "string", code: "levelCode" },
+  notACountry: { columnName: "string", level: "string" },
   emptyLevelName: { columnName: "string", code: "levelCode" },
   duplicateLevel: { columnName: "string", level: "string" },
   codeWithoutLevel: {

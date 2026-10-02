@@ -9,11 +9,46 @@ import type { ColumnId, Revision } from "./ids.ts";
 /** What a column's values are, as the import read them. */
 export type StorageType = "integer" | "float" | "boolean" | "text";
 
-/** What a column is for, which the user chooses. */
-export type Role = "number" | "category" | "classification" | "text";
+/**
+ * What a column is for, which the user chooses. Latitude and longitude are
+ * sub-roles of number, and the country ones of category and classification
+ * (docs/design.md, section 6).
+ */
+export type Role = ValuesRole | LevelsRole;
 
-/** Every role, in the order the dropdown of a column lists them. */
-export const ROLES: readonly Role[] = ["number", "category", "classification", "text"];
+/** The roles whose values a page of rows carries. */
+export type ValuesRole = "number" | "latitude" | "longitude" | "text";
+
+/** The roles whose codes the window's copy holds. */
+export type LevelsRole =
+  "category" | "countryCategory" | "classification" | "countryClassification";
+
+/** Every role, in the order the dropdown of a column lists them, as `Role::ALL` in the core. */
+export const ROLES: readonly Role[] = [
+  "number",
+  "latitude",
+  "longitude",
+  "category",
+  "countryCategory",
+  "classification",
+  "countryClassification",
+  "text",
+];
+
+/** Whether `role` is a classification, of countries or not: the roles a lasso edits. */
+export function isClassification(role: Role): boolean {
+  return role === "classification" || role === "countryClassification";
+}
+
+/** Whether `role` holds codes into levels: a category or a classification, of countries or not. */
+export function hasLevels(role: Role): role is LevelsRole {
+  return (
+    role === "category" ||
+    role === "countryCategory" ||
+    role === "classification" ||
+    role === "countryClassification"
+  );
+}
 
 /**
  * The value of a level: a whole number as text, since JSON cannot hold every
@@ -40,22 +75,22 @@ interface ColumnCommon {
   readonly revision: Revision;
   /** What its values are. */
   readonly storage: StorageType;
+  /** The roles it can take, its own among them, in the order of `ROLES`. */
+  readonly roles: readonly Role[];
 }
 
 /**
- * A number or a text, whose values a page of rows carries. Each role is a
- * member of its own, `role` a single value, so that TypeScript narrows on
- * it in both branches of a test.
+ * A number, of its sub-roles, or a text, whose values a page of rows
+ * carries. Each role is a member of its own, `role` a single value, so that
+ * TypeScript narrows on it in both branches of a test.
  */
-export interface ValuesColumn<R extends "number" | "text"> extends ColumnCommon {
+export interface ValuesColumn<R extends ValuesRole> extends ColumnCommon {
   /** What it is for. */
   readonly role: R;
-  /** Its distinct values, missing ones left out. */
-  readonly numDistinct: number;
 }
 
-/** A category or a classification, whose codes the window's copy holds. */
-export interface LevelsColumn<R extends "category" | "classification"> extends ColumnCommon {
+/** A category or a classification, of countries or not, whose codes the window's copy holds. */
+export interface LevelsColumn<R extends LevelsRole> extends ColumnCommon {
   /** What it is for. */
   readonly role: R;
   /** Its levels, in the order of their codes. */
@@ -65,9 +100,13 @@ export interface LevelsColumn<R extends "category" | "classification"> extends C
 /** A column other than the first. */
 export type ColumnDescription =
   | ValuesColumn<"number">
+  | ValuesColumn<"latitude">
+  | ValuesColumn<"longitude">
   | ValuesColumn<"text">
   | LevelsColumn<"category">
-  | LevelsColumn<"classification">;
+  | LevelsColumn<"countryCategory">
+  | LevelsColumn<"classification">
+  | LevelsColumn<"countryClassification">;
 
 /**
  * The description a window's components draw from: none with no project;
@@ -79,6 +118,11 @@ export type DescriptionNow =
   | { readonly kind: "none" }
   | { readonly kind: "behind" }
   | { readonly kind: "current"; readonly description: TableDescription };
+
+/** Whether `column` holds codes into levels: a category or a classification, of countries or not. */
+export function isLevelsColumn(column: ColumnDescription): column is LevelsColumn<LevelsRole> {
+  return hasLevels(column.role);
+}
 
 /** The table of the open project. */
 export interface TableDescription {
@@ -121,41 +165,61 @@ function isStorageType(value: unknown): value is StorageType {
   return STORAGE_TYPES.includes(value);
 }
 
+function isRole(value: unknown): value is Role {
+  return ROLES.some((role) => role === value);
+}
+
+/** The storage types each role can have, as the core allows them. */
+function fitsStorage(role: Role, storage: StorageType): boolean {
+  switch (role) {
+    case "number":
+    case "latitude":
+    case "longitude":
+      return storage === "integer" || storage === "float";
+    case "countryCategory":
+    case "countryClassification":
+    case "text":
+      return storage === "text";
+    case "category":
+    case "classification":
+      return true;
+  }
+}
+
 function isColumn(value: unknown): value is ColumnDescription {
   if (!isRecord(value)) {
     return false;
   }
-  const { id, name, revision, storage, role } = value;
+  const { id, name, revision, storage, role, roles } = value;
   const common =
     typeof id === "number" &&
     isColumnId(id) &&
     typeof name === "string" &&
     typeof revision === "number" &&
     isRevision(revision) &&
-    isStorageType(storage);
+    isStorageType(storage) &&
+    isRole(role) &&
+    fitsStorage(role, storage) &&
+    Array.isArray(roles) &&
+    roles.every(isRole) &&
+    roles.includes(role);
   if (!common) {
     return false;
   }
-  if (role === "category" || role === "classification") {
-    const { levels } = value;
-    return (
-      Array.isArray(levels) &&
-      levels.every(
-        (level) =>
-          isRecord(level) &&
-          isLevelValue(level["value"], storage) &&
-          typeof level["colour"] === "string" &&
-          COLOUR.test(level["colour"]),
-      )
-    );
+  const { levels } = value;
+  if (!hasLevels(role)) {
+    return levels === undefined;
   }
-  const { numDistinct } = value;
-  const counted =
-    typeof numDistinct === "number" && Number.isSafeInteger(numDistinct) && numDistinct >= 0;
-  if (role === "number") {
-    return counted && (storage === "integer" || storage === "float");
-  }
-  return role === "text" && counted && storage === "text";
+  return (
+    Array.isArray(levels) &&
+    levels.every(
+      (level) =>
+        isRecord(level) &&
+        isLevelValue(level["value"], storage) &&
+        typeof level["colour"] === "string" &&
+        COLOUR.test(level["colour"]),
+    )
+  );
 }
 
 /** Whether `value` is the description the backend sends, every id of its type. */

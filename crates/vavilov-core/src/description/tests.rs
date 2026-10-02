@@ -27,20 +27,26 @@ fn the_description_names_every_column_with_its_storage_type_role_and_levels() {
             "names": { "id": 0, "header": "IndividualID" },
             "columns": [
                 {
-                    "id": 1, "name": "height", "revision": 1,
-                    "storage": "float", "role": "number", "numDistinct": 3,
+                    "id": 1, "name": "height", "revision": 1, "storage": "float",
+                    "role": "number",
+                    "roles": ["number", "latitude", "longitude", "category", "classification"],
                 },
                 {
-                    "id": 2, "name": "origin", "revision": 1,
-                    "storage": "text", "role": "classification",
+                    "id": 2, "name": "origin", "revision": 1, "storage": "text",
+                    "role": "classification",
+                    "roles": [
+                        "category", "countryCategory", "classification",
+                        "countryClassification", "text",
+                    ],
                     "levels": [
                         { "value": "Spain", "colour": "#d55e00" },
                         { "value": "Peru", "colour": "#0072b2" },
                     ],
                 },
                 {
-                    "id": 3, "name": "cluster", "revision": 1,
-                    "storage": "text", "role": "classification",
+                    "id": 3, "name": "cluster", "revision": 1, "storage": "text",
+                    "role": "classification",
+                    "roles": ["category", "classification", "text"],
                     "levels": [
                         { "value": "A", "colour": "#d55e00" },
                         { "value": "B", "colour": "#0072b2" },
@@ -48,20 +54,23 @@ fn the_description_names_every_column_with_its_storage_type_role_and_levels() {
                     ],
                 },
                 {
-                    "id": 4, "name": "seeds", "revision": 1,
-                    "storage": "integer", "role": "number", "numDistinct": 3,
+                    "id": 4, "name": "seeds", "revision": 1, "storage": "integer",
+                    "role": "number",
+                    "roles": ["number", "latitude", "longitude", "category", "classification"],
                 },
                 {
-                    "id": 5, "name": "fertile", "revision": 1,
-                    "storage": "boolean", "role": "category",
+                    "id": 5, "name": "fertile", "revision": 1, "storage": "boolean",
+                    "role": "category",
+                    "roles": ["category", "classification"],
                     "levels": [
                         { "value": false, "colour": "#e69f00" },
                         { "value": true, "colour": "#56b4e9" },
                     ],
                 },
                 {
-                    "id": 6, "name": "note", "revision": 1,
-                    "storage": "text", "role": "text", "numDistinct": 3,
+                    "id": 6, "name": "note", "revision": 1, "storage": "text",
+                    "role": "text",
+                    "roles": ["category", "classification", "text"],
                 },
             ],
         })

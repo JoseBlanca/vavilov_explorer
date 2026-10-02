@@ -34,9 +34,13 @@ export interface TableProps {
 const WIDTHS: Readonly<Record<TableColumn["kind"], string>> = {
   names: "var(--column-names)",
   number: "var(--column-number)",
+  latitude: "var(--column-number)",
+  longitude: "var(--column-number)",
   text: "var(--column-text)",
   category: "var(--column-categorical)",
+  countryCategory: "var(--column-country)",
   classification: "var(--column-categorical)",
+  countryClassification: "var(--column-country)",
 };
 
 /** The dropdown of the roles a column can take. */

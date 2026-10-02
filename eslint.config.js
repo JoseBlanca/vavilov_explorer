@@ -22,13 +22,14 @@ const backend = { group: ["**/backend/**"], message: "Only src/windows/ uses src
 const windows = { group: ["**/windows/**"], message: "Nothing imports src/windows/." };
 const plots = { group: ["**/plots/**"], message: "Only src/windows/ uses src/plots/." };
 
-// Node's globals, for the scripts that run in node: the e2e tests and the
-// configuration files.
+// Node's globals, for the scripts that run in node: the e2e tests, the
+// configuration files and scripts/countries.mjs, which fetches its sources.
 const nodeGlobals = {
   console: "readonly",
   process: "readonly",
   URL: "readonly",
   structuredClone: "readonly",
+  fetch: "readonly",
 };
 
 export default defineConfig(

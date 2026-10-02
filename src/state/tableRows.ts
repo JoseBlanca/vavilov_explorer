@@ -8,6 +8,7 @@
 import { integerText, levelText, numberText } from "./cellText.ts";
 import type { Cell } from "./cellText.ts";
 import { defect } from "./defect.ts";
+import { isLevelsColumn } from "./description.ts";
 import type { Role, StorageType, TableDescription } from "./description.ts";
 import { NO_CODE } from "./ids.ts";
 import type { ColumnId, RowIndex } from "./ids.ts";
@@ -65,11 +66,9 @@ export function tableColumns(description: TableDescription): TableColumn[] {
   ];
 }
 
-/** The columns a page is fetched for: the numbers and the texts, in order. */
+/** The columns a page is fetched for: the numbers, of any sub-role, and the texts, in order. */
 export function fetchedColumns(description: TableDescription): ColumnId[] {
-  return description.columns.flatMap((column) =>
-    column.role === "number" || column.role === "text" ? [column.id] : [],
-  );
+  return description.columns.flatMap((column) => (isLevelsColumn(column) ? [] : [column.id]));
 }
 
 /**
@@ -100,7 +99,7 @@ export function tableRow(
   }
   const cells: Cell[] = [{ kind: "value", text: name, align: "start" }];
   for (const column of description.columns) {
-    if (column.role === "number" || column.role === "text") {
+    if (!isLevelsColumn(column)) {
       cells.push(pageCell(page, column.id, index, decimalMark));
       continue;
     }

@@ -3,15 +3,12 @@
 //! (`docs/core.md`, section 5). It changes when a table is loaded and when
 //! a column's role changes, which the revision of the shape follows.
 
-use std::cmp::Ordering;
-
 use serde::Serialize;
 
-use crate::convert::u64_from;
 use crate::error::CommandError;
 use crate::ids::{ColumnId, Revision};
 use crate::session::Session;
-use crate::table::{Categorical, Colour, ColumnValues, LevelValues, Numbers, StorageType};
+use crate::table::{Categorical, Colour, LevelValues, Role, StorageType};
 
 /// The table of the open project, as a window describes it to the user.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -53,41 +50,15 @@ pub struct ColumnDescription {
     pub revision: Revision,
     /// What its values are.
     pub storage: StorageType,
-    /// What it is for, with what its role needs, as `"role"` in JSON.
-    #[serde(flatten)]
-    pub role: RoleDescription,
-}
-
-/// The role of a column, with the levels of a category or a
-/// classification, or the number of distinct values of the others, which
-/// says whether they can become one (at most [`crate::MAX_LEVELS`]).
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(
-    tag = "role",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RoleDescription {
-    /// A number.
-    Number {
-        /// Its distinct values, missing ones left out.
-        num_distinct: u64,
-    },
-    /// A category.
-    Category {
-        /// The levels, in the order of their codes.
-        levels: Vec<LevelDescription>,
-    },
-    /// A classification.
-    Classification {
-        /// The levels, in the order of their codes.
-        levels: Vec<LevelDescription>,
-    },
-    /// Text.
-    Text {
-        /// Its distinct values, missing ones left out.
-        num_distinct: u64,
-    },
+    /// What it is for.
+    pub role: Role,
+    /// The roles it can take, its own among them, in the order of
+    /// [`Role::ALL`]: what the dropdown of its role offers.
+    pub roles: Vec<Role>,
+    /// The levels of a category or a classification, of countries or not,
+    /// in the order of their codes; absent for the other roles.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub levels: Option<Vec<LevelDescription>>,
 }
 
 /// A level of a category or a classification: in a classification, a
@@ -126,6 +97,22 @@ impl Session {
         let open = self.state.project.open()?;
         let table = &open.table;
         let names = table.names();
+        let columns = table
+            .columns()
+            .iter()
+            .map(|column| {
+                let values = column.values();
+                Ok(ColumnDescription {
+                    id: column.id(),
+                    name: column.name().to_owned(),
+                    revision: column.revision(),
+                    storage: values.storage_type(),
+                    role: values.role(),
+                    roles: values.possible_roles()?,
+                    levels: values.categorical().map(levels_of),
+                })
+            })
+            .collect::<Result<Vec<_>, CommandError>>()?;
         Ok(TableDescription {
             loaded_at: self.state.loaded_at,
             shape_at: open.shape_at,
@@ -134,49 +121,9 @@ impl Session {
                 id: names.id(),
                 header: names.header().to_owned(),
             },
-            columns: table
-                .columns()
-                .iter()
-                .map(|column| ColumnDescription {
-                    id: column.id(),
-                    name: column.name().to_owned(),
-                    revision: column.revision(),
-                    storage: column.values().storage_type(),
-                    role: role_of(column.values()),
-                })
-                .collect(),
+            columns,
         })
     }
-}
-
-fn role_of(values: &ColumnValues) -> RoleDescription {
-    match values {
-        ColumnValues::Number(Numbers::Integer(values)) => RoleDescription::Number {
-            num_distinct: distinct(values, i64::cmp),
-        },
-        ColumnValues::Number(Numbers::Float(values)) => RoleDescription::Number {
-            num_distinct: distinct(values, |a, b| {
-                a.partial_cmp(b).unwrap_or_else(|| a.total_cmp(b))
-            }),
-        },
-        ColumnValues::Text(values) => RoleDescription::Text {
-            num_distinct: distinct(values, String::cmp),
-        },
-        ColumnValues::Category(categorical) => RoleDescription::Category {
-            levels: levels_of(categorical),
-        },
-        ColumnValues::Classification(categorical) => RoleDescription::Classification {
-            levels: levels_of(categorical),
-        },
-    }
-}
-
-/// The number of distinct values, missing ones left out.
-fn distinct<T>(values: &[Option<T>], order: impl Fn(&T, &T) -> Ordering) -> u64 {
-    let mut present: Vec<&T> = values.iter().flatten().collect();
-    present.sort_by(|a, b| order(a, b));
-    present.dedup_by(|a, b| order(a, b).is_eq());
-    u64_from(present.len())
 }
 
 fn levels_of(categorical: &Categorical) -> Vec<LevelDescription> {

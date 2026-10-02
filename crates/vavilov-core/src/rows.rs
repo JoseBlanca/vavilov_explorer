@@ -80,16 +80,27 @@ fn page_values<'a>(
     values: &'a ColumnValues,
     rows: &Range<usize>,
 ) -> Result<PageValues<'a>, CommandError> {
-    Ok(match values {
-        ColumnValues::Number(Numbers::Float(values)) => PageValues::Float(in_page(values, rows)?),
-        ColumnValues::Number(Numbers::Integer(values)) => {
-            PageValues::Integer(in_page(values, rows)?)
-        }
-        ColumnValues::Text(values) => PageValues::Text(in_page(values, rows)?),
-        ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) => {
-            PageValues::Categorical(in_page(categorical.codes(), rows)?)
-        }
-    })
+    if let Some(numbers) = values.numbers() {
+        return Ok(match numbers {
+            Numbers::Float(values) => PageValues::Float(in_page(values, rows)?),
+            Numbers::Integer(values) => PageValues::Integer(in_page(values, rows)?),
+        });
+    }
+    if let Some(categorical) = values.categorical() {
+        return Ok(PageValues::Categorical(in_page(categorical.codes(), rows)?));
+    }
+    match values {
+        ColumnValues::Text(values) => Ok(PageValues::Text(in_page(values, rows)?)),
+        ColumnValues::Number(_)
+        | ColumnValues::Latitude(_)
+        | ColumnValues::Longitude(_)
+        | ColumnValues::Category(_)
+        | ColumnValues::CountryCategory(_)
+        | ColumnValues::Classification(_)
+        | ColumnValues::CountryClassification(_) => Err(CommandError::Defect {
+            what: "a column neither of numbers, of codes nor of text".to_owned(),
+        }),
+    }
 }
 
 /// The values of the rows of a page, which were checked to be in the

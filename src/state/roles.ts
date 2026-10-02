@@ -1,14 +1,9 @@
 // The roles a column can take, as the dropdown on top of it offers them:
-// only those its storage type can take, and a category or a classification
-// only when its distinct values fit the codes (docs/design.md, section 6).
-// A role the column cannot take is not offered, as the owner decided on
-// 2 October 2026.
+// those the core says the column can take (`roles` in the description), with
+// the words the user reads. A role the column cannot take is not offered, as
+// the owner decided on 2 October 2026 (docs/design.md, section 6).
 
 import type { ColumnDescription, Role } from "./description.ts";
-import { ROLES } from "./description.ts";
-
-/** The most levels a category or a classification may have, `MAX_LEVELS` of the core. */
-export const MAX_LEVELS = 65_535;
 
 /** A role as the dropdown offers it. */
 export interface RoleChoice {
@@ -20,32 +15,16 @@ export interface RoleChoice {
 
 const LABELS: Readonly<Record<Role, string>> = {
   number: "Number",
+  latitude: "Latitude",
+  longitude: "Longitude",
   category: "Category",
+  countryCategory: "Country category",
   classification: "Classification",
+  countryClassification: "Country classification",
   text: "Text",
 };
 
-/** The roles `column` can take, its own among them, in the order of `ROLES`. */
+/** The roles `column` can take, its own among them, in the order the core gives them. */
 export function roleChoices(column: ColumnDescription): RoleChoice[] {
-  return ROLES.filter((role) => canTake(column, role)).map((role) => ({
-    role,
-    label: LABELS[role],
-  }));
-}
-
-function canTake(column: ColumnDescription, role: Role): boolean {
-  const { storage } = column;
-  switch (role) {
-    case "number":
-      return storage === "integer" || storage === "float";
-    case "text":
-      return storage === "text";
-    case "category":
-    case "classification":
-      return (
-        column.role === "category" ||
-        column.role === "classification" ||
-        column.numDistinct <= MAX_LEVELS
-      );
-  }
+  return column.roles.map((role) => ({ role, label: LABELS[role] }));
 }

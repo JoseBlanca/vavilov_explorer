@@ -4,28 +4,28 @@ use super::*;
 
 /// The number of missing values of a column and of present ones.
 fn missing_and_present(values: &ColumnValues) -> (usize, usize) {
-    let missing = match values {
-        ColumnValues::Number(Numbers::Float(values)) => {
-            values.iter().filter(|value| value.is_none()).count()
+    let missing = if let Some(numbers) = values.numbers() {
+        match numbers {
+            Numbers::Float(values) => values.iter().filter(|value| value.is_none()).count(),
+            Numbers::Integer(values) => values.iter().filter(|value| value.is_none()).count(),
         }
-        ColumnValues::Number(Numbers::Integer(values)) => {
-            values.iter().filter(|value| value.is_none()).count()
-        }
-        ColumnValues::Text(values) => values.iter().filter(|value| value.is_none()).count(),
-        ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) => {
-            categorical
-                .codes()
-                .iter()
-                .filter(|code| code.is_none())
-                .count()
-        }
+    } else if let Some(categorical) = values.categorical() {
+        categorical
+            .codes()
+            .iter()
+            .filter(|code| code.is_none())
+            .count()
+    } else if let ColumnValues::Text(values) = values {
+        values.iter().filter(|value| value.is_none()).count()
+    } else {
+        panic!("a column neither of numbers, codes nor text");
     };
     (missing, values.len().checked_sub(missing).unwrap())
 }
 
 fn numbers(table: &Table, name: &str) -> Vec<f64> {
     let column = table.columns().iter().find(|c| c.name() == name).unwrap();
-    let ColumnValues::Number(Numbers::Float(values)) = column.values() else {
+    let Some(Numbers::Float(values)) = column.values().numbers() else {
         panic!("{name} is not a number of decimals");
     };
     values.iter().flatten().copied().collect()
@@ -52,10 +52,10 @@ fn the_demo_table_has_its_plants_and_columns_in_order() {
     assert_eq!(
         columns,
         [
-            ("country", StorageType::Text, Role::Classification),
+            ("country", StorageType::Text, Role::CountryClassification),
             ("cluster", StorageType::Text, Role::Classification),
-            ("latitude", StorageType::Float, Role::Number),
-            ("longitude", StorageType::Float, Role::Number),
+            ("latitude", StorageType::Float, Role::Latitude),
+            ("longitude", StorageType::Float, Role::Longitude),
             ("PC1", StorageType::Float, Role::Number),
             ("PC2", StorageType::Float, Role::Number),
             ("PC3", StorageType::Float, Role::Number),
@@ -81,10 +81,7 @@ fn the_levels_are_in_order_with_the_colours_from_orange() {
     };
     let texts = |names: &[&str]| LevelValues::Text(names.iter().map(|n| (*n).to_owned()).collect());
     let (country, colours) = levels(1);
-    assert_eq!(
-        country,
-        texts(&["China", "Ethiopia", "India", "Mexico", "Peru", "Spain"])
-    );
+    assert_eq!(country, texts(&["CHN", "ESP", "ETH", "IND", "MEX", "PER"]));
     assert_eq!(colours, &PALETTE[..6]);
     assert_eq!(levels(2).0, texts(&["A", "B", "C", "D"]));
     assert_eq!(levels(10).0, LevelValues::Boolean(vec![false, true]));
@@ -140,7 +137,7 @@ fn every_country_and_cluster_has_plants_and_the_values_are_plausible() {
             .all(|h| (20.0..=200.0).contains(h))
     );
     let column = table.column(ColumnId::new(9)).unwrap();
-    let ColumnValues::Number(Numbers::Integer(seeds)) = column.values() else {
+    let Some(Numbers::Integer(seeds)) = column.values().numbers() else {
         panic!("seeds is not integer");
     };
     assert!(seeds.iter().flatten().all(|seeds| (0..400).contains(seeds)));

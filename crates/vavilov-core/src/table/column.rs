@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::countries::country_code;
 use crate::error::CommandError;
 use crate::ids::{ColumnId, LevelCode, Revision};
 use crate::table::colour::{Colour, palette};
@@ -23,19 +24,57 @@ pub enum StorageType {
     Text,
 }
 
-/// What a column is for, which the user chooses.
+/// What a column is for, which the user chooses. Latitude and longitude
+/// are sub-roles of a number, and a country category and a country
+/// classification of a category and a classification: each behaves as the
+/// role above it, with a check of every value (`docs/design.md`, section 6).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Role {
     /// Drawn on an axis, in a histogram or as coordinates.
     Number,
+    /// A number from −90 to 90.
+    Latitude,
+    /// A number from −180 to 180.
+    Longitude,
     /// A trait, drawn in a bar plot and never edited.
     Category,
+    /// A category whose every value is a country, shown by its code.
+    CountryCategory,
     /// Populations, which a lasso edits.
     Classification,
+    /// A classification whose every population is a country.
+    CountryClassification,
     /// Notes and identifiers, shown in the table alone.
     Text,
 }
+
+impl Role {
+    /// Every role, in the order the dropdown of a column lists them.
+    pub const ALL: [Self; 8] = [
+        Self::Number,
+        Self::Latitude,
+        Self::Longitude,
+        Self::Category,
+        Self::CountryCategory,
+        Self::Classification,
+        Self::CountryClassification,
+        Self::Text,
+    ];
+
+    /// Whether the role is a classification, of countries or not: the
+    /// roles a lasso edits.
+    #[must_use]
+    pub const fn is_classification(self) -> bool {
+        matches!(self, Self::Classification | Self::CountryClassification)
+    }
+}
+
+/// The range of a latitude, in degrees.
+pub const LATITUDE: std::ops::RangeInclusive<f64> = -90.0..=90.0;
+
+/// The range of a longitude, in degrees.
+pub const LONGITUDE: std::ops::RangeInclusive<f64> = -180.0..=180.0;
 
 /// The values of a column as stored, one per row, `None` for a missing
 /// value: what the import reads, and what a change of role starts from.
@@ -181,6 +220,17 @@ impl Categorical {
         }
     }
 
+    /// The storage type of the levels.
+    #[must_use]
+    pub const fn storage_type(&self) -> StorageType {
+        match self.levels {
+            LevelValues::Integer(_) => StorageType::Integer,
+            LevelValues::Float(_) => StorageType::Float,
+            LevelValues::Boolean(_) => StorageType::Boolean,
+            LevelValues::Text(_) => StorageType::Text,
+        }
+    }
+
     /// The levels, in the order of their codes.
     #[must_use]
     pub const fn levels(&self) -> &LevelValues {
@@ -296,27 +346,41 @@ fn levels_of<T: Clone>(
 
 /// The values of a column, in the shape its role gives them, each value of
 /// its storage type, `None` for a missing value. A decimal number is
-/// always finite.
+/// always finite; a latitude and a longitude are in their range; the
+/// levels of a country category or classification are the codes of
+/// countries.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ColumnValues {
     /// A number.
     Number(Numbers),
+    /// A latitude.
+    Latitude(Numbers),
+    /// A longitude.
+    Longitude(Numbers),
     /// A category.
     Category(Categorical),
+    /// A category of countries.
+    CountryCategory(Categorical),
     /// A classification.
     Classification(Categorical),
+    /// A classification of countries.
+    CountryClassification(Categorical),
     /// Text.
     Text(Vec<Option<String>>),
 }
 
 impl ColumnValues {
-    /// The values of `stored` in the shape of `role`.
+    /// The values of `stored` in the shape of `role`. A country role
+    /// writes each value as its country's code, so that two spellings of
+    /// one country are one level.
     ///
     /// # Errors
     ///
-    /// `RoleNotPossible` when the storage type cannot take the role, and
-    /// `TooManyLevels` for a category or a classification of more distinct
-    /// values than [`crate::MAX_LEVELS`].
+    /// `RoleNotPossible` when the storage type cannot take the role,
+    /// `ValueNotFor` for a value a sub-role does not take, a latitude out of
+    /// its range or a text that names no country, and `TooManyLevels` for a
+    /// category or a classification of more distinct values than
+    /// [`crate::MAX_LEVELS`].
     pub fn from_stored(
         stored: Stored,
         role: Role,
@@ -329,45 +393,76 @@ impl ColumnValues {
             storage,
             role,
         };
-        match (role, stored) {
-            (Role::Number, Stored::Integer(values)) => Ok(Self::Number(Numbers::Integer(values))),
-            (Role::Number, Stored::Float(values)) => Ok(Self::Number(Numbers::Float(values))),
-            (Role::Text, Stored::Text(values)) => Ok(Self::Text(values)),
-            (Role::Category, stored) => Ok(Self::Category(Categorical::from_stored(
-                &stored,
-                column_name,
-            )?)),
-            (Role::Classification, stored) => Ok(Self::Classification(Categorical::from_stored(
-                &stored,
-                column_name,
-            )?)),
-            (Role::Number, Stored::Boolean(_) | Stored::Text(_))
-            | (Role::Text, Stored::Integer(_) | Stored::Float(_) | Stored::Boolean(_)) => {
-                Err(impossible)
+        let numbers = |stored: Stored| match stored {
+            Stored::Integer(values) => Ok(Numbers::Integer(values)),
+            Stored::Float(values) => Ok(Numbers::Float(values)),
+            Stored::Boolean(_) | Stored::Text(_) => Err(impossible.clone()),
+        };
+        match role {
+            Role::Number => Ok(Self::Number(numbers(stored)?)),
+            Role::Latitude => {
+                let values = numbers(stored)?;
+                check_range(&values, &LATITUDE, column, role)?;
+                Ok(Self::Latitude(values))
             }
+            Role::Longitude => {
+                let values = numbers(stored)?;
+                check_range(&values, &LONGITUDE, column, role)?;
+                Ok(Self::Longitude(values))
+            }
+            Role::Category => Ok(Self::Category(Categorical::from_stored(
+                &stored,
+                column_name,
+            )?)),
+            Role::Classification => Ok(Self::Classification(Categorical::from_stored(
+                &stored,
+                column_name,
+            )?)),
+            Role::CountryCategory | Role::CountryClassification => {
+                let Stored::Text(values) = stored else {
+                    return Err(impossible);
+                };
+                let codes = Stored::Text(countries_of(&values, column, role)?);
+                let categorical = Categorical::from_stored(&codes, column_name)?;
+                Ok(if role == Role::CountryCategory {
+                    Self::CountryCategory(categorical)
+                } else {
+                    Self::CountryClassification(categorical)
+                })
+            }
+            Role::Text => match stored {
+                Stored::Text(values) => Ok(Self::Text(values)),
+                Stored::Integer(_) | Stored::Float(_) | Stored::Boolean(_) => Err(impossible),
+            },
         }
     }
 
-    /// The values as stored.
+    /// The values as stored; those of a country role are the codes of the
+    /// countries.
     ///
     /// # Errors
     ///
     /// A `Defect` for a code with no level.
     pub fn to_stored(&self) -> Result<Stored, CommandError> {
         Ok(match self {
-            Self::Number(Numbers::Integer(values)) => Stored::Integer(values.clone()),
-            Self::Number(Numbers::Float(values)) => Stored::Float(values.clone()),
-            Self::Text(values) => Stored::Text(values.clone()),
-            Self::Category(categorical) | Self::Classification(categorical) => {
-                categorical.to_stored()?
+            Self::Number(numbers) | Self::Latitude(numbers) | Self::Longitude(numbers) => {
+                match numbers {
+                    Numbers::Integer(values) => Stored::Integer(values.clone()),
+                    Numbers::Float(values) => Stored::Float(values.clone()),
+                }
             }
+            Self::Text(values) => Stored::Text(values.clone()),
+            Self::Category(categorical)
+            | Self::CountryCategory(categorical)
+            | Self::Classification(categorical)
+            | Self::CountryClassification(categorical) => categorical.to_stored()?,
         })
     }
 
     /// The values in the shape of `role`, or `None` when they have it
-    /// already. A category and a classification of the same levels change
-    /// into each other keeping the levels, their colours and the empty
-    /// ones.
+    /// already. A category and a classification change into each other
+    /// keeping the levels, their colours and the empty ones, and so do a
+    /// country category and a country classification.
     ///
     /// # Errors
     ///
@@ -388,8 +483,55 @@ impl ColumnValues {
             (Self::Classification(categorical), Role::Category) => {
                 Ok(Some(Self::Category(categorical.clone())))
             }
+            (Self::CountryCategory(categorical), Role::CountryClassification) => {
+                Ok(Some(Self::CountryClassification(categorical.clone())))
+            }
+            (Self::CountryClassification(categorical), Role::CountryCategory) => {
+                Ok(Some(Self::CountryCategory(categorical.clone())))
+            }
             _ => Self::from_stored(self.to_stored()?, role, column, column_name).map(Some),
         }
+    }
+
+    /// The roles the column can take, its own among them, in the order of
+    /// [`Role::ALL`]: by its storage type, a category or a classification
+    /// only when its distinct values fit the codes, and a sub-role only when
+    /// every value passes its check.
+    ///
+    /// # Errors
+    ///
+    /// A `Defect` for a code with no level.
+    pub fn possible_roles(&self) -> Result<Vec<Role>, CommandError> {
+        let stored = self.to_stored()?;
+        let storage = stored.storage_type();
+        let numeric = matches!(storage, StorageType::Integer | StorageType::Float);
+        let categorical =
+            self.categorical().is_some() || distinct(&stored) <= crate::table::MAX_LEVELS_USIZE;
+        let in_range = |range: &std::ops::RangeInclusive<f64>| match &stored {
+            Stored::Integer(values) => values.iter().flatten().all(|value| {
+                i32::try_from(*value).is_ok_and(|value| range.contains(&f64::from(value)))
+            }),
+            Stored::Float(values) => values.iter().flatten().all(|value| range.contains(value)),
+            Stored::Boolean(_) | Stored::Text(_) => false,
+        };
+        let countries = match &stored {
+            Stored::Text(values) => values
+                .iter()
+                .flatten()
+                .all(|value| country_code(value).is_some()),
+            Stored::Integer(_) | Stored::Float(_) | Stored::Boolean(_) => false,
+        };
+        Ok(Role::ALL
+            .into_iter()
+            .filter(|role| match role {
+                Role::Number => numeric,
+                Role::Latitude => numeric && in_range(&LATITUDE),
+                Role::Longitude => numeric && in_range(&LONGITUDE),
+                Role::Category | Role::Classification => categorical,
+                Role::CountryCategory | Role::CountryClassification => countries,
+                Role::Text => storage == StorageType::Text,
+            })
+            .collect())
     }
 
     /// What the column is for.
@@ -397,8 +539,12 @@ impl ColumnValues {
     pub const fn role(&self) -> Role {
         match self {
             Self::Number(_) => Role::Number,
+            Self::Latitude(_) => Role::Latitude,
+            Self::Longitude(_) => Role::Longitude,
             Self::Category(_) => Role::Category,
+            Self::CountryCategory(_) => Role::CountryCategory,
             Self::Classification(_) => Role::Classification,
+            Self::CountryClassification(_) => Role::CountryClassification,
             Self::Text(_) => Role::Text,
         }
     }
@@ -407,17 +553,57 @@ impl ColumnValues {
     #[must_use]
     pub const fn storage_type(&self) -> StorageType {
         match self {
-            Self::Number(Numbers::Integer(_)) => StorageType::Integer,
-            Self::Number(Numbers::Float(_)) => StorageType::Float,
-            Self::Text(_) => StorageType::Text,
-            Self::Category(categorical) | Self::Classification(categorical) => {
-                match categorical.levels {
-                    LevelValues::Integer(_) => StorageType::Integer,
-                    LevelValues::Float(_) => StorageType::Float,
-                    LevelValues::Boolean(_) => StorageType::Boolean,
-                    LevelValues::Text(_) => StorageType::Text,
+            Self::Number(numbers) | Self::Latitude(numbers) | Self::Longitude(numbers) => {
+                match numbers {
+                    Numbers::Integer(_) => StorageType::Integer,
+                    Numbers::Float(_) => StorageType::Float,
                 }
             }
+            Self::Text(_) => StorageType::Text,
+            Self::Category(categorical)
+            | Self::CountryCategory(categorical)
+            | Self::Classification(categorical)
+            | Self::CountryClassification(categorical) => categorical.storage_type(),
+        }
+    }
+
+    /// The numbers of a number, a latitude or a longitude.
+    #[must_use]
+    pub const fn numbers(&self) -> Option<&Numbers> {
+        match self {
+            Self::Number(numbers) | Self::Latitude(numbers) | Self::Longitude(numbers) => {
+                Some(numbers)
+            }
+            Self::Category(_)
+            | Self::CountryCategory(_)
+            | Self::Classification(_)
+            | Self::CountryClassification(_)
+            | Self::Text(_) => None,
+        }
+    }
+
+    /// The levels and codes of a category or a classification, of
+    /// countries or not.
+    #[must_use]
+    pub const fn categorical(&self) -> Option<&Categorical> {
+        match self {
+            Self::Category(categorical)
+            | Self::CountryCategory(categorical)
+            | Self::Classification(categorical)
+            | Self::CountryClassification(categorical) => Some(categorical),
+            Self::Number(_) | Self::Latitude(_) | Self::Longitude(_) | Self::Text(_) => None,
+        }
+    }
+
+    /// The levels and codes of a category or a classification, to be
+    /// changed.
+    pub(crate) const fn categorical_mut(&mut self) -> Option<&mut Categorical> {
+        match self {
+            Self::Category(categorical)
+            | Self::CountryCategory(categorical)
+            | Self::Classification(categorical)
+            | Self::CountryClassification(categorical) => Some(categorical),
+            Self::Number(_) | Self::Latitude(_) | Self::Longitude(_) | Self::Text(_) => None,
         }
     }
 
@@ -425,12 +611,17 @@ impl ColumnValues {
     #[must_use]
     pub fn len(&self) -> usize {
         match self {
-            Self::Number(Numbers::Integer(values)) => values.len(),
-            Self::Number(Numbers::Float(values)) => values.len(),
-            Self::Text(values) => values.len(),
-            Self::Category(categorical) | Self::Classification(categorical) => {
-                categorical.codes.len()
+            Self::Number(numbers) | Self::Latitude(numbers) | Self::Longitude(numbers) => {
+                match numbers {
+                    Numbers::Integer(values) => values.len(),
+                    Numbers::Float(values) => values.len(),
+                }
             }
+            Self::Text(values) => values.len(),
+            Self::Category(categorical)
+            | Self::CountryCategory(categorical)
+            | Self::Classification(categorical)
+            | Self::CountryClassification(categorical) => categorical.codes.len(),
         }
     }
 
@@ -439,6 +630,84 @@ impl ColumnValues {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+}
+
+/// Checks that every number of `values` is in `range`.
+pub(crate) fn check_range(
+    values: &Numbers,
+    range: &std::ops::RangeInclusive<f64>,
+    column: ColumnId,
+    role: Role,
+) -> Result<(), CommandError> {
+    let outside = match values {
+        Numbers::Integer(values) => values.iter().position(|value| {
+            value.is_some_and(|value| {
+                i32::try_from(value).map_or(true, |value| !range.contains(&f64::from(value)))
+            })
+        }),
+        Numbers::Float(values) => values
+            .iter()
+            .position(|value| value.is_some_and(|value| !range.contains(&value))),
+    };
+    match outside {
+        None => Ok(()),
+        Some(row) => Err(CommandError::ValueNotFor {
+            column,
+            role,
+            row: row_index(row)?,
+        }),
+    }
+}
+
+/// The code of the country each text names.
+fn countries_of(
+    values: &[Option<String>],
+    column: ColumnId,
+    role: Role,
+) -> Result<Vec<Option<String>>, CommandError> {
+    values
+        .iter()
+        .enumerate()
+        .map(|(row, value)| {
+            value
+                .as_deref()
+                .map(|text| {
+                    country_code(text)
+                        .map(str::to_owned)
+                        .ok_or(CommandError::ValueNotFor {
+                            column,
+                            role,
+                            row: row_index(row)?,
+                        })
+                })
+                .transpose()
+        })
+        .collect()
+}
+
+/// The number of distinct values, missing ones left out.
+fn distinct(stored: &Stored) -> usize {
+    fn count<T>(values: &[Option<T>], order: impl Fn(&T, &T) -> std::cmp::Ordering) -> usize {
+        let mut present: Vec<&T> = values.iter().flatten().collect();
+        present.sort_by(|a, b| order(a, b));
+        present.dedup_by(|a, b| order(a, b).is_eq());
+        present.len()
+    }
+    match stored {
+        Stored::Integer(values) => count(values, i64::cmp),
+        Stored::Float(values) => count(values, float_order),
+        Stored::Boolean(values) => count(values, bool::cmp),
+        Stored::Text(values) => count(values, String::cmp),
+    }
+}
+
+/// A row of the table, which has at most [`crate::MAX_ROWS`] rows.
+fn row_index(row: usize) -> Result<crate::ids::RowIndex, CommandError> {
+    u32::try_from(row)
+        .map(crate::ids::RowIndex::new)
+        .map_err(|_| CommandError::Defect {
+            what: format!("a row {row} beyond a u32"),
+        })
 }
 
 /// A column of the table other than the first.
@@ -475,23 +744,25 @@ impl Column {
         &self.values
     }
 
-    /// The levels and codes of a category or a classification.
+    /// The levels and codes of a category or a classification, of
+    /// countries or not.
     #[must_use]
     pub const fn categorical(&self) -> Option<&Categorical> {
-        match &self.values {
-            ColumnValues::Category(categorical) | ColumnValues::Classification(categorical) => {
-                Some(categorical)
-            }
-            ColumnValues::Number(_) | ColumnValues::Text(_) => None,
-        }
+        self.values.categorical()
     }
 
-    /// The levels and codes of a classification.
+    /// The levels and codes of a classification, of countries or not.
     #[must_use]
     pub const fn classification(&self) -> Option<&Categorical> {
         match &self.values {
-            ColumnValues::Classification(categorical) => Some(categorical),
-            ColumnValues::Number(_) | ColumnValues::Category(_) | ColumnValues::Text(_) => None,
+            ColumnValues::Classification(categorical)
+            | ColumnValues::CountryClassification(categorical) => Some(categorical),
+            ColumnValues::Number(_)
+            | ColumnValues::Latitude(_)
+            | ColumnValues::Longitude(_)
+            | ColumnValues::Category(_)
+            | ColumnValues::CountryCategory(_)
+            | ColumnValues::Text(_) => None,
         }
     }
 }
