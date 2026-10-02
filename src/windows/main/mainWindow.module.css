@@ -21,6 +21,14 @@
   min-height: 0;
 }
 
+.tableArea {
+  display: grid;
+  /* The find bar, the table, then the information bar. */
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  min-height: 0;
+}
+
 .table {
   min-width: 0;
   min-height: 0;

@@ -13,12 +13,13 @@ use crate::command::{Command, Request};
 use crate::convert::{u64_from, usize_from};
 use crate::edit::Edit;
 use crate::error::CommandError;
+use crate::filter::{Filter, Replaced, shown_rows};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt, WindowLabel};
 use crate::message::{MessageKind, MessageWriter, whole_state};
 use crate::row_set::RowSet;
 use crate::session::{
     Active, History, HistoryStep, Interaction, OpenProject, Project, Selected, SendFailed, Session,
-    SharedState,
+    SharedState, Shown,
 };
 use crate::table::{Categorical, Column, ColumnValues, Table};
 
@@ -139,6 +140,27 @@ impl Session {
                     revision,
                     message: message.finish(),
                     change: Change::Selection(rows),
+                }))
+            }
+            Command::SetFilter { filter } => {
+                let open = state.project.open()?;
+                if filter.decimal_mark.is_empty() {
+                    return Err(CommandError::Defect {
+                        what: "a filter with no decimal mark".to_owned(),
+                    });
+                }
+                if filter == open.interaction.filter {
+                    return Ok(None);
+                }
+                let rows = shown_rows(&filter, &open.table, None)?;
+                let revision = state.revision.next()?;
+                let shown = Shown { rows, at: revision };
+                let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
+                message.filter(&filter, &shown, open.table.num_rows())?;
+                Ok(Some(Plan {
+                    revision,
+                    message: message.finish(),
+                    change: Change::Filter { filter, shown },
                 }))
             }
             Command::SetHover { row } => {
@@ -293,6 +315,12 @@ impl Session {
                 open.interaction.active = active;
                 Changed::State(revision)
             }
+            Change::Filter { filter, shown } => {
+                let open = open_for_commit(&mut self.state.project)?;
+                open.interaction.filter = filter;
+                open.interaction.shown = shown;
+                Changed::State(revision)
+            }
             Change::Hover { row, seq } => {
                 let open = open_for_commit(&mut self.state.project)?;
                 open.interaction.hover = row;
@@ -302,6 +330,7 @@ impl Session {
             Change::Codes {
                 column,
                 codes,
+                shown,
                 step,
             } => {
                 let open = open_for_commit(&mut self.state.project)?;
@@ -318,6 +347,9 @@ impl Session {
                 };
                 categorical.codes = codes;
                 *column_revision = revision;
+                if let Some(shown) = shown {
+                    open.interaction.shown = shown;
+                }
                 open.history.take(step);
                 Changed::State(revision)
             }
@@ -325,6 +357,7 @@ impl Session {
                 column,
                 values,
                 active,
+                shown,
                 step,
             } => {
                 let open = open_for_commit(&mut self.state.project)?;
@@ -341,6 +374,9 @@ impl Session {
                 open.shape_at = revision;
                 if let Some(active) = active {
                     open.interaction.active = active;
+                }
+                if let Some(shown) = shown {
+                    open.interaction.shown = shown;
                 }
                 open.history.take(step);
                 Changed::State(revision)
@@ -373,21 +409,28 @@ enum Change {
     },
     Selection(RowSet),
     Active(Option<Active>),
+    Filter {
+        filter: Filter,
+        shown: Shown,
+    },
     Hover {
         row: Option<RowIndex>,
         seq: HoverSeq,
     },
+    /// New codes of a category, with the rows shown when they change.
     Codes {
         column: ColumnId,
         codes: Vec<Option<LevelCode>>,
+        shown: Option<Shown>,
         step: HistoryStep,
     },
     /// New values of a column, with the active classification when the
-    /// change clears it.
+    /// change clears it, and the rows shown when they change.
     Values {
         column: ColumnId,
         values: ColumnValues,
         active: Option<Option<Active>>,
+        shown: Option<Shown>,
         step: HistoryStep,
     },
 }
@@ -421,6 +464,11 @@ fn plan_load(
             }),
             selection: RowSet::empty(table.num_rows()),
             hover: None,
+            filter: Filter::none(),
+            shown: Shown {
+                rows: None,
+                at: revision,
+            },
         },
         history: History::default(),
         table,
@@ -523,10 +571,14 @@ fn plan_values(
             })
         });
     let revision = state.revision.next()?;
+    let shown = refiltered(open, Replaced::Values(column, &values), revision)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.shape(revision)?;
     if let Some(active) = active {
         message.active(active)?;
+    }
+    if let Some(shown) = &shown {
+        message.filter(&open.interaction.filter, shown, open.table.num_rows())?;
     }
     if let Some(categorical) = values.categorical() {
         message.codes(column, revision, categorical.codes())?;
@@ -540,6 +592,7 @@ fn plan_values(
             column,
             values,
             active,
+            shown,
             step,
         },
     })
@@ -591,19 +644,36 @@ fn plan_codes(
         },
     );
     let revision = state.revision.next()?;
+    let shown = refiltered(open, Replaced::Codes(column, &codes), revision)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.codes(column, revision, &codes)?;
     message.columns(&[(column, revision)])?;
     message.undo(open.history.after(&step))?;
+    if let Some(shown) = &shown {
+        message.filter(&open.interaction.filter, shown, num_rows)?;
+    }
     Ok(Some(Plan {
         revision,
         message: message.finish(),
         change: Change::Codes {
             column,
             codes,
+            shown,
             step,
         },
     }))
+}
+
+/// The rows the filter shows once `replaced` is applied, taking the
+/// edit's `revision`, when they are not those shown now; `None` when they
+/// are, so that the pages a window holds stay good.
+fn refiltered(
+    open: &OpenProject,
+    replaced: Replaced<'_>,
+    revision: Revision,
+) -> Result<Option<Shown>, CommandError> {
+    let rows = shown_rows(&open.interaction.filter, &open.table, Some(replaced))?;
+    Ok((rows != open.interaction.shown.rows).then_some(Shown { rows, at: revision }))
 }
 
 /// The codes of the active classification, for a lasso on `target` with

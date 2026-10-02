@@ -25,10 +25,16 @@ function rows(revision: number, ...parts: readonly (readonly [number, readonly n
 
 const UTF8 = (text: string): number[] => [...new TextEncoder().encode(text)];
 
-/** The page part: loaded at 1, from row `first`, `count` rows. */
+/**
+ * The page part: loaded at 1, rows shown since 1, from position `first`,
+ * `count` rows, which are the rows from `first` on, as with no filter.
+ */
 const page = (first: number, count: number): readonly [number, number[]] => [
   8,
-  [1, 0, 0, 0, 0, 0, 0, 0, first, 0, 0, 0, count, 0, 0, 0],
+  [
+    ...[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, first, 0, 0, 0, count, 0, 0, 0],
+    ...Array.from({ length: count }, (_, index) => [first + index, 0, 0, 0]).flat(),
+  ],
 ];
 
 /** The names part of p2 alone. */
@@ -52,9 +58,12 @@ describe("a page of rows", () => {
       3, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
-      8, 0, 0, 0, 16, 0, 0, 0,
+      8, 0, 0, 0, 36, 0, 0, 0,
+      1, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 3, 0, 0, 0,
+      1, 0, 0, 0, 2, 0, 0, 0,
+      3, 0, 0, 0, 0, 0, 0, 0,
       9, 0, 0, 0, 22, 0, 0, 0,
       0, 0, 0, 0, 2, 0, 0, 0,
       4, 0, 0, 0, 6, 0, 0, 0,
@@ -92,8 +101,10 @@ describe("a page of rows", () => {
     expect(decodeRows(bytes)).toEqual({
       revision: 1,
       loadedAt: 1,
+      shownAt: 1,
       first: 1,
       count: 3,
+      rows: [1, 2, 3],
       names: ["p2", "p3", "p4"],
       columns: [
         { id: 6, revision: 1, type: "text", values: [null, null, "tall"] },
@@ -148,8 +159,10 @@ describe("a page of rows", () => {
     expect(decoded).toEqual({
       revision: 1,
       loadedAt: 1,
+      shownAt: 1,
       first: 4,
       count: 0,
+      rows: [],
       names: [],
       columns: [
         { id: 1, revision: 1, type: "float", values: [] },
@@ -254,12 +267,23 @@ describe("a page that does not decode is a defect", () => {
   });
 
   test("a page past the most rows a table has", () => {
-    // From row 2^28, MAX_ROWS, one row.
+    // From position 2^28, MAX_ROWS, one row.
     const past: readonly [number, number[]] = [
       8,
-      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 1, 0, 0, 0],
+      [
+        ...[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 1, 0, 0, 0],
+        ...[0, 0, 0, 0x10],
+      ],
     ];
-    expectDefect(rows(1, past, P2), /a page of 1 rows from row 268435456, past the table/);
+    expectDefect(rows(1, past, P2), /a page of 1 rows from position 268435456, past the table/);
+  });
+
+  test("whose rows part is not one row for each of the page's", () => {
+    const short: readonly [number, number[]] = [
+      8,
+      [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    ];
+    expectDefect(rows(1, short, P2), /a page part of 24 bytes, not 28/);
   });
 
   test("a page with the time of a window", () => {

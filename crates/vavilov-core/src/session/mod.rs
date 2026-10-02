@@ -10,7 +10,7 @@ pub use interaction::{Active, Selected};
 pub use subscribers::{SendFailed, Subscriber};
 
 pub(crate) use history::{History, HistoryStep};
-pub(crate) use interaction::Interaction;
+pub(crate) use interaction::{Interaction, Shown};
 pub(crate) use subscribers::Subscribers;
 
 use crate::error::CommandError;

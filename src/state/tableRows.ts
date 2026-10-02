@@ -33,6 +33,8 @@ export interface TableColumn {
 
 /** A row on screen. */
 export interface TableRow {
+  /** Its position among the rows the filter shows, from 0. */
+  readonly position: number;
   /** Its row in the table. */
   readonly row: RowIndex;
   /** Whether the individual is in the selection. */
@@ -72,15 +74,17 @@ export function fetchedColumns(description: TableDescription): ColumnId[] {
 }
 
 /**
- * The row `row` as the table draws it, from `page` when it holds the row.
+ * The row at `position` among those shown, row `row` of the table, as the
+ * table draws it, from `page` when it holds the row.
  *
  * @throws A defect when the page lacks a column of the description or the
- * row, or a code has no level: the window asked for them, and the backend
- * makes the rest impossible.
+ * row, holds another row at that position, or a code has no level: the
+ * window asked for them, and the backend makes the rest impossible.
  */
 export function tableRow(
   description: TableDescription,
   page: RowPage | null,
+  position: number,
   row: RowIndex,
   codesOf: (column: ColumnId) => Uint16Array | null,
   selection: Uint8Array | null,
@@ -88,13 +92,13 @@ export function tableRow(
 ): TableRow {
   const selected = selection !== null && hasRow(selection, row);
   if (page === null) {
-    return { row, selected, cells: null };
+    return { position, row, selected, cells: null };
   }
-  const index = row - page.first;
+  const index = position - page.first;
   const name = page.names[index];
-  if (index < 0 || name === undefined) {
+  if (index < 0 || name === undefined || page.rows[index] !== row) {
     throw defect(
-      `row ${String(row)} drawn from a page of ${String(page.count)} rows from row ${String(page.first)}`,
+      `row ${String(row)} at position ${String(position)} drawn from a page of ${String(page.count)} rows from position ${String(page.first)}`,
     );
   }
   const cells: Cell[] = [{ kind: "value", text: name, align: "start" }];
@@ -121,7 +125,7 @@ export function tableRow(
       align: isNumeric(column.storage) ? "end" : "start",
     });
   }
-  return { row, selected, cells };
+  return { position, row, selected, cells };
 }
 
 /** The cell of a number or a text, from its page. */

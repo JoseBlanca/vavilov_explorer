@@ -1,6 +1,7 @@
 // A message from the backend, decoded: its kind, its revision and its
 // parts (docs/core.md, section 5). src/backend/decodeMessage.ts makes them.
 
+import type { Shown } from "./filter.ts";
 import type { ColumnId, HoverSeq, LevelCode, Revision, RowIndex } from "./ids.ts";
 
 /** One part of a message: a piece of the shared state. */
@@ -40,7 +41,9 @@ export type MessagePart =
    * The revision at which the columns, their names or their roles last
    * changed, so that a window asks for the description of the table again.
    */
-  | { readonly kind: "shape"; readonly shapeAt: Revision };
+  | { readonly kind: "shape"; readonly shapeAt: Revision }
+  /** The filter of the find bar and the rows it shows. */
+  | ({ readonly kind: "filter" } & Shown);
 
 /**
  * What is selected for editing in the active classification, as `Selected`

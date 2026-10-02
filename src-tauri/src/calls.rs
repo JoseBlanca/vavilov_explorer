@@ -11,8 +11,8 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    ColumnId, Command, CommandError, LevelCode, Outcome, Request, Revision, Role, RowIndex,
-    RowsRequest, Selected, SentAt, Session, TableDescription,
+    CellMatch, ColumnId, Command, CommandError, Filter, LevelCode, Outcome, Request, Revision,
+    Role, RowIndex, RowsRequest, Selected, SentAt, Session, ShownRows, TableDescription,
 };
 
 /// The commands `call` takes, every command of the app but `subscribe`.
@@ -26,6 +26,7 @@ pub const COMMANDS: &[&str] = &[
     "set_active_classification",
     "select_population",
     "set_role",
+    "set_filter",
     "undo",
     "redo",
 ];
@@ -56,7 +57,7 @@ pub fn call(
     if command == "fetch_rows" {
         let args: RowsArgs = json_args(command, body)?;
         let request = RowsRequest {
-            first: RowIndex::new(args.first),
+            first: args.first,
             count: args.count,
             columns: args.columns.into_iter().map(ColumnId::new).collect(),
             based_on: Revision::new(args.based_on),
@@ -140,6 +141,17 @@ pub fn call(
                 role: args.role,
             };
             request(command, args.based_on, args.sent_at)?
+        }
+        "set_filter" => {
+            let args: FilterArgs = json_args(command, body)?;
+            let filter = Filter {
+                text: args.text,
+                column: args.column.map(ColumnId::new),
+                cell: args.cell,
+                shown: args.shown,
+                decimal_mark: args.decimal_mark,
+            };
+            request(Command::SetFilter { filter }, args.based_on, args.sent_at)?
         }
         "undo" => {
             let args: At = json_args(command, body)?;
@@ -225,6 +237,20 @@ struct PopulationArgs {
 struct RoleArgs {
     column: u32,
     role: Role,
+    based_on: u64,
+    sent_at: Option<f64>,
+}
+
+/// The arguments of `set_filter`: the filter of the find bar, with the
+/// decimal mark the window writes numbers with.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FilterArgs {
+    text: String,
+    column: Option<u32>,
+    cell: CellMatch,
+    shown: ShownRows,
+    decimal_mark: String,
     based_on: u64,
     sent_at: Option<f64>,
 }

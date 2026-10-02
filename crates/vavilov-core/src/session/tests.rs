@@ -16,6 +16,7 @@ const UNDO: u16 = 5;
 const COLUMNS: u16 = 6;
 const HOVER: u16 = 7;
 const SHAPE: u16 = 11;
+const FILTER: u16 = 13;
 
 const ORIGIN: ColumnId = ColumnId::new(2);
 const CLUSTER: ColumnId = ColumnId::new(3);
@@ -216,7 +217,7 @@ fn loading_a_table_sends_every_part_of_the_state() {
     assert_eq!(
         part_kinds(&messages[0]),
         [
-            PROJECT, SHAPE, ACTIVE, SELECTION, UNDO, COLUMNS, CODES, CODES, CODES, HOVER
+            PROJECT, SHAPE, ACTIVE, SELECTION, UNDO, FILTER, COLUMNS, CODES, CODES, CODES, HOVER
         ]
     );
     assert_eq!(
@@ -227,9 +228,17 @@ fn loading_a_table_sends_every_part_of_the_state() {
     );
     // The shape of the new table, at its load.
     assert_eq!(decoded.parts[1].1, [1, 0, 0, 0, 0, 0, 0, 0]);
+    // The filter of the new table: none, every row shown since the load.
+    assert_eq!(
+        decoded.parts[5].1,
+        [
+            1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0
+        ]
+    );
     // The hover of the new table: a new sequence number and no row.
     assert_eq!(
-        decoded.parts[9].1,
+        decoded.parts[10].1,
         [1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255]
     );
 }
@@ -913,7 +922,7 @@ fn a_subscriber_gets_the_snapshot_at_r_and_then_every_revision_after_r() {
     assert_eq!(
         part_kinds(&snapshot),
         [
-            PROJECT, SHAPE, ACTIVE, SELECTION, UNDO, COLUMNS, CODES, CODES, CODES, HOVER
+            PROJECT, SHAPE, ACTIVE, SELECTION, UNDO, FILTER, COLUMNS, CODES, CODES, CODES, HOVER
         ]
     );
     assert_eq!(decoded.parts[3].1, [4, 0, 0, 0, 0, 0, 0, 0, 0b0100]);
@@ -1100,7 +1109,7 @@ fn the_rows_from_a_window_need_a_project() {
 /// `cluster` made active at 4, as docs/core.md, section 5, lays it out. The
 /// same bytes are decoded in src/backend/decodeMessage.test.ts.
 #[rustfmt::skip]
-const SNAPSHOT_AFTER_EDITS: [u8; 376] = [
+const SNAPSHOT_AFTER_EDITS: [u8; 416] = [
     0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // snapshot at 4
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0, // no time; project part
     1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
@@ -1109,6 +1118,9 @@ const SNAPSHOT_AFTER_EDITS: [u8; 376] = [
     3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
+    13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // filter part: rows shown since 1
+    4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, // 4 shown, any column, part, matching, every row
+    0, 0, 0, 0, 0, 0, 0, 0, // no text: the offsets 0 and 0
     6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, // columns part: 7 columns
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // the names, at 1
     1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // height at 1

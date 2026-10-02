@@ -207,6 +207,23 @@ pub fn set_role<R: Runtime>(
     run(&app, &session, "set_role", &request)
 }
 
+/// Sets the filter of the find bar: `{ text, column, cell, shown,
+/// decimalMark, basedOn, sentAt }`, with `column` an id or `null` for any
+/// column, `cell` `part` or `whole`, and `shown` `matching` or
+/// `notMatching`.
+///
+/// # Errors
+///
+/// The refusals of [`calls::call`].
+#[tauri::command]
+pub fn set_filter<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<(), CommandError> {
+    run(&app, &session, "set_filter", &request)
+}
+
 /// Undoes the last edit of the document: `{ basedOn, sentAt }`.
 ///
 /// # Errors

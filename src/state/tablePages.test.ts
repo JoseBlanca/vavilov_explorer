@@ -48,16 +48,18 @@ describe("the pages of the table", () => {
 });
 
 describe("a page of rows against the window's copy", () => {
-  // A page of the table loaded at 2, read at 6, with height (1) at 4 and
-  // note (5) at 6.
-  const page = (columns: readonly [number, number][], loadedAt = 2): RowPage => {
-    const first = 0;
-    if (!isRowIndex(first)) throw new Error("not a row");
+  // A page of the table loaded at 2, of the rows shown since 3, read at 6,
+  // with height (1) at 4 and note (5) at 6.
+  const page = (columns: readonly [number, number][], loadedAt = 2, shownAt = 3): RowPage => {
+    const row = 0;
+    if (!isRowIndex(row)) throw new Error("not a row");
     return {
       revision: revision(6),
       loadedAt: revision(loadedAt),
-      first,
+      shownAt: revision(shownAt),
+      first: 0,
       count: 1,
+      rows: [row],
       names: ["p1"],
       columns: columns.map(([id, at]) => ({
         id: column(id),
@@ -82,6 +84,7 @@ describe("a page of rows against the window's copy", () => {
           [5, 6],
         ]),
         revision(2),
+        revision(3),
         wanted,
         copy(6),
       ),
@@ -97,6 +100,7 @@ describe("a page of rows against the window's copy", () => {
           [5, 6],
         ]),
         revision(2),
+        revision(3),
         wanted,
         copy(3),
       ),
@@ -111,6 +115,7 @@ describe("a page of rows against the window's copy", () => {
           [5, 6],
         ]),
         revision(2),
+        revision(3),
         wanted,
         copy(7),
       ),
@@ -123,10 +128,24 @@ describe("a page of rows against the window's copy", () => {
           [5, 6],
         ]),
         revision(2),
+        revision(3),
         wanted,
         copy(3),
       ),
     ).toBe("behind");
+  });
+
+  test("is behind when it is of rows shown before, and ahead of rows shown after the copy's", () => {
+    const columns: [number, number][] = [
+      [1, 4],
+      [5, 6],
+    ];
+    expect(pageStanding(page(columns, 2, 3), revision(2), revision(5), wanted, copy(6))).toBe(
+      "behind",
+    );
+    expect(pageStanding(page(columns, 2, 5), revision(2), revision(3), wanted, copy(6))).toBe(
+      "ahead",
+    );
   });
 
   test("is behind when it is of another table, or of other columns", () => {
@@ -140,6 +159,7 @@ describe("a page of rows against the window's copy", () => {
           1,
         ),
         revision(2),
+        revision(3),
         wanted,
         copy(6),
       ),
@@ -151,11 +171,12 @@ describe("a page of rows against the window's copy", () => {
           [1, 4],
         ]),
         revision(2),
+        revision(3),
         wanted,
         copy(6),
       ),
     ).toBe("behind");
-    expect(pageStanding(page([[1, 4]]), revision(2), wanted, copy(6))).toBe("behind");
+    expect(pageStanding(page([[1, 4]]), revision(2), revision(3), wanted, copy(6))).toBe("behind");
     expect(
       pageStanding(
         page([
@@ -163,6 +184,7 @@ describe("a page of rows against the window's copy", () => {
           [7, 6],
         ]),
         revision(2),
+        revision(3),
         [column(1), column(7)],
         copy(6),
       ),

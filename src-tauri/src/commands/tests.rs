@@ -158,6 +158,13 @@ fn every_command_is_registered_and_finds_the_session() {
             "set_role",
             json!({ "column": 1, "role": "category", "basedOn": 0 }),
         ),
+        (
+            "set_filter",
+            json!({
+                "text": "Spain", "column": null, "cell": "part", "shown": "matching",
+                "decimalMark": ",", "basedOn": 0
+            }),
+        ),
         ("undo", json!({ "basedOn": 0 })),
         ("redo", json!({ "basedOn": 0, "sentAt": 1.5 })),
         (
@@ -565,8 +572,10 @@ fn a_page_of_rows_comes_back_as_raw_bytes() {
     #[rustfmt::skip]
     let expected: Vec<u8> = vec![
         3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // page: loaded at 1, from row 1, 2 rows
-        8, 0, 0, 0, 16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0,
+        // page: loaded at 1, rows shown since 1, from position 1, 2 rows,
+        // which are the rows 1 and 2
+        8, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0,
         // names: p2, p3
         9, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, b'p', b'2', b'p', b'3',
         // origin: Peru, missing

@@ -18,6 +18,7 @@ mod edit;
 mod error;
 mod export;
 mod files;
+mod filter;
 #[cfg(test)]
 mod fixtures;
 mod formats;
@@ -39,6 +40,7 @@ pub use dispatch::{Changed, Dropped, Outcome};
 pub use error::{CommandError, ExportRefusal, ImportRefusal, IoFailure};
 pub use export::export_table;
 pub use files::{file_name, read_for_import, write_export};
+pub use filter::{CellMatch, Filter, ShownRows};
 pub use formats::{
     CsvChoices, CsvEncoding, DecimalMark, ExportFormat, FileFormat, MissingText, Separator,
 };

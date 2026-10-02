@@ -14,6 +14,7 @@ import {
   readMessage,
   revisionAt,
   rowIndex,
+  textList,
 } from "./layout.ts";
 import type { RawPart } from "./layout.ts";
 
@@ -30,10 +31,6 @@ const VALUES = 10;
 const TYPES = ["float", "integer", "text", undefined, "categorical"] as const;
 /** The bytes of a values part before its values. */
 const VALUES_HEADER_BYTES = 16;
-
-// fatal, so that bytes that are not UTF-8 throw rather than turn into
-// U+FFFD; ignoreBOM, so that a name that starts with U+FEFF keeps it.
-const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 /**
  * Decodes a page of rows into its names and values, each missing value as
@@ -57,13 +54,20 @@ export function decodeRows(bytes: ArrayBuffer): RowPage {
   if (pagePart?.kind !== PAGE) {
     throw defect("a message of rows that does not start with its page part");
   }
-  expectLength("page", pagePart.length, 16);
-  const loadedAt = revisionAt(view, pagePart.start);
-  const first = rowIndex(view.getUint32(pagePart.start + 8, true));
-  const count = view.getUint32(pagePart.start + 12, true);
-  if (first + count > MAX_ROWS) {
-    throw defect(`a page of ${String(count)} rows from row ${String(first)}, past the table`);
+  if (pagePart.length < 24) {
+    throw defect(`a page part of ${String(pagePart.length)} bytes`);
   }
+  const loadedAt = revisionAt(view, pagePart.start);
+  const shownAt = revisionAt(view, pagePart.start + 8);
+  const first = view.getUint32(pagePart.start + 16, true);
+  const count = view.getUint32(pagePart.start + 20, true);
+  if (first + count > MAX_ROWS) {
+    throw defect(`a page of ${String(count)} rows from position ${String(first)}, past the table`);
+  }
+  expectLength("page", pagePart.length, 24 + 4 * count);
+  const rows = Array.from({ length: count }, (_, index) =>
+    rowIndex(view.getUint32(pagePart.start + 24 + 4 * index, true)),
+  );
   if (namesPart?.kind !== NAMES) {
     throw defect("a message of rows with no names part after its page part");
   }
@@ -75,7 +79,7 @@ export function decodeRows(bytes: ArrayBuffer): RowPage {
     }
     return valuesPart(bytes, page, part);
   });
-  return { revision: header.revision, loadedAt, first, count, names, columns };
+  return { revision: header.revision, loadedAt, shownAt, first, count, rows, names, columns };
 }
 
 /** Where a page's rows are, for the messages of its defects. */
@@ -213,58 +217,6 @@ function missingRows(page: Page, at: number, available: number): boolean[] {
     { length: count },
     (_, row) => (view.getUint8(at + Math.floor(row / 8)) & (1 << (row % 8))) !== 0,
   );
-}
-
-/**
- * A text list of `count` texts that fills the `available` bytes at `at`: a
- * first offset of 0, the end of each text as a `u32`, then the texts.
- */
-function textList(bytes: ArrayBuffer, at: number, available: number, count: number): string[] {
-  const offsetsLength = 4 * (count + 1);
-  if (available < offsetsLength) {
-    throw defect(
-      `a text list of ${String(available)} bytes, shorter than the ${String(offsetsLength)} of the offsets of ${String(count)} rows`,
-    );
-  }
-  const view = new DataView(bytes, at, offsetsLength);
-  const firstOffset = view.getUint32(0, true);
-  if (firstOffset !== 0) {
-    throw defect(`a text list whose first offset is ${String(firstOffset)}`);
-  }
-  const textsAt = at + offsetsLength;
-  const textsLength = available - offsetsLength;
-  const ends: number[] = [];
-  let previous = 0;
-  for (let index = 1; index <= count; index += 1) {
-    const end = view.getUint32(4 * index, true);
-    if (end < previous) {
-      throw defect(`an offset ${String(end)} after ${String(previous)} in a text list`);
-    }
-    ends.push(end);
-    previous = end;
-  }
-  if (previous !== textsLength) {
-    throw defect(
-      `a text list whose texts end at ${String(previous)} and has ${String(textsLength)} bytes of them`,
-    );
-  }
-  let start = 0;
-  return ends.map((end) => {
-    const text = utf8(new Uint8Array(bytes, textsAt + start, end - start));
-    start = end;
-    return text;
-  });
-}
-
-function utf8(bytes: Uint8Array): string {
-  try {
-    return UTF8.decode(bytes);
-  } catch (error: unknown) {
-    if (error instanceof TypeError) {
-      throw defect("a text list that is not UTF-8");
-    }
-    throw error;
-  }
 }
 
 function expectValuesLength(length: number, valuesLength: number, typeByte: number): void {

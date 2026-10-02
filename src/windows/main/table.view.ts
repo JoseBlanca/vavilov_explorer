@@ -150,7 +150,7 @@ export function tableView(props: TableProps): TemplateResult {
             html`<div
               role="row"
               class=${classOf(styles, "row")}
-              aria-rowindex=${String(row.row + 2)}
+              aria-rowindex=${String(row.position + 2)}
               aria-selected=${row.selected ? "true" : "false"}
               aria-busy=${row.cells === null ? "true" : "false"}
               @mousedown=${(event: MouseEvent) => {

@@ -62,6 +62,25 @@ column of countries as their three-letter codes. The export refuses a
 value that would not read back as itself, such as a text `NA`, and the
 message names its column and its individual.
 
+## Finding rows
+
+The bar above the table shows only the rows that match what you type in
+Find, as you type. Column chooses where to look: Any column, the first
+column included, or one column. A cell matches when what you typed is
+part of what the table shows in it, capital letters or not; accents
+count, so `cote` does not find `Côte`. Tick Whole cell to find only the
+cells that are exactly what you typed, so that `1` does not find `10`.
+Tick Show rows that don't match to see the others instead. An empty cell
+never matches, so it shows among the rows that don't match.
+
+A decimal number is found as the table shows it, with your region's
+decimal mark: `1,5` in Spain. A country is found by any of its ISO names
+or codes, so `Spain`, `Kingdom of Spain`, `ES` and `ESP` all find the
+cells shown as `ESP`. The search hides rows of the table only; the
+other views keep every individual. The bar below the table says how
+many rows are shown, "Showing 312 of 2,000 individuals", and how many
+are selected. Importing another table clears the search.
+
 ## Undoing an edit
 
 Edit, Undo, or Cmd-Z (Ctrl-Z on Windows and Linux), undoes the last

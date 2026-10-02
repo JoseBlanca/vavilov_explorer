@@ -26,7 +26,7 @@ fn load(session: &mut Session, table: Table) {
 
 fn request(first: u32, count: u32, columns: &[u32], based_on: u64) -> RowsRequest {
     RowsRequest {
-        first: RowIndex::new(first),
+        first,
         count,
         columns: columns.iter().copied().map(ColumnId::new).collect(),
         based_on: Revision::new(based_on),
@@ -43,10 +43,14 @@ fn a_page_carries_the_names_and_the_values_of_the_columns_asked_for_in_their_ord
         3, 0, 0, 0, 0, 0, 0, 0, // rows, no time
         1, 0, 0, 0, 0, 0, 0, 0, // revision 1
         0, 0, 0, 0, 0, 0, 0, 0, // no time
-        // page: loaded at 1, from row 1, 3 rows
-        8, 0, 0, 0, 16, 0, 0, 0,
+        // page: loaded at 1, rows shown since 1, from position 1, 3
+        // rows, which are the rows 1, 2 and 3; 36 bytes, padded
+        8, 0, 0, 0, 36, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 3, 0, 0, 0,
+        1, 0, 0, 0, 2, 0, 0, 0,
+        3, 0, 0, 0, 0, 0, 0, 0,
         // names: offsets 0, 2, 4, 6, then p2p3p4, padded
         9, 0, 0, 0, 22, 0, 0, 0,
         0, 0, 0, 0, 2, 0, 0, 0,
@@ -147,7 +151,16 @@ fn a_page_of_nine_rows_takes_two_bytes_of_missing_rows_and_names_in_utf8() {
     assert_eq!(
         parts,
         [
-            (8, vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0]),
+            (
+                8,
+                vec![
+                    1, 0, 0, 0, 0, 0, 0, 0, // loaded at 1
+                    1, 0, 0, 0, 0, 0, 0, 0, // rows shown since 1
+                    0, 0, 0, 0, 9, 0, 0, 0, // from position 0, 9 rows
+                    0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, //
+                    5, 0, 0, 0, 6, 0, 0, 0, 7, 0, 0, 0, 8, 0, 0, 0, // rows 0 to 8
+                ]
+            ),
             (9, names),
             (10, values),
         ]
@@ -161,7 +174,14 @@ fn a_page_of_no_rows_at_the_end_of_the_table_has_its_parts_and_no_values() {
     assert_eq!(
         parts,
         [
-            (8, vec![1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0]),
+            (
+                8,
+                vec![
+                    1, 0, 0, 0, 0, 0, 0, 0, // loaded at 1
+                    1, 0, 0, 0, 0, 0, 0, 0, // rows shown since 1
+                    4, 0, 0, 0, 0, 0, 0, 0, // from position 4, no rows
+                ]
+            ),
             (9, vec![0, 0, 0, 0]),
             (10, vec![1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]),
             (

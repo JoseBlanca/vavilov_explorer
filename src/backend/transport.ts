@@ -15,6 +15,7 @@ export type CommandName =
   | "set_active_classification"
   | "select_population"
   | "set_role"
+  | "set_filter"
   | "undo"
   | "redo"
   | "import_table"

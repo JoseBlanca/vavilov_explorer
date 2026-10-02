@@ -13,6 +13,26 @@ import type { CsvDialog } from "./csvDialog.controller.ts";
 /** Nothing to draw again after an undo or a redo the backend did not apply. */
 const ignore = (): void => undefined;
 
+/**
+ * Undoes or redoes the typing in the field that has the focus, when one
+ * has it, and says whether one had: the menu's Cmd-Z reaches the window as
+ * an action, before the field sees the key (docs/design.md, section 2.1).
+ */
+function undoTyping(action: "undo" | "redo"): boolean {
+  const focused = document.activeElement;
+  const typing =
+    focused instanceof HTMLTextAreaElement ||
+    (focused instanceof HTMLInputElement &&
+      ["text", "search", "number", "email", "url", "tel"].includes(focused.type));
+  if (typing) {
+    // execCommand is the one way to reach a field's own history of typing,
+    // which WebKit and Chromium keep, and it fires the field's input event.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- no other API undoes a field's typing
+    document.execCommand(action);
+  }
+  return typing;
+}
+
 /** The items of the menu the main window carries out. */
 export interface MenuActions {
   /** Stops listening to the menu. */
@@ -85,9 +105,13 @@ export function createMenuActions(
       case "exportXlsx":
         return exportTable("xlsx");
       case "undo":
-        return connection.undo().then(answered("undoing", ignore));
+        return undoTyping("undo")
+          ? Promise.resolve()
+          : connection.undo().then(answered("undoing", ignore));
       case "redo":
-        return connection.redo().then(answered("redoing", ignore));
+        return undoTyping("redo")
+          ? Promise.resolve()
+          : connection.redo().then(answered("redoing", ignore));
     }
   };
 

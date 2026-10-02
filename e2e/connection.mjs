@@ -107,6 +107,8 @@ for (const engine of Object.keys(ENGINES)) {
       value: {
         revision: 1,
         loadedAt: 1,
+        shownAt: 1,
+        rows: [1, 2, 3],
         first: 1,
         count: 3,
         names: ["p2", "p3", "p4"],

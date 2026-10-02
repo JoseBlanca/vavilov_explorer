@@ -3,12 +3,12 @@ import { nothing, render } from "lit-html";
 import type { Connection } from "../../backend/connection.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow, Role, TableDescription } from "../../state/description.ts";
-import { isRowIndex } from "../../state/ids.ts";
+import { rowAt, shownRowsOf } from "../../state/filter.ts";
 import type { ColumnId, Revision, RowIndex } from "../../state/ids.ts";
 import type { Question } from "../../state/question.ts";
 import { roleChangeQuestion } from "../../state/roles.ts";
 import type { RowPage } from "../../state/rowPage.ts";
-import { rangeBits } from "../../state/rowSet.ts";
+import { intersection, rangeBits } from "../../state/rowSet.ts";
 import {
   PAGE_ROWS,
   pageStanding,
@@ -65,6 +65,30 @@ export function createTable(
   let destroyed = false;
   /** The question about a role being asked, and the load of the table it is about. */
   let asking: { readonly loadedAt: Revision; readonly withdraw: AbortController } | null = null;
+  /**
+   * The row at each position among those shown, for the rows shown since
+   * `at`, worked out once for each change of the rows shown.
+   */
+  let positions: { readonly at: Revision; readonly rows: Uint32Array | null } | null = null;
+
+  /** The rows shown now, their number, and the row at each position. */
+  const shownNow = (
+    table: TableDescription,
+  ): { at: Revision; numShown: number; rows: Uint32Array | null; bits: Uint8Array | null } => {
+    const shown = state.shown();
+    if (shown === null) {
+      throw defect("a table drawn with no rows shown in the copy");
+    }
+    if (positions?.at !== shown.at) {
+      positions = { at: shown.at, rows: shownRowsOf(shown) };
+    }
+    if (shown.bits === null && shown.numShown !== table.numRows) {
+      throw defect(
+        `every row shown, ${String(shown.numShown)}, of a table of ${String(table.numRows)} rows`,
+      );
+    }
+    return { at: shown.at, numShown: shown.numShown, rows: positions.rows, bits: shown.bits };
+  };
 
   const part = (name: string): HTMLElement | null => {
     const found = element.querySelector(`[data-${name}]`);
@@ -79,11 +103,15 @@ export function createTable(
   };
 
   /** How a page stands against the copy and the description. */
-  const standing = (page: RowPage, table: TableDescription): ReturnType<typeof pageStanding> =>
-    pageStanding(page, table.loadedAt, fetchedColumns(table), state.columnRevision);
+  const standing = (
+    page: RowPage,
+    table: TableDescription,
+    shownAt: Revision,
+  ): ReturnType<typeof pageStanding> =>
+    pageStanding(page, table.loadedAt, shownAt, fetchedColumns(table), state.columnRevision);
 
-  const fetchPage = (index: number, table: TableDescription): void => {
-    const { first, end } = rowsOfPage(index, table.numRows);
+  const fetchPage = (index: number, table: TableDescription, numShown: number): void => {
+    const { first, end } = rowsOfPage(index, numShown);
     const token = {};
     fetching.set(index, token);
     const settle = (): boolean => {
@@ -95,12 +123,18 @@ export function createTable(
       return !destroyed;
     };
     connection
-      .fetchRows(rowIndex(first), end - first, fetchedColumns(table))
+      .fetchRows(first, end - first, fetchedColumns(table))
       .then((answer) => {
         if (!settle()) {
           return;
         }
         if (!answer.ok) {
+          // The rows shown changed after the fetch, and the page asked
+          // for is past them: the draw fetches the pages of those shown now.
+          if (answer.error.kind === "rowsOutOfRange") {
+            schedule();
+            return;
+          }
           throw defect(
             `the rows ${String(first)} to ${String(end)} were refused: ${answer.error.kind}`,
           );
@@ -176,6 +210,11 @@ export function createTable(
     }, report);
   };
 
+  /**
+   * Selects the row clicked, or with `extend` the rows shown from the last
+   * one clicked to it: a shift-click over a filtered table selects none of
+   * the rows the filter hides between the two.
+   */
   const select = (row: RowIndex, extend: boolean): void => {
     const project = state.project();
     if (project.kind !== "open") {
@@ -185,9 +224,8 @@ export function createTable(
     if (!extend) {
       anchor = row;
     }
-    connection
-      .setSelection(rangeBits(project.numRows, from, row))
-      .then(answered("selecting rows", schedule), report);
+    const bits = intersection(rangeBits(project.numRows, from, row), state.shown()?.bits ?? null);
+    connection.setSelection(bits).then(answered("selecting rows", schedule), report);
   };
 
   /** Whether the table loaded at `at` is the one the copy holds. */
@@ -221,6 +259,7 @@ export function createTable(
       return;
     }
     const table = now.description;
+    const shown = shownNow(table);
     const replaced = table.loadedAt !== loadedAt;
     /** Whether this table takes the place of another the table showed. */
     const another = replaced && loadedAt !== null;
@@ -235,7 +274,7 @@ export function createTable(
     // the change it holds arrives and makes it current.
     const drawable = new Map<number, RowPage>();
     for (const [index, page] of pages) {
-      switch (standing(page, table)) {
+      switch (standing(page, table, shown.at)) {
         case "current":
           drawable.set(index, page);
           break;
@@ -265,18 +304,19 @@ export function createTable(
             measured.scrollTop,
             measured.viewport,
             measured.rowHeight,
-            table.numRows,
+            shown.numShown,
             MARGIN_ROWS,
           );
     const rows: TableRow[] = [];
-    for (let row = range.first; row < range.end; row += 1) {
-      const page = drawable.get(Math.floor(row / PAGE_ROWS)) ?? null;
-      rows.push(tableRow(table, page, rowIndex(row), state.codes, state.selection(), mark));
+    for (let position = range.first; position < range.end; position += 1) {
+      const page = drawable.get(Math.floor(position / PAGE_ROWS)) ?? null;
+      const row = rowAt(shown.rows, position);
+      rows.push(tableRow(table, page, position, row, state.codes, state.selection(), mark));
     }
     render(
       tableView({
         columns: tableColumns(table),
-        numRows: table.numRows,
+        numRows: shown.numShown,
         range,
         rows,
         onRowClick: select,
@@ -295,14 +335,14 @@ export function createTable(
       }
     }
     // The first draw has nothing to measure yet: draw again once it has.
-    if ((measured === null || measured.rowHeight === 0) && table.numRows > 0) {
+    if ((measured === null || measured.rowHeight === 0) && shown.numShown > 0) {
       schedule();
       return;
     }
     const needed = pagesOf(range);
     for (const index of needed) {
       if (!pages.has(index) && !fetching.has(index)) {
-        fetchPage(index, table);
+        fetchPage(index, table, shown.numShown);
       }
     }
     const low = needed[0];
@@ -319,7 +359,7 @@ export function createTable(
 
   const resized = new ResizeObserver(schedule);
   resized.observe(element);
-  const unsubscribes = (["table", "codes", "selection"] as const).map((aspect) =>
+  const unsubscribes = (["table", "codes", "selection", "filter"] as const).map((aspect) =>
     state.subscribe(aspect, draw),
   );
   draw();
@@ -338,11 +378,4 @@ export function createTable(
       render(nothing, element);
     },
   };
-}
-
-function rowIndex(row: number): RowIndex {
-  if (!isRowIndex(row)) {
-    throw defect(`a row ${String(row)} of the table`);
-  }
-  return row;
 }

@@ -199,7 +199,12 @@ it and whether it is undone. `OpenProject` holds the first two:
   to; a selected population is a value of the active classification
   (`design.md`, section 1), so changing the active classification clears
   it. The selection is a `RowSet` with as many bits as the table has
-  rows. The hover is an `Option<RowIndex>`.
+  rows. The hover is an `Option<RowIndex>`. The filter of the find bar
+  (`design.md`, section 2.1) is a `Filter`, its text, the column searched
+  or any, whole cell or part, the rows that match or those that do not,
+  and the decimal mark the window writes numbers with; beside it the rows
+  it shows, in order, or none for every row, and the revision at which
+  they last changed. A load gives a filter of no text.
 - **The window's own** state, the camera of a 3D view or the scroll of
   the table, is not in the session.
 
@@ -426,6 +431,7 @@ parts of the first slice:
 | columns | the number of columns listed, `u32`; four zero bytes; then for each its id, `u32`, four zero bytes and its revision, `u64` |
 | hover | the hover's sequence number, `u64`; the row, `u32`, `u32::MAX` for none |
 | shape | the revision at which the columns, their names or their roles last changed, `u64`: the load, or a change of role. A window asks for the description of the table again when it grows |
+| filter, 13 | the revision at which the rows shown last changed, `u64`; the number of rows shown, `u32`; the column searched, `u32`, `u32::MAX` for any; a byte each for whole cell (0 part, 1 whole), the rows shown (0 those that match, 1 those that do not) and whether bits follow; five zero bytes; the text, as a text list of one; and while there is a text, padded to a multiple of 8, one bit per row, set for a row shown, in the order of the selection's bits |
 
 A snapshot carries every part, with every column in the columns part. A
 change carries the parts of what the command changed, by two rules that
@@ -442,7 +448,11 @@ hold for every command:
   and a window drops its codes.
 
 So a lasso sends codes, columns and undo; a new selection sends
-selection. Loading a table sends every part, as a snapshot does, with a
+selection. An edit that changes which rows the filter shows also sends
+the filter part, at its revision; one that changes none of them does
+not, so that the pages a window holds stay good. The rows shown after an
+edit are found while it is planned, on the values it gives, before
+anything is changed. Loading a table sends every part, as a snapshot does, with a
 new hover sequence number and no hover. Parts let one command change
 several things in one message without a kind of message for every
 combination.
@@ -460,13 +470,15 @@ that was not changed.
 
 The table of the main window draws only the rows on screen and asks the
 backend for them a page at a time (`design.md`, section 2.1). The
-command `fetch_rows` takes, as JSON, the first row of the page, the
-number of rows, the ids of the columns wanted, in the order wanted, and
-the revision of the window's copy, `{ first, count, columns, basedOn }`.
+command `fetch_rows` takes, as JSON, the position of the page's first
+row among the rows the filter shows, which with no filter is its row,
+the number of rows, the ids of the columns wanted, in the order wanted,
+and the revision of the window's copy, `{ first, count, columns,
+basedOn }`.
 It changes nothing and takes no revision. It is refused as a command
 made before the current table was loaded when `basedOn` is older than
 the load, which the window takes as stale (section 4); as
-`RowsOutOfRange` when the page goes past the last row; and as
+`RowsOutOfRange` when the page goes past the last row shown; and as
 `UnknownColumn` for an id the table does not have, the first column's
 included, since the names come with every page; and as a defect for a
 column asked for twice, since a window asks for each once and a list of
@@ -481,7 +493,7 @@ read an integer of 2^53 or more as another. Its parts, in this order:
 
 | part | payload |
 |---|---|
-| page | the revision at which the table was loaded, `u64`; the first row, `u32`; the number of rows, `u32` |
+| page | the revision at which the table was loaded, `u64`; the revision at which the rows shown last changed, `u64`, so that a window drops a page of the rows shown before; the position of the first row, `u32`; the number of rows, `u32`; then the row of the table each is, a `u32` each |
 | names | the names of the page's rows, as a text list (below) |
 | values, one per column asked for | the column id, `u32`; a byte, 0 decimal numbers, 1 whole numbers, 2 text, 4 the codes of a category, and 3 not used; three zero bytes; the column's revision, `u64`; then its values |
 
@@ -501,6 +513,30 @@ A text list is the end of each text, as an offset into the bytes that
 follow, one `u32` per row after a first 0, then the texts one after the
 other in UTF-8. A window that finds an offset that goes back or past the
 bytes, or bytes that are not UTF-8, treats the message as a defect.
+
+### The filter
+
+The command `set_filter` takes the filter of the find bar as JSON, `{
+text, column, cell, shown, decimalMark, basedOn, sentAt }`, with `column`
+an id or `null` for any column, `cell` `part` or `whole`, and `shown`
+`matching` or `notMatching`. The core finds the rows in
+`crates/vavilov-core/src/filter.rs`: a cell matches by the text the
+table shows of it, a decimal number written as JavaScript writes it with
+the window's decimal mark, yes and no as `TRUE` and `FALSE`, a level as
+its value; case is ignored, by `to_lowercase` on both sides, and accents
+are not; a level of a country matches also when the text is part of one
+of its ISO names, or equals one of its codes of two or three letters,
+which are compared whole so that `es` finds Spain and not Estonia; a
+missing cell never matches. With any column, a row matches when one of
+its cells does, the first column's included. The same filter again
+changes nothing. The filter is part of the interaction and is not
+undone.
+
+The window keeps the text being typed as its own until the backend's
+filter holds it, and sends the newest text once the command before is
+answered, so that typing fast sends no queue of texts. A shift-click
+over a filtered table selects the rows shown between the two rows
+clicked, and none the filter hides.
 
 ### The hover's sequence number
 

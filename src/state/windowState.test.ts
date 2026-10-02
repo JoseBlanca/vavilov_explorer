@@ -40,6 +40,13 @@ function plantParts(loadedAt: number): MessagePart[] {
     { kind: "selection", numRows: 4, bits: new Uint8Array([0]) },
     { kind: "undo", canUndo: false, canRedo: false },
     {
+      kind: "filter",
+      filter: { text: "", column: null, cell: "part", shown: "matching" },
+      at: revision(loadedAt),
+      numShown: 4,
+      bits: null,
+    },
+    {
       kind: "columns",
       columns: [HEIGHT, ORIGIN, CLUSTER].map((id) => ({
         column: id,
@@ -89,6 +96,7 @@ function recordAspects(state: ReturnType<typeof createWindowState>): Aspect[] {
     "selection",
     "hover",
     "undoRedo",
+    "filter",
   ] as const) {
     state.subscribe(aspect, () => {
       called.push(aspect);
@@ -209,7 +217,15 @@ describe("applying a change", () => {
     expect(state.codes(ORIGIN)).toBeNull();
     expect(state.columnRevision(ORIGIN)).toBeNull();
     expect([...(state.selection() ?? [])]).toEqual([0, 0]);
-    expect(called).toEqual(["table", "classification", "codes", "selection", "hover", "undoRedo"]);
+    expect(called).toEqual([
+      "table",
+      "classification",
+      "codes",
+      "selection",
+      "hover",
+      "undoRedo",
+      "filter",
+    ]);
   });
 
   test("whose parts do not fit the table is a defect", () => {
@@ -376,5 +392,40 @@ describe("a change of a column's role", () => {
     }).toThrow("Vavilov Explorer defect: the shape of the table with no project open");
     expect(state.revision()).toBe(0);
     expect(state.shapeAt()).toBeNull();
+  });
+});
+
+describe("the filter of the copy", () => {
+  const spain = { text: "Spain", column: ORIGIN, cell: "whole", shown: "matching" } as const;
+
+  test("is the one the backend sent, and its change calls the filter's listeners", () => {
+    const state = createWindowState(snapshot(1));
+    expect(state.shown()?.numShown).toBe(4);
+    const called = recordAspects(state);
+    const bits = new Uint8Array([0b1001]);
+    state.apply(change(2, { kind: "filter", filter: spain, at: revision(2), numShown: 2, bits }));
+    expect(state.shown()).toEqual({ filter: spain, at: 2, numShown: 2, bits });
+    expect(called).toEqual(["filter"]);
+  });
+
+  test("whose rows do not fit the table is a defect, and the copy is kept", () => {
+    const state = createWindowState(snapshot(1));
+    expect(() => {
+      state.apply(
+        change(2, {
+          kind: "filter",
+          filter: spain,
+          at: revision(2),
+          numShown: 2,
+          bits: new Uint8Array([0b1001, 0]),
+        }),
+      );
+    }).toThrow(/defect: a filter of 2 rows shown and 2 bytes for a table of 4 rows/);
+    expect(() => {
+      state.apply(
+        change(2, { kind: "filter", filter: spain, at: revision(2), numShown: 3, bits: null }),
+      );
+    }).toThrow(/defect: a filter of 3 rows shown/);
+    expect(state.shown()?.numShown).toBe(4);
   });
 });

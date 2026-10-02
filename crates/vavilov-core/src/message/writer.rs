@@ -1,10 +1,11 @@
 //! The writer of one message: its header, then its parts.
 
 use crate::error::CommandError;
+use crate::filter::{CellMatch, Filter, ShownRows};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt};
 use crate::message::{MessageKind, NO_CODE, NO_COLUMN, NO_ROW, PartKind};
 use crate::row_set::RowSet;
-use crate::session::{Active, Selected, UndoRedo};
+use crate::session::{Active, Selected, Shown, UndoRedo};
 
 /// Every payload, and so every message, is padded to a multiple of this.
 const ALIGNMENT: usize = 8;
@@ -150,26 +151,79 @@ impl MessageWriter {
         })
     }
 
+    /// The filter of the find bar and the rows it shows: the revision at
+    /// which they last changed, their number, the column searched, how a
+    /// cell matches, which rows are shown, the text, and, when there is a
+    /// text, one bit per row of the table, set for a row shown.
+    pub(crate) fn filter(
+        &mut self,
+        filter: &Filter,
+        shown: &Shown,
+        num_rows: u32,
+    ) -> Result<(), CommandError> {
+        let num_shown = match &shown.rows {
+            Some(rows) => u32::try_from(rows.len())
+                .map_err(|_| defect(&format!("{} rows shown", rows.len())))?,
+            None => num_rows,
+        };
+        let bits = shown
+            .rows
+            .as_ref()
+            .map(|rows| RowSet::from_rows(num_rows, rows.iter().copied()))
+            .transpose()?;
+        self.part(PartKind::Filter, |payload| {
+            payload.extend_from_slice(&shown.at.get().to_le_bytes());
+            payload.extend_from_slice(&num_shown.to_le_bytes());
+            payload
+                .extend_from_slice(&filter.column.map_or(NO_COLUMN, ColumnId::get).to_le_bytes());
+            payload.push(match filter.cell {
+                CellMatch::Part => 0,
+                CellMatch::Whole => 1,
+            });
+            payload.push(match filter.shown {
+                ShownRows::Matching => 0,
+                ShownRows::NotMatching => 1,
+            });
+            payload.push(u8::from(bits.is_some()));
+            payload.extend_from_slice(&[0; 5]);
+            text_list(payload, std::iter::once(filter.text.as_str()))?;
+            if let Some(bits) = &bits {
+                pad(payload)?;
+                payload.extend_from_slice(bits.as_bytes());
+            }
+            Ok(())
+        })
+    }
+
     /// The first part of a message of rows: the load of the table, the
-    /// first row of the page and its number of rows.
+    /// revision at which the rows shown last changed, the position of the
+    /// page's first row among them, its number of rows, and the row of the
+    /// table each is.
     pub(crate) fn page(
         &mut self,
         loaded_at: Revision,
-        first: RowIndex,
-        count: u32,
+        shown_at: Revision,
+        first: u32,
+        rows: &[RowIndex],
     ) -> Result<(), CommandError> {
+        let count = u32::try_from(rows.len())
+            .map_err(|_| defect(&format!("a page of {} rows", rows.len())))?;
         self.part(PartKind::Page, |payload| {
             payload.extend_from_slice(&loaded_at.get().to_le_bytes());
-            payload.extend_from_slice(&first.get().to_le_bytes());
+            payload.extend_from_slice(&shown_at.get().to_le_bytes());
+            payload.extend_from_slice(&first.to_le_bytes());
             payload.extend_from_slice(&count.to_le_bytes());
+            for row in rows {
+                payload.extend_from_slice(&row.get().to_le_bytes());
+            }
             Ok(())
         })
     }
 
     /// The names of the rows of a page, as a text list.
-    pub(crate) fn names(&mut self, names: &[String]) -> Result<(), CommandError> {
+    pub(crate) fn names(&mut self, names: &[&String]) -> Result<(), CommandError> {
         self.part(PartKind::Names, |payload| {
-            text_list(payload, names.iter().map(String::as_str))
+            text_list(payload, names.iter().map(|name| name.as_str()))
         })
     }
 
@@ -189,22 +243,22 @@ impl MessageWriter {
             // window checks; the bits before say which rows are missing.
             match values {
                 PageValues::Float(values) => {
-                    missing(payload, values)?;
+                    missing(payload, &values)?;
                     for value in values {
                         payload.extend_from_slice(&value.unwrap_or(0.0).to_le_bytes());
                     }
                 }
                 PageValues::Integer(values) => {
-                    missing(payload, values)?;
+                    missing(payload, &values)?;
                     for value in values {
                         payload.extend_from_slice(&value.unwrap_or(0).to_le_bytes());
                     }
                 }
                 PageValues::Text(values) => {
-                    missing(payload, values)?;
+                    missing(payload, &values)?;
                     text_list(
                         payload,
-                        values.iter().map(|value| value.as_deref().unwrap_or("")),
+                        values.iter().map(|value| value.map_or("", String::as_str)),
                     )?;
                 }
                 PageValues::Categorical(codes) => {
@@ -255,19 +309,19 @@ impl MessageWriter {
     }
 }
 
-/// The values of one column in the rows of a page, by storage type, or
-/// the codes of a category.
-#[derive(Clone, Copy, Debug)]
+/// The values of one column in the rows of a page, in the page's order,
+/// by storage type, or the codes of a category.
+#[derive(Clone, Debug)]
 pub(crate) enum PageValues<'a> {
-    Float(&'a [Option<f64>]),
-    Integer(&'a [Option<i64>]),
-    Text(&'a [Option<String>]),
-    Categorical(&'a [Option<LevelCode>]),
+    Float(Vec<Option<f64>>),
+    Integer(Vec<Option<i64>>),
+    Text(Vec<Option<&'a String>>),
+    Categorical(Vec<Option<LevelCode>>),
 }
 
 impl PageValues<'_> {
     /// The byte of the type in the header of a values part.
-    const fn type_byte(self) -> u8 {
+    const fn type_byte(&self) -> u8 {
         match self {
             Self::Float(_) => 0,
             Self::Integer(_) => 1,
@@ -293,6 +347,11 @@ fn missing<T>(bytes: &mut Vec<u8>, values: &[Option<T>]) -> Result<(), CommandEr
             .fold(0_u8, |byte, (bit, _)| byte | bit);
         bytes.push(byte);
     }
+    pad(bytes)
+}
+
+/// Pads `bytes` with zeros to a multiple of 8 bytes of the message.
+fn pad(bytes: &mut Vec<u8>) -> Result<(), CommandError> {
     let padded = bytes
         .len()
         .checked_next_multiple_of(ALIGNMENT)

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-filter"
+description = "Enables the set_filter command without any pre-configured scope."
+commands.allow = ["set_filter"]
+
+[[permission]]
+identifier = "deny-set-filter"
+description = "Denies the set_filter command without any pre-configured scope."
+commands.deny = ["set_filter"]

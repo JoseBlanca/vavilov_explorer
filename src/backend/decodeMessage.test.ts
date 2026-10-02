@@ -258,6 +258,9 @@ describe("the snapshot after edits that the core's tests write", () => {
     3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
+    13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // filter part: rows shown since 1
+    4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, // 4 shown, any column, part, matching, every row
+    0, 0, 0, 0, 0, 0, 0, 0, // no text: the offsets 0 and 0
     6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, // columns part: 7 columns
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // the names, at 1
     1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // height at 1
@@ -289,6 +292,8 @@ describe("the snapshot after edits that the core's tests write", () => {
           };
         case "selection":
           return { kind: part.kind, numRows: part.numRows, bits: [...part.bits] };
+        case "filter":
+          return { ...part, bits: part.bits === null ? null : [...part.bits] };
         case "noProject":
         case "project":
         case "active":
@@ -307,6 +312,13 @@ describe("the snapshot after edits that the core's tests write", () => {
       { kind: "active", column: 3, selected: null },
       { kind: "selection", numRows: 4, bits: [0] },
       { kind: "undo", canUndo: true, canRedo: false },
+      {
+        kind: "filter",
+        filter: { text: "", column: null, cell: "part", shown: "matching" },
+        at: 1,
+        numShown: 4,
+        bits: null,
+      },
       {
         kind: "columns",
         columns: [
@@ -388,5 +400,44 @@ describe("a message that does not decode is a defect", () => {
 
   test("a snapshot that does not start with the project part", () => {
     expectDefect([0, ...CHANGE_AT_5.slice(1), ...HOVER_PART], /snapshot/);
+  });
+});
+
+describe("a filter part", () => {
+  // crates/vavilov-core/src/filter/tests.rs,
+  // the_filter_part_says_the_rows_shown_and_the_filter: origin whole cell
+  // "Spain", the rows that do not match, p2 and p3 of four.
+  // prettier-ignore
+  const FILTER_PART = [
+    13, 0, 0, 0, 41, 0, 0, 0,
+    2, 0, 0, 0, 0, 0, 0, 0, // rows shown since 2
+    2, 0, 0, 0, 2, 0, 0, 0, // 2 shown, column 2
+    1, 1, 1, 0, 0, 0, 0, 0, // whole cell, not matching, rows below
+    0, 0, 0, 0, 5, 0, 0, 0, // the text's offsets 0 and 5
+    83, 112, 97, 105, 110, 0, 0, 0, // Spain, padded
+    0b0110, 0, 0, 0, 0, 0, 0, 0, // p2 and p3 shown, padded
+  ];
+
+  test("decodes to the filter and the rows it shows", () => {
+    const [part] = decodeMessage(buffer(...CHANGE_AT_5, ...FILTER_PART)).parts;
+    expect(part?.kind === "filter" ? { ...part, bits: [...(part.bits ?? [])] } : part).toEqual({
+      kind: "filter",
+      filter: { text: "Spain", column: 2, cell: "whole", shown: "notMatching" },
+      at: 2,
+      numShown: 2,
+      bits: [0b0110],
+    });
+  });
+
+  test("whose bits do not hold the rows it says it shows is a defect", () => {
+    const wrong = [...FILTER_PART];
+    wrong[48] = 0b0111;
+    expectDefect([...CHANGE_AT_5, ...wrong], /2 rows shown with 3 bits set/);
+  });
+
+  test("of an unknown way to match is a defect", () => {
+    const wrong = [...FILTER_PART];
+    wrong[24] = 2;
+    expectDefect([...CHANGE_AT_5, ...wrong], /cell 2/);
   });
 });

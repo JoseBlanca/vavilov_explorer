@@ -6,6 +6,7 @@ import { isCommandError } from "../state/commandError.ts";
 import type { Refusal } from "../state/commandError.ts";
 import { isTableDescription } from "../state/description.ts";
 import type { Role, TableDescription } from "../state/description.ts";
+import type { Filter } from "../state/filter.ts";
 import type { Selected } from "../state/message.ts";
 import { defect } from "../state/defect.ts";
 import type { ColumnId, LevelCode, RowIndex } from "../state/ids.ts";
@@ -55,6 +56,11 @@ export interface Connection {
   ) => Promise<Answer>;
   /** Sets the role of a column other than the first. */
   readonly setRole: (column: ColumnId, role: Role) => Promise<Answer>;
+  /**
+   * Sets the filter of the find bar, with the decimal mark the table writes
+   * decimal numbers with, so that a number matches by the text shown.
+   */
+  readonly setFilter: (filter: Filter, decimalMark: string) => Promise<Answer>;
   /** Undoes the last edit. */
   readonly undo: () => Promise<Answer>;
   /** Redoes the last edit undone. */
@@ -62,12 +68,13 @@ export interface Connection {
   /** The description of the table, or the refusal when no project is open. */
   readonly describeTable: () => Promise<Result<TableDescription, Refusal>>;
   /**
-   * `count` rows from `first`, with the names and the values of `columns` in
-   * that order, or "stale" when the table was replaced after the window's
-   * copy was made, or the backend's refusal.
+   * `count` rows from position `first` among the rows the filter shows, with
+   * the names and the values of `columns` in that order, or "stale" when
+   * the table was replaced after the window's copy was made, or the
+   * backend's refusal.
    */
   readonly fetchRows: (
-    first: RowIndex,
+    first: number,
     count: number,
     columns: readonly ColumnId[],
   ) => Promise<Result<RowPage | "stale", Refusal>>;
@@ -285,12 +292,13 @@ export async function connect(
         given.some((id, index) => id !== columns[index])
       ) {
         throw defect(
-          `a page of ${String(decoded.count)} rows from row ${String(decoded.first)} with columns ${given.join(", ")}, asked for as ${String(count)} rows from row ${String(first)} with columns ${columns.join(", ")}`,
+          `a page of ${String(decoded.count)} rows from position ${String(decoded.first)} with columns ${given.join(", ")}, asked for as ${String(count)} rows from position ${String(first)} with columns ${columns.join(", ")}`,
         );
       }
       return { ok: true, value: decoded };
     },
     setRole: (column, role) => command("set_role", { column, role }),
+    setFilter: (filter, decimalMark) => command("set_filter", { ...filter, decimalMark }),
     undo: () => command("undo", {}),
     redo: () => command("redo", {}),
     importTable: async () => {

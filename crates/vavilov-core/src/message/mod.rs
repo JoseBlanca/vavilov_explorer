@@ -63,6 +63,7 @@ pub(crate) enum PartKind {
     Values,
     Shape,
     Action,
+    Filter,
 }
 
 impl PartKind {
@@ -80,6 +81,7 @@ impl PartKind {
             Self::Values => 10,
             Self::Shape => 11,
             Self::Action => 12,
+            Self::Filter => 13,
         }
     }
 }
@@ -101,6 +103,11 @@ pub(crate) fn whole_state(
         message.active(open.interaction.active)?;
         message.selection(&open.interaction.selection)?;
         message.undo(open.history.undo_redo())?;
+        message.filter(
+            &open.interaction.filter,
+            &open.interaction.shown,
+            open.table.num_rows(),
+        )?;
         let columns = open.table.columns();
         let names = open.table.names();
         let revisions: Vec<(ColumnId, Revision)> = std::iter::once((names.id(), names.revision()))

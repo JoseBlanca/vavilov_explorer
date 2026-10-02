@@ -16,3 +16,22 @@ export function rangeBits(numRows: number, from: number, to: number): Uint8Array
 export function hasRow(bits: Uint8Array, row: number): boolean {
   return ((bits[Math.floor(row / 8)] ?? 0) & (1 << (row % 8))) !== 0;
 }
+
+/** The rows of `bits` that are also in `within`, a set of the same table; all of `bits` for `null`. */
+export function intersection(bits: Uint8Array, within: Uint8Array | null): Uint8Array {
+  if (within === null) {
+    return bits;
+  }
+  return bits.map((byte, index) => byte & (within[index] ?? 0));
+}
+
+/** The number of rows in the set. */
+export function countRows(bits: Uint8Array): number {
+  let count = 0;
+  for (const byte of bits) {
+    for (let bit = byte; bit !== 0; bit &= bit - 1) {
+      count += 1;
+    }
+  }
+  return count;
+}

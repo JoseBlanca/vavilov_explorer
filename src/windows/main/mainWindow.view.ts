@@ -12,7 +12,8 @@ export interface MainWindowProps {
 
 /**
  * The frame of the main window: the bar of a defect across the top, a
- * notice below it, then the populations panel beside the table, or, with
+ * notice below it, then the populations panel beside the table, with the
+ * find bar above the table and the information bar below it, or, with
  * no project open, the title in the place of the empty state still to be
  * built; and last the slots of the dialogs, which take no space and show
  * over all of it when one is open. The components draw into the slots,
@@ -24,7 +25,11 @@ export function mainWindowView(props: MainWindowProps): TemplateResult {
     <div data-slot="notice"></div>
     <div class=${classOf(styles, props.open ? "body" : "hidden")}>
       <div class=${classOf(styles, "panel")} data-slot="panel"></div>
-      <main class=${classOf(styles, "table")} data-slot="table"></main>
+      <main class=${classOf(styles, "tableArea")}>
+        <div data-slot="find"></div>
+        <div class=${classOf(styles, "table")} data-slot="table"></div>
+        <div data-slot="info"></div>
+      </main>
     </div>
     ${
       props.open

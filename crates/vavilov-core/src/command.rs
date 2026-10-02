@@ -1,6 +1,7 @@
 //! The commands that change the session, and the request that carries
 //! one to the dispatcher.
 
+use crate::filter::Filter;
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, SentAt};
 use crate::row_set::RowSet;
 use crate::session::Selected;
@@ -24,6 +25,12 @@ pub enum Command {
     SetSelection {
         /// The rows selected.
         rows: RowSet,
+    },
+    /// Sets the filter of the find bar, which changes the rows the table
+    /// shows. It is not undone.
+    SetFilter {
+        /// The filter.
+        filter: Filter,
     },
     /// Sets the individual under the pointer. It takes no revision.
     SetHover {

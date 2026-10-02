@@ -8,6 +8,8 @@ import { createDialog } from "../shared/dialog.controller.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
 import { createNotice } from "../shared/notice.controller.ts";
 import { createCsvDialog } from "./csvDialog.controller.ts";
+import { createFindBar } from "./findBar.controller.ts";
+import { createInfoBar } from "./infoBar.controller.ts";
 import { mainWindowView } from "./mainWindow.view.ts";
 import { createPopulationsPanel } from "./populationsPanel.controller.ts";
 import { createTable } from "./table.controller.ts";
@@ -58,6 +60,14 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       mark,
       defectBar.show,
     );
+    const findBar = createFindBar(
+      slot(root, "find"),
+      connection,
+      describedNow,
+      mark,
+      defectBar.show,
+    );
+    createInfoBar(slot(root, "info"), state);
     const dialog = createDialog(slot(root, "dialog"));
     const table = createTable(
       slot(root, "table"),
@@ -86,6 +96,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
         description = null;
         panel.redraw();
         table.redraw();
+        findBar.redraw();
         return;
       }
       const shapeAt = state.shapeAt();
@@ -123,6 +134,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       description = value;
       panel.redraw();
       table.redraw();
+      findBar.redraw();
     };
 
     state.subscribe("table", () => {

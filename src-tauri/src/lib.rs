@@ -72,6 +72,7 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::set_active_classification,
             commands::select_population,
             commands::set_role,
+            commands::set_filter,
             commands::undo,
             commands::redo,
             commands::import_table,

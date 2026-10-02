@@ -304,7 +304,11 @@ async function focusOn(page, label) {
 /** Asserts that no dialog is open and that the notice's place is empty. */
 async function quiet(page) {
   assert.equal(await page.getByRole("dialog").count(), 0, "no dialog");
-  const statuses = await page.getByRole("status").allTextContents();
+  // The count of the information bar is a status too, and is left out.
+  const statuses = await page
+    .getByRole("status")
+    .filter({ hasNotText: /individual/ })
+    .allTextContents();
   assert.deepEqual(
     statuses.map((text) => text.trim()),
     [""],

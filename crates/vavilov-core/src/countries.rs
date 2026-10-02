@@ -18,5 +18,14 @@ pub fn country_code(text: &str) -> Option<&'static str> {
         .map(|(_, code)| *code)
 }
 
+/// Every name and code, in lower case, of the country shown by `code`,
+/// its own code among them; none for a code of no country.
+pub(crate) fn names_of(code: &str) -> impl Iterator<Item = &'static str> + '_ {
+    table::NAMES
+        .iter()
+        .filter(move |(_, shown)| *shown == code)
+        .map(|(name, _)| *name)
+}
+
 #[cfg(test)]
 mod tests;

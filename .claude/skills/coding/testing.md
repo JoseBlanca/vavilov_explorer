@@ -86,7 +86,10 @@ The harness opens one page, in one of two modes:
   dialog the user closed, and `e2e:action` hands an item of the menu to
   the main window, as a click in the app's menu (`e2e/transfer.mjs`). A
   test waits for the window to take a pick, `e2e:picking`, before it
-  picks the next. A page imports
+  picks the next. `e2e:region` sets the decimal mark of the system's
+  region, which `launch` sets to its `region`, "." unless given, before
+  the page loads, so that a test does not depend on the machine's
+  region. A page imports
   the modules it tests from the dev server, `await
   import("/src/backend/connection.ts")`, until a window uses them.
 

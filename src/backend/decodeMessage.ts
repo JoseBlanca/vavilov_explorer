@@ -17,6 +17,8 @@ import {
   readMessage,
   revisionAt,
   rowIndex,
+  alignUp,
+  textList,
   zerosThenRevision,
 } from "./layout.ts";
 
@@ -32,6 +34,9 @@ const UNDO = 5;
 const COLUMNS = 6;
 const HOVER = 7;
 const SHAPE = 11;
+const FILTER = 13;
+/** The bytes of a filter part before its text. */
+const FILTER_HEADER_BYTES = 24;
 
 /**
  * Decodes one message of the backend: a channel's message or the snapshot a
@@ -109,6 +114,8 @@ function decodePart(
     case SHAPE:
       expectLength("shape", length, 8);
       return { kind: "shape", shapeAt: revisionAt(view, start) };
+    case FILTER:
+      return filterPart(bytes, view, start, length);
     default:
       throw defect(`a kind of part ${String(partKind)}`);
   }
@@ -157,6 +164,74 @@ function selectionPart(
     throw defect(`a selection of ${String(numRows)} rows with a bit beyond the last row`);
   }
   return { kind: "selection", numRows, bits };
+}
+
+/**
+ * The filter part: the revision at which the rows shown last changed, their
+ * number, the column searched, how a cell matches, which rows are shown,
+ * whether bits follow, the text as a text list of one, and, when there is a
+ * text, one bit per row after padding to a multiple of 8. Its bits are
+ * checked against the rows of the table by the window's copy.
+ */
+function filterPart(
+  bytes: ArrayBuffer,
+  view: DataView,
+  start: number,
+  length: number,
+): MessagePart {
+  if (length < FILTER_HEADER_BYTES + 8) {
+    throw defect(`a filter part of ${String(length)} bytes`);
+  }
+  const at = revisionAt(view, start);
+  const numShown = view.getUint32(start + 8, true);
+  const column = view.getUint32(start + 12, true);
+  const cellByte = view.getUint8(start + 16);
+  const shownByte = view.getUint8(start + 17);
+  const filtered = booleanAt(view, start + 18, "filter");
+  expectZeros(view, start + 19, start + FILTER_HEADER_BYTES, "bytes 19 to 23 of the filter part");
+  const cell = cellByte === 0 ? "part" : cellByte === 1 ? "whole" : null;
+  const shown = shownByte === 0 ? "matching" : shownByte === 1 ? "notMatching" : null;
+  if (cell === null || shown === null) {
+    throw defect(`a filter part of cell ${String(cellByte)} and shown ${String(shownByte)}`);
+  }
+  const textAt = start + FILTER_HEADER_BYTES;
+  const textEnd = view.getUint32(textAt + 4, true);
+  const textLength = 8 + textEnd;
+  if (FILTER_HEADER_BYTES + textLength > length) {
+    throw defect(`a filter part whose text of ${String(textEnd)} bytes goes past it`);
+  }
+  const [text] = textList(bytes, textAt, textLength, 1);
+  if (text === undefined) {
+    throw defect("a filter part with no text");
+  }
+  const bitsAt = start + alignUp(FILTER_HEADER_BYTES + textLength);
+  const end = start + length;
+  let bits: Uint8Array | null = null;
+  if (filtered) {
+    if (bitsAt > end) {
+      throw defect("a filter part with no room for its rows");
+    }
+    expectZeros(view, textAt + textLength, bitsAt, "the padding of the filter's text");
+    bits = new Uint8Array(bytes, bitsAt, end - bitsAt);
+    let set = 0;
+    for (const byte of bits) {
+      for (let bit = byte; bit !== 0; bit &= bit - 1) {
+        set += 1;
+      }
+    }
+    if (set !== numShown) {
+      throw defect(`a filter part of ${String(numShown)} rows shown with ${String(set)} bits set`);
+    }
+  } else if (start + FILTER_HEADER_BYTES + textLength !== end) {
+    throw defect("a filter part with bytes after its text and no rows");
+  }
+  return {
+    kind: "filter",
+    filter: { text, column: column === NO_COLUMN ? null : columnId(column), cell, shown },
+    at,
+    numShown,
+    bits,
+  };
 }
 
 function columnsPart(view: DataView, start: number, length: number): MessagePart {

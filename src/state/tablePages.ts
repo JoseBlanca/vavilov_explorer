@@ -55,26 +55,28 @@ export function rowsOfPage(page: number, numRows: number): RowRange {
 
 /**
  * How a page of rows stands against the window's copy: `current` when it is
- * of the table loaded at `loadedAt`, holds the columns `wanted` in their
- * order, and each at the revision the copy has; `ahead` when one of them
- * changed after the copy and none before, so that the message of the change
- * is on its way and will make it current; `behind` otherwise, a page to
- * fetch again.
+ * of the table loaded at `loadedAt` and of the rows shown since `shownAt`,
+ * holds the columns `wanted` in their order, and each at the revision the
+ * copy has; `ahead` when the rows shown or one of the columns changed after
+ * the copy and none before, so that the message of the change is on its way
+ * and will make it current; `behind` otherwise, a page to fetch again.
  */
 export function pageStanding(
   page: RowPage,
   loadedAt: Revision,
+  shownAt: Revision,
   wanted: readonly ColumnId[],
   columnRevision: (column: ColumnId) => Revision | null,
 ): PageStanding {
   if (
     page.loadedAt !== loadedAt ||
+    page.shownAt < shownAt ||
     page.columns.length !== wanted.length ||
     page.columns.some((column, index) => column.id !== wanted[index])
   ) {
     return "behind";
   }
-  let ahead = false;
+  let ahead = page.shownAt > shownAt;
   for (const column of page.columns) {
     const copy = columnRevision(column.id);
     if (copy === null || column.revision < copy) {

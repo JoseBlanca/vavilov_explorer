@@ -180,3 +180,64 @@ export function expectZeros(view: DataView, from: number, to: number, what: stri
     }
   }
 }
+
+// fatal, so that bytes that are not UTF-8 throw rather than turn into
+// U+FFFD; ignoreBOM, so that a text that starts with U+FEFF keeps it.
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+
+/**
+ * A text list of `count` texts that fills the `available` bytes at `at`: a
+ * first offset of 0, the end of each text as a `u32`, then the texts.
+ */
+export function textList(
+  bytes: ArrayBuffer,
+  at: number,
+  available: number,
+  count: number,
+): string[] {
+  const offsetsLength = 4 * (count + 1);
+  if (available < offsetsLength) {
+    throw defect(
+      `a text list of ${String(available)} bytes, shorter than the ${String(offsetsLength)} of the offsets of ${String(count)} rows`,
+    );
+  }
+  const view = new DataView(bytes, at, offsetsLength);
+  const firstOffset = view.getUint32(0, true);
+  if (firstOffset !== 0) {
+    throw defect(`a text list whose first offset is ${String(firstOffset)}`);
+  }
+  const textsAt = at + offsetsLength;
+  const textsLength = available - offsetsLength;
+  const ends: number[] = [];
+  let previous = 0;
+  for (let index = 1; index <= count; index += 1) {
+    const end = view.getUint32(4 * index, true);
+    if (end < previous) {
+      throw defect(`an offset ${String(end)} after ${String(previous)} in a text list`);
+    }
+    ends.push(end);
+    previous = end;
+  }
+  if (previous !== textsLength) {
+    throw defect(
+      `a text list whose texts end at ${String(previous)} and has ${String(textsLength)} bytes of them`,
+    );
+  }
+  let start = 0;
+  return ends.map((end) => {
+    const text = utf8(new Uint8Array(bytes, textsAt + start, end - start));
+    start = end;
+    return text;
+  });
+}
+
+function utf8(bytes: Uint8Array): string {
+  try {
+    return UTF8.decode(bytes);
+  } catch (error: unknown) {
+    if (error instanceof TypeError) {
+      throw defect("a text list that is not UTF-8");
+    }
+    throw error;
+  }
+}

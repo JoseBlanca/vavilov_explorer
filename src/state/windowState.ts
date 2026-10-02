@@ -3,11 +3,13 @@
 // "The window's copy of the state"; docs/core.md, section 5).
 
 import { defect } from "./defect.ts";
+import type { Shown } from "./filter.ts";
 import type { ColumnId, HoverSeq, Revision, RowIndex } from "./ids.ts";
 import type { Message, MessagePart, Selected, UndoRedo } from "./message.ts";
 
 /** What changes together, so that a component redraws only for what it shows. */
-export type Aspect = "table" | "classification" | "codes" | "selection" | "hover" | "undoRedo";
+export type Aspect =
+  "table" | "classification" | "codes" | "selection" | "hover" | "undoRedo" | "filter";
 
 /** Whether a project is open, and its number of rows. */
 export type ProjectState =
@@ -46,6 +48,8 @@ export interface WindowState {
   readonly hover: () => RowIndex | null;
   /** Whether there is something to undo and something to redo. */
   readonly undoRedo: () => UndoRedo;
+  /** The filter of the find bar and the rows it shows, or `null` with no project. */
+  readonly shown: () => Shown | null;
   /**
    * Applies a message of the channel: a change one revision after the last,
    * or a hover. A change at or before the current revision is already in the
@@ -68,6 +72,7 @@ const ASPECTS: readonly Aspect[] = [
   "selection",
   "hover",
   "undoRedo",
+  "filter",
 ];
 
 /** Everything the copy holds; a message builds a new one and keeps it only when every part fits. */
@@ -82,6 +87,7 @@ interface Copy {
   readonly hover: RowIndex | null;
   readonly hoverSeq: HoverSeq;
   readonly undoRedo: UndoRedo;
+  readonly shown: Shown | null;
 }
 
 /**
@@ -166,6 +172,7 @@ export function createWindowState(snapshot: Message): WindowState {
     selection: () => copy.selection,
     hover: () => copy.hover,
     undoRedo: () => copy.undoRedo,
+    shown: () => copy.shown,
     apply,
     subscribe: (aspect, listener) => {
       const set = listeners.get(aspect);
@@ -196,6 +203,7 @@ function empty(revision: Revision, project: MessagePart, hoverSeq: HoverSeq): Co
     hover: null,
     hoverSeq,
     undoRedo: { canUndo: false, canRedo: false },
+    shown: null,
   };
 }
 
@@ -213,6 +221,7 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
   let hover = copy.hover;
   let hoverSeq = copy.hoverSeq;
   let undoRedo = copy.undoRedo;
+  let shown = copy.shown;
   const changed = new Set<Aspect>();
   for (const part of message.parts) {
     switch (part.kind) {
@@ -268,6 +277,21 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
         shapeAt = part.shapeAt;
         changed.add("table");
         break;
+      case "filter": {
+        const numRows = rowsOf(project, "a filter");
+        if (
+          part.bits === null
+            ? part.numShown !== numRows
+            : part.bits.length !== Math.ceil(numRows / 8)
+        ) {
+          throw defect(
+            `a filter of ${String(part.numShown)} rows shown and ${String(part.bits?.length ?? 0)} bytes for a table of ${String(numRows)} rows`,
+          );
+        }
+        shown = { filter: part.filter, at: part.at, numShown: part.numShown, bits: part.bits };
+        changed.add("filter");
+        break;
+      }
     }
   }
   // A column listed with no codes beside it is no longer a category
@@ -299,6 +323,7 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
       hover,
       hoverSeq,
       undoRedo,
+      shown,
     },
     changed,
   };

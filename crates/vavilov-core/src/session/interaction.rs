@@ -2,7 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{ColumnId, LevelCode, RowIndex};
+use crate::filter::Filter;
+use crate::ids::{ColumnId, LevelCode, Revision, RowIndex};
 use crate::row_set::RowSet;
 
 /// What is selected for editing in the active classification: one of its
@@ -39,4 +40,20 @@ pub(crate) struct Interaction {
     pub(crate) selection: RowSet,
     /// The individual under the pointer.
     pub(crate) hover: Option<RowIndex>,
+    /// The filter of the find bar.
+    pub(crate) filter: Filter,
+    /// The rows the table shows.
+    pub(crate) shown: Shown,
+}
+
+/// The rows the filter shows, and the revision at which they last
+/// changed, which a page of rows carries, so that a window tells a page
+/// of rows shown before from one of the rows shown now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Shown {
+    /// The rows shown, in order, or `None` for every row.
+    pub(crate) rows: Option<Vec<RowIndex>>,
+    /// The revision at which they last changed: the load, a change of the
+    /// filter, or an edit that changed which rows match.
+    pub(crate) at: Revision,
 }

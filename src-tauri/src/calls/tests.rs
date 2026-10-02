@@ -145,11 +145,13 @@ fn a_page_of_rows_is_read_from_its_json_arguments() {
     .unwrap() else {
         panic!("another reply than rows");
     };
-    // The page part: loaded at 1, from row 2, 1 row.
+    // The page part: loaded at 1, rows shown since 1, from position 2, 1
+    // row, which is row 2.
     assert_eq!(
-        &bytes[24..48],
+        &bytes[24..64],
         [
-            8, 0, 0, 0, 16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0
+            8, 0, 0, 0, 28, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 1,
+            0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
         ]
     );
 }
