@@ -5,7 +5,6 @@ import type { DescriptionNow } from "../../state/description.ts";
 import { populationsModel } from "../../state/populations.ts";
 import type { PopulationRow } from "../../state/populations.ts";
 import { answered } from "../shared/answered.ts";
-import { decimalMark } from "../shared/numbers.ts";
 import { populationsPanelView } from "./populationsPanel.view.ts";
 import type { PointerMode } from "./populationsPanel.view.ts";
 
@@ -29,10 +28,10 @@ export function createPopulationsPanel(
   element: HTMLElement,
   connection: Connection,
   description: () => DescriptionNow,
+  mark: string,
   report: (error: unknown) => void,
 ): PopulationsPanel {
   const { state } = connection;
-  const mark = decimalMark();
   let mode: PointerMode = "move";
 
   const press = (row: PopulationRow): void => {

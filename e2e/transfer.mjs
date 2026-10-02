@@ -51,6 +51,8 @@ try {
       // Spanish, which writes a decimal comma; the CSV starts from the
       // region's decimal mark, which the test sets, not from the language.
       locale: "es-ES",
+      // A Spanish region, so that the CSV starts from ; and a decimal comma.
+      region: ",",
     });
     try {
       const { page, errors, backend } = app;
@@ -59,8 +61,6 @@ try {
         const set = await backend.send({ command: "e2e:region", decimalMark });
         assert.equal(set.ok, null, JSON.stringify(set));
       };
-      // A Spanish region, so that the CSV starts from ; and a decimal comma.
-      await region(",");
       await page.getByRole("heading", { name: "Vavilov Explorer" }).waitFor();
       const grid = page.getByRole("grid", { name: "Individuals" });
       /**

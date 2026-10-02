@@ -32,6 +32,9 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
   try {
     const connection = await connect(tauriTransport(), defectBar.show);
     const { state } = connection;
+    // The decimal mark of the system's region, which Excel follows, read
+    // once: a change of the region shows after the window is reloaded.
+    const mark = await connection.regionDecimalMark();
     let description: TableDescription | null = null;
     /**
      * The description, when it is that of the copy's load and shape: a
@@ -52,6 +55,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       slot(root, "panel"),
       connection,
       describedNow,
+      mark,
       defectBar.show,
     );
     const dialog = createDialog(slot(root, "dialog"));
@@ -59,6 +63,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       slot(root, "table"),
       connection,
       describedNow,
+      mark,
       dialog.ask,
       defectBar.show,
     );

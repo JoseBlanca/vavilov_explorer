@@ -45,8 +45,10 @@ for (const engine of Object.keys(ENGINES)) {
     engine,
     backend: true,
     viewport: { width: 1100, height: 560 },
-    // Spanish, so that the decimal mark is a comma.
-    locale: "es-ES",
+    // English as the language and a region of the decimal comma, as a
+    // Spanish Mac in English: the table writes the region's comma.
+    locale: "en-US",
+    region: ",",
   });
   try {
     const { page, errors, backend } = app;

@@ -19,7 +19,6 @@ import {
 import { fetchedColumns, tableColumns, tableRow } from "../../state/tableRows.ts";
 import type { TableRow } from "../../state/tableRows.ts";
 import { answered } from "../shared/answered.ts";
-import { decimalMark } from "../shared/numbers.ts";
 import { tableView } from "./table.view.ts";
 
 /** The table in its element. */
@@ -52,11 +51,11 @@ export function createTable(
   element: HTMLElement,
   connection: Connection,
   description: () => DescriptionNow,
+  mark: string,
   ask: (question: Question, withdrawn: AbortSignal) => Promise<boolean>,
   report: (error: unknown) => void,
 ): Table {
   const { state } = connection;
-  const mark = decimalMark();
   const pages = new Map<number, RowPage>();
   /** The fetch of each page on its way, by a token of its own. */
   const fetching = new Map<number, object>();

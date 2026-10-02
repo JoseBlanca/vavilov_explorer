@@ -79,11 +79,13 @@ it.
   filter shows all rows, only the selection, or only one population.
 - A missing value is shown as an empty cell, which a screen reader
   announces as "missing". A number is shown in the shortest form that
-  gives back the same value, with the decimal mark of the user's
-  language and never rounded: `1.50` in the file is shown as `1.5`, or
-  `1,5` in Spanish. The core keeps the number and not the text the file
-  had, so showing the file's own text would need a second copy of every
-  numeric cell. Both decided by the owner on 2 October 2026.
+  gives back the same value, with the decimal mark of the system's
+  region, as Excel shows it, and never rounded: `1.50` in the file is
+  shown as `1.5`, or `1,5` with a Spanish region. The core keeps the
+  number and not the text the file had, so showing the file's own text
+  would need a second copy of every numeric cell. Both decided by the
+  owner on 2 October 2026; the region in place of the language, decided
+  the same day (section 7). The mark is read when the window starts.
 - On top of each column, a dropdown shows its type and lets the user
   change it (section 6).
 - The populations panel lists the populations of the active

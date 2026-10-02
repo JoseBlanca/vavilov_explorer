@@ -275,8 +275,12 @@ in every window, and none fires twice.
 
 ## Text and numbers on screen
 
-- A number shown to the user is formatted with `Intl.NumberFormat` and
-  the user's language; a number written for a program, a file, a key, is
+- A count shown to the user is formatted with `Intl.NumberFormat` and
+  the user's language. A value of a column is written in its shortest
+  form with the decimal mark of the system's region, which the backend
+  reads and the window asks for once when it starts
+  (`src/state/cellText.ts`), since Excel follows the region and the web
+  view the language. A number written for a program, a file, a key, is
   written with `String(x)`.
 - A missing value is shown as missing, never as `NaN`, `undefined` or
   `null`.

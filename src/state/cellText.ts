@@ -1,6 +1,6 @@
 // The text of a cell of the table (docs/design.md, section 2.1): a number in
 // the shortest form that gives back the same value, with the decimal mark of
-// the user's language and never rounded; a missing value as no text.
+// the system's region and never rounded; a missing value as no text.
 
 import { defect } from "./defect.ts";
 import type { LevelValue, StorageType } from "./description.ts";

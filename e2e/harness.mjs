@@ -32,8 +32,10 @@ export const ENGINES = { webkit, chromium };
  * Starts the dev server and a page with the app loaded, in `engine`, one of
  * the keys of ENGINES. `commands` maps a Tauri command name to the value
  * its invoke resolves to. `locale`, such as "es-ES", is the language of the
- * page, which sets how numbers are written; without it the page takes the
- * machine's.
+ * page; without it the page takes the machine's. `region`, with the test
+ * program, is the decimal mark of the system's region, which sets how
+ * numbers are written and how a CSV starts; "." unless given, so that a
+ * test does not depend on the machine's region.
  */
 export async function launch({
   engine,
@@ -41,6 +43,7 @@ export async function launch({
   backend: withBackend = false,
   viewport = { width: 1400, height: 900 },
   locale,
+  region = ".",
 }) {
   const browserType = ENGINES[engine];
   if (browserType === undefined) throw new Error(`e2e: no engine "${engine}"`);
@@ -72,6 +75,8 @@ export async function launch({
     }, commands);
   } else {
     await connectPage(page, backend, errors);
+    const set = await backend.send({ command: "e2e:region", decimalMark: region });
+    if (set.ok !== null) throw new Error(`e2e: the region was not set: ${JSON.stringify(set)}`);
   }
 
   await page.goto(`http://localhost:${PORT}`);
