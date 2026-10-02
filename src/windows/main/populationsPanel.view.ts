@@ -1,5 +1,6 @@
 import { html, nothing } from "lit-html";
 import type { TemplateResult } from "lit-html";
+import { live } from "lit-html/directives/live.js";
 import { repeat } from "lit-html/directives/repeat.js";
 import { styleMap } from "lit-html/directives/style-map.js";
 
@@ -61,12 +62,15 @@ export function populationsPanelView(props: PopulationsPanelProps): TemplateResu
           );
         }}
       >
-        <option value="" ?selected=${model.active === null}>None</option>
+        <option value="" .selected=${live(model.active === null)}>None</option>
         ${repeat(
           model.classifications,
           (choice) => choice.column,
           (choice) =>
-            html`<option value=${String(choice.column)} ?selected=${choice.column === model.active}>
+            html`<option
+              value=${String(choice.column)}
+              .selected=${live(choice.column === model.active)}
+            >
               ${choice.name}
             </option>`,
         )}
@@ -78,7 +82,9 @@ export function populationsPanelView(props: PopulationsPanelProps): TemplateResu
         : html`<ul class=${classOf(styles, "list")}>
             ${repeat(
               model.rows,
-              (row) => keyOf(row.selected),
+              // Of the classification too, so that a population of another
+              // with the same code is a new row, not the old one relabelled.
+              (row) => `${String(model.active)}:${keyOf(row.selected)}:${row.name ?? ""}`,
               (row) =>
                 html`<li>
                   <button

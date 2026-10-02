@@ -52,11 +52,11 @@ fn a_page_carries_the_names_and_the_values_of_the_columns_asked_for_in_their_ord
         0, 0, 0, 0, 2, 0, 0, 0,
         4, 0, 0, 0, 6, 0, 0, 0,
         b'p', b'2', b'p', b'3', b'p', b'4', 0, 0,
-        // note, column 6, text, revision 1: row 1 missing; "", "", "tall"
+        // note, column 6, text, revision 1: rows 1 and 2 missing; "", "", "tall"
         10, 0, 0, 0, 44, 0, 0, 0,
         6, 0, 0, 0, 2, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0,
-        0b001, 0, 0, 0, 0, 0, 0, 0,
+        0b011, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 4, 0, 0, 0,
         b't', b'a', b'l', b'l', 0, 0, 0, 0,
@@ -289,6 +289,17 @@ fn a_column_the_table_does_not_have_is_refused_and_the_first_is_not_asked_for() 
         session.rows(&request(0, 1, &[0], 1)),
         Err(CommandError::UnknownColumn {
             column: ColumnId::new(0),
+        })
+    );
+}
+
+#[test]
+fn a_column_asked_for_twice_is_a_defect_so_that_a_page_is_never_larger_than_the_table() {
+    let session = loaded(plants());
+    assert_eq!(
+        session.rows(&request(0, 4, &[1, 4, 1], 1)),
+        Err(CommandError::Defect {
+            what: "a page that asks for column 1 twice".to_owned(),
         })
     );
 }

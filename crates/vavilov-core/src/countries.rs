@@ -1,7 +1,6 @@
 //! The countries the country sub-role accepts, and the code each is shown
 //! by (`docs/design.md`, section 6): those of ISO 3166-1 and the former ones
-//! of ISO 3166-3, named by their codes, their ISO names in English or their
-//! names in Natural Earth.
+//! of ISO 3166-3, named by their codes or their ISO names in English.
 
 mod table;
 

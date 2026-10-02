@@ -6,10 +6,8 @@
 import { isColumnId, isLevelCode, isRevision, isRowIndex } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision, RowIndex } from "./ids.ts";
 import type { Selected } from "./message.ts";
-import { ROLES } from "./description.ts";
+import { isRole, isStorageType } from "./description.ts";
 import type { Role, StorageType } from "./description.ts";
-
-const STORAGE_TYPES: readonly unknown[] = ["integer", "float", "boolean", "text"];
 
 /** The type of a field: an id, a count, or a text from the user's file. */
 type FieldType =
@@ -51,6 +49,7 @@ const FIELDS = {
   duplicateColumnName: { name: "string" },
   columnLength: { columnName: "string", numValues: "number", numRows: "number" },
   nonFiniteNumber: { columnName: "string", row: "rowIndex" },
+  emptyText: { columnName: "string", row: "rowIndex" },
   tooManyLevels: { columnName: "string", numLevels: "number", maxLevels: "number" },
   levelColours: { columnName: "string", numLevels: "number", numColours: "number" },
   nonFiniteLevel: { columnName: "string", code: "levelCode" },
@@ -120,9 +119,9 @@ function hasType(value: unknown, type: FieldType): boolean {
     case "selected":
       return selectedOf(value) !== null;
     case "storage":
-      return STORAGE_TYPES.includes(value);
+      return isStorageType(value);
     case "role":
-      return ROLES.some((role) => role === value);
+      return isRole(value);
   }
 }
 

@@ -18,6 +18,7 @@
   --color-focus: #1d4ed8;
   --color-danger-surface: #fde7e7;
   --color-danger-text: #7f1d1d;
+  --color-backdrop: rgb(0 0 0 / 30%);
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -27,7 +28,9 @@
   --font-size-body: 0.875rem;
   --font-size-small: 0.8125rem;
   --font-size-title: 1.25rem;
+  --font-weight-strong: 600;
   --panel-width: 18rem;
+  --dialog-width: 28rem;
   --swatch-size: 0.875rem;
   --target-size: 1.5rem;
   --row-height: 1.75rem;
@@ -35,6 +38,8 @@
   --column-number: 7.5rem;
   --column-text: 10rem;
   --column-categorical: 8rem;
+  /* The mark beside a selected row, drawn as a border is. */
+  --selected-mark: 3px;
   --duration-short: 120ms;
 }
 
@@ -53,6 +58,7 @@
     --color-focus: #8fb0ff;
     --color-danger-surface: #4a1f22;
     --color-danger-text: #ffd7d7;
+    --color-backdrop: rgb(0 0 0 / 55%);
   }
 }
 
@@ -70,6 +76,7 @@
   --color-focus: #8fb0ff;
   --color-danger-surface: #4a1f22;
   --color-danger-text: #ffd7d7;
+  --color-backdrop: rgb(0 0 0 / 55%);
 }
 
 :root[data-theme="light"] {

@@ -387,10 +387,12 @@ and what the views can do with it.
   numbers but not these.
 - **country**, a sub-role of category, for text,
   offered only when every value names a country of ISO 3166-1, or a
-  former one of ISO 3166-3: by its two- or three-letter code, by its ISO
-  name in English, or by its name in Natural Earth, the data behind the
-  map's borders; case and surrounding spaces are ignored, accents are
-  not. A two- or three-letter code that ISO gave to a current country
+  former one of ISO 3166-3: by its two- or three-letter code, or by its
+  ISO name or official name in English; case and surrounding spaces are
+  ignored, accents are not. The shorter names of Natural Earth, the data
+  behind the map's borders, such as `Bolivia` or `South Korea`, are not
+  accepted, nor a territory by the country it belongs to, as the owner
+  decided on 2 October 2026: for now, only ISO's codes and names. A two- or three-letter code that ISO gave to a current country
   after a former one means the current country (`AI` is Anguilla, not the
   French Territory of the Afars and the Issas); a former country is then
   named by its name, its four-letter code (`SUHH`), or a three-letter code
@@ -404,10 +406,17 @@ The dropdown offers, of number, latitude, longitude, category, country
 and text, only those the column can take: by its storage type, a
 category only when its distinct values fit the 65,535 codes of a column,
 and a sub-role only when every value passes its check. A role it
-cannot take is not shown, as the owner decided on 2 October 2026.
+cannot take is not shown, as the owner decided on 2 October 2026. A
+column with no value, all missing or in a table of no row, passes every
+check, and is offered latitude and longitude, or country, too (decided
+by the owner the same day).
 
 A change of role never changes a value, but for country, which writes
-each value as its code: it builds or drops the list of levels. The
+each value as its code, and for −0: it builds or drops the list of
+levels, and a category of decimal numbers holds −0 and 0 as one level,
+so that a column of numbers made a category and then a number again
+gives 0 where it had −0. The app shows both as 0; the owner accepted it
+on 2 October 2026. The
 levels of a category keep the storage type, so that population codes 1,
 2 and 10 are ordered as numbers, and an export writes them back as
 numbers. A change of role is a command and can be undone, and undoing a
@@ -415,14 +424,20 @@ change to country gives back the file's spellings. Any category, of
 countries or not, can be the active classification; one whose role is
 changed to a number or text stops being active, and one whose levels are
 built again, between category and country, loses its selected
-population.
+population. A change that would stop the active classification asks
+first, since one key pressed on the dropdown is enough to make it, and
+the interaction is not undone: "Make “origin” text?", with what follows
+from it and how to choose the column again, and the buttons "Keep it a
+category" and "Make it text";
+Escape keeps it (decided by the owner on 2 October 2026).
 
 The list of countries is a table in the core, generated once from the
 data of Debian's `iso-codes` (ISO 3166-1 and 3166-3, their codes, names
-and official names) and from Natural Earth's names as `world-atlas` gives
-them, and committed with its sources and their date; it is generated
-again when ISO changes a country. A name that two countries would share
-is left out of it.
+and official names), and committed with its source, its date and the
+SHA-256 of what was read; it is generated again when ISO changes a
+country. A name a current and a former country would share goes to the
+current one, as the owner decided on 2 October 2026; one that two
+current or two former countries would share is left out.
 
 The import guesses the role: number for whole and decimal numbers,
 latitude or longitude for a column of numbers whose header is `lat` or
@@ -682,6 +697,14 @@ Open decisions:
 - A compact key of the populations, with a line saying which population
   is being edited, in each plot window. Deferred by the owner until the
   first views exist.
+- How a window tells the user that the backend refused a command, which
+  today goes only to the console. The owner's direction, on 2 October
+  2026: nothing that takes over the window the user is looking at and
+  leaves them unsure what to do. A notice is acceptable when the user can
+  dismiss it with a ×; a refusal that matters enough is a pop-up that
+  says what happened; one that is only to be recorded goes to the app's
+  log, which a window of its own could show. Built with the first plot
+  window, when a second window makes refusals common.
 
 Raised on 2 October 2026 while the skills of the project were written
 (`.claude/skills/`), and decided by the owner the same day:

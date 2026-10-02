@@ -1,15 +1,24 @@
 import { nothing, render } from "lit-html";
 
-import type { Answer, Connection } from "../../backend/connection.ts";
+import type { Connection } from "../../backend/connection.ts";
 import { defect } from "../../state/defect.ts";
-import type { DescriptionNow, TableDescription } from "../../state/description.ts";
+import type { DescriptionNow, Role, TableDescription } from "../../state/description.ts";
 import { isRowIndex } from "../../state/ids.ts";
-import type { Revision, RowIndex } from "../../state/ids.ts";
+import type { ColumnId, Revision, RowIndex } from "../../state/ids.ts";
+import type { Question } from "../../state/question.ts";
+import { roleChangeQuestion } from "../../state/roles.ts";
 import type { RowPage } from "../../state/rowPage.ts";
 import { rangeBits } from "../../state/rowSet.ts";
-import { PAGE_ROWS, pagesOf, rowsInView, rowsOfPage } from "../../state/tablePages.ts";
+import {
+  PAGE_ROWS,
+  pageStanding,
+  pagesOf,
+  rowsInView,
+  rowsOfPage,
+} from "../../state/tablePages.ts";
 import { fetchedColumns, tableColumns, tableRow } from "../../state/tableRows.ts";
 import type { TableRow } from "../../state/tableRows.ts";
+import { answered } from "../shared/answered.ts";
 import { decimalMark } from "../shared/numbers.ts";
 import { tableView } from "./table.view.ts";
 
@@ -31,21 +40,25 @@ const PAGES_KEPT = 3;
  * pages from the backend, and turns a click on a row into the selection
  * (docs/design.md, section 2.1). It keeps the pages it fetched, the scroll and
  * the row of the last click, the anchor of a shift-click; everything else is
- * the window's copy of the state.
+ * the window's copy of the state. A change of role that would stop the
+ * active classification is put to the user with `ask` first.
  */
 export function createTable(
   element: HTMLElement,
   connection: Connection,
   description: () => DescriptionNow,
+  ask: (question: Question) => Promise<boolean>,
   report: (error: unknown) => void,
 ): Table {
   const { state } = connection;
   const mark = decimalMark();
   const pages = new Map<number, RowPage>();
-  const fetching = new Set<number>();
+  /** The fetch of each page on its way, by a token of its own. */
+  const fetching = new Map<number, object>();
   let loadedAt: Revision | null = null;
   let anchor: RowIndex | null = null;
   let frame: number | null = null;
+  let destroyed = false;
 
   const part = (name: string): HTMLElement | null => {
     const found = element.querySelector(`[data-${name}]`);
@@ -59,41 +72,94 @@ export function createTable(
     });
   };
 
-  /** Whether a page still holds what the copy and the description hold. */
-  const isCurrent = (page: RowPage, table: TableDescription): boolean => {
-    const wanted = fetchedColumns(table);
-    return (
-      page.loadedAt === table.loadedAt &&
-      page.columns.length === wanted.length &&
-      page.columns.every((column, index) => {
-        const revision = state.columnRevision(column.id);
-        return column.id === wanted[index] && revision !== null && column.revision >= revision;
-      })
-    );
-  };
+  /** How a page stands against the copy and the description. */
+  const standing = (page: RowPage, table: TableDescription): ReturnType<typeof pageStanding> =>
+    pageStanding(page, table.loadedAt, fetchedColumns(table), state.columnRevision);
 
   const fetchPage = (index: number, table: TableDescription): void => {
     const { first, end } = rowsOfPage(index, table.numRows);
-    fetching.add(index);
+    const token = {};
+    fetching.set(index, token);
+    const settle = (): boolean => {
+      // A fetch made for a table since replaced has a newer one in its place.
+      if (fetching.get(index) !== token) {
+        return false;
+      }
+      fetching.delete(index);
+      return !destroyed;
+    };
     connection
       .fetchRows(rowIndex(first), end - first, fetchedColumns(table))
       .then((answer) => {
-        fetching.delete(index);
+        if (!settle()) {
+          return;
+        }
         if (!answer.ok) {
           throw defect(
             `the rows ${String(first)} to ${String(end)} were refused: ${answer.error.kind}`,
           );
         }
-        // A page of a table since replaced is dropped; the load draws again.
+        // A page of a table since replaced is dropped, and the draw fetches
+        // the page of the table there is now.
         if (answer.value !== "stale" && answer.value.loadedAt === loadedAt) {
           pages.set(index, answer.value);
-          schedule();
         }
+        schedule();
       })
       .catch((error: unknown) => {
-        fetching.delete(index);
-        report(error);
+        if (settle()) {
+          report(error);
+        }
       });
+  };
+
+  /**
+   * Scrolls a control that took the focus clear of the column of the names,
+   * which stays on the left over the others: the browser scrolls only a
+   * control outside the table's viewport, and one under that column is not.
+   */
+  const keepClear = (event: FocusEvent): void => {
+    const scroller = part("scroller");
+    const names = part("names");
+    const target = event.target;
+    if (scroller === null || names === null || !(target instanceof Element)) {
+      return;
+    }
+    if (names.contains(target)) {
+      return;
+    }
+    const hidden = names.getBoundingClientRect().right - target.getBoundingClientRect().left;
+    if (hidden > 0) {
+      scroller.scrollLeft -= hidden;
+    }
+  };
+
+  /**
+   * Changes the role of `column`, after asking when the change would stop
+   * the active classification; an answer of no draws the dropdown back.
+   */
+  const changeRole = (table: TableDescription, column: ColumnId, role: Role): void => {
+    const described = table.columns.find((each) => each.id === column);
+    if (described === undefined) {
+      throw defect(`a change of role of column ${String(column)}, not in the table`);
+    }
+    const send = (): void => {
+      connection
+        .setRole(column, role)
+        .then(answered("changing the role of a column", schedule), report);
+    };
+    const question = roleChangeQuestion(described, role, state.active()?.column ?? null);
+    if (question === null) {
+      send();
+      return;
+    }
+    ask(question).then((confirmed) => {
+      if (confirmed) {
+        send();
+      } else {
+        schedule();
+      }
+    }, report);
   };
 
   const select = (row: RowIndex, extend: boolean): void => {
@@ -107,10 +173,13 @@ export function createTable(
     }
     connection
       .setSelection(rangeBits(project.numRows, from, row))
-      .then(answered("selecting rows"), report);
+      .then(answered("selecting rows", schedule), report);
   };
 
   const draw = (): void => {
+    if (destroyed) {
+      return;
+    }
     const now = description();
     if (now.kind === "none") {
       pages.clear();
@@ -125,27 +194,51 @@ export function createTable(
     const table = now.description;
     if (table.loadedAt !== loadedAt) {
       pages.clear();
+      fetching.clear();
       loadedAt = table.loadedAt;
       anchor = null;
       part("scroller")?.scrollTo({ top: 0 });
     }
+    // A page ahead of the copy is kept, not drawn, until the message of
+    // the change it holds arrives and makes it current.
+    const drawable = new Map<number, RowPage>();
     for (const [index, page] of pages) {
-      if (!isCurrent(page, table)) {
-        pages.delete(index);
+      switch (standing(page, table)) {
+        case "current":
+          drawable.set(index, page);
+          break;
+        case "ahead":
+          break;
+        case "behind":
+          pages.delete(index);
+          break;
       }
     }
+    // Measured as laid out, not rounded to a whole pixel as offsetHeight
+    // is: the blank above the rows is a multiple of the exact height.
     const scroller = part("scroller");
-    const rowHeight = part("probe")?.offsetHeight ?? 0;
-    const range = rowsInView(
-      scroller?.scrollTop ?? 0,
-      scroller?.clientHeight ?? 0,
-      rowHeight,
-      table.numRows,
-      MARGIN_ROWS,
-    );
+    const probe = part("probe");
+    const measured =
+      scroller === null || probe === null
+        ? null
+        : {
+            scrollTop: scroller.scrollTop,
+            viewport: scroller.clientHeight,
+            rowHeight: probe.getBoundingClientRect().height,
+          };
+    const range =
+      measured === null
+        ? { first: 0, end: 0 }
+        : rowsInView(
+            measured.scrollTop,
+            measured.viewport,
+            measured.rowHeight,
+            table.numRows,
+            MARGIN_ROWS,
+          );
     const rows: TableRow[] = [];
     for (let row = range.first; row < range.end; row += 1) {
-      const page = pages.get(Math.floor(row / PAGE_ROWS)) ?? null;
+      const page = drawable.get(Math.floor(row / PAGE_ROWS)) ?? null;
       rows.push(tableRow(table, page, rowIndex(row), state.codes, state.selection(), mark));
     }
     render(
@@ -156,14 +249,15 @@ export function createTable(
         rows,
         onRowClick: select,
         onRole: (column, role) => {
-          connection.setRole(column, role).then(answered("changing the role of a column"), report);
+          changeRole(table, column, role);
         },
         onScroll: schedule,
+        onFocusIn: keepClear,
       }),
       element,
     );
     // The first draw has nothing to measure yet: draw again once it has.
-    if (rowHeight === 0 && table.numRows > 0) {
+    if ((measured === null || measured.rowHeight === 0) && table.numRows > 0) {
       schedule();
       return;
     }
@@ -173,7 +267,11 @@ export function createTable(
         fetchPage(index, table);
       }
     }
-    const [low = 0, high = 0] = [needed[0], needed.at(-1)];
+    const low = needed[0];
+    const high = needed.at(-1);
+    if (low === undefined || high === undefined) {
+      return;
+    }
     for (const index of pages.keys()) {
       if (index < low - PAGES_KEPT || index > high + PAGES_KEPT) {
         pages.delete(index);
@@ -190,6 +288,7 @@ export function createTable(
   return {
     redraw: draw,
     destroy: () => {
+      destroyed = true;
       resized.disconnect();
       if (frame !== null) {
         cancelAnimationFrame(frame);
@@ -208,11 +307,3 @@ function rowIndex(row: number): RowIndex {
   }
   return row;
 }
-
-const answered =
-  (what: string) =>
-  (answer: Answer): void => {
-    if (!answer.ok) {
-      console.warn(`Vavilov Explorer: ${what} was refused`, answer.error);
-    }
-  };

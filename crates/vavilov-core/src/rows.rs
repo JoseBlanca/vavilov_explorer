@@ -35,7 +35,8 @@ impl Session {
     /// `MadeBeforeLoad` for a request made before the current table was
     /// loaded; `NoProject`; `RowsOutOfRange` for a page that goes past the
     /// last row; `UnknownColumn` for an id the table does not have, the
-    /// first column's included; or a `Defect`.
+    /// first column's included; or a `Defect`, for a column asked for
+    /// twice among them.
     pub fn rows(&self, request: &RowsRequest) -> Result<Vec<u8>, CommandError> {
         self.check_based_on(request.based_on)?;
         let table = &self.state.project.open()?.table;
@@ -52,6 +53,14 @@ impl Session {
             .filter(|end| *end <= num_rows)
             .ok_or(out_of_range)?;
         let rows = usize_from(request.first.get())..usize_from(end);
+        // A window asks for each column once; a column asked for again
+        // would let a short request make a page of any size.
+        let mut asked = std::collections::HashSet::with_capacity(request.columns.len());
+        if let Some(twice) = request.columns.iter().find(|id| !asked.insert(**id)) {
+            return Err(CommandError::Defect {
+                what: format!("a page that asks for column {twice} twice"),
+            });
+        }
         let columns = request
             .columns
             .iter()

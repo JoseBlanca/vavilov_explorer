@@ -193,6 +193,24 @@ fn a_number_that_is_not_finite_is_refused() {
 }
 
 #[test]
+fn an_empty_text_is_refused_as_it_would_be_a_level_with_no_name() {
+    assert_eq!(
+        refusal(
+            "IndividualID",
+            &["p1", "p2", "p3"],
+            vec![column(
+                "note",
+                ColumnValues::Text(vec![Some("landrace".to_owned()), None, Some(String::new())])
+            )],
+        ),
+        CommandError::EmptyText {
+            column_name: "note".to_owned(),
+            row: RowIndex::new(2)
+        }
+    );
+}
+
+#[test]
 fn a_code_with_no_level_is_refused() {
     assert_eq!(
         refusal(

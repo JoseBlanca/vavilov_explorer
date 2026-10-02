@@ -27,7 +27,7 @@ const PLANTS = {
     { name: "height", numeric: [1.5, null, 2, 3.25] },
     { name: "seeds", integer: [10, 12, null, -7] },
     { name: "fertile", boolean: [true, false, null, true] },
-    { name: "note", text: ["NA", null, "", "Ñandú"] },
+    { name: "note", text: ["NA", null, "tall", "Ñandú"] },
   ],
   activeClassification: 1,
 };
@@ -111,7 +111,7 @@ for (const engine of Object.keys(ENGINES)) {
         count: 3,
         names: ["p2", "p3", "p4"],
         columns: [
-          { id: 5, revision: 1, type: "text", values: [null, "", "Ñandú"] },
+          { id: 5, revision: 1, type: "text", values: [null, "tall", "Ñandú"] },
           { id: 2, revision: 1, type: "float", values: [null, 2, 3.25] },
           { id: 3, revision: 1, type: "integer", values: ["12n", null, "-7n"] },
           // fertile, a category of yes or no, FALSE before TRUE, as codes.

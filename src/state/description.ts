@@ -6,35 +6,45 @@
 import { isColumnId, isRevision } from "./ids.ts";
 import type { ColumnId, Revision } from "./ids.ts";
 
+/** Every storage type, as `StorageType` in the core. */
+export const STORAGE_TYPES = ["integer", "float", "boolean", "text"] as const;
+
 /** What a column's values are, as the import read them. */
-export type StorageType = "integer" | "float" | "boolean" | "text";
+export type StorageType = (typeof STORAGE_TYPES)[number];
+
+/** Every role, in the order the dropdown of a column lists them, as `Role::ALL` in the core. */
+export const ROLES = ["number", "latitude", "longitude", "category", "country", "text"] as const;
 
 /**
  * What a column is for, which the user chooses. Latitude and longitude are
  * sub-roles of number, and country of category (docs/design.md, section 6).
  * Any category can be the active classification.
  */
-export type Role = ValuesRole | LevelsRole;
+export type Role = (typeof ROLES)[number];
+
+/** The roles whose codes the window's copy holds, as `Role::is_categorical` in the core. */
+export type CategoricalRole = Extract<Role, "category" | "country">;
 
 /** The roles whose values a page of rows carries. */
-export type ValuesRole = "number" | "latitude" | "longitude" | "text";
-
-/** The roles whose codes the window's copy holds. */
-export type LevelsRole = "category" | "country";
-
-/** Every role, in the order the dropdown of a column lists them, as `Role::ALL` in the core. */
-export const ROLES: readonly Role[] = [
-  "number",
-  "latitude",
-  "longitude",
-  "category",
-  "country",
-  "text",
-];
+export type ValuesRole = Exclude<Role, CategoricalRole>;
 
 /** Whether `role` holds codes into levels: a category, of countries or not. */
-export function hasLevels(role: Role): role is LevelsRole {
-  return role === "category" || role === "country";
+export function isCategorical(role: Role): role is CategoricalRole {
+  switch (role) {
+    case "category":
+    case "country":
+      return true;
+    case "number":
+    case "latitude":
+    case "longitude":
+    case "text":
+      return false;
+  }
+}
+
+/** Whether `value` is a storage type. */
+export function isStorageType(value: unknown): value is StorageType {
+  return STORAGE_TYPES.some((storage) => storage === value);
 }
 
 /**
@@ -77,7 +87,7 @@ export interface ValuesColumn<R extends ValuesRole> extends ColumnCommon {
 }
 
 /** A category, of countries or not, whose codes the window's copy holds. */
-export interface LevelsColumn<R extends LevelsRole> extends ColumnCommon {
+export interface CategoricalColumn<R extends CategoricalRole> extends ColumnCommon {
   /** What it is for. */
   readonly role: R;
   /** Its levels, in the order of their codes. */
@@ -90,8 +100,8 @@ export type ColumnDescription =
   | ValuesColumn<"latitude">
   | ValuesColumn<"longitude">
   | ValuesColumn<"text">
-  | LevelsColumn<"category">
-  | LevelsColumn<"country">;
+  | CategoricalColumn<"category">
+  | CategoricalColumn<"country">;
 
 /**
  * The description a window's components draw from: none with no project;
@@ -105,8 +115,10 @@ export type DescriptionNow =
   | { readonly kind: "current"; readonly description: TableDescription };
 
 /** Whether `column` holds codes into levels: a category, of countries or not. */
-export function isLevelsColumn(column: ColumnDescription): column is LevelsColumn<LevelsRole> {
-  return hasLevels(column.role);
+export function isCategoricalColumn(
+  column: ColumnDescription,
+): column is CategoricalColumn<CategoricalRole> {
+  return isCategorical(column.role);
 }
 
 /** The table of the open project. */
@@ -124,7 +136,6 @@ export interface TableDescription {
 }
 
 const COLOUR = /^#[0-9a-f]{6}$/;
-const STORAGE_TYPES: readonly unknown[] = ["integer", "float", "boolean", "text"];
 /** A whole number written as the core writes an `i64`. */
 const INTEGER = /^-?(0|[1-9][0-9]*)$/;
 
@@ -146,11 +157,8 @@ function isLevelValue(value: unknown, storage: StorageType): boolean {
   }
 }
 
-function isStorageType(value: unknown): value is StorageType {
-  return STORAGE_TYPES.includes(value);
-}
-
-function isRole(value: unknown): value is Role {
+/** Whether `value` is a role. */
+export function isRole(value: unknown): value is Role {
   return ROLES.some((role) => role === value);
 }
 
@@ -190,7 +198,7 @@ function isColumn(value: unknown): value is ColumnDescription {
     return false;
   }
   const { levels } = value;
-  if (!hasLevels(role)) {
+  if (!isCategorical(role)) {
     return levels === undefined;
   }
   return (

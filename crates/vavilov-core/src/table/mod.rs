@@ -32,7 +32,7 @@ pub const MAX_COLUMNS: u32 = 16_777_216;
 pub const MAX_LEVELS: u32 = 65_535;
 
 /// [`MAX_LEVELS`] as a count of values.
-pub(crate) const MAX_LEVELS_USIZE: usize = 65_535;
+pub(crate) const MAX_LEVELS_USIZE: usize = MAX_LEVELS as usize;
 
 /// The header of the first column, which the app shows and an export
 /// writes (`docs/design.md`, section 5, decided by the owner on 2 October
@@ -308,7 +308,18 @@ fn check_values(column: &NewColumn, id: ColumnId, num_rows: u32) -> Result<(), C
             check_countries(&column.name, categorical, id, column.values.role())
         }
         ColumnValues::Category(categorical) => check_categorical(&column.name, categorical),
-        ColumnValues::Number(_) | ColumnValues::Text(_) => Ok(()),
+        // A text is never empty, so that a change of role to a category
+        // cannot make a level with no name.
+        ColumnValues::Text(values) => {
+            match rows(values).find(|(_, value)| value.as_ref().is_some_and(String::is_empty)) {
+                Some((row, _)) => Err(CommandError::EmptyText {
+                    column_name: column.name.clone(),
+                    row,
+                }),
+                None => Ok(()),
+            }
+        }
+        ColumnValues::Number(_) => Ok(()),
     }
 }
 

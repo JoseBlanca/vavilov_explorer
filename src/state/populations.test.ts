@@ -75,9 +75,9 @@ const DESCRIPTION: TableDescription = {
   ],
 };
 
-/** origin: Spain, Peru, missing, Spain, missing, Peru; Chile has no one. */
+/** origin: Spain, Peru, missing, Spain, missing, Spain; Chile has no one. */
 const CODES = new Map<number, Uint16Array>([
-  [ORIGIN, new Uint16Array([0, 1, 0xffff, 0, 0xffff, 1])],
+  [ORIGIN, new Uint16Array([0, 1, 0xffff, 0, 0xffff, 0])],
   [CLUSTER, new Uint16Array([0, 0, 0, 0, 0, 1])],
 ]);
 const codesOf = (id: ColumnId): Uint16Array | null => CODES.get(id) ?? null;
@@ -101,14 +101,14 @@ describe("the populations panel's model", () => {
         selected: { kind: "population", code: 0 },
         name: "Spain",
         colour: "#e69f00",
-        count: 2,
+        count: 3,
         isSelected: false,
       },
       {
         selected: { kind: "population", code: 1 },
         name: "Peru",
         colour: "#56b4e9",
-        count: 2,
+        count: 1,
         isSelected: false,
       },
       {

@@ -62,7 +62,7 @@ describe("a page of rows", () => {
       10, 0, 0, 0, 44, 0, 0, 0,
       6, 0, 0, 0, 2, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
-      0b001, 0, 0, 0, 0, 0, 0, 0,
+      0b011, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 4, 0, 0, 0,
       0x74, 0x61, 0x6c, 0x6c, 0, 0, 0, 0,
@@ -96,7 +96,7 @@ describe("a page of rows", () => {
       count: 3,
       names: ["p2", "p3", "p4"],
       columns: [
-        { id: 6, revision: 1, type: "text", values: [null, "", "tall"] },
+        { id: 6, revision: 1, type: "text", values: [null, null, "tall"] },
         { id: 1, revision: 1, type: "float", values: [null, 2, 3.25] },
         { id: 4, revision: 1, type: "integer", values: [12n, null, 7n] },
         { id: 5, revision: 1, type: "categorical", codes: [0, null, 1] },
@@ -250,6 +250,50 @@ describe("a page that does not decode is a defect", () => {
     expectDefect(
       rows(1, page(1, 1), P2, values(4, [1, 0, 2, 0])),
       /a values part of 20 bytes, not 18, for type 4/,
+    );
+  });
+
+  test("a page past the most rows a table has", () => {
+    // From row 2^28, MAX_ROWS, one row.
+    const past: readonly [number, number[]] = [
+      8,
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 1, 0, 0, 0],
+    ];
+    expectDefect(rows(1, past, P2), /a page of 1 rows from row 268435456, past the table/);
+  });
+
+  test("a page with the time of a window", () => {
+    const timed = new Uint8Array(rows(1, page(1, 1), P2));
+    // Flag 0, and the time 1.0 ms.
+    timed[1] = 1;
+    timed.set([0, 0, 0, 0, 0, 0, 0xf0, 0x3f], 16);
+    expectDefect(timed.buffer, /a page of rows with the time 1/);
+  });
+
+  test("a values part whose bytes 5 to 7 are not zero", () => {
+    const part: readonly [number, number[]] = [
+      10,
+      [1, 0, 0, 0, 4, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ];
+    expectDefect(rows(1, page(1, 1), P2, part), /bytes 5 to 7 of a values part/);
+  });
+
+  test("padding after the missing rows that is not zero", () => {
+    // prettier-ignore
+    const numbers = [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0xf0, 0x3f];
+    expectDefect(rows(1, page(1, 1), P2, values(0, numbers)), /the padding of the missing rows/);
+  });
+
+  test("numbers of another length than the page asks for", () => {
+    // One row, and two values after its missing bits.
+    const two = [...Array<number>(8).fill(0), ...Array<number>(16).fill(0)];
+    expectDefect(
+      rows(1, page(1, 1), P2, values(0, two)),
+      /a values part of 40 bytes, not 32, for type 0/,
+    );
+    expectDefect(
+      rows(1, page(1, 1), P2, values(1, two)),
+      /a values part of 40 bytes, not 32, for type 1/,
     );
   });
 

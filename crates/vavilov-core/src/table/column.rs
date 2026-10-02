@@ -61,7 +61,10 @@ impl Role {
     /// or not, which can be the active classification.
     #[must_use]
     pub const fn is_categorical(self) -> bool {
-        matches!(self, Self::Category | Self::Country)
+        match self {
+            Self::Category | Self::Country => true,
+            Self::Number | Self::Latitude | Self::Longitude | Self::Text => false,
+        }
     }
 }
 

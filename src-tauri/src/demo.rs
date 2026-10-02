@@ -47,7 +47,7 @@ const NOTES: [&str; 5] = [
     "cultivar",
     "wild relative",
     "seed bank, Córdoba",
-    "",
+    "collected in 1998",
 ];
 
 /// Loads the demo table into the session, with the country of origin as
@@ -73,11 +73,12 @@ pub fn load(session: &Mutex<Session>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// The demo table: plants named `VAV-0001` and on, with two
-/// classifications, country of origin a classification of countries,
-/// coordinates as a latitude and a longitude, three principal components, a height, a
-/// count of seeds, whether each is fertile and the colour of its flower,
-/// two categories, and a note. Some values of every column are missing.
+/// The demo table: plants named `VAV-0001` and on, with the country of
+/// origin, a category of countries, and a genetic cluster, a category;
+/// coordinates as a latitude and a longitude, three principal components,
+/// a height, a count of seeds, whether each is fertile and the colour of
+/// its flower, both categories, and a note. Some values of every column
+/// but the principal components are missing.
 /// Each column is built by the core from its stored values and its role,
 /// as the import will build them.
 ///

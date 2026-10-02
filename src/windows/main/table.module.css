@@ -2,6 +2,9 @@
   position: relative;
   height: 100%;
   overflow: auto;
+  /* A control that takes the focus is scrolled clear of the column of the
+     names, which stays on the left over the others. */
+  scroll-padding-inline-start: var(--column-names);
   background: var(--color-panel);
 }
 
@@ -27,6 +30,8 @@
   grid-template-columns: subgrid;
 }
 
+/* The header over the rows, and the column of the names over the other
+   cells: the names' heading, in both, over all. */
 .header {
   position: sticky;
   top: 0;
@@ -62,7 +67,7 @@
 
 .headingName {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: var(--font-weight-strong);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -107,7 +112,7 @@
 /* The mark of a selected row beside its colour, so that the colour is not
    the only sign (css.md, "Contrast and colour"). */
 .row[aria-selected="true"] .nameCell {
-  box-shadow: inset 3px 0 0 var(--color-accent);
+  box-shadow: inset var(--selected-mark) 0 0 var(--color-accent);
 }
 
 .start {

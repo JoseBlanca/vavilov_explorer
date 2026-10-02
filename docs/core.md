@@ -132,7 +132,10 @@ table is loaded.
   Any category, of countries or not, can be the active classification.
   The roles a column can take are worked out by the core and sent in the
   description, so that the window only gives them their words. Each value
-  is `None` when missing. `rust.md` asks for the values with "which rows
+  is `None` when missing, and a text is never empty: an empty cell is a
+  missing value (`design.md`, section 7), and an empty text would become
+  a level with no name when the column is made a category, so the
+  constructor refuses it. `rust.md` asks for the values with "which rows
   are missing" apart, and never a NaN; an `Option` keeps the missing
   rows apart in the type itself, so no code can read a missing value as a
   number, where a vector of values with a mask beside it holds a
@@ -465,7 +468,9 @@ made before the current table was loaded when `basedOn` is older than
 the load, which the window takes as stale (section 4); as
 `RowsOutOfRange` when the page goes past the last row; and as
 `UnknownColumn` for an id the table does not have, the first column's
-included, since the names come with every page.
+included, since the names come with every page; and as a defect for a
+column asked for twice, since a window asks for each once and a list of
+repeated ids would make a page of any size from a short request.
 
 The answer is raw bytes in the layout above, a message of a fourth kind,
 rows, whose header has the current revision and no time, so that the

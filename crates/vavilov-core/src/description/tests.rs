@@ -81,3 +81,53 @@ fn with_no_project_there_is_nothing_to_describe() {
         Err(crate::error::CommandError::NoProject)
     );
 }
+
+#[test]
+fn the_levels_of_whole_numbers_are_texts_so_that_none_is_rounded_and_decimal_ones_numbers() {
+    use crate::fixtures::{column, names};
+    use crate::table::{Categorical, ColumnValues, Stored, Table};
+    // 2^53 + 1, which a JavaScript number would read as 2^53.
+    let integers = Stored::Integer(vec![Some(9_007_199_254_740_993), Some(-7)]);
+    let floats = Stored::Float(vec![Some(1.5), Some(-0.25)]);
+    let table = Table::new(
+        "IndividualID",
+        names(&["p1", "p2"]),
+        vec![
+            column(
+                "seeds",
+                ColumnValues::Category(Categorical::from_stored(&integers, "seeds").unwrap()),
+            ),
+            column(
+                "height",
+                ColumnValues::Category(Categorical::from_stored(&floats, "height").unwrap()),
+            ),
+        ],
+    )
+    .unwrap();
+    let mut session = Session::new();
+    session
+        .dispatch(Request {
+            command: Command::LoadTable {
+                table,
+                active_classification: None,
+            },
+            based_on: Revision::ZERO,
+            sent_at: None,
+        })
+        .unwrap();
+    let description = serde_json::to_value(session.describe().unwrap()).unwrap();
+    assert_eq!(
+        description["columns"][0]["levels"],
+        json!([
+            { "value": "-7", "colour": "#e69f00" },
+            { "value": "9007199254740993", "colour": "#56b4e9" },
+        ])
+    );
+    assert_eq!(
+        description["columns"][1]["levels"],
+        json!([
+            { "value": -0.25, "colour": "#e69f00" },
+            { "value": 1.5, "colour": "#56b4e9" },
+        ])
+    );
+}

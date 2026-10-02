@@ -13,12 +13,14 @@ export interface MainWindowProps {
 /**
  * The frame of the main window: the bar of a defect across the top, then the
  * populations panel beside the table, or, with no project open, the title in
- * the place of the empty state still to be built. The components draw into
+ * the place of the empty state still to be built, and the dialog of a
+ * question, shown over all of it when one is asked. The components draw into
  * the slots, `data-slot` naming each.
  */
 export function mainWindowView(props: MainWindowProps): TemplateResult {
   return html`<div class=${classOf(styles, "window")}>
     <div data-slot="defect"></div>
+    <div data-slot="dialog"></div>
     <div class=${classOf(styles, props.open ? "body" : "hidden")}>
       <div class=${classOf(styles, "panel")} data-slot="panel"></div>
       <main class=${classOf(styles, "table")} data-slot="table"></main>

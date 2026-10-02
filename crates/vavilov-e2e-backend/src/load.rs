@@ -82,7 +82,12 @@ fn column(id: ColumnId, spec: ColumnSpec) -> Result<NewColumn, CommandError> {
                 // A column of countries is given by its values, which the
                 // core turns into codes.
                 Role::Country | Role::Number | Role::Latitude | Role::Longitude | Role::Text => {
-                    return Err(not_one());
+                    return Err(CommandError::Defect {
+                        what: format!(
+                            "column {} of a test is given by its levels, which only a category takes",
+                            spec.name
+                        ),
+                    });
                 }
             }
         }

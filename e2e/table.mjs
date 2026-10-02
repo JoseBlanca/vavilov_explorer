@@ -34,7 +34,7 @@ const PLANTS = {
     { name: "fertile", boolean: indexes.map((i) => i % 3 !== 0) },
     {
       name: "note",
-      text: indexes.map((i) => (i % 4 === 0 ? "landrace" : i % 4 === 1 ? "" : null)),
+      text: indexes.map((i) => (i % 4 === 0 ? "landrace" : i % 4 === 1 ? "cultivar" : null)),
     },
   ],
   activeClassification: 2,
@@ -77,7 +77,14 @@ for (const engine of Object.keys(ENGINES)) {
     await p4.waitFor();
     assert.deepEqual(await cells(p4), ["p4", "missing", "Peru", "9", "FALSE", "missing"]);
     // Row 2, p2: a height with a decimal comma, origin Peru, an empty note.
-    assert.deepEqual(await cells(rowNamed(grid, "p2")), ["p2", "100,25", "Peru", "3", "TRUE", ""]);
+    assert.deepEqual(await cells(rowNamed(grid, "p2")), [
+      "p2",
+      "100,25",
+      "Peru",
+      "3",
+      "TRUE",
+      "cultivar",
+    ]);
     assert.deepEqual(await cells(rowNamed(grid, "p5")), [
       "p5",
       "101",
@@ -126,14 +133,34 @@ for (const engine of Object.keys(ENGINES)) {
 
     // origin made text: its codes go from the window's copy before the new
     // description arrives, and the table must not draw from the old one.
+    // origin is the classification column, so making it text asks first;
+    // Escape keeps it a category, and gives the focus back to its dropdown.
+    await roleOf(grid, "origin").focus();
     await roleOf(grid, "origin").selectOption("text");
+    const question = page.getByRole("dialog", { name: "Make “origin” text?" });
+    await question.waitFor();
+    await shoot(page, engine, "table-confirm");
+    await page.keyboard.press("Escape");
+    await question.waitFor({ state: "hidden" });
+    await page.waitForFunction(
+      () => globalThis.document.activeElement?.getAttribute("aria-label") === "Role of origin",
+    );
+    await page.waitForFunction(
+      (select) => select.value === "category",
+      await roleOf(grid, "origin").elementHandle(),
+    );
+    assert.equal(await classification.inputValue(), "2");
+    // Asked again, and made text.
+    await roleOf(grid, "origin").selectOption("text");
+    await question.getByRole("button", { name: "Make it text" }).click();
+    // Text cannot be the classification: origin leaves the panel once the
+    // new description has arrived, and nothing is active.
+    await classification.locator("option", { hasText: "origin" }).waitFor({ state: "detached" });
+    assert.equal(await classification.inputValue(), "");
+    // p2's origin, Spain, is now drawn as text, from a page fetched again.
     await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).waitFor();
     assert.equal(await roleOf(grid, "origin").inputValue(), "text");
     assert.deepEqual(errors, [], "no page errors after origin was made text");
-    // Text cannot be the classification: origin leaves the panel, and
-    // nothing is active.
-    await classification.locator("option", { hasText: "origin" }).waitFor({ state: "detached" });
-    assert.equal(await classification.inputValue(), "");
 
     // origin made a country: each value is its code, and the panel can
     // choose it again.
@@ -154,6 +181,28 @@ for (const engine of Object.keys(ENGINES)) {
     assert.deepEqual(await cells(last), ["p300", "174,75", "missing", "897", "TRUE", "missing"]);
     assert.equal(await rowNamed(grid, "p1").count(), 0, "the first rows are no longer drawn");
     await shoot(page, engine, "table-end");
+
+    // In a narrow window scrolled to its last column, Shift+Tab goes back
+    // through the role dropdowns, and none is hidden under the column of
+    // the names, which stays on the left.
+    await page.setViewportSize({ width: 640, height: 500 });
+    await page.locator("[data-scroller]").evaluate((scroller) => {
+      scroller.scrollLeft = scroller.scrollWidth;
+    });
+    await roleOf(grid, "note").focus();
+    for (const name of ["fertile", "seeds", "origin", "height"]) {
+      await page.keyboard.press("Shift+Tab");
+      const shown = await page.evaluate(() => {
+        const focused = globalThis.document.activeElement;
+        const box = focused.getBoundingClientRect();
+        const top = globalThis.document.elementFromPoint(
+          box.left + box.width / 2,
+          box.top + box.height / 2,
+        );
+        return { label: focused.getAttribute("aria-label"), seen: focused.contains(top) };
+      });
+      assert.deepEqual(shown, { label: `Role of ${name}`, seen: true }, `Role of ${name} in view`);
+    }
 
     assert.deepEqual(errors, [], "no page errors");
     console.log(`e2e table, ${engine}: passed`);

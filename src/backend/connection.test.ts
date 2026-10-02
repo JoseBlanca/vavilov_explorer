@@ -152,6 +152,17 @@ describe("connecting", () => {
     expect(connection.state.revision()).toBe(1);
   });
 
+  test("after a defect on the channel, a command is a defect and is not sent", async () => {
+    const { transport, calls, deliver } = fakeTransport();
+    const connection = await connect(transport, () => undefined);
+    deliver("text");
+    await expect(connection.setSelection(new Uint8Array([0b1000]))).rejects.toThrow(
+      "Vavilov Explorer defect: the command set_selection, from a copy of the state that met a defect",
+    );
+    await expect(connection.setHover(null)).rejects.toThrow(/set_hover/);
+    expect(calls.map((call) => call.command)).toEqual(["subscribe"]);
+  });
+
   test("a skipped revision on the channel goes to the handler", async () => {
     const { transport, deliver } = fakeTransport();
     const defects: string[] = [];

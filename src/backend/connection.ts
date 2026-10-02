@@ -80,8 +80,10 @@ export interface Connection {
  * decode, a skipped revision, a listener that throws, is given to `onDefect`
  * and never thrown back into Tauri's channel, which would then hold back
  * every later message, or swallow the error. The connection then ignores the
- * channel: the window's copy can no longer be trusted, and the window shows
- * the defect and subscribes again.
+ * channel, and every command it would send is a defect instead: the window's
+ * copy can no longer be trusted, and a change made from it could land on
+ * rows or populations the user does not see. The window shows the defect;
+ * a reload subscribes it again.
  *
  * @throws A defect when the backend refuses the subscribe or sends a snapshot
  * that does not decode.
@@ -141,20 +143,33 @@ export async function connect(
     return time;
   };
 
+  /** Throws a defect for a command made from a copy that met a defect. */
+  const checkSound = (name: CommandName): void => {
+    if (broken) {
+      throw defect(`the command ${name}, from a copy of the state that met a defect`);
+    }
+  };
+
   /** A command with JSON arguments, with the revision and the time. */
   const command = async (
     name: CommandName,
     args: Readonly<Record<string, unknown>>,
-  ): Promise<Answer> =>
-    answer(name, transport.invoke(name, { ...args, basedOn: ready.revision(), sentAt: now() }));
+  ): Promise<Answer> => {
+    checkSound(name);
+    return answer(
+      name,
+      transport.invoke(name, { ...args, basedOn: ready.revision(), sentAt: now() }),
+    );
+  };
 
   /** A command whose rows go as raw bytes, the rest in headers. */
   const withRows = async (
     name: CommandName,
     rows: Uint8Array,
     headers: Readonly<Record<string, string>>,
-  ): Promise<Answer> =>
-    answer(
+  ): Promise<Answer> => {
+    checkSound(name);
+    return answer(
       name,
       transport.invoke(name, rows, {
         ...headers,
@@ -162,6 +177,7 @@ export async function connect(
         "sent-at": String(now()),
       }),
     );
+  };
 
   /** A selection as the backend reads one in JSON. */
   const selectedArg = (selected: Selected | null): unknown =>

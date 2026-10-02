@@ -156,15 +156,15 @@ fn every_storage_type_can_be_a_category() {
 }
 
 #[test]
-fn a_classification_of_numbers_made_a_number_gives_back_its_values() {
+fn a_category_of_numbers_made_a_number_gives_back_its_values() {
     let number = ColumnValues::Number(Numbers::Integer(vec![Some(3), None, Some(1), Some(3)]));
-    let classification = number
+    let category = number
         .with_role(Role::Category, COLUMN, "x")
         .unwrap()
         .unwrap();
-    assert_eq!(classification.storage_type(), StorageType::Integer);
+    assert_eq!(category.storage_type(), StorageType::Integer);
     assert_eq!(
-        classification.with_role(Role::Number, COLUMN, "x").unwrap(),
+        category.with_role(Role::Number, COLUMN, "x").unwrap(),
         Some(number)
     );
 }
@@ -235,7 +235,7 @@ fn a_country_role_writes_each_value_as_its_code_and_two_spellings_are_one_level(
     let ColumnValues::Country(countries) =
         ColumnValues::from_stored(values, Role::Country, COLUMN, "origin").unwrap()
     else {
-        panic!("not a country classification");
+        panic!("not a category of countries");
     };
     assert_eq!(
         countries.levels(),
@@ -296,4 +296,35 @@ fn the_roles_a_column_can_take_follow_its_storage_type_and_its_values() {
 fn a_column_of_more_distinct_values_than_a_code_holds_cannot_be_a_category() {
     let numbers = ColumnValues::Number(Numbers::Integer((0..=65_535).map(Some).collect()));
     assert_eq!(numbers.possible_roles().unwrap(), [Role::Number]);
+}
+
+#[test]
+fn a_column_of_as_many_distinct_values_as_a_code_holds_can_be_a_category() {
+    let numbers = ColumnValues::Number(Numbers::Integer((0..65_535).map(Some).collect()));
+    assert_eq!(
+        numbers.possible_roles().unwrap(),
+        [Role::Number, Role::Category]
+    );
+    let category = numbers
+        .with_role(Role::Category, COLUMN, "seeds")
+        .unwrap()
+        .unwrap();
+    assert_eq!(category.categorical().unwrap().levels().len(), 65_535);
+}
+
+#[test]
+fn a_whole_number_beyond_32_bits_is_neither_a_latitude_nor_a_longitude() {
+    let numbers = ColumnValues::Number(Numbers::Integer(vec![Some(10), Some(3_000_000_000)]));
+    assert_eq!(
+        numbers.possible_roles().unwrap(),
+        [Role::Number, Role::Category]
+    );
+    assert_eq!(
+        numbers.with_role(Role::Longitude, COLUMN, "x"),
+        Err(CommandError::ValueNotFor {
+            column: COLUMN,
+            role: Role::Longitude,
+            row: crate::ids::RowIndex::new(1),
+        })
+    );
 }

@@ -32,6 +32,6 @@
 .title {
   margin: 0;
   font-size: var(--font-size-title);
-  font-weight: 600;
+  font-weight: var(--font-weight-strong);
   color: var(--color-text-muted);
 }

@@ -9,10 +9,14 @@ import { chromium, webkit } from "playwright";
 import { createServer } from "vite";
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 import readline from "node:readline";
+import { fileURLToPath } from "node:url";
 
-export const ROOT = new URL("..", import.meta.url).pathname;
-export const OUT = ROOT + "e2e/output/";
+// A path of the file system, not of a URL, so that a folder with a space
+// or a drive letter on Windows is written as the system writes it.
+export const ROOT = fileURLToPath(new URL("..", import.meta.url));
+export const OUT = path.join(ROOT, "e2e", "output") + path.sep;
 
 // Away from 1420, which `npm run tauri dev` uses, so both can run at once;
 // E2E_PORT gives each reviewer in a worktree a port of its own
@@ -89,13 +93,7 @@ export async function launch({
  * order the program sent them.
  */
 async function startBackend() {
-  execFileSync("cargo", ["build", "--quiet", "-p", "vavilov-e2e-backend"], {
-    cwd: ROOT,
-    stdio: "inherit",
-  });
-  const child = spawn(`${ROOT}target/debug/vavilov-e2e-backend`, [], {
-    stdio: ["pipe", "pipe", "inherit"],
-  });
+  const child = spawn(buildBackend(), [], { stdio: ["pipe", "pipe", "inherit"] });
   const pending = new Map();
   const listeners = [];
   let nextId = 1;
@@ -105,16 +103,27 @@ async function startBackend() {
       for (const listener of listeners) listener(line.window, line.message);
       return;
     }
-    const resolve = pending.get(line.id);
-    if (resolve === undefined) throw new Error(`e2e: an answer to no call: ${text}`);
+    const waiting = pending.get(line.id);
+    if (waiting === undefined) throw new Error(`e2e: an answer to no call: ${text}`);
     pending.delete(line.id);
-    resolve(line);
+    waiting.resolve(line);
   });
+  // A program that ends or fails to start fails every call still waiting,
+  // and every later one, so that the test fails rather than waits forever.
+  let ended = null;
+  const end = (reason) => {
+    ended ??= new Error(`e2e: the test program ${reason}`);
+    for (const [, { reject }] of pending) reject(ended);
+    pending.clear();
+  };
+  child.on("exit", (code, signal) => end(`ended, with ${signal ?? `code ${code}`}`));
+  child.on("error", (error) => end(`failed: ${error.message}`));
   return {
     send(call) {
+      if (ended !== null) return Promise.reject(ended);
       const id = nextId++;
-      return new Promise((resolve) => {
-        pending.set(id, resolve);
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
         child.stdin.write(`${JSON.stringify({ id, ...call })}\n`);
       });
     },
@@ -125,6 +134,27 @@ async function startBackend() {
       child.stdin.end();
     },
   };
+}
+
+/**
+ * Builds the test program and gives the path of its executable, as cargo
+ * reports it, wherever the target folder is and whatever the platform
+ * names an executable.
+ */
+function buildBackend() {
+  const output = execFileSync(
+    "cargo",
+    ["build", "--quiet", "--message-format=json", "-p", "vavilov-e2e-backend"],
+    { cwd: ROOT, stdio: ["ignore", "pipe", "inherit"], encoding: "utf8", maxBuffer: 1 << 26 },
+  );
+  for (const text of output.split("\n")) {
+    if (text === "") continue;
+    const message = JSON.parse(text);
+    if (message.reason === "compiler-artifact" && message.target.name === "vavilov-e2e-backend") {
+      if (typeof message.executable === "string") return message.executable;
+    }
+  }
+  throw new Error("e2e: cargo built no executable of vavilov-e2e-backend");
 }
 
 /**

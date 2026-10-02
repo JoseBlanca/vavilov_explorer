@@ -115,6 +115,14 @@ The rules of lit-html (version 3.3, `lit-html` alone, no `LitElement`):
 - **A field the user types into** binds its value with the `live`
   directive, `.value=${live(v)}`, so that a render does not overwrite what
   is being typed with a stale value.
+- **A control the user changes, a `<select>`'s options, a radio, a
+  checkbox**, binds its state as a property with `live`,
+  `.selected=${live(v)}`, never as the attribute `?selected=`: once the
+  user has chosen, the attribute no longer sets what the control shows,
+  and a choice the backend refused, or one changed back from another
+  window, stays on screen (the review of 2 October 2026). A component
+  draws again after a command that was not applied, so that such a
+  control shows the state there is.
 - **A view holds no state and calls nothing**: what it needs comes in as
   props, and what the user does goes out through the callbacks in props.
   A view that reads the state or calls the backend has become a
@@ -138,9 +146,16 @@ role and its name, which a `<button>` would have given.
 The table draws only the rows on screen (`docs/design.md`, section 2.1):
 
 - Rows have one fixed height, so that the row at a scroll position is a
-  division, and the scroll area is as tall as all the rows.
+  division, and the scroll area is as tall as all the rows. The height is
+  measured with `getBoundingClientRect()`, not `offsetHeight`, which is
+  rounded to a whole pixel: rows of 29.75 px measured as 30 put the rows
+  drawn below the viewport from row 3,600 on.
 - The rows on screen and a margin around them are fetched from the
   backend a page at a time, by row index, and kept while they are near.
+  An answer can come after another table loaded, or before the message of
+  a change it already holds: each fetch is told apart from a later one of
+  the same page, and a page is drawn only when each of its columns is at
+  the revision the window's copy has (`pageStanding`).
 - The table is a linked view: a selected row is drawn as selected, and a
   click or a shift-click on rows is a command that sets the selection.
 - Its header holds, on every column but the first, the `<select>` of the

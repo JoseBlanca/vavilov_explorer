@@ -100,7 +100,7 @@ pub(crate) fn plants() -> Table {
                 ColumnValues::Text(vec![
                     Some("NA".to_owned()),
                     None,
-                    Some(String::new()),
+                    None,
                     Some("tall".to_owned()),
                 ]),
             ),

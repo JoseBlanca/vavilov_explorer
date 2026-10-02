@@ -98,7 +98,13 @@ fn outcome(
             };
             let headers = headers(line.headers.unwrap_or_default())?;
             match calls::call(session, command, &body, &headers)? {
-                calls::Reply::Applied(_) => Ok(Answer::Done),
+                calls::Reply::Applied(outcome) if outcome.dropped.is_empty() => Ok(Answer::Done),
+                // The program's channels write to its output, so a failed
+                // send is a fault of the test run, said rather than lost.
+                calls::Reply::Applied(outcome) => Err(Failure::Harness(format!(
+                    "{command} was applied, and these channels failed: {:?}",
+                    outcome.dropped
+                ))),
                 calls::Reply::Rows(bytes) => Ok(Answer::Bytes(bytes)),
                 calls::Reply::Description(description) => serde_json::to_value(description)
                     .map(Answer::Value)

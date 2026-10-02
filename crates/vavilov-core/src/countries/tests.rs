@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_country_is_named_by_its_codes_its_iso_names_and_its_natural_earth_name() {
+fn a_country_is_named_by_its_codes_and_its_iso_names_alone() {
     for name in [
         "ES",
         "ESP",
@@ -12,11 +12,19 @@ fn a_country_is_named_by_its_codes_its_iso_names_and_its_natural_earth_name() {
     ] {
         assert_eq!(country_code(name), Some("ESP"), "{name:?}");
     }
-    // ISO's name, and Natural Earth's for the same country.
+    // ISO's names, and not the shorter ones of Natural Earth's maps, which
+    // the owner left out on 2 October 2026; nor a territory by its
+    // sovereign.
     assert_eq!(country_code("Korea, Republic of"), Some("KOR"));
-    assert_eq!(country_code("South Korea"), Some("KOR"));
     assert_eq!(country_code("Bolivia, Plurinational State of"), Some("BOL"));
-    assert_eq!(country_code("Bolivia"), Some("BOL"));
+    for name in [
+        "South Korea",
+        "Bolivia",
+        "Russia",
+        "Ashmore and Cartier Is.",
+    ] {
+        assert_eq!(country_code(name), None, "{name:?}");
+    }
 }
 
 #[test]

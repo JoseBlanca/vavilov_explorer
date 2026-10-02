@@ -226,6 +226,17 @@ pub enum CommandError {
         row: RowIndex,
     },
 
+    /// A column of text holds an empty text, which a table holds as a
+    /// missing value instead (`docs/design.md`, section 7: an empty cell
+    /// is missing).
+    #[error("column {column_name:?} holds an empty text in row {row}")]
+    EmptyText {
+        /// The name of the column.
+        column_name: String,
+        /// The row, from 0.
+        row: RowIndex,
+    },
+
     /// A category of more levels than [`crate::MAX_LEVELS`].
     #[error(
         "column {column_name:?} has {num_levels} levels, more than the {max_levels} the app takes"

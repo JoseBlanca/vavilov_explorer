@@ -12,7 +12,7 @@
 .heading {
   margin: 0;
   font-size: var(--font-size-body);
-  font-weight: 600;
+  font-weight: var(--font-weight-strong);
 }
 
 .field {
@@ -62,7 +62,7 @@
 .row[aria-pressed="true"] {
   border-color: var(--color-accent);
   background: var(--color-selected-surface);
-  font-weight: 600;
+  font-weight: var(--font-weight-strong);
 }
 
 .swatch,

@@ -508,7 +508,8 @@ fn plan_values(
             values: old.values().clone(),
         },
     );
-    // The active classification stays active while it is a classification,
+    // The active classification stays active while it is a category, of
+    // countries or not,
     // but its levels may have been built again, so its codes may mean other
     // populations: what was selected for editing is cleared.
     let active = open

@@ -50,7 +50,13 @@ Three roles are more particular forms of these, for columns whose every
 value fits them: **Latitude** and **Longitude**, numbers the map uses to
 place each individual, and **Country**, a category whose values are
 countries. The dropdown lists only the roles a column can take, and you
-can change a column's role at any time.
+can change a column's role at any time, and its values are kept.
+
+The column chosen as the Classification column, in the populations
+panel, must be a category. When you would make it a number or text, the
+app asks first, with a button that keeps the column's role and one that
+changes it; Escape keeps it too. After the change, the Classification
+column shows None until you choose a category there.
 
 ### Latitude and longitude
 
@@ -63,16 +69,21 @@ to decimal degrees in the file first.
 
 ### Countries
 
-A column of text can be a country when every value names a country. The countries are those of ISO 3166,
-the international standard list of countries and their codes, and a
-value can name one in any of these ways:
+A column of text can be a country when every value names a country.
+The countries are those of ISO 3166, the international standard list of
+countries and their codes, and a value can name one in either of these
+ways:
 
 - its two-letter code, such as `ES`, or its three-letter one, such as
   `ESP`;
 - its English name as ISO 3166 writes it, such as `Spain`, or
-  `Bolivia, Plurinational State of`;
-- its short English name as world maps write it, in Natural Earth, the
-  map data the app uses, such as `Bolivia` or `South Korea`.
+  `Bolivia, Plurinational State of`, or its official name, such as
+  `Kingdom of Spain`.
+
+Shorter everyday names are accepted only when they are ISO's own:
+`Bolivia`, `South Korea`, `Russia` and `Vietnam` are not, so write
+`Bolivia, Plurinational State of`, `Korea, Republic of`, `Russian
+Federation` and `Viet Nam`, or the codes `BOL`, `KOR`, `RUS` and `VNM`.
 
 Case and spaces at either end do not matter; accents do, so write
 `Côte d'Ivoire`, not `Cote d'Ivoire`. Names in other languages, such as

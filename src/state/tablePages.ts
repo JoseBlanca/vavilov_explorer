@@ -1,6 +1,9 @@
 // Which rows of the table are on screen, and the pages they are fetched in
 // (.claude/skills/coding/frontend.md, "The table").
 
+import type { ColumnId, Revision } from "./ids.ts";
+import type { RowPage } from "./rowPage.ts";
+
 /** The rows of a page, the unit the table fetches from the backend. */
 export const PAGE_ROWS = 100;
 
@@ -49,3 +52,38 @@ export function rowsOfPage(page: number, numRows: number): RowRange {
   const first = page * PAGE_ROWS;
   return { first, end: Math.min(numRows, first + PAGE_ROWS) };
 }
+
+/**
+ * How a page of rows stands against the window's copy: `current` when it is
+ * of the table loaded at `loadedAt`, holds the columns `wanted` in their
+ * order, and each at the revision the copy has; `ahead` when one of them
+ * changed after the copy and none before, so that the message of the change
+ * is on its way and will make it current; `behind` otherwise, a page to
+ * fetch again.
+ */
+export function pageStanding(
+  page: RowPage,
+  loadedAt: Revision,
+  wanted: readonly ColumnId[],
+  columnRevision: (column: ColumnId) => Revision | null,
+): PageStanding {
+  if (
+    page.loadedAt !== loadedAt ||
+    page.columns.length !== wanted.length ||
+    page.columns.some((column, index) => column.id !== wanted[index])
+  ) {
+    return "behind";
+  }
+  let ahead = false;
+  for (const column of page.columns) {
+    const copy = columnRevision(column.id);
+    if (copy === null || column.revision < copy) {
+      return "behind";
+    }
+    ahead ||= column.revision > copy;
+  }
+  return ahead ? "ahead" : "current";
+}
+
+/** How a page of rows stands against the window's copy, as {@link pageStanding} says. */
+export type PageStanding = "current" | "ahead" | "behind";

@@ -1,9 +1,10 @@
 import { nothing, render } from "lit-html";
 
-import type { Answer, Connection } from "../../backend/connection.ts";
+import type { Connection } from "../../backend/connection.ts";
 import type { DescriptionNow } from "../../state/description.ts";
 import { populationsModel } from "../../state/populations.ts";
 import type { PopulationRow } from "../../state/populations.ts";
+import { answered } from "../shared/answered.ts";
 import { decimalMark } from "../shared/numbers.ts";
 import { populationsPanelView } from "./populationsPanel.view.ts";
 import type { PointerMode } from "./populationsPanel.view.ts";
@@ -34,14 +35,6 @@ export function createPopulationsPanel(
   const mark = decimalMark();
   let mode: PointerMode = "move";
 
-  const answered =
-    (what: string) =>
-    (answer: Answer): void => {
-      if (!answer.ok) {
-        console.warn(`Vavilov Explorer: ${what} was refused`, answer.error);
-      }
-    };
-
   const press = (row: PopulationRow): void => {
     const active = state.active();
     if (active === null) {
@@ -49,7 +42,7 @@ export function createPopulationsPanel(
     }
     connection
       .selectPopulation(active.column, row.isSelected ? null : row.selected)
-      .then(answered("selecting a population"), report);
+      .then(answered("selecting a population", draw), report);
   };
 
   const draw = (): void => {
@@ -75,7 +68,7 @@ export function createPopulationsPanel(
         onChooseClassification: (column) => {
           connection
             .setActiveClassification(column)
-            .then(answered("choosing the classification"), report);
+            .then(answered("choosing the classification", draw), report);
         },
         onPress: press,
         onMode: (chosen) => {

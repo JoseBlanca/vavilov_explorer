@@ -6,7 +6,7 @@
 
 import { defect } from "./defect.ts";
 import { levelText } from "./cellText.ts";
-import { isLevelsColumn } from "./description.ts";
+import { isCategoricalColumn } from "./description.ts";
 import type { TableDescription } from "./description.ts";
 import { NO_CODE, isLevelCode } from "./ids.ts";
 import type { ColumnId, LevelCode } from "./ids.ts";
@@ -58,13 +58,13 @@ export function populationsModel(
   decimalMark: string,
 ): PopulationsModel {
   const classifications = description.columns.flatMap((column) =>
-    isLevelsColumn(column) ? [{ column: column.id, name: column.name }] : [],
+    isCategoricalColumn(column) ? [{ column: column.id, name: column.name }] : [],
   );
   if (active === null) {
     return { classifications, active: null, rows: [] };
   }
   const column = description.columns.find((candidate) => candidate.id === active.column);
-  if (column === undefined || !isLevelsColumn(column)) {
+  if (column === undefined || !isCategoricalColumn(column)) {
     throw defect(`the active classification, column ${String(active.column)}, is not a category`);
   }
   const codes = codesOf(active.column);

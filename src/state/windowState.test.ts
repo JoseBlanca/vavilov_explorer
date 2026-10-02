@@ -366,4 +366,15 @@ describe("a change of a column's role", () => {
     );
     expect(state.shapeAt()).toBeNull();
   });
+
+  test("with no project open is a defect, and leaves the copy as it was", () => {
+    const state = createWindowState(
+      snapshot(0, [{ kind: "noProject" }, { kind: "hover", seq: seq(0), row: null }]),
+    );
+    expect(() => {
+      state.apply(change(1, { kind: "shape", shapeAt: revision(1) }));
+    }).toThrow("Vavilov Explorer defect: the shape of the table with no project open");
+    expect(state.revision()).toBe(0);
+    expect(state.shapeAt()).toBeNull();
+  });
 });

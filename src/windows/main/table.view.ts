@@ -28,6 +28,8 @@ export interface TableProps {
   readonly onRole: (column: ColumnId, role: Role) => void;
   /** The user scrolled the table. */
   readonly onScroll: () => void;
+  /** A control of the table took the focus. */
+  readonly onFocusIn: (event: FocusEvent) => void;
 }
 
 /** The width of the first column and of each role, a token of tokens.css. */
@@ -100,7 +102,12 @@ function cellView(cell: Cell, first: boolean): TemplateResult {
  */
 export function tableView(props: TableProps): TemplateResult {
   const columns = props.columns.map((column) => WIDTHS[column.kind]).join(" ");
-  return html`<div class=${classOf(styles, "scroller")} data-scroller @scroll=${props.onScroll}>
+  return html`<div
+    class=${classOf(styles, "scroller")}
+    data-scroller
+    @scroll=${props.onScroll}
+    @focusin=${props.onFocusIn}
+  >
     <div class=${classOf(styles, "probe")} data-probe aria-hidden="true"></div>
     <div
       role="grid"
@@ -118,6 +125,7 @@ export function tableView(props: TableProps): TemplateResult {
           (column, index) =>
             html`<div
               role="columnheader"
+              ?data-names=${index === 0}
               class="${classOf(styles, index === 0 ? "nameHeading" : "heading")} ${classOf(
                 styles,
                 column.alignEnd ? "end" : "start",

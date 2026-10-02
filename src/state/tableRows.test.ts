@@ -22,8 +22,9 @@ function revision(value: number): Revision {
 
 /**
  * Four plants: 1 height, a number; 2 origin (Spain, Peru), a category;
- * 3 seeds, a number; 4 fertile, a category of yes or no; 5 note, text; and
- * 6 dose (0.5, 2), a category of decimal numbers.
+ * 3 seeds, a number; 4 fertile, a category of yes or no; 5 note, text;
+ * 6 dose (0.5, 2), a category of decimal numbers; 7 origin code (ESP,
+ * PER), a category of countries; and 8 lat, a latitude.
  */
 const PLANTS: TableDescription = {
   loadedAt: revision(1),
@@ -91,6 +92,26 @@ const PLANTS: TableDescription = {
         { value: 2, colour: "#56b4e9" },
       ],
     },
+    {
+      id: column(7),
+      name: "origin code",
+      revision: revision(1),
+      storage: "text",
+      role: "country",
+      roles: ["category", "country", "text"],
+      levels: [
+        { value: "ESP", colour: "#e69f00" },
+        { value: "PER", colour: "#56b4e9" },
+      ],
+    },
+    {
+      id: column(8),
+      name: "lat",
+      revision: revision(1),
+      storage: "float",
+      role: "latitude",
+      roles: ["number", "latitude", "longitude", "category"],
+    },
   ],
 };
 
@@ -102,17 +123,22 @@ const PAGE: RowPage = {
   count: 2,
   names: ["p3", "p4"],
   columns: [
-    { id: column(5), revision: revision(1), type: "text", values: ["", null] },
+    { id: column(5), revision: revision(1), type: "text", values: ["tall", null] },
     { id: column(1), revision: revision(1), type: "float", values: [2.5, null] },
     { id: column(3), revision: revision(1), type: "integer", values: [null, -7n] },
+    { id: column(8), revision: revision(1), type: "float", values: [40.5, -12] },
   ],
 };
 
-/** origin: Spain, Peru, missing, Peru; fertile: FALSE, TRUE, TRUE, missing; dose: 0.5, 2, 2, 0.5. */
+/**
+ * origin: Spain, Peru, missing, Peru; fertile: FALSE, TRUE, TRUE, missing;
+ * dose: 0.5, 2, 2, 0.5; origin code: PER, ESP, missing, ESP.
+ */
 const CODES = new Map<number, Uint16Array>([
   [2, new Uint16Array([0, 1, 0xffff, 1])],
   [4, new Uint16Array([0, 1, 1, 0xffff])],
   [6, new Uint16Array([0, 1, 1, 0])],
+  [7, new Uint16Array([1, 0, 0xffff, 0])],
 ]);
 const codesOf = (id: ColumnId): Uint16Array | null => CODES.get(id) ?? null;
 
@@ -134,11 +160,13 @@ describe("the columns of the table", () => {
       [4, "fertile", "category", false, ["Category"]],
       [5, "note", "text", false, ["Category", "Text"]],
       [6, "dose", "category", true, ["Number", "Category"]],
+      [7, "origin code", "country", false, ["Category", "Country", "Text"]],
+      [8, "lat", "latitude", true, ["Number", "Latitude", "Longitude", "Category"]],
     ]);
   });
 
-  test("a page is fetched for the numbers and the texts", () => {
-    expect(fetchedColumns(PLANTS)).toEqual([1, 3, 5]);
+  test("a page is fetched for the numbers, of any sub-role, and the texts", () => {
+    expect(fetchedColumns(PLANTS)).toEqual([1, 3, 5, 8]);
   });
 });
 
@@ -153,8 +181,10 @@ describe("a row of the table", () => {
         { kind: "missing" },
         { kind: "missing" },
         { kind: "value", text: "TRUE", align: "start" },
-        { kind: "value", text: "", align: "start" },
+        { kind: "value", text: "tall", align: "start" },
         { kind: "value", text: "2", align: "end" },
+        { kind: "missing" },
+        { kind: "value", text: "40,5", align: "end" },
       ],
     });
     expect(tableRow(PLANTS, PAGE, row(3), codesOf, null, ",").cells).toEqual([
@@ -165,6 +195,8 @@ describe("a row of the table", () => {
       { kind: "missing" },
       { kind: "missing" },
       { kind: "value", text: "0,5", align: "end" },
+      { kind: "value", text: "ESP", align: "start" },
+      { kind: "value", text: "-12", align: "end" },
     ]);
   });
 

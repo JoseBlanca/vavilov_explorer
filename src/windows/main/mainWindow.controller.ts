@@ -4,6 +4,7 @@ import { connect } from "../../backend/connection.ts";
 import { tauriTransport } from "../../backend/transport.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow, TableDescription } from "../../state/description.ts";
+import { createConfirmDialog } from "../shared/confirmDialog.controller.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
 import { mainWindowView } from "./mainWindow.view.ts";
 import { createPopulationsPanel } from "./populationsPanel.controller.ts";
@@ -50,7 +51,14 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       describedNow,
       defectBar.show,
     );
-    const table = createTable(slot(root, "table"), connection, describedNow, defectBar.show);
+    const dialog = createConfirmDialog(slot(root, "dialog"));
+    const table = createTable(
+      slot(root, "table"),
+      connection,
+      describedNow,
+      dialog.ask,
+      defectBar.show,
+    );
 
     /**
      * Asks for the description of the table the copy holds, once per load

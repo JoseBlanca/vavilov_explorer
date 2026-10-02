@@ -1,6 +1,18 @@
 import { describe, expect, test } from "vitest";
 
-import { pagesOf, rowsInView, rowsOfPage } from "./tablePages.ts";
+import { isColumnId, isRevision, isRowIndex } from "./ids.ts";
+import type { ColumnId, Revision } from "./ids.ts";
+import type { RowPage } from "./rowPage.ts";
+import { pageStanding, pagesOf, rowsInView, rowsOfPage } from "./tablePages.ts";
+
+function column(value: number): ColumnId {
+  if (!isColumnId(value)) throw new Error("not a column");
+  return value;
+}
+function revision(value: number): Revision {
+  if (!isRevision(value)) throw new Error("not a revision");
+  return value;
+}
 
 describe("the rows in view", () => {
   test("are those under the viewport and the margin on each side", () => {
@@ -32,5 +44,128 @@ describe("the pages of the table", () => {
   test("the last page has the rows that are left", () => {
     expect(rowsOfPage(1, 2000)).toEqual({ first: 100, end: 200 });
     expect(rowsOfPage(19, 1950)).toEqual({ first: 1900, end: 1950 });
+  });
+});
+
+describe("a page of rows against the window's copy", () => {
+  // A page of the table loaded at 2, read at 6, with height (1) at 4 and
+  // note (5) at 6.
+  const page = (columns: readonly [number, number][], loadedAt = 2): RowPage => {
+    const first = 0;
+    if (!isRowIndex(first)) throw new Error("not a row");
+    return {
+      revision: revision(6),
+      loadedAt: revision(loadedAt),
+      first,
+      count: 1,
+      names: ["p1"],
+      columns: columns.map(([id, at]) => ({
+        id: column(id),
+        revision: revision(at),
+        type: "float",
+        values: [1.5],
+      })),
+    };
+  };
+  const wanted = [column(1), column(5)];
+  /** The copy's revisions of the columns: height at 4, note at `noteAt`. */
+  const copy =
+    (noteAt: number) =>
+    (id: ColumnId): Revision | null =>
+      id === column(1) ? revision(4) : id === column(5) ? revision(noteAt) : null;
+
+  test("is current when each column is at the copy's revision", () => {
+    expect(
+      pageStanding(
+        page([
+          [1, 4],
+          [5, 6],
+        ]),
+        revision(2),
+        wanted,
+        copy(6),
+      ),
+    ).toBe("current");
+  });
+
+  test("is ahead when a column changed after the copy and none before", () => {
+    // note was made a category at 6, and the copy has not heard yet.
+    expect(
+      pageStanding(
+        page([
+          [1, 4],
+          [5, 6],
+        ]),
+        revision(2),
+        wanted,
+        copy(3),
+      ),
+    ).toBe("ahead");
+  });
+
+  test("is behind when a column changed after it was read", () => {
+    expect(
+      pageStanding(
+        page([
+          [1, 4],
+          [5, 6],
+        ]),
+        revision(2),
+        wanted,
+        copy(7),
+      ),
+    ).toBe("behind");
+    // Behind for one column and ahead for another: fetched again.
+    expect(
+      pageStanding(
+        page([
+          [1, 3],
+          [5, 6],
+        ]),
+        revision(2),
+        wanted,
+        copy(3),
+      ),
+    ).toBe("behind");
+  });
+
+  test("is behind when it is of another table, or of other columns", () => {
+    expect(
+      pageStanding(
+        page(
+          [
+            [1, 4],
+            [5, 6],
+          ],
+          1,
+        ),
+        revision(2),
+        wanted,
+        copy(6),
+      ),
+    ).toBe("behind");
+    expect(
+      pageStanding(
+        page([
+          [5, 6],
+          [1, 4],
+        ]),
+        revision(2),
+        wanted,
+        copy(6),
+      ),
+    ).toBe("behind");
+    expect(pageStanding(page([[1, 4]]), revision(2), wanted, copy(6))).toBe("behind");
+    expect(
+      pageStanding(
+        page([
+          [1, 4],
+          [7, 6],
+        ]),
+        revision(2),
+        [column(1), column(7)],
+        copy(6),
+      ),
+    ).toBe("behind");
   });
 });
