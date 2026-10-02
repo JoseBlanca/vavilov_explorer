@@ -1,0 +1,315 @@
+//! The table of individuals: the first column, which names them, and the
+//! other columns, each with its id, name, type and values
+//! (`docs/core.md`, section 2).
+
+mod colour;
+mod column;
+mod level;
+
+pub use colour::Colour;
+pub use column::{Categorical, Column, ColumnValues};
+pub use level::Level;
+
+use std::collections::{HashMap, HashSet};
+
+use crate::convert::{u64_from, usize_from};
+use crate::error::CommandError;
+use crate::ids::{ColumnId, LevelCode, Revision, RowIndex};
+
+/// The most rows a table may have, 2^28: with it, the largest part of a
+/// message, a column of 8-byte values, fits the `u32` length of the
+/// layout (`docs/core.md`, section 2).
+pub const MAX_ROWS: u32 = 268_435_456;
+
+/// The most columns a table may have, the first included, 2^24: with it,
+/// the list of every column's revision, 16 bytes a column, fits the `u32`
+/// length of a part.
+pub const MAX_COLUMNS: u32 = 16_777_216;
+
+/// The most levels a categorical column may have: a code is 16 bits, and
+/// `0xFFFF` means missing in the messages.
+pub const MAX_LEVELS: u32 = 65_535;
+
+/// The first column, which names the individuals: none empty, no two the
+/// same, text as written. It has no type and is never missing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NameColumn {
+    id: ColumnId,
+    header: String,
+    names: Vec<String>,
+}
+
+impl NameColumn {
+    /// The id of the first column.
+    #[must_use]
+    pub const fn id(&self) -> ColumnId {
+        self.id
+    }
+
+    /// Its header, which may be empty.
+    #[must_use]
+    pub fn header(&self) -> &str {
+        &self.header
+    }
+
+    /// The name of each individual, one per row.
+    #[must_use]
+    pub fn names(&self) -> &[String] {
+        &self.names
+    }
+}
+
+/// A column given to [`Table::new`], before it has an id.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NewColumn {
+    /// The name, not empty and unique within the table.
+    pub name: String,
+    /// The values, one per row.
+    pub values: ColumnValues,
+}
+
+/// The table of a project: a fixed number of rows, one per individual, the
+/// first column of their names, and the other columns.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Table {
+    num_rows: u32,
+    names: NameColumn,
+    columns: Vec<Column>,
+    next_column_id: u32,
+}
+
+impl Table {
+    /// The table of these individuals and columns. The first column gets
+    /// the id 0 and the others 1, 2 and on, in their order.
+    ///
+    /// # Errors
+    ///
+    /// A table of more than [`MAX_ROWS`] rows or [`MAX_COLUMNS`] columns;
+    /// an individual with no name, or two with the same; a column with no
+    /// name, two of the same name, or the first column's header when it is
+    /// not empty; a column of another length than the names; a number that
+    /// is not finite; a categorical column of more than [`MAX_LEVELS`]
+    /// levels, a level with no name or two of the same name, or a code with
+    /// no level.
+    pub fn new(
+        header: impl Into<String>,
+        names: Vec<String>,
+        columns: Vec<NewColumn>,
+    ) -> Result<Self, CommandError> {
+        let header = header.into();
+        let num_rows = num_rows_of(names.len())?;
+        check_num_columns(columns.len())?;
+        check_names(&names)?;
+        check_column_names(&header, &columns)?;
+        for column in &columns {
+            check_values(column, num_rows)?;
+        }
+        // The first column is 0 and the others follow; their number was
+        // checked to be at most MAX_COLUMNS, so no id reaches u32::MAX.
+        let mut next_id: u32 = 1;
+        let mut built = Vec::with_capacity(columns.len());
+        for column in columns {
+            built.push(Column {
+                id: ColumnId::new(next_id),
+                name: column.name,
+                revision: Revision::ZERO,
+                values: column.values,
+            });
+            next_id = next_id.checked_add(1).ok_or_else(|| CommandError::Defect {
+                what: "a column id beyond u32".to_owned(),
+            })?;
+        }
+        Ok(Self {
+            num_rows,
+            names: NameColumn {
+                id: ColumnId::new(0),
+                header,
+                names,
+            },
+            columns: built,
+            next_column_id: next_id,
+        })
+    }
+
+    /// The number of rows, one per individual.
+    #[must_use]
+    pub const fn num_rows(&self) -> u32 {
+        self.num_rows
+    }
+
+    /// The first column, the names of the individuals.
+    #[must_use]
+    pub const fn names(&self) -> &NameColumn {
+        &self.names
+    }
+
+    /// The other columns, in their order.
+    #[must_use]
+    pub fn columns(&self) -> &[Column] {
+        &self.columns
+    }
+
+    /// The column of this id, other than the first.
+    #[must_use]
+    pub fn column(&self, id: ColumnId) -> Option<&Column> {
+        self.columns.iter().find(|column| column.id == id)
+    }
+
+    /// The column of this id, to be changed.
+    pub(crate) fn column_mut(&mut self, id: ColumnId) -> Option<&mut Column> {
+        self.columns.iter_mut().find(|column| column.id == id)
+    }
+
+    /// Gives every column the revision at which the table is loaded.
+    pub(crate) fn set_revisions(&mut self, revision: Revision) {
+        for column in &mut self.columns {
+            column.revision = revision;
+        }
+    }
+
+    /// The id the next column added will get.
+    #[must_use]
+    pub const fn next_column_id(&self) -> ColumnId {
+        ColumnId::new(self.next_column_id)
+    }
+}
+
+/// The number of rows of a table of `len` individuals.
+fn num_rows_of(len: usize) -> Result<u32, CommandError> {
+    u32::try_from(len)
+        .ok()
+        .filter(|num_rows| *num_rows <= MAX_ROWS)
+        .ok_or(CommandError::TooManyRows {
+            num_rows: u64_from(len),
+            max_rows: MAX_ROWS,
+        })
+}
+
+/// Checks the number of columns of a table of `num_other` columns besides
+/// the first.
+fn check_num_columns(num_other: usize) -> Result<(), CommandError> {
+    let num_columns = u64_from(num_other).saturating_add(1);
+    if num_columns > u64::from(MAX_COLUMNS) {
+        return Err(CommandError::TooManyColumns {
+            num_columns,
+            max_columns: MAX_COLUMNS,
+        });
+    }
+    Ok(())
+}
+
+/// Checks that every individual has a name and no two the same.
+fn check_names(names: &[String]) -> Result<(), CommandError> {
+    let mut seen: HashMap<&str, RowIndex> = HashMap::with_capacity(names.len());
+    for (row, name) in rows(names) {
+        if name.is_empty() {
+            return Err(CommandError::EmptyIndividual { row });
+        }
+        if let Some(first_row) = seen.insert(name, row) {
+            return Err(CommandError::DuplicateIndividual {
+                name: name.clone(),
+                first_row,
+                second_row: row,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Checks that every column has a name, and no two the same, the first
+/// column's header among them when it is not empty.
+fn check_column_names(header: &str, columns: &[NewColumn]) -> Result<(), CommandError> {
+    let mut seen: HashSet<&str> = HashSet::with_capacity(columns.len());
+    if !header.is_empty() {
+        seen.insert(header);
+    }
+    for (position, column) in (1..=u32::MAX).zip(columns) {
+        if column.name.is_empty() {
+            return Err(CommandError::EmptyColumnName { position });
+        }
+        if !seen.insert(&column.name) {
+            return Err(CommandError::DuplicateColumnName {
+                name: column.name.clone(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Checks a column's length, its numbers and its levels and codes.
+fn check_values(column: &NewColumn, num_rows: u32) -> Result<(), CommandError> {
+    let num_values = column.values.len();
+    if num_values != usize_from(num_rows) {
+        return Err(CommandError::ColumnLength {
+            column: column.name.clone(),
+            num_values: u64_from(num_values),
+            num_rows,
+        });
+    }
+    match &column.values {
+        ColumnValues::Numeric(values) => {
+            for (row, value) in rows(values) {
+                if value.is_some_and(|value| !value.is_finite()) {
+                    return Err(CommandError::NonFiniteNumber {
+                        column: column.name.clone(),
+                        row,
+                    });
+                }
+            }
+            Ok(())
+        }
+        ColumnValues::Categorical(categorical) => check_categorical(&column.name, categorical),
+        ColumnValues::Integer(_) | ColumnValues::Text(_) | ColumnValues::Boolean(_) => Ok(()),
+    }
+}
+
+/// Checks the levels of a categorical column and that every code has one.
+fn check_categorical(name: &str, categorical: &Categorical) -> Result<(), CommandError> {
+    let levels = categorical.levels();
+    let num_levels = u32::try_from(levels.len())
+        .ok()
+        .filter(|num| *num <= MAX_LEVELS)
+        .ok_or_else(|| CommandError::TooManyLevels {
+            column: name.to_owned(),
+            num_levels: u64_from(levels.len()),
+            max_levels: MAX_LEVELS,
+        })?;
+    let mut seen: HashSet<&str> = HashSet::with_capacity(levels.len());
+    for (code, level) in (0..=u16::MAX).zip(levels) {
+        if level.name().is_empty() {
+            return Err(CommandError::EmptyLevelName {
+                column: name.to_owned(),
+                code: LevelCode::new(code),
+            });
+        }
+        if !seen.insert(level.name()) {
+            return Err(CommandError::DuplicateLevel {
+                column: name.to_owned(),
+                level: level.name().to_owned(),
+            });
+        }
+    }
+    for (row, code) in rows(categorical.codes()) {
+        if let Some(code) = code
+            && u32::from(code.get()) >= num_levels
+        {
+            return Err(CommandError::CodeWithoutLevel {
+                column: name.to_owned(),
+                row,
+                code: *code,
+                num_levels,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The values of a column with their rows. The table has at most
+/// MAX_ROWS rows, checked before any column is walked, so every row fits
+/// a `u32`.
+fn rows<T>(values: &[T]) -> impl Iterator<Item = (RowIndex, &T)> {
+    (0..=u32::MAX).map(RowIndex::new).zip(values)
+}
+
+#[cfg(test)]
+mod tests;

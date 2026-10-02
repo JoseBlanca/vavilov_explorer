@@ -3,9 +3,9 @@ name = "vavilov-explorer"
 version = "0.1.0"
 description = "Integrated exploration of populations and biodiversity: 3D, geographic and distribution views of the same individuals"
 authors = ["Jose Blanca <jblanca@upv.es>"]
-edition = "2024"
-rust-version = "1.98"
-license = "MIT"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 
 [lib]
 # The `_lib` suffix keeps the lib name distinct from the bin name, which
@@ -21,41 +21,5 @@ tauri-build = { version = "2", features = ["isolation"] }
 # Tauri's guide says no feature is required (spikes/windowing/README.md).
 tauri = { version = "2", features = ["isolation"] }
 
-# https://tauri.app/concept/size/#cargo-configuration
-[profile.release]
-codegen-units = 1
-lto = true
-opt-level = 3
-panic = "abort"
-strip = true
-
-# The lint table of .claude/skills/coding/rust.md, whose reasons are there.
-# It moves to the workspace's Cargo.toml when the core crate is added.
-[lints.rust]
-unsafe_code = "deny"
-missing_docs = "deny"
-
-[lints.rustdoc]
-broken_intra_doc_links = "deny"
-
-[lints.clippy]
-arithmetic_side_effects = "deny"
-cast_possible_truncation = "deny"
-cast_possible_wrap = "deny"
-cast_sign_loss = "deny"
-cast_lossless = "deny"
-fallible_impl_from = "deny"
-unwrap_used = "deny"
-expect_used = "deny"
-panic = "deny"
-todo = "deny"
-unimplemented = "deny"
-dbg_macro = "deny"
-indexing_slicing = "deny"
-float_cmp = "deny"
-wildcard_enum_match_arm = "deny"
-fn_params_excessive_bools = "deny"
-match_same_arms = "warn"
-missing_errors_doc = "warn"
-missing_panics_doc = "warn"
-allow_attributes_without_reason = "deny"
+[lints]
+workspace = true

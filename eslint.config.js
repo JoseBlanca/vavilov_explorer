@@ -35,6 +35,7 @@ export default defineConfig(
   globalIgnores([
     "dist/",
     "spikes/",
+    "target/",
     "src-tauri/target/",
     "src-tauri/gen/",
     "e2e/output/",

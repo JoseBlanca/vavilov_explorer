@@ -172,10 +172,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-The cargo commands run in `src-tauri/` until the core crate exists; the
-setup of the core crate makes a Cargo workspace at the root of the
-repository, with `src-tauri` and `crates/*` as its members, and from then
-on they run at the root. All of them run for every change to the
+The cargo commands run at the root of the repository, the Cargo
+workspace whose members are `src-tauri` and `crates/*`. All of them run for every change to the
 code; a change to documents alone needs none. A command or a layer that
 does not exist yet is reported as not there, not as passed.
 Report what each command printed when it failed and that it passed when
@@ -187,11 +185,11 @@ their changes are read before they are committed.
 The skills describe the project as it is meant to be. The setup commit of
 2 October 2026 made the tooling: exact npm versions, the compiler options,
 ESLint, Prettier, the content security policy, the isolation pattern, the
-Rust lint table and the harness in two engines. These parts come with the
-first code that needs them:
+Rust lint table and the harness in two engines. The first slice of the
+core made the core crate `crates/vavilov-core` and the Cargo workspace at
+the root, with the lint table. These parts come with the first code that
+needs them:
 
-- the core crate `crates/vavilov-core` and the Cargo workspace at the
-  root, which takes the lint table from `src-tauri/Cargo.toml`;
 - the folders of `src/` (`backend`, `state`, `plots`, `windows`), whose
   import rules `eslint.config.js` already holds;
 - the harness's several pages and the test-only backend (`testing.md`).

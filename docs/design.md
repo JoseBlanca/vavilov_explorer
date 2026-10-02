@@ -288,7 +288,12 @@ keeps its colour: a population added later takes the first colour of the
 list no other level of the column uses, and renaming a population does
 not change its colour. A column with more levels than the list has
 colours goes through the list again in a different shade, lighter or
-darker, so that no two levels share a colour. The user can change any colour with a colour
+darker, so that no two levels share a colour. The order of the names is
+with case ignored, ties broken by the exact text, and numbers inside a
+name are compared as text, not as numbers. The list is Okabe and Ito's
+without its black, seven colours from orange, then the same mixed with
+40 % white, then with 40 % black (decided by the owner on 2 October 2026,
+`core.md`, section 10). The user can change any colour with a colour
 picker. Colours are part of the document, saved in the project and
 undone like any other edit.
 

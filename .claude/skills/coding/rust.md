@@ -8,7 +8,7 @@ to the commands, the channels and the windows.
 
 ## Why the rules are strict here
 
-The release build is compiled with `panic = "abort"` (`src-tauri/Cargo.toml`):
+The release build is compiled with `panic = "abort"` (the root `Cargo.toml`):
 a panic anywhere in the backend ends the app at once, with every window
 and every unsaved edit of the user's populations. And an integer that
 wraps in silence, a length read from a file, an index computed from a
@@ -36,6 +36,10 @@ overflow; in a debug build they panic; `/` and `%` by zero panic in both;
   column id, a row number, is checked before it is used to index or to
   allocate. A window is our own code, but a stale window can send an
   index of a row that an undo removed.
+- A count from zero is a closed range, `(0..=u16::MAX).zip(levels)`, never
+  an open one, `(0_u16..)`: an open range computes the value after each
+  one it yields, so yielding `u16::MAX` panics in a debug build and wraps
+  in a release build. The test of 65,535 levels in the core found it.
 - To widen, `u64::from(x)`. To narrow, `u32::try_from(x)?`. No `as`
   between integer types. From a float to an integer, check for NaN and
   for the range first: `f64::NAN as usize` is 0.
@@ -202,8 +206,7 @@ allow-dbg-in-tests = true
 With `-D warnings`, an `#[expect]` on a line where the lint does not fire
 is an error, which keeps the expects honest. Not even the start of the
 app panics: `run()` returns Tauri's error, and `main` prints it and exits
-with a failure code. Until the core crate is added the table is in
-`src-tauri/Cargo.toml` as `[lints.rust]` and `[lints.clippy]`.
+with a failure code.
 
 ## Tests
 

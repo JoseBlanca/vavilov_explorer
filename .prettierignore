@@ -5,6 +5,7 @@ docs/
 # Throwaway experiments, generated files and outputs.
 spikes/
 dist/
+target/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/icons/

@@ -1,0 +1,21 @@
+[package]
+name = "vavilov-core"
+version = "0.1.0"
+description = "The core of Vavilov Explorer: the table, the session every window shares, and the commands that change it"
+authors = ["Jose Blanca <jblanca@upv.es>"]
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# To test the shape of the errors as a window receives them, approved by
+# the owner on 2 October 2026 (docs/design.md, section 12).
+serde_json.workspace = true
+
+[lints]
+workspace = true

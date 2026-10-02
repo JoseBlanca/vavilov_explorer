@@ -16,7 +16,7 @@ frontend in the system webview.
 ```sh
 npm install
 npm run tauri dev      # the app, with hot reload
-npm run tauri build    # a packaged app in src-tauri/target/release/bundle/
+npm run tauri build    # a packaged app in target/release/bundle/
 ```
 
 ## Test
@@ -24,7 +24,7 @@ npm run tauri build    # a packaged app in src-tauri/target/release/bundle/
 ```sh
 npm test                    # unit tests (Vitest)
 npm run test:e2e            # the frontend in headless WebKit (Playwright)
-cd src-tauri && cargo test  # the Rust backend
+cargo test --workspace      # the Rust backend: the core and the app
 ```
 
 The end-to-end tests drive the real frontend in WebKit, the engine Tauri

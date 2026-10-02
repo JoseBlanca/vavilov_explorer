@@ -8,8 +8,8 @@ crate and the Cargo workspace, the table, the session and its three
 tiers of state, the commands and their undo, how a window subscribes,
 the binary messages, how the core opens windows, its errors, and how it
 receives a table before `table_io` exists. It ends with what the first
-slice of code builds, what the owner decided, and the three points still
-open, none of which the first slice needs. The design it rests on is `design.md`, sections
+slice of code builds, what the owner decided, and the one point still
+open. The design it rests on is `design.md`, sections
 1, 3, 4, 5, 6, 8, 11 and 12; the rules of the code are in
 `.claude/skills/coding/`, mainly `rust.md` and `tauri.md`; what the core
 needs from `table_io` is in `table_io-needs.md`.
@@ -213,10 +213,13 @@ backend itself, the menu's Undo, gives the current revision and no time.
 The dispatcher works in two steps. The first checks the command against
 the session and builds a plan, everything the change needs: the rows, the
 codes, the new revision, the reverse for undo, and the bytes of the
-message it will send. It can fail, and it changes nothing. The second
-applies the plan, records the reverse and sends the message, and cannot
-fail: its function returns no `Result`, so a change half made cannot be
-written. All the arithmetic that can overflow, the next revision and the
+message it will send. It can fail, and it changes nothing: it reads the
+session through `&self`, so the compiler refuses a change there. The
+second applies the plan. It first finds what it changes, the open project
+and the column of a lasso, which the first step has just checked, so it
+fails only on a defect of the code and before anything is changed; from
+there it only assigns the values the plan holds, takes the step of the
+history and sends the message, none of which can fail. All the arithmetic that can overflow, the next revision and the
 length of each part included, is done in the first step, with
 `checked_add` and `try_from`.
 
@@ -637,26 +640,21 @@ applies:
 - `serde_json` is a development dependency of the core, to test the
   shape of `CommandError` as a window receives it. It is in `Cargo.lock`
   already, through Tauri, and is maintained with `serde`.
+- The levels of a categorical column made by the import are in the order
+  of their names with case ignored, ties broken by the exact text, so
+  that `pop1`, `Pop2` and `pop10` come in that order (`1`, `10`, `2` by
+  their characters). The numbers inside a name are not compared as
+  numbers: names such as `pop1a` would make it a rule of many cases.
+- The colours of the levels are Okabe and Ito's list without its black,
+  which is hard to see on a dark background: seven colours, from orange,
+  in the list's order. The levels after the seventh go through the list
+  again mixed with 40 % white, then with 40 % black, 21 colours in all.
+  The owner sees them before they are taken, and what a column of more
+  than 21 levels gets is decided then.
 
-Still open, none of them needed by the first slice:
+Still open, and not needed by the first slice:
 
-1. **The order of the levels** of a categorical column made by the
-   import. `table_io-needs.md` says alphabetical. The proposal is case
-   ignored and the numbers inside a name compared as numbers, so that
-   `pop2` comes before `pop10`, with ties broken by the exact text; the
-   other is the order of the characters' codes, in which `Pop10` comes
-   before `pop2`. Needed for the import's slice.
-2. **The colours.** `design.md` takes Okabe and Ito's list, eight
-   colours that people with the common kinds of colour blindness can
-   tell apart, whose first colour is black. The proposal leaves black
-   out, since a black point is hard to see on a dark background, which
-   leaves seven colours, from orange, in the list's order. For the
-   levels after the seventh, `design.md` goes through the list again,
-   lighter or darker; the proposal is the list mixed with 40 % white for
-   the second round and 40 % black for the third, 21 colours in all, and
-   the owner sees them before they are taken. What a column of more than
-   21 levels gets is left to that look. Needed for the import's slice.
-3. **The mode of the pointer**, move, add or remove (`design.md`,
+1. **The mode of the pointer**, move, add or remove (`design.md`,
    section 1). Section 3 there does not place it in a tier. It goes with
    the selected population, which every window shares, so the proposal
    is to put it in the interaction, one for all windows. It changes no

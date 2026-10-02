@@ -1,0 +1,63 @@
+# The Cargo workspace of Vavilov Explorer: the core crate and the Tauri
+# app (docs/core.md, section 1).
+[workspace]
+members = ["src-tauri", "crates/*"]
+# A workspace with no package of its own does not take the resolver from
+# the edition.
+resolver = "3"
+# The spikes and the scratch projects have Cargo.toml files of their own
+# that are not members.
+exclude = ["spikes", "tmp"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.21"
+
+# https://tauri.app/concept/size/#cargo-configuration. Cargo reads
+# profiles only from the root of a workspace.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+# The lint table of .claude/skills/coding/rust.md, whose reasons are there.
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "deny"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+[workspace.lints.clippy]
+# Integers: nothing that wraps or truncates in silence.
+arithmetic_side_effects = "deny"
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
+cast_lossless = "deny"
+fallible_impl_from = "deny"
+# No panics outside the tests (clippy.toml exempts the tests).
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+indexing_slicing = "deny"
+# Floats, types and the API.
+float_cmp = "deny"
+wildcard_enum_match_arm = "deny"
+fn_params_excessive_bools = "deny"
+match_same_arms = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+# A lint is silenced with a reason, on the smallest item.
+allow_attributes_without_reason = "deny"
