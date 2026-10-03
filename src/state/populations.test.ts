@@ -4,7 +4,8 @@ import type { TableDescription } from "./description.ts";
 import { isColumnId, isLevelCode, isRevision } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision } from "./ids.ts";
 import { isCategoricalColumn } from "./description.ts";
-import { populationsModel, sameSelected } from "./populations.ts";
+import { colourChoices, populationsModel, sameSelected } from "./populations.ts";
+import type { PopulationRow } from "./populations.ts";
 
 function column(value: number): ColumnId {
   if (!isColumnId(value)) throw new Error("not a column");
@@ -255,5 +256,37 @@ describe("two selections", () => {
     ).toBe(false);
     expect(sameSelected({ kind: "population", code: code(1) }, { kind: "unassigned" })).toBe(false);
     expect(sameSelected(null, { kind: "unassigned" })).toBe(false);
+  });
+});
+
+describe("the colours a group edited can take", () => {
+  /** A row of a group of `colour`, not selected and empty. */
+  function row(at: number, name: string, colour: string): PopulationRow {
+    return {
+      selected: { kind: "population", code: code(at) },
+      name,
+      colour,
+      count: 0,
+      isSelected: false,
+    };
+  }
+  const rows: readonly PopulationRow[] = [
+    row(0, "Spain", "#e69f00"),
+    row(1, "Peru", "#56b4e9"),
+    row(2, "Chile", "#56b4e9"),
+    row(3, "Japan", "#009e73"),
+    { selected: { kind: "unassigned" }, name: null, colour: null, count: 3, isSelected: false },
+  ];
+
+  test("are the whole list, each named with the other groups that have it", () => {
+    const choices = colourChoices(rows, code(3), String);
+    expect(choices).toHaveLength(21);
+    expect(choices.slice(0, 4)).toEqual([
+      { colour: "#e69f00", label: "Orange, used by Spain" },
+      { colour: "#56b4e9", label: "Sky blue, used by 2 groups" },
+      // Japan's own colour is not used by another group.
+      { colour: "#009e73", label: "Bluish green" },
+      { colour: "#f0e442", label: "Yellow" },
+    ]);
   });
 });

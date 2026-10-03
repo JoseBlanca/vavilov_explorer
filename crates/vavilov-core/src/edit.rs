@@ -33,16 +33,29 @@ pub(crate) enum Edit {
         column: ColumnId,
         values: ColumnValues,
     },
-    /// Adds a level, with its colour, after the last of a category: a new
-    /// population, or the reverse of removing it. No code changes.
-    AddLevel {
+    /// Inserts a level, with its colour, into a category at `code`, the
+    /// levels from there on taking the code after their own, and gives it
+    /// `rows`, which hold none: a new population, last and with no rows, or
+    /// the reverse of deleting one.
+    InsertLevel {
         column: ColumnId,
+        code: LevelCode,
+        level: Level,
+        colour: Colour,
+        rows: Vec<RowIndex>,
+    },
+    /// Deletes the level of `code` from a category, leaving its rows with
+    /// none and the levels after it taking the code before their own: a
+    /// population deleted, or the reverse of adding one.
+    DeleteLevel { column: ColumnId, code: LevelCode },
+    /// Sets the value and the colour of the level of `code`: a population
+    /// renamed or given another colour, or the reverse. No code changes.
+    SetLevel {
+        column: ColumnId,
+        code: LevelCode,
         level: Level,
         colour: Colour,
     },
-    /// Removes the last level of a category, which no row holds: the
-    /// reverse of adding it.
-    RemoveLevel { column: ColumnId },
 }
 
 /// The value of one cell of a column of numbers or text, of the column's

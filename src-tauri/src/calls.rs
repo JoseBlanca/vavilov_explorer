@@ -11,8 +11,8 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    CellMatch, ColumnId, Command, CommandError, EditMode, Filter, LevelCode, Outcome, Position,
-    Request, Revision, Role, RowIndex, RowsRequest, Selected, SentAt, Session, Showing,
+    CellMatch, Colour, ColumnId, Command, CommandError, EditMode, Filter, LevelCode, Outcome,
+    Position, Request, Revision, Role, RowIndex, RowsRequest, Selected, SentAt, Session, Showing,
     TableDescription,
 };
 
@@ -27,6 +27,8 @@ pub const COMMANDS: &[&str] = &[
     "set_active_classification",
     "select_population",
     "add_population",
+    "delete_population",
+    "edit_population",
     "set_edit_mode",
     "set_role",
     "set_filter",
@@ -167,6 +169,28 @@ pub fn call(
             };
             request(command, args.based_on, args.sent_at)?
         }
+        "delete_population" => {
+            let args: DeletePopulationArgs = json_args(command, body)?;
+            let command = Command::DeletePopulation {
+                column: ColumnId::new(args.column),
+                population: LevelCode::new(args.population),
+            };
+            request(command, args.based_on, args.sent_at)?
+        }
+        "edit_population" => {
+            let args: EditPopulationArgs = json_args(command, body)?;
+            let colour = Colour::from_css(&args.colour).ok_or_else(|| CommandError::Defect {
+                what: format!("a population given the colour {:?}", args.colour),
+            })?;
+            let command = Command::EditPopulation {
+                column: ColumnId::new(args.column),
+                population: LevelCode::new(args.population),
+                name: args.name,
+                colour,
+                decimal_mark: args.decimal_mark,
+            };
+            request(command, args.based_on, args.sent_at)?
+        }
         "set_edit_mode" => {
             let args: EditModeArgs = json_args(command, body)?;
             let command = Command::SetEditMode {
@@ -284,6 +308,32 @@ struct PopulationArgs {
 struct AddPopulationArgs {
     column: u32,
     name: String,
+    decimal_mark: String,
+    based_on: u64,
+    sent_at: Option<f64>,
+}
+
+/// The arguments of `delete_population`: the active classification and
+/// the code of the population.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DeletePopulationArgs {
+    column: u32,
+    population: u16,
+    based_on: u64,
+    sent_at: Option<f64>,
+}
+
+/// The arguments of `edit_population`: the active classification, the
+/// code of the population, the name typed, its colour as CSS writes one,
+/// `#rrggbb`, and the decimal mark the window writes numbers with.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct EditPopulationArgs {
+    column: u32,
+    population: u16,
+    name: String,
+    colour: String,
     decimal_mark: String,
     based_on: u64,
     sent_at: Option<f64>,

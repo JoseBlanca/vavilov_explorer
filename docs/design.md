@@ -268,12 +268,25 @@ it.
     has both (decided the same day). The field and its buttons, and the
     reasons a name is refused, were written by the assistant and shown to
     the owner.
-  - When a group is selected, Edit and "Delete group" are to appear
-    beside Add group, each with its command in the core. Delete leaves
-    the group's individuals unassigned, asks nothing first, since Undo
-    brings the group back, and the information bar says so. What Edit
-    changes, the name alone or the colour too, is decided when it is
-    built.
+  - When a group is selected, "Edit group" and "Delete group" appear
+    beside Add group, each with its command in the core. Delete group
+    deletes the group at once and asks nothing first, since Undo brings
+    it back, in its place and with its individuals. Its individuals
+    become unassigned, + or − pressed on it is released, and the
+    information bar says how many individuals it left unassigned and
+    how to undo: "The group Spain was deleted, and its 3 individuals are
+    unassigned now. Edit > Undo brings it back." Edit group opens a form
+    with "Name of the group", holding the group's name, and "Colour", the
+    21 colours of section 5 as round swatches, the group's own ringed,
+    each named for a screen reader and in its tooltip with the other
+    group that has it, "Orange, used by Spain"; Save and Cancel, Enter
+    and Escape. A name is refused for the reasons of Add group, with the
+    reason in the bar and the form kept open; the group keeps its code,
+    its individuals and its selection. Edit changes the name and the
+    colour, and a colour only from the list, so that the groups stay
+    apart for the common kinds of colour blindness (decided by the owner
+    on 3 October 2026). The buttons, the form and the words were written
+    by the assistant, for the owner to review.
 - With no project open, the main window shows an empty state: Open
   project…, Import table…, the recent projects, and dropping a file on
   the window, which opens a `.vav` and imports a CSV, TSV or xlsx. An
@@ -518,9 +531,10 @@ with case ignored, ties broken by the exact text, and numbers inside a
 name are compared as text, not as numbers. The list is Okabe and Ito's
 without its black, seven colours from orange, then the same mixed with
 40 % white, then with 40 % black (decided by the owner on 2 October 2026,
-`core.md`, section 10). The user can change any colour with a colour
-picker. Colours are part of the document, saved in the project and
-undone like any other edit.
+`core.md`, section 10). The user can give a population another colour of
+the list with Edit group (section 2.1), and no colour outside it
+(decided by the owner on 3 October 2026). Colours are part of the
+document, saved in the project and undone like any other edit.
 
 ## 6. Storage types and roles
 
@@ -768,10 +782,10 @@ What each part of the interface is drawn with:
   rows, listeners or focus.
 
 Native HTML elements are used where they exist: `<select>` for the types
-and for the active classification, `<dialog>` for the dialogs, and
-`<input type="color">` for the colour of a population, which opens the
-system's colour picker. They bring the keyboard handling and the
-accessibility that would otherwise come from a library of components.
+and for the active classification, `<dialog>` for the dialogs, and radio
+buttons, drawn as swatches, for the colour of a population, which comes
+from the list of section 5 alone. They bring the keyboard handling and
+the accessibility that would otherwise come from a library of components.
 
 In each window, the state is the window's copy of the backend's state
 (section 3), plus the window's own, such as the camera of a 3D view, held

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::countries::country_code;
 use crate::error::CommandError;
-use crate::ids::{ColumnId, LevelCode, Revision};
+use crate::ids::{ColumnId, LevelCode, Revision, RowIndex};
 use crate::table::colour::{Colour, palette};
 
 /// What the values of a column are, as the import read them. It never
@@ -172,6 +172,77 @@ impl LevelValues {
             Self::Text(values) => values.get(index).cloned(),
         }
     }
+
+    /// Inserts `level` at `index`, which is at most the number of levels.
+    fn insert(&mut self, index: usize, level: Level) -> Result<(), CommandError> {
+        if index > self.len() {
+            return Err(CommandError::Defect {
+                what: format!("a level inserted at {index} among {}", self.len()),
+            });
+        }
+        match (self, level) {
+            (Self::Integer(values), Level::Integer(value)) => values.insert(index, value),
+            (Self::Float(values), Level::Float(value)) => values.insert(index, value),
+            (Self::Boolean(values), Level::Boolean(value)) => values.insert(index, value),
+            (Self::Text(values), Level::Text(value)) => values.insert(index, value),
+            (
+                levels @ (Self::Integer(_) | Self::Float(_) | Self::Boolean(_) | Self::Text(_)),
+                level,
+            ) => {
+                return Err(other_type(levels, &level));
+            }
+        }
+        Ok(())
+    }
+
+    /// Removes and gives the level at `index`, or `None` when there is none.
+    fn remove(&mut self, index: usize) -> Option<Level> {
+        if index >= self.len() {
+            return None;
+        }
+        Some(match self {
+            Self::Integer(values) => Level::Integer(values.remove(index)),
+            Self::Float(values) => Level::Float(values.remove(index)),
+            Self::Boolean(values) => Level::Boolean(values.remove(index)),
+            Self::Text(values) => Level::Text(values.remove(index)),
+        })
+    }
+
+    /// Makes the level at `index` `level`, and gives the one it was.
+    fn replace(&mut self, index: usize, level: Level) -> Result<Level, CommandError> {
+        let missing = || CommandError::Defect {
+            what: format!("the level at {index}, which is not there"),
+        };
+        match (self, level) {
+            (Self::Integer(values), Level::Integer(value)) => values
+                .get_mut(index)
+                .map(|slot| Level::Integer(std::mem::replace(slot, value)))
+                .ok_or_else(missing),
+            (Self::Float(values), Level::Float(value)) => values
+                .get_mut(index)
+                .map(|slot| Level::Float(std::mem::replace(slot, value)))
+                .ok_or_else(missing),
+            (Self::Boolean(values), Level::Boolean(value)) => values
+                .get_mut(index)
+                .map(|slot| Level::Boolean(std::mem::replace(slot, value)))
+                .ok_or_else(missing),
+            (Self::Text(values), Level::Text(value)) => values
+                .get_mut(index)
+                .map(|slot| Level::Text(std::mem::replace(slot, value)))
+                .ok_or_else(missing),
+            (
+                levels @ (Self::Integer(_) | Self::Float(_) | Self::Boolean(_) | Self::Text(_)),
+                level,
+            ) => Err(other_type(levels, &level)),
+        }
+    }
+}
+
+/// The defect of `level` put among `levels` of another storage type.
+fn other_type(levels: &LevelValues, level: &Level) -> CommandError {
+    CommandError::Defect {
+        what: format!("a level {level:?} among levels of {} values", levels.len()),
+    }
 }
 
 /// One level of a category, of the column's storage type.
@@ -288,88 +359,157 @@ impl Categorical {
         })
     }
 
-    /// The category with `level`, of `colour`, after its last level; the
-    /// codes are the same.
+    /// The category with `level`, of `colour`, inserted at `code`, so that
+    /// each level from `code` on takes the code after its own, and with
+    /// `rows`, which held no level, given it: a new population, last and
+    /// with no rows, or one deleted given back.
     ///
     /// # Errors
     ///
-    /// A `Defect` for a level of another storage type, or one the
-    /// category has, which the caller checked.
-    pub(crate) fn with_level(&self, level: Level, colour: Colour) -> Result<Self, CommandError> {
+    /// A `Defect`, since the caller checked each of these: a code beyond
+    /// the one after the last level, a category of [`crate::MAX_LEVELS`]
+    /// levels, a level of another storage type or one the category has, or
+    /// a row beyond the table or one that holds a level.
+    pub(crate) fn with_level_at(
+        &self,
+        code: LevelCode,
+        level: Level,
+        colour: Colour,
+        rows: &[RowIndex],
+    ) -> Result<Self, CommandError> {
+        let defect = |what: String| CommandError::Defect {
+            what: format!("a level inserted at {code} into a category {what}"),
+        };
         if self.levels.position(&level).is_some() {
-            return Err(CommandError::Defect {
-                what: format!("a level {level:?} added to a category that has it"),
-            });
+            return Err(defect(format!("that has it, {level:?}")));
+        }
+        let index = usize::from(code.get());
+        let num_levels = self.levels.len();
+        if index > num_levels || index > self.colours.len() {
+            return Err(defect(format!("of {num_levels} levels")));
+        }
+        if num_levels >= crate::table::MAX_LEVELS_USIZE {
+            return Err(defect("that has every code".to_owned()));
         }
         let mut levels = self.levels.clone();
-        match (&mut levels, level) {
-            (LevelValues::Integer(values), Level::Integer(value)) => values.push(value),
-            (LevelValues::Float(values), Level::Float(value)) => values.push(value),
-            (LevelValues::Boolean(values), Level::Boolean(value)) => values.push(value),
-            (LevelValues::Text(values), Level::Text(value)) => values.push(value),
-            (
-                LevelValues::Integer(_)
-                | LevelValues::Float(_)
-                | LevelValues::Boolean(_)
-                | LevelValues::Text(_),
-                level,
-            ) => {
-                return Err(CommandError::Defect {
-                    what: format!(
-                        "a level {level:?} added to a category of {:?}",
-                        self.storage_type()
-                    ),
-                });
+        levels.insert(index, level)?;
+        let mut colours = self.colours.clone();
+        colours.insert(index, colour);
+        let mut codes = self
+            .codes
+            .iter()
+            .map(|held| match held {
+                Some(held) if held.get() >= code.get() => held
+                    .get()
+                    .checked_add(1)
+                    .map(|next| Some(LevelCode::new(next)))
+                    .ok_or_else(|| defect("whose codes are full".to_owned())),
+                Some(_) | None => Ok(*held),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for row in rows {
+            match codes.get_mut(crate::convert::usize_from(row.get())) {
+                Some(slot @ None) => *slot = Some(code),
+                Some(Some(_)) => return Err(defect(format!("for row {row}, which holds one"))),
+                None => return Err(defect(format!("for row {row}, beyond the table"))),
             }
         }
-        let mut colours = self.colours.clone();
-        colours.push(colour);
         Ok(Self {
             levels,
             colours,
-            codes: self.codes.clone(),
+            codes,
         })
     }
 
-    /// The category without its last level, and that level with its
-    /// colour; the codes are the same.
+    /// The category without the level of `code`, so that each level after
+    /// it takes the code before its own, and the rows that held it hold
+    /// none; with the level, its colour, and those rows in order.
     ///
     /// # Errors
     ///
-    /// A `Defect` when the category has no level, or a row holds the last
-    /// one: the history removes only a level it added, after every edit
-    /// that gave it rows was undone.
-    pub(crate) fn without_last_level(&self) -> Result<(Self, Level, Colour), CommandError> {
-        let defect = |what: &str| CommandError::Defect {
-            what: format!("the last level removed from a category that {what}"),
+    /// A `Defect` for a code with no level, which the caller checked.
+    pub(crate) fn without_level(
+        &self,
+        code: LevelCode,
+    ) -> Result<(Self, Level, Colour, Vec<RowIndex>), CommandError> {
+        let defect = || CommandError::Defect {
+            what: format!(
+                "the level {code} deleted from a category of {} levels",
+                self.levels.len()
+            ),
         };
-        let last = self
-            .levels
-            .len()
-            .checked_sub(1)
-            .ok_or_else(|| defect("has none"))?;
-        let held = super::level_code(last)?;
-        if self.codes.contains(&Some(held)) {
-            return Err(defect("a row holds"));
+        let index = usize::from(code.get());
+        if index >= self.colours.len() {
+            return Err(defect());
         }
         let mut levels = self.levels.clone();
-        let level = match &mut levels {
-            LevelValues::Integer(values) => values.pop().map(Level::Integer),
-            LevelValues::Float(values) => values.pop().map(Level::Float),
-            LevelValues::Boolean(values) => values.pop().map(Level::Boolean),
-            LevelValues::Text(values) => values.pop().map(Level::Text),
-        }
-        .ok_or_else(|| defect("has none"))?;
+        let level = levels.remove(index).ok_or_else(defect)?;
         let mut colours = self.colours.clone();
-        let colour = colours.pop().ok_or_else(|| defect("has no colours"))?;
+        let colour = colours.remove(index);
+        let mut rows = Vec::new();
+        let mut codes = Vec::with_capacity(self.codes.len());
+        for (row, held) in self.codes.iter().enumerate() {
+            codes.push(match held {
+                Some(held) if *held == code => {
+                    rows.push(row_index(row)?);
+                    None
+                }
+                Some(held) if held.get() > code.get() => {
+                    held.get().checked_sub(1).map(LevelCode::new)
+                }
+                Some(_) | None => *held,
+            });
+        }
+        Ok((
+            Self {
+                levels,
+                colours,
+                codes,
+            },
+            level,
+            colour,
+            rows,
+        ))
+    }
+
+    /// The category with the level of `code` made `level`, of `colour`, and
+    /// the level and colour it had; the codes are the same.
+    ///
+    /// # Errors
+    ///
+    /// A `Defect`, since the caller checked each: a code with no level, or
+    /// a level of another storage type or another level's.
+    pub(crate) fn with_level_set(
+        &self,
+        code: LevelCode,
+        level: Level,
+        colour: Colour,
+    ) -> Result<(Self, Level, Colour), CommandError> {
+        let index = usize::from(code.get());
+        if self
+            .levels
+            .position(&level)
+            .is_some_and(|other| other != index)
+        {
+            return Err(CommandError::Defect {
+                what: format!("the level {code} made {level:?}, another level's"),
+            });
+        }
+        let mut levels = self.levels.clone();
+        let old_level = levels.replace(index, level)?;
+        let mut colours = self.colours.clone();
+        let slot = colours.get_mut(index).ok_or_else(|| CommandError::Defect {
+            what: format!("the colour of the level {code}, which has none"),
+        })?;
+        let old_colour = std::mem::replace(slot, colour);
         Ok((
             Self {
                 levels,
                 colours,
                 codes: self.codes.clone(),
             },
-            level,
-            colour,
+            old_level,
+            old_colour,
         ))
     }
 

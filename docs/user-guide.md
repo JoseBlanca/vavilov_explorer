@@ -169,6 +169,21 @@ not have yet, and no other. Once made,
 the group is among the values a cell of the column suggests. Edit, Undo
 removes it again.
 
+To rename a group or give it another colour, select it and press Edit
+group below the list. Change the name, choose a colour among the 21
+shown, and press Save; press Cancel, or Escape, to give up. The name
+follows the rules of a new group, and the group keeps its individuals.
+When the name is not accepted, the bar at the bottom of the window says
+why, the group stays as it was, and the form stays open with what you
+typed, to correct it. A colour another group has can be chosen too:
+hold the pointer over a colour to read its name and the group that has
+it, or how many groups have it.
+
+To delete a group, select it and press Delete group. Its individuals
+become unassigned, and the bar at the bottom of the window says how
+many. Edit, Undo brings the group back, in its place and with its
+individuals.
+
 ## Undoing an edit
 
 Edit, Undo, or Cmd-Z (Ctrl-Z on Windows and Linux), undoes the last

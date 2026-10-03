@@ -1,6 +1,6 @@
 import { nothing, render } from "lit-html";
 
-import type { Connection } from "../../backend/connection.ts";
+import type { Answer, Connection } from "../../backend/connection.ts";
 import type { BarMessage } from "../../state/barMessages.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow } from "../../state/description.ts";
@@ -8,18 +8,20 @@ import type { ColumnId, LevelCode, Revision } from "../../state/ids.ts";
 import type { EditMode } from "../../state/message.ts";
 import {
   addedCount,
+  deletedMessage,
   pressedMessage,
   releasedMessage,
   removedCount,
 } from "../../state/populationEdit.ts";
 import type { EditTarget } from "../../state/populationEdit.ts";
 import { populationRefusalMessage } from "../../state/populationMessages.ts";
+import type { TypedFor } from "../../state/populationMessages.ts";
 import { populationsModel } from "../../state/populations.ts";
 import type { PopulationRow, PopulationsModel } from "../../state/populations.ts";
 import { answered } from "../shared/answered.ts";
 import { countText } from "../shared/numbers.ts";
 import { populationsPanelView } from "./populationsPanel.view.ts";
-import type { NameField } from "./populationsPanel.view.ts";
+import type { GroupForm } from "./populationsPanel.view.ts";
 
 /** The populations panel in its element. */
 export interface PopulationsPanel {
@@ -36,8 +38,8 @@ interface Edited {
   readonly codes: Uint16Array;
 }
 
-/** Where the focus goes once the panel is drawn, after the field of a name opened or closed. */
-type FocusNext = "nameField" | "addGroup" | null;
+/** Where the focus goes once the panel is drawn, after a form opened or closed. */
+type FocusNext = "nameField" | "addGroup" | "editGroup" | null;
 
 /** The button pressed as the panel last saw it, so that the bar can say when it is released. */
 interface Pressed {
@@ -54,8 +56,10 @@ interface Pressed {
  * the backend assigns the individuals that enter the selection meanwhile;
  * the information bar, through `tell`, says what pressing one did and when
  * it is released, however it was. Add group opens a field for the new
- * group's name, read with the region's decimal `mark`, and the bar says why
- * a name was refused (docs/design.md, section 2.1).
+ * group's name, read with the region's decimal `mark`, and Edit group one
+ * for the selected group's name and colour; the bar says why a name was
+ * refused. Delete group deletes the selected group at once, and the bar
+ * says how to undo it (docs/design.md, section 2.1).
  */
 export function createPopulationsPanel(
   element: HTMLElement,
@@ -66,7 +70,7 @@ export function createPopulationsPanel(
   report: (error: unknown) => void,
 ): PopulationsPanel {
   const { state } = connection;
-  let nameField: NameField = { kind: "closed" };
+  let form: GroupForm = { kind: "closed" };
   let focusNext: FocusNext = null;
   /** The model last drawn, which names the groups of a refusal and of a release. */
   let drawn: PopulationsModel | null = null;
@@ -74,8 +78,8 @@ export function createPopulationsPanel(
   /** Whether `destroy` ran, after which an answer that comes back draws nothing. */
   let destroyed = false;
 
-  const closeName = (): void => {
-    nameField = { kind: "closed" };
+  const closeForm = (): void => {
+    form = { kind: "closed" };
   };
 
   const press = (row: PopulationRow): void => {
@@ -188,36 +192,102 @@ export function createPopulationsPanel(
       ?.name ?? null;
 
   /**
-   * Sends the name typed, once: a second Enter or Add while it is on its way
-   * does nothing. The field closes when the group is added, or when the
-   * command came after another table was loaded; it stays open, with what
-   * was typed, when the name is refused.
+   * Sends what the form holds, once: a second Enter while it is on its way
+   * does nothing. The form closes when the group is added or edited, or
+   * when the command came after another table was loaded or the groups
+   * changed; it stays open, with what was typed, when the name is refused.
    */
-  const submitName = (): void => {
-    if (nameField.kind !== "open") {
+  const submitForm = (): void => {
+    if (form.kind === "closed" || form.sending) {
       return;
     }
-    const sending: NameField = { ...nameField, kind: "sending" };
-    nameField = sending;
-    connection.addPopulation(sending.column, sending.text, mark).then((answer) => {
-      const still = nameField === sending;
+    const sending: GroupForm = { ...form, sending: true };
+    form = sending;
+    let sent: Promise<Answer>;
+    let typedFor: TypedFor;
+    let focus: FocusNext;
+    if (sending.kind === "adding") {
+      sent = connection.addPopulation(sending.column, sending.text, mark);
+      typedFor = { kind: "add" };
+      focus = "addGroup";
+    } else {
+      sent = connection.editPopulation(
+        sending.column,
+        sending.code,
+        sending.text,
+        sending.colour,
+        mark,
+      );
+      typedFor = { kind: "edit", name: sending.name };
+      focus = "editGroup";
+    }
+    sent.then((answer) => {
+      const still = form === sending;
       if (answer.ok) {
         if (still) {
-          closeName();
-          focusNext = "addGroup";
+          closeForm();
+          focusNext = focus;
         }
         draw();
         return;
       }
       if (still) {
-        nameField = { ...sending, kind: "open" };
+        form = { ...sending, sending: false };
       }
       if (answer.error.kind === "populationRefused") {
-        tell(populationRefusalMessage(answer.error, groupName, countText));
+        tell(populationRefusalMessage(answer.error, groupName, countText, typedFor));
         return;
       }
-      answered("adding a group", draw)(answer);
+      answered(typedFor.kind === "add" ? "adding a group" : "editing a group", draw)(answer);
     }, report);
+  };
+
+  /**
+   * Deletes the group of `row`, tells the bar how many of its individuals,
+   * counted from the copy, are unassigned now, and puts the focus on Add
+   * group.
+   */
+  const deleteGroup = (row: PopulationRow): void => {
+    const active = state.active();
+    if (active === null || row.selected.kind !== "population" || row.name === null) {
+      throw defect("Delete group on a row that is not a group of the active classification");
+    }
+    const { name, count } = row;
+    // Deleting the group releases + or − on it, which the bar's word of the
+    // deletion says enough: the release is not told, whether the answer or
+    // the change reaches the panel first. A refusal changes nothing, and
+    // the next draw sees the button still pressed.
+    pressed = null;
+    connection.deletePopulation(active.column, row.selected.code).then((answer) => {
+      if (answer.ok && answer.value === "applied") {
+        tell(deletedMessage(name, count, countText));
+        // Delete group is gone with the group: the focus goes to Add group.
+        focusNext = "addGroup";
+        draw();
+        return;
+      }
+      answered("deleting a group", draw)(answer);
+    }, report);
+  };
+
+  /** Whether the form is on what the panel shows: its classification, and the group it edits selected. */
+  const formFits = (model: PopulationsModel): boolean => {
+    switch (form.kind) {
+      case "closed":
+        return true;
+      case "adding":
+        return model.active === form.column;
+      case "editing": {
+        const { code } = form;
+        return (
+          model.active === form.column &&
+          model.rows.some(
+            (row) =>
+              row.isSelected && row.selected.kind === "population" && row.selected.code === code,
+          )
+        );
+      }
+    }
   };
 
   const draw = (): void => {
@@ -226,7 +296,7 @@ export function createPopulationsPanel(
     }
     const now = description();
     if (now.kind === "none") {
-      closeName();
+      closeForm();
       drawn = null;
       pressed = null;
       render(nothing, element);
@@ -237,8 +307,8 @@ export function createPopulationsPanel(
       return;
     }
     const model = populationsModel(now.description, state.active(), state.codes, mark);
-    if (nameField.kind !== "closed" && model.active !== nameField.column) {
-      closeName();
+    if (!formFits(model)) {
+      closeForm();
     }
     drawn = model;
     follow(model);
@@ -247,7 +317,7 @@ export function createPopulationsPanel(
     render(
       populationsPanelView({
         model,
-        nameField,
+        form,
         onChooseClassification: (column) => {
           connection
             .setActiveClassification(column)
@@ -255,23 +325,48 @@ export function createPopulationsPanel(
         },
         onPress: press,
         onToggle: toggle,
-        onOpenName: () => {
+        onOpenAdd: () => {
           if (model.active === null) {
             return;
           }
-          nameField = { kind: "open", text: "", column: model.active };
+          form = { kind: "adding", sending: false, column: model.active, text: "" };
           focusNext = "nameField";
           draw();
         },
+        onOpenEdit: (row) => {
+          if (model.active === null || row.selected.kind !== "population") {
+            return;
+          }
+          if (row.name === null || row.colour === null) {
+            throw defect(`the group ${String(row.selected.code)} with no name or colour`);
+          }
+          form = {
+            kind: "editing",
+            sending: false,
+            column: model.active,
+            code: row.selected.code,
+            name: row.name,
+            text: row.name,
+            colour: row.colour,
+          };
+          focusNext = "nameField";
+          draw();
+        },
+        onDelete: deleteGroup,
         onTypeName: (text) => {
-          if (nameField.kind === "open") {
-            nameField = { ...nameField, text };
+          if (form.kind !== "closed" && !form.sending) {
+            form = { ...form, text };
           }
         },
-        onSubmitName: submitName,
-        onCancelName: () => {
-          closeName();
-          focusNext = "addGroup";
+        onChooseColour: (colour) => {
+          if (form.kind === "editing" && !form.sending) {
+            form = { ...form, colour };
+          }
+        },
+        onSubmitForm: submitForm,
+        onCancelForm: () => {
+          focusNext = form.kind === "editing" ? "editGroup" : "addGroup";
+          closeForm();
           draw();
         },
       }),
@@ -281,7 +376,7 @@ export function createPopulationsPanel(
   };
 
   /**
-   * Puts the focus where the field of a name that opened or closed sends it;
+   * Puts the focus where a form that opened or closed sends it;
    * or, when the panel `hadFocus` and the control that held it was drawn
    * away, such as the + of a group an undo removed, on the selected row, or
    * else on Add group, or else on the classification, so that a user of the
@@ -290,14 +385,17 @@ export function createPopulationsPanel(
   const moveFocus = (hadFocus: boolean): void => {
     const next = focusNext;
     focusNext = null;
+    const add = '[data-group-action="add"]';
     const selectors =
       next === "nameField"
         ? ["[data-name-field]"]
         : next === "addGroup"
-          ? ["[data-add-group] button"]
-          : hadFocus && !element.contains(element.ownerDocument.activeElement)
-            ? ['li button[aria-pressed="true"]', "[data-add-group] button", "select"]
-            : [];
+          ? [add]
+          : next === "editGroup"
+            ? ['[data-group-action="edit"]', add]
+            : hadFocus && !element.contains(element.ownerDocument.activeElement)
+              ? ['li button[aria-pressed="true"]', add, "select"]
+              : [];
     for (const selector of selectors) {
       const target = element.querySelector(selector);
       if (target instanceof HTMLElement) {

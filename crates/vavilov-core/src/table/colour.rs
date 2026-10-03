@@ -13,6 +13,23 @@ pub struct Colour {
     pub blue: u8,
 }
 
+impl Colour {
+    /// The colour of a text as CSS writes one, `#rrggbb`, in lower or upper
+    /// case; `None` for any other text.
+    #[must_use]
+    pub fn from_css(text: &str) -> Option<Self> {
+        let hex = text.strip_prefix('#')?;
+        if hex.len() != 6 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return None;
+        }
+        let channel = |range: std::ops::Range<usize>| {
+            hex.get(range)
+                .and_then(|pair| u8::from_str_radix(pair, 16).ok())
+        };
+        Some(rgb(channel(0..2)?, channel(2..4)?, channel(4..6)?))
+    }
+}
+
 const fn rgb(red: u8, green: u8, blue: u8) -> Colour {
     Colour { red, green, blue }
 }
@@ -77,3 +94,6 @@ pub(crate) fn unused_colour(colours: &[Colour]) -> Result<Colour, CommandError> 
             what: "no colour in the list of colours".to_owned(),
         })
 }
+
+#[cfg(test)]
+mod tests;

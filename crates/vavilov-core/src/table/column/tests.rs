@@ -337,56 +337,137 @@ fn spain_peru(codes: Vec<Option<LevelCode>>) -> Categorical {
     )
 }
 
+fn level_texts(levels: &[&str]) -> LevelValues {
+    LevelValues::Text(levels.iter().map(|level| (*level).to_owned()).collect())
+}
+
 #[test]
-fn a_level_added_and_then_removed_gives_the_category_back() {
+fn a_level_inserted_last_and_then_deleted_gives_the_category_back() {
     let start = spain_peru(vec![code(1), None, code(0)]);
     let added = start
-        .with_level(Level::Text("China".to_owned()), PALETTE[2])
+        .with_level_at(
+            LevelCode::new(2),
+            Level::Text("China".to_owned()),
+            PALETTE[2],
+            &[],
+        )
         .unwrap();
-    assert_eq!(
-        added.levels(),
-        &LevelValues::Text(vec![
-            "Spain".to_owned(),
-            "Peru".to_owned(),
-            "China".to_owned()
-        ])
-    );
+    assert_eq!(added.levels(), &level_texts(&["Spain", "Peru", "China"]));
     assert_eq!(added.colours(), [PALETTE[0], PALETTE[1], PALETTE[2]]);
     assert_eq!(added.codes(), start.codes());
-    let (removed, level, colour) = added.without_last_level().unwrap();
-    assert_eq!(removed, start);
+    let (deleted, level, colour, rows) = added.without_level(LevelCode::new(2)).unwrap();
+    assert_eq!(deleted, start);
     assert_eq!(level, Level::Text("China".to_owned()));
     assert_eq!(colour, PALETTE[2]);
+    assert_eq!(rows, []);
 }
 
 #[test]
-fn a_level_of_another_type_or_one_there_is_cannot_be_added() {
+fn a_level_deleted_leaves_its_rows_with_none_and_moves_the_codes_after_it_down() {
+    let start = Categorical::new(
+        level_texts(&["Spain", "Peru", "China"]),
+        vec![PALETTE[4], PALETTE[5], PALETTE[6]],
+        vec![code(2), code(0), None, code(0), code(1)],
+    );
+    let (deleted, level, colour, rows) = start.without_level(LevelCode::new(0)).unwrap();
+    assert_eq!(deleted.levels(), &level_texts(&["Peru", "China"]));
+    assert_eq!(deleted.colours(), [PALETTE[5], PALETTE[6]]);
+    assert_eq!(deleted.codes(), [code(1), None, None, None, code(0)]);
+    assert_eq!(level, Level::Text("Spain".to_owned()));
+    assert_eq!(colour, PALETTE[4]);
+    assert_eq!(rows, [RowIndex::new(1), RowIndex::new(3)]);
+    // Inserting it back where it was, with its rows, gives the category back.
+    let back = deleted
+        .with_level_at(LevelCode::new(0), level, colour, &rows)
+        .unwrap();
+    assert_eq!(back, start);
+}
+
+#[test]
+fn a_level_set_keeps_its_code_and_gives_the_value_and_colour_it_had() {
+    let start = spain_peru(vec![code(1), None, code(0)]);
+    let (set, level, colour) = start
+        .with_level_set(
+            LevelCode::new(1),
+            Level::Text("Chile".to_owned()),
+            PALETTE[3],
+        )
+        .unwrap();
+    assert_eq!(set.levels(), &level_texts(&["Spain", "Chile"]));
+    assert_eq!(set.colours(), [PALETTE[0], PALETTE[3]]);
+    assert_eq!(set.codes(), start.codes());
+    assert_eq!(level, Level::Text("Peru".to_owned()));
+    assert_eq!(colour, PALETTE[1]);
+    // Its own value, with another colour, is not another level's.
+    let (recoloured, _, _) = start
+        .with_level_set(
+            LevelCode::new(0),
+            Level::Text("Spain".to_owned()),
+            PALETTE[9],
+        )
+        .unwrap();
+    assert_eq!(recoloured.colours(), [PALETTE[9], PALETTE[1]]);
+}
+
+#[test]
+fn a_level_of_another_type_or_one_there_is_cannot_be_inserted_or_set() {
     let start = spain_peru(vec![None]);
+    let at = LevelCode::new(2);
     assert!(matches!(
-        start.with_level(Level::Integer(3), PALETTE[2]),
+        start.with_level_at(at, Level::Integer(3), PALETTE[2], &[]),
         Err(CommandError::Defect { .. })
     ));
     assert!(matches!(
-        start.with_level(Level::Text("Peru".to_owned()), PALETTE[2]),
+        start.with_level_at(at, Level::Text("Peru".to_owned()), PALETTE[2], &[]),
+        Err(CommandError::Defect { .. })
+    ));
+    assert!(matches!(
+        start.with_level_set(
+            LevelCode::new(0),
+            Level::Text("Peru".to_owned()),
+            PALETTE[2]
+        ),
+        Err(CommandError::Defect { .. })
+    ));
+    assert!(matches!(
+        start.with_level_set(LevelCode::new(0), Level::Boolean(true), PALETTE[2]),
         Err(CommandError::Defect { .. })
     ));
 }
 
 #[test]
-fn the_last_level_cannot_be_removed_while_a_row_holds_it_or_when_there_is_none() {
-    assert_eq!(
-        spain_peru(vec![None, code(1)]).without_last_level(),
-        Err(CommandError::Defect {
-            what: "the last level removed from a category that a row holds".to_owned()
-        })
-    );
-    let empty = Categorical::new(LevelValues::Text(Vec::new()), Vec::new(), vec![None]);
-    assert_eq!(
-        empty.without_last_level(),
-        Err(CommandError::Defect {
-            what: "the last level removed from a category that has none".to_owned()
-        })
-    );
+fn a_level_is_inserted_only_within_the_codes_and_into_rows_that_hold_none() {
+    let start = spain_peru(vec![None, code(1)]);
+    let china = || Level::Text("China".to_owned());
+    assert!(matches!(
+        start.with_level_at(LevelCode::new(3), china(), PALETTE[2], &[]),
+        Err(CommandError::Defect { .. })
+    ));
+    assert!(matches!(
+        start.with_level_at(LevelCode::new(0), china(), PALETTE[2], &[RowIndex::new(1)]),
+        Err(CommandError::Defect { .. })
+    ));
+    assert!(matches!(
+        start.with_level_at(LevelCode::new(0), china(), PALETTE[2], &[RowIndex::new(2)]),
+        Err(CommandError::Defect { .. })
+    ));
+}
+
+#[test]
+fn a_level_that_is_not_there_cannot_be_deleted_or_set() {
+    let start = spain_peru(vec![None, code(1)]);
+    assert!(matches!(
+        start.without_level(LevelCode::new(2)),
+        Err(CommandError::Defect { .. })
+    ));
+    assert!(matches!(
+        start.with_level_set(
+            LevelCode::new(2),
+            Level::Text("Chile".to_owned()),
+            PALETTE[2]
+        ),
+        Err(CommandError::Defect { .. })
+    ));
 }
 
 #[test]

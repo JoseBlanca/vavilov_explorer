@@ -159,6 +159,17 @@ fn every_command_is_registered_and_finds_the_session() {
             json!({ "column": 1, "name": "China", "decimalMark": ",", "basedOn": 0 }),
         ),
         (
+            "delete_population",
+            json!({ "column": 1, "population": 0, "basedOn": 0 }),
+        ),
+        (
+            "edit_population",
+            json!({
+                "column": 1, "population": 0, "name": "China", "colour": "#e69f00",
+                "decimalMark": ",", "basedOn": 0
+            }),
+        ),
+        (
             "set_edit_mode",
             json!({ "column": 1, "target": "unassigned", "mode": "add", "basedOn": 0 }),
         ),
@@ -613,6 +624,81 @@ fn a_population_added_through_its_command_is_selected_and_a_refusal_names_why() 
             "refusal": { "kind": "taken", "code": 1 }
         })
     );
+}
+
+/// The levels of origin as the session has them.
+fn origin_levels(app: &tauri::App<tauri::test::MockRuntime>) -> vavilov_core::LevelValues {
+    session_of(app)
+        .table()
+        .unwrap()
+        .column(ColumnId::new(ORIGIN))
+        .unwrap()
+        .categorical()
+        .unwrap()
+        .levels()
+        .clone()
+}
+
+#[test]
+fn a_population_is_edited_and_deleted_through_their_commands() {
+    let (app, window) = app();
+    load(&app);
+    json_command(
+        &window,
+        "edit_population",
+        json!({
+            "column": ORIGIN, "population": 1, "name": "Chile", "colour": "#E69F00",
+            "decimalMark": ",", "basedOn": 1, "sentAt": 1.5
+        }),
+    )
+    .unwrap();
+    assert_eq!(
+        origin_levels(&app),
+        vavilov_core::LevelValues::Text(vec!["Spain".to_owned(), "Chile".to_owned()])
+    );
+    assert_eq!(
+        json_command(
+            &window,
+            "edit_population",
+            json!({
+                "column": ORIGIN, "population": 1, "name": "Spain", "colour": "#e69f00",
+                "decimalMark": ",", "basedOn": 2
+            }),
+        )
+        .unwrap_err(),
+        json!({
+            "kind": "populationRefused", "columnName": "origin", "text": "Spain",
+            "refusal": { "kind": "taken", "code": 0 }
+        })
+    );
+    json_command(
+        &window,
+        "delete_population",
+        json!({ "column": ORIGIN, "population": 0, "basedOn": 2, "sentAt": 2.5 }),
+    )
+    .unwrap();
+    assert_eq!(
+        origin_levels(&app),
+        vavilov_core::LevelValues::Text(vec!["Chile".to_owned()])
+    );
+}
+
+#[test]
+fn a_colour_not_written_as_css_writes_one_is_a_defect() {
+    let (app, window) = app();
+    load(&app);
+    for colour in ["e69f00", "#e69f0", "#e69f0g", "orange"] {
+        let refused = json_command(
+            &window,
+            "edit_population",
+            json!({
+                "column": ORIGIN, "population": 1, "name": "Peru", "colour": colour,
+                "decimalMark": ",", "basedOn": 1
+            }),
+        )
+        .unwrap_err();
+        assert_eq!(refused["kind"], "defect", "{colour}");
+    }
 }
 
 #[test]

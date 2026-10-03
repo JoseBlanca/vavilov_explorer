@@ -22,6 +22,9 @@ function populationErrors(): readonly PopulationRefused[] {
   });
 }
 
+/** What the name was typed for: a new group. */
+const ADDING = { kind: "add" } as const;
+
 /** The groups of the classification, by code, as the panel names them. */
 const GROUPS = ["ESP", "PER"];
 
@@ -33,6 +36,7 @@ describe("the words of a group's name that was refused", () => {
           error,
           (code) => GROUPS[code] ?? null,
           (value) => value.toLocaleString("en"),
+          ADDING,
         ),
       ),
     ).toEqual(
@@ -60,11 +64,47 @@ describe("the words of a group's name that was refused", () => {
         taken,
         () => null,
         (value) => String(value),
+        ADDING,
       ),
     ).toEqual({
       kind: "error",
       text: "“Kingdom of Spain” was not added to “origin”, which has that group already.",
     });
+  });
+
+  test("of a group edited say which group kept its name, and what to type instead", () => {
+    const editing = populationErrors().filter((error) => error.refusal.kind !== "tooMany");
+    expect(
+      editing.map((error) =>
+        populationRefusalMessage(
+          error,
+          (code) => GROUPS[code] ?? null,
+          (value) => value.toLocaleString("en"),
+          { kind: "edit", name: "PER" },
+        ),
+      ),
+    ).toEqual(
+      [
+        "PER was not renamed: a group needs a name. Type one, then press Enter.",
+        "PER was not renamed “Kingdom of Spain”: “origin” has the group ESP already.",
+        "PER was not renamed “1,5”: the groups of “seeds” are whole numbers, such as 12. Type a whole number.",
+        "PER was not renamed “2.5”: the groups of “height” are decimal numbers written with “,” as the decimal mark, such as 2,5. Type a number so.",
+        "PER was not renamed “Atlantis”: it names no country of ISO 3166. Type a country's ISO name or code, such as Spain or ESP.",
+        "PER was not renamed “maybe”: “fertile” holds TRUE or FALSE. Type the one it does not have yet.",
+        "PER was not renamed “Kingdom of the Netherlands, the”: a group's name has at most 30 characters. Type a shorter name.",
+        "PER was not renamed “Peru\nChile”: a group's name cannot hold a line break, a tab or a mark that changes the direction of the text. Type the name again without it.",
+      ].map((text) => ({ kind: "error", text })),
+    );
+  });
+
+  test("of a group edited, with too many groups, is a defect", () => {
+    const tooMany = populationErrors().find((error) => error.refusal.kind === "tooMany");
+    if (tooMany === undefined) {
+      throw new Error("no refusal of too many groups");
+    }
+    expect(() =>
+      populationRefusalMessage(tooMany, () => null, String, { kind: "edit", name: "PER" }),
+    ).toThrow(/defect/);
   });
 
   test("of a refusal that is not of a population fail to decode", () => {

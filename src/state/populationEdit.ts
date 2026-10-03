@@ -87,6 +87,26 @@ export function releasedMessage(target: EditTarget, mode: EditMode): BarMessage 
   );
 }
 
+/**
+ * The informational message after the group `name` was deleted, and its
+ * `count` individuals left unassigned, with `countWords` writing the number
+ * in the user's language.
+ */
+export function deletedMessage(
+  name: string,
+  count: number,
+  countWords: (value: number) => string,
+): BarMessage {
+  const undo = "Edit > Undo brings it back.";
+  if (count === 0) {
+    return information(`The group ${name}, which had no individuals, was deleted. ${undo}`);
+  }
+  const verb = count === 1 ? "is" : "are";
+  return information(
+    `The group ${name} was deleted, and its ${individuals(count, countWords)} ${verb} unassigned now. ${undo}`,
+  );
+}
+
 /** How the information bar says that each change of a button pressed can be undone. */
 const UNDO_EACH = "Edit > Undo takes back each change.";
 

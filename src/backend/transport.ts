@@ -16,6 +16,8 @@ export type CommandName =
   | "set_active_classification"
   | "select_population"
   | "add_population"
+  | "delete_population"
+  | "edit_population"
   | "set_edit_mode"
   | "set_role"
   | "set_filter"

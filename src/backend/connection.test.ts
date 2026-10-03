@@ -308,6 +308,28 @@ describe("a command", () => {
     ]);
   });
 
+  test("deleting and editing a population send its code, and the name and colour, as JSON", async () => {
+    const { transport, calls } = fakeTransport();
+    const connection = await connect(transport, failOnDefect);
+    await connection.deletePopulation(column(2), code(1));
+    await connection.editPopulation(column(2), code(0), " España", "#9ad2f2", ",");
+    expect(calls.slice(1).map((call) => [call.command, call.args])).toEqual([
+      ["delete_population", { column: 2, population: 1, basedOn: 1, sentAt: 1_727_865_600_000.5 }],
+      [
+        "edit_population",
+        {
+          column: 2,
+          population: 0,
+          name: " España",
+          colour: "#9ad2f2",
+          decimalMark: ",",
+          basedOn: 1,
+          sentAt: 1_727_865_600_000.5,
+        },
+      ],
+    ]);
+  });
+
   test("pressing + or − sends what is selected and the button as JSON", async () => {
     const { transport, calls } = fakeTransport();
     const connection = await connect(transport, failOnDefect);

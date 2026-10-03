@@ -5,7 +5,7 @@ use crate::filter::Filter;
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, SentAt};
 use crate::row_set::RowSet;
 use crate::session::{EditMode, Selected};
-use crate::table::{Role, Table};
+use crate::table::{Colour, Role, Table};
 
 /// A change to the document or the interaction. Each names what it acts
 /// on, rather than leaning on the session's current value, so that a
@@ -89,6 +89,32 @@ pub enum Command {
         column: ColumnId,
         /// The name typed.
         name: String,
+        /// The decimal mark the window writes decimal numbers with, its
+        /// system's region's: one to three characters.
+        decimal_mark: String,
+    },
+    /// Deletes a population of the active classification: its individuals
+    /// become unassigned, and each population after it takes the code
+    /// before its own. Undo gives it back, in its place, with its
+    /// individuals (`docs/design.md`, section 2.1).
+    DeletePopulation {
+        /// The active classification.
+        column: ColumnId,
+        /// The population.
+        population: LevelCode,
+    },
+    /// Gives a population of the active classification another name, or
+    /// another colour of [`crate::PALETTE`], or both; its code and its
+    /// individuals stay. `name` is read as for [`Command::AddPopulation`].
+    EditPopulation {
+        /// The active classification.
+        column: ColumnId,
+        /// The population.
+        population: LevelCode,
+        /// The name typed, which may be the one it has.
+        name: String,
+        /// Its colour, one of [`crate::PALETTE`].
+        colour: Colour,
         /// The decimal mark the window writes decimal numbers with, its
         /// system's region's: one to three characters.
         decimal_mark: String,

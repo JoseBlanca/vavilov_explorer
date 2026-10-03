@@ -136,8 +136,9 @@ Where HTML has the control, it is used, and it brings the keyboard and
 the accessibility with it: a `<button>` for every action, never a `<div>`
 with a click handler; `<select>` for the column types and the active
 classification; `<dialog>` with `showModal()` for the dialogs, which takes
-the focus and gives it back; `<input type="color">` for a population's
-colour, which opens the system's colour picker. A control of our own is
+the focus and gives it back; radio buttons, drawn as swatches, for a
+population's colour, which comes from the list alone (`docs/design.md`,
+section 5). A control of our own is
 written only where HTML has none, and it then needs its keyboard, its
 role and its name, which a `<button>` would have given.
 

@@ -11,6 +11,7 @@ import type { TableDescription } from "./description.ts";
 import { NO_CODE, isLevelCode } from "./ids.ts";
 import type { ColumnId, LevelCode } from "./ids.ts";
 import type { EditMode, Selected } from "./message.ts";
+import { PALETTE } from "./palette.ts";
 import type { Active } from "./windowState.ts";
 
 /**
@@ -169,4 +170,45 @@ export function sameSelected(first: Selected | null, second: Selected | null): b
     return first.kind === second.kind;
   }
   return first.code === second.code;
+}
+
+/** A colour a group edited can take, with its name as a screen reader reads it. */
+export interface ColourChoice {
+  /** As CSS writes it, `#rrggbb`. */
+  readonly colour: string;
+  /** Its name, and the other groups that have it: "Sky blue, used by Peru". */
+  readonly label: string;
+}
+
+/**
+ * Every colour of the list, for the group of `edited` among `rows`, each
+ * named with the other groups that have it, with `countWords` writing a
+ * number in the user's language.
+ *
+ * @throws A defect for a row with a colour and no name, which only the
+ * unassigned individuals' row lacks, and it has no colour either.
+ */
+export function colourChoices(
+  rows: readonly PopulationRow[],
+  edited: LevelCode,
+  countWords: (value: number) => string,
+): readonly ColourChoice[] {
+  return PALETTE.map(({ colour, name }) => {
+    const users = rows.filter(
+      (row) =>
+        row.colour === colour &&
+        !(row.selected.kind === "population" && row.selected.code === edited),
+    );
+    const [first] = users;
+    if (first === undefined) {
+      return { colour, label: name };
+    }
+    if (users.length > 1) {
+      return { colour, label: `${name}, used by ${countWords(users.length)} groups` };
+    }
+    if (first.name === null) {
+      throw defect(`the colour ${colour} on a row with no name`);
+    }
+    return { colour, label: `${name}, used by ${first.name}` };
+  });
 }

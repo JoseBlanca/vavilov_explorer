@@ -4,7 +4,7 @@
 // (src-tauri/src/transfer.rs, crates/vavilov-core/src/formats.rs).
 
 import type { Separator } from "./fileRefusal.ts";
-import { hasFieldsOf } from "./tagged.ts";
+import { isText, taggedDecoder } from "./tagged.ts";
 
 /** The items of the menu a window carries out, in the order of their codes, 1 and on. */
 export const MENU_ACTIONS = ["importTable", "exportCsv", "exportXlsx", "undo", "redo"] as const;
@@ -60,35 +60,22 @@ export type ExportAnswer =
       readonly fileName: string;
     };
 
-/** The type of a field of an answer: a text, or a line of a file or none. */
-type AnswerField = "string" | "line";
-
-/** The fields of each kind of answer of `import_table`. */
-const IMPORT_ANSWER_FIELDS: ReadonlyMap<string, Readonly<Record<string, AnswerField>>> = new Map(
-  Object.entries({ cancelled: {}, imported: { fileName: "string", undecodedLine: "line" } }),
-);
-
-/** The fields of each kind of answer of `export_table`. */
-const EXPORT_ANSWER_FIELDS: ReadonlyMap<string, Readonly<Record<string, AnswerField>>> = new Map(
-  Object.entries({ cancelled: {}, exported: { fileName: "string" } }),
-);
-
-function hasAnswerType(value: unknown, type: AnswerField): boolean {
-  switch (type) {
-    case "string":
-      return typeof value === "string";
-    case "line":
-      return value === null || (typeof value === "number" && Number.isSafeInteger(value));
-  }
+/** A line of a file, or none. */
+function isLine(value: unknown): value is number | null {
+  return value === null || (typeof value === "number" && Number.isSafeInteger(value));
 }
 
-function isImportAnswer(value: unknown): value is ImportAnswer {
-  return hasFieldsOf(value, IMPORT_ANSWER_FIELDS, hasAnswerType);
-}
+/** Whether `value` is an answer of `import_table`, with exactly the fields of its kind. */
+const isImportAnswer: (value: unknown) => value is ImportAnswer = taggedDecoder({
+  cancelled: {},
+  imported: { fileName: isText, undecodedLine: isLine },
+});
 
-function isExportAnswer(value: unknown): value is ExportAnswer {
-  return hasFieldsOf(value, EXPORT_ANSWER_FIELDS, hasAnswerType);
-}
+/** Whether `value` is an answer of `export_table`, with exactly the fields of its kind. */
+const isExportAnswer: (value: unknown) => value is ExportAnswer = taggedDecoder({
+  cancelled: {},
+  exported: { fileName: isText },
+});
 
 /** The answer of `import_table`, or `null` when `value` is not one. */
 export function importAnswerOf(value: unknown): ImportAnswer | null {

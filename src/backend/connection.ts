@@ -56,6 +56,23 @@ export interface Connection {
    */
   readonly addPopulation: (column: ColumnId, name: string, decimalMark: string) => Promise<Answer>;
   /**
+   * Deletes a population of the active classification, whose individuals
+   * become unassigned.
+   */
+  readonly deletePopulation: (column: ColumnId, population: LevelCode) => Promise<Answer>;
+  /**
+   * Gives a population of the active classification the name `name`, read
+   * as for {@link Connection.addPopulation}, and the colour `colour`, one of
+   * the list as CSS writes it, `#rrggbb`.
+   */
+  readonly editPopulation: (
+    column: ColumnId,
+    population: LevelCode,
+    name: string,
+    colour: string,
+    decimalMark: string,
+  ) => Promise<Answer>;
+  /**
    * Presses + or − on what is selected for editing in `column`, `target`,
    * or releases the button pressed, with `null`.
    */
@@ -285,6 +302,9 @@ export async function connect(
       }),
     addPopulation: (column, name, decimalMark) =>
       command("add_population", { column, name, decimalMark }),
+    deletePopulation: (column, population) => command("delete_population", { column, population }),
+    editPopulation: (column, population, name, colour, decimalMark) =>
+      command("edit_population", { column, population, name, colour, decimalMark }),
     setEditMode: (column, target, mode) =>
       command("set_edit_mode", { column, target: selectedArg(target), mode }),
     unassignRows: (column, population, rows) =>

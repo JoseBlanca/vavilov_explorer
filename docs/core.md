@@ -319,15 +319,18 @@ population leaves unassigned those of its rows that are inside the
 lasso, and leaves the others as they are.
 
 Within one table, a column id is never given twice and rows do not
-change. A level can be removed, by undoing a population added, and the
-levels can be built again, by a change of role, so a code can come to
-mean another population: China, added as code 2 and then undone, and
-Japan, added after it, are both code 2. Each column therefore keeps a
-second revision, that of its levels, `levels_at`: the load, a change of
-role, or a level removed sets it, and a level added after the last
-level does not, since every code keeps its meaning. A command that names a level,
-selecting a population, assigning rows to one or removing rows from
-one, or pressing + or − on one, is refused as `LevelsChanged` when the
+change. A level can be removed, by deleting a population or undoing one
+added, inserted before others, by undoing a deletion, and the levels can
+be built again, by a change of role, so a code can come to mean another
+population: China, added as code 2 and then undone, and Japan, added
+after it, are both code 2; Peru, code 1, is code 0 once Spain, code 0,
+is deleted. Each column therefore keeps a second revision, that of its
+levels, `levels_at`: the load, a change of role, a level removed or a
+level inserted before the last sets it, and a level added after the last
+level, or one renamed or given another colour, does not, since every
+code keeps its meaning. A command that names a level, selecting a
+population, assigning rows to one or removing rows from one, pressing +
+or − on one, deleting or editing one, is refused as `LevelsChanged` when the
 column's levels changed after the request's revision. The age of the
 levels is checked before anything else the command names, so that a
 command on a population undone and not added again is refused so too,
@@ -395,13 +398,33 @@ added after the last level, with the first colour of the list of
 `design.md`, section 5, that no level of the column has; when the levels
 have all 21, it takes the colour a level at its place takes on import,
 so that the list starts again. The codes do not change, and the
-new population is selected for editing in the same command. Its edit is
-`AddLevel { column, level, colour }`, whose reverse is
-`RemoveLevel { column }`, which removes the last level and gives back
-`AddLevel`. Undo reaches the removal of a level only after it has
-undone every later edit, those that put rows in the level among them,
-so no row holds the level then; a row that does is a defect of the app. Each sends the shape, the codes and the column's revision, and
-the active classification when the command sets it.
+new population is selected for editing in the same command.
+
+A population deleted is the command `DeletePopulation { column,
+population }`, on the active classification alone: the rows that held
+it are left unassigned, each population after it takes the code before
+its own, and a population selected for editing keeps being selected at
+its new code, or, when it is the one deleted, nothing is selected and
+the button pressed is released. A population edited is
+`EditPopulation { column, population, name, colour, decimal_mark }`: the
+name is read as for `AddPopulation`, and refused for the same reasons
+but `TooMany`, a name the population has already being its own; the
+colour is one of the list, and another is a defect, since the window
+offers no other. The same name and colour change nothing.
+
+Three edits change the levels. `InsertLevel { column, code, level,
+colour, rows }` inserts a level at `code`, the levels from there on
+taking the code after their own, and gives it `rows`, which hold no
+level: a population added, last and with no rows, or a deletion undone.
+Its reverse is `DeleteLevel { column, code }`, which deletes the level,
+leaves its rows with none and gives back the `InsertLevel` with those
+rows: a population deleted, or an addition undone. `SetLevel { column,
+code, level, colour }` gives a level another value and colour, and its
+reverse is the same edit with those it had. Each sends the shape, the
+codes and the column's revision, the active classification when the
+command sets it, and the rows the filter shows when they change, since
+a name changed, a level gone or its rows given back can change which
+rows the filter's text matches.
 
 While + or − is pressed (`design.md`, section 2.1), the selection
 assigns. `SetEditMode { column, target, mode }` presses a button on what

@@ -286,7 +286,7 @@ for (const engine of Object.keys(ENGINES)) {
     await choose("undo");
     await rowsAre(panel, ["Spain 3", "Peru 1", "Chile 0", "Unassigned 1"]);
     await page.waitForFunction(() =>
-      globalThis.document.activeElement?.matches("[data-add-group] button"),
+      globalThis.document.activeElement?.matches('[data-group-action="add"]'),
     );
 
     // Another classification chosen releases + too, and says so.

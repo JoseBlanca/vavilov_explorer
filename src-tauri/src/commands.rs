@@ -225,6 +225,40 @@ pub fn add_population<R: Runtime>(
     run(&app, &session, "add_population", &request)
 }
 
+/// Deletes a population of the active classification, leaving its
+/// individuals unassigned: `{ column, population, basedOn, sentAt }`,
+/// `population` being its code.
+///
+/// # Errors
+///
+/// The refusals of [`calls::call`].
+#[tauri::command]
+pub fn delete_population<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<(), CommandError> {
+    run(&app, &session, "delete_population", &request)
+}
+
+/// Gives a population of the active classification another name or
+/// colour: `{ column, population, name, colour, decimalMark, basedOn,
+/// sentAt }`, `population` being its code, `name` the text typed, `colour`
+/// one of the list as CSS writes it, `#rrggbb`, and `decimalMark` the one
+/// the window writes numbers with.
+///
+/// # Errors
+///
+/// The refusals of [`calls::call`].
+#[tauri::command]
+pub fn edit_population<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<(), CommandError> {
+    run(&app, &session, "edit_population", &request)
+}
+
 /// Presses + or − on what is selected for editing, or releases it: `{
 /// column, target, mode, basedOn, sentAt }`, `target` being `{ population:
 /// code }` or `"unassigned"`, and `mode` `"add"`, `"remove"` or `null`.

@@ -139,10 +139,65 @@
   cursor: not-allowed;
 }
 
-.nameForm {
+.groupForm {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.colours {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+  color: var(--color-text-muted);
+}
+
+.colourGrid {
+  display: grid;
+  grid-template-columns: repeat(7, var(--target-size));
+  gap: var(--space-2);
+}
+
+.colourChoice {
+  position: relative;
+  display: flex;
+  width: var(--target-size);
+  height: var(--target-size);
+  cursor: pointer;
+}
+
+/* The radio button itself is not drawn, but keeps the keyboard and the
+   name a screen reader reads; the swatch beside it shows its state. */
+.colourInput {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.colourSwatch {
+  flex: 1;
+  border: 1px solid var(--color-control-border);
+  border-radius: 50%;
+}
+
+/* The colour chosen: a ring of the text's colour, apart from the swatch. */
+.colourInput:checked + .colourSwatch {
+  box-shadow:
+    0 0 0 2px var(--color-panel),
+    0 0 0 4px var(--color-text);
+}
+
+.colourInput:focus-visible + .colourSwatch {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 5px;
 }
 
 .buttons {

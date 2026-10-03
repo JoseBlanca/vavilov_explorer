@@ -1,124 +1,94 @@
 // A command the backend refused, as the core's CommandError crosses to a
 // window: its kind and its fields, in camelCase
 // (crates/vavilov-core/src/error.rs). The table below is the one list of
-// them on this side, and the type is made from it.
+// them on this side, and the type is made from it (tagged.ts).
 
-import { isColumnId, isLevelCode, isPosition, isRevision, isRowIndex } from "./ids.ts";
-import type { ColumnId, LevelCode, Position, Revision, RowIndex } from "./ids.ts";
+import { isLevelCode } from "./ids.ts";
+import type { LevelCode } from "./ids.ts";
 import type { Selected } from "./message.ts";
 import { isRole, isStorageType } from "./description.ts";
 import { isCellRefusal } from "./cellRefusal.ts";
-import type { CellRefusal } from "./cellRefusal.ts";
 import { isExportRefusal, isImportRefusal } from "./fileRefusal.ts";
-import type { ExportRefusal, ImportRefusal } from "./fileRefusal.ts";
 import { isPopulationRefusal } from "./populationRefusal.ts";
-import type { PopulationRefusal } from "./populationRefusal.ts";
-import { hasFieldsOf } from "./tagged.ts";
-import type { Role, StorageType } from "./description.ts";
-
-/** The type of a field: an id, a count, or a text from the user's file. */
-type FieldType =
-  | "columnId"
-  | "levelCode"
-  | "rowIndex"
-  | "position"
-  | "revision"
-  | "selected"
-  | "storage"
-  | "role"
-  | "number"
-  | "string"
-  | "importRefusal"
-  | "exportRefusal"
-  | "cellRefusal"
-  | "populationRefusal"
-  | "ioFailure";
-
-/** The fields of each kind of refusal, and the type of each. */
-const FIELDS = {
-  noProject: {},
-  madeBeforeLoad: { basedOn: "revision", loadedAt: "revision" },
-  levelsChanged: { column: "columnId", basedOn: "revision", levelsAt: "revision" },
-  unknownWindow: { label: "string" },
-  unknownColumn: { column: "columnId" },
-  notCategory: { column: "columnId" },
-  roleNotPossible: { column: "columnId", storage: "storage", role: "role" },
-  valueNotFor: { column: "columnId", role: "role", row: "rowIndex" },
-  notActiveClassification: { column: "columnId" },
-  unknownLevel: { column: "columnId", code: "levelCode", numLevels: "number" },
-  noPopulationSelected: {},
-  notSelected: { target: "selected" },
-  rowSetLength: { numRows: "number", numBytes: "number" },
-  rowSetUnusedBits: { numRows: "number" },
-  rowOutOfRange: { row: "rowIndex", numRows: "number" },
-  rowsOutOfRange: { first: "position", count: "number", numShown: "number" },
-  nothingToUndo: {},
-  nothingToRedo: {},
-  tooManyRows: { numRows: "number", maxRows: "number" },
-  tooManyColumns: { numColumns: "number", maxColumns: "number" },
-  notIndividualId: { header: "string" },
-  emptyIndividual: { row: "rowIndex" },
-  duplicateIndividual: { name: "string", firstRow: "rowIndex", secondRow: "rowIndex" },
-  emptyColumnName: { position: "number" },
-  duplicateColumnName: { name: "string" },
-  columnLength: { columnName: "string", numValues: "number", numRows: "number" },
-  nonFiniteNumber: { columnName: "string", row: "rowIndex" },
-  emptyText: { columnName: "string", row: "rowIndex" },
-  tooManyLevels: { columnName: "string", numLevels: "number", maxLevels: "number" },
-  levelColours: { columnName: "string", numLevels: "number", numColours: "number" },
-  nonFiniteLevel: { columnName: "string", code: "levelCode" },
-  notACountry: { columnName: "string", level: "string" },
-  emptyLevelName: { columnName: "string", code: "levelCode" },
-  duplicateLevel: { columnName: "string", level: "string" },
-  codeWithoutLevel: {
-    columnName: "string",
-    row: "rowIndex",
-    code: "levelCode",
-    numLevels: "number",
-  },
-  importRefused: { fileName: "string", refusal: "importRefusal" },
-  importUnreadable: { fileName: "string", message: "string" },
-  fileNotRead: { fileName: "string", io: "ioFailure", message: "string" },
-  exportRefused: { refusal: "exportRefusal" },
-  fileNotWritten: { fileName: "string", io: "ioFailure", message: "string" },
-  cellRefused: { columnName: "string", text: "string", refusal: "cellRefusal" },
-  populationRefused: { columnName: "string", text: "string", refusal: "populationRefusal" },
-  defect: { what: "string" },
-} as const satisfies Record<string, Record<string, FieldType>>;
-
-type Fields = typeof FIELDS;
+import {
+  isColumnIdField,
+  isCount,
+  isLevelCodeField,
+  isPositionField,
+  isRevisionField,
+  isRowIndexField,
+  isText,
+  oneOf,
+  taggedDecoder,
+} from "./tagged.ts";
+import type { Tagged } from "./tagged.ts";
 
 /** A selection as the backend serialises one, `{ "population": code }` or `"unassigned"`. */
 export type SelectedOnWire = { readonly population: LevelCode } | "unassigned";
 
-/** The TypeScript type of each type of field. */
-interface TypeOf {
-  readonly columnId: ColumnId;
-  readonly levelCode: LevelCode;
-  readonly rowIndex: RowIndex;
-  readonly position: Position;
-  readonly revision: Revision;
-  readonly selected: SelectedOnWire;
-  readonly storage: StorageType;
-  readonly role: Role;
-  readonly number: number;
-  readonly string: string;
-  readonly importRefusal: ImportRefusal;
-  readonly exportRefusal: ExportRefusal;
-  readonly cellRefusal: CellRefusal;
-  readonly populationRefusal: PopulationRefusal;
-  readonly ioFailure: IoFailure;
-}
-
 /** What the file system refused, as `IoFailure` in the core. */
 export type IoFailure = "notFound" | "permissionDenied" | "other";
 
+const isIoFailure = oneOf<IoFailure>(["notFound", "permissionDenied", "other"]);
+
+function isSelectedOnWire(value: unknown): value is SelectedOnWire {
+  return selectedOf(value) !== null;
+}
+
+/** The fields of each kind of refusal, and the check of each. */
+const FIELDS = {
+  noProject: {},
+  madeBeforeLoad: { basedOn: isRevisionField, loadedAt: isRevisionField },
+  levelsChanged: { column: isColumnIdField, basedOn: isRevisionField, levelsAt: isRevisionField },
+  unknownWindow: { label: isText },
+  unknownColumn: { column: isColumnIdField },
+  notCategory: { column: isColumnIdField },
+  roleNotPossible: { column: isColumnIdField, storage: isStorageType, role: isRole },
+  valueNotFor: { column: isColumnIdField, role: isRole, row: isRowIndexField },
+  notActiveClassification: { column: isColumnIdField },
+  unknownLevel: { column: isColumnIdField, code: isLevelCodeField, numLevels: isCount },
+  noPopulationSelected: {},
+  notSelected: { target: isSelectedOnWire },
+  rowSetLength: { numRows: isCount, numBytes: isCount },
+  rowSetUnusedBits: { numRows: isCount },
+  rowOutOfRange: { row: isRowIndexField, numRows: isCount },
+  rowsOutOfRange: { first: isPositionField, count: isCount, numShown: isCount },
+  nothingToUndo: {},
+  nothingToRedo: {},
+  tooManyRows: { numRows: isCount, maxRows: isCount },
+  tooManyColumns: { numColumns: isCount, maxColumns: isCount },
+  notIndividualId: { header: isText },
+  emptyIndividual: { row: isRowIndexField },
+  duplicateIndividual: { name: isText, firstRow: isRowIndexField, secondRow: isRowIndexField },
+  emptyColumnName: { position: isCount },
+  duplicateColumnName: { name: isText },
+  columnLength: { columnName: isText, numValues: isCount, numRows: isCount },
+  nonFiniteNumber: { columnName: isText, row: isRowIndexField },
+  emptyText: { columnName: isText, row: isRowIndexField },
+  tooManyLevels: { columnName: isText, numLevels: isCount, maxLevels: isCount },
+  levelColours: { columnName: isText, numLevels: isCount, numColours: isCount },
+  nonFiniteLevel: { columnName: isText, code: isLevelCodeField },
+  notACountry: { columnName: isText, level: isText },
+  emptyLevelName: { columnName: isText, code: isLevelCodeField },
+  duplicateLevel: { columnName: isText, level: isText },
+  codeWithoutLevel: {
+    columnName: isText,
+    row: isRowIndexField,
+    code: isLevelCodeField,
+    numLevels: isCount,
+  },
+  importRefused: { fileName: isText, refusal: isImportRefusal },
+  importUnreadable: { fileName: isText, message: isText },
+  fileNotRead: { fileName: isText, io: isIoFailure, message: isText },
+  exportRefused: { refusal: isExportRefusal },
+  fileNotWritten: { fileName: isText, io: isIoFailure, message: isText },
+  cellRefused: { columnName: isText, text: isText, refusal: isCellRefusal },
+  populationRefused: { columnName: isText, text: isText, refusal: isPopulationRefusal },
+  defect: { what: isText },
+};
+
 /** Why the backend refused a command; a refused command changed nothing. */
-export type CommandError = {
-  [K in keyof Fields]: { readonly kind: K } & {
-    readonly [F in keyof Fields[K]]: Fields[K][F] extends FieldType ? TypeOf[Fields[K][F]] : never;
-  };
-}[keyof Fields];
+export type CommandError = Tagged<typeof FIELDS>;
 
 /**
  * A refusal a window receives as a value: every kind but a defect, which is
@@ -130,46 +100,6 @@ export type Refusal = Exclude<
   CommandError,
   { readonly kind: "defect" | "madeBeforeLoad" | "levelsChanged" }
 >;
-
-const FIELDS_OF_KIND: ReadonlyMap<string, Readonly<Record<string, FieldType>>> = new Map(
-  Object.entries(FIELDS),
-);
-
-/** Whether `value` is a field of `type`. */
-function hasType(value: unknown, type: FieldType): boolean {
-  switch (type) {
-    case "string":
-      return typeof value === "string";
-    case "number":
-      return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-    case "columnId":
-      return typeof value === "number" && isColumnId(value);
-    case "levelCode":
-      return typeof value === "number" && isLevelCode(value);
-    case "rowIndex":
-      return typeof value === "number" && isRowIndex(value);
-    case "position":
-      return typeof value === "number" && isPosition(value);
-    case "revision":
-      return typeof value === "number" && isRevision(value);
-    case "selected":
-      return selectedOf(value) !== null;
-    case "storage":
-      return isStorageType(value);
-    case "role":
-      return isRole(value);
-    case "importRefusal":
-      return isImportRefusal(value);
-    case "exportRefusal":
-      return isExportRefusal(value);
-    case "cellRefusal":
-      return isCellRefusal(value);
-    case "populationRefusal":
-      return isPopulationRefusal(value);
-    case "ioFailure":
-      return value === "notFound" || value === "permissionDenied" || value === "other";
-  }
-}
 
 /**
  * The selection a window works with, from one as the backend serialises
@@ -193,6 +123,4 @@ export function selectedOf(value: unknown): Selected | null {
  * Whether `value` is a refusal of the backend: an object with a known kind
  * and exactly the fields of that kind, each of its type.
  */
-export function isCommandError(value: unknown): value is CommandError {
-  return hasFieldsOf(value, FIELDS_OF_KIND, hasType);
-}
+export const isCommandError: (value: unknown) => value is CommandError = taggedDecoder(FIELDS);

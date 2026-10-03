@@ -5,27 +5,43 @@ import { repeat } from "lit-html/directives/repeat.js";
 import { styleMap } from "lit-html/directives/style-map.js";
 
 import { defect } from "../../state/defect.ts";
-import type { ColumnId } from "../../state/ids.ts";
+import type { ColumnId, LevelCode } from "../../state/ids.ts";
 import type { EditMode, Selected } from "../../state/message.ts";
+import { colourChoices } from "../../state/populations.ts";
 import type { PopulationRow, PopulationsModel } from "../../state/populations.ts";
 import { classOf } from "../shared/classOf.ts";
 import styles from "./populationsPanel.module.css";
 
 /**
- * The field where the name of a new group is typed: closed, or open on a
- * classification with what is typed, or sending it, when a second Enter
- * does nothing.
+ * The form below the groups: closed, or adding a group to a
+ * classification, or editing the group of `code`, named `name` when the
+ * form opened, with the name typed and the colour chosen. While `sending`,
+ * a second Enter does nothing.
  */
-export type NameField =
+export type GroupForm =
   | { readonly kind: "closed" }
-  | { readonly kind: "open" | "sending"; readonly text: string; readonly column: ColumnId };
+  | {
+      readonly kind: "adding";
+      readonly sending: boolean;
+      readonly column: ColumnId;
+      readonly text: string;
+    }
+  | {
+      readonly kind: "editing";
+      readonly sending: boolean;
+      readonly column: ColumnId;
+      readonly code: LevelCode;
+      readonly name: string;
+      readonly text: string;
+      readonly colour: string;
+    };
 
 /** What the populations panel shows, and what the user can do there. */
 export interface PopulationsPanelProps {
   /** The classifications, the active one, and its rows. */
   readonly model: PopulationsModel;
-  /** The field of a new group's name. */
-  readonly nameField: NameField;
+  /** The form of a group added or edited. */
+  readonly form: GroupForm;
   /** The user chose an active classification, or none. */
   readonly onChooseClassification: (column: ColumnId | null) => void;
   /** The user pressed a row. */
@@ -33,13 +49,19 @@ export interface PopulationsPanelProps {
   /** The user pressed + or − on the selected row, to press it or to release it. */
   readonly onToggle: (row: PopulationRow, mode: EditMode) => void;
   /** The user pressed Add group. */
-  readonly onOpenName: () => void;
-  /** The user typed in the field of the new group's name. */
+  readonly onOpenAdd: () => void;
+  /** The user pressed Edit group on the selected group's `row`. */
+  readonly onOpenEdit: (row: PopulationRow) => void;
+  /** The user pressed Delete group on the selected group's `row`. */
+  readonly onDelete: (row: PopulationRow) => void;
+  /** The user typed in the field of the group's name. */
   readonly onTypeName: (text: string) => void;
-  /** The user asked for the group typed, with Enter or Add. */
-  readonly onSubmitName: () => void;
-  /** The user gave up the new group, with Escape or Cancel. */
-  readonly onCancelName: () => void;
+  /** The user chose a colour for the group edited, as CSS writes it. */
+  readonly onChooseColour: (colour: string) => void;
+  /** The user asked for what the form holds, with Enter, Add or Save. */
+  readonly onSubmitForm: () => void;
+  /** The user gave up the form, with Escape or Cancel. */
+  readonly onCancelForm: () => void;
 }
 
 /** A button of the panel that may be greyed out, with what its tooltip says. */
@@ -91,16 +113,19 @@ function tooltipOf(action: Action, symbol: string): string {
  * One that does nothing is greyed out with `aria-disabled` rather than
  * `disabled`, so that it keeps its tooltip and its place in the order of Tab,
  * where a screen reader reads the reason. One that stays pressed says so
- * with `aria-pressed`.
+ * with `aria-pressed`. `key`, when given, marks it for the controller to
+ * put the focus on.
  */
 function actionButton(
   action: Action,
   classNames: readonly string[],
   content: string,
   onClick: () => void,
+  key: string | null,
 ): TemplateResult {
   return html`<button
     type="button"
+    data-group-action=${key ?? nothing}
     class=${classNames.map((name) => classOf(styles, name)).join(" ")}
     aria-label=${action.label}
     title=${tooltipOf(action, content)}
@@ -136,70 +161,179 @@ function rowView(props: PopulationsPanelProps, row: PopulationRow): TemplateResu
     </button>
     ${
       row.isSelected
-        ? html`${actionButton(addAction(row, props.model.mode), ["edit", "add"], "+", () => {
-            props.onToggle(row, "add");
-          })}${actionButton(removeAction(row, props.model.mode), ["edit", "remove"], "−", () => {
-            props.onToggle(row, "remove");
-          })}`
+        ? html`${actionButton(
+            addAction(row, props.model.mode),
+            ["edit", "add"],
+            "+",
+            () => {
+              props.onToggle(row, "add");
+            },
+            null,
+          )}${actionButton(
+            removeAction(row, props.model.mode),
+            ["edit", "remove"],
+            "−",
+            () => {
+              props.onToggle(row, "remove");
+            },
+            null,
+          )}`
         : nothing
     }
   </li>`;
 }
 
-function nameFieldView(props: PopulationsPanelProps, text: string): TemplateResult {
+/** The field of a group's name, labelled `label`, with what was typed. */
+function nameInput(props: PopulationsPanelProps, label: string, text: string): TemplateResult {
+  return html`<label class=${classOf(styles, "field")}>
+    <span>${label}</span>
+    <input
+      class=${classOf(styles, "text")}
+      data-name-field
+      autocomplete="off"
+      spellcheck="false"
+      maxlength=${props.model.nameLimit ?? nothing}
+      .value=${live(text)}
+      @input=${(event: Event) => {
+        if (event.target instanceof HTMLInputElement) {
+          props.onTypeName(event.target.value);
+        }
+      }}
+    />
+  </label>`;
+}
+
+/** A form of the panel, with its fields and its buttons, which Escape gives up. */
+function formView(
+  props: PopulationsPanelProps,
+  label: string,
+  fields: TemplateResult,
+  submit: string,
+): TemplateResult {
   return html`<form
-    class=${classOf(styles, "nameForm")}
+    class=${classOf(styles, "groupForm")}
+    aria-label=${label}
     @submit=${(event: Event) => {
       event.preventDefault();
-      props.onSubmitName();
+      props.onSubmitForm();
     }}
     @keydown=${(event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        props.onCancelName();
+        props.onCancelForm();
       }
     }}
   >
-    <label class=${classOf(styles, "field")}>
-      <span>Name of the new group</span>
-      <input
-        class=${classOf(styles, "text")}
-        data-name-field
-        autocomplete="off"
-        spellcheck="false"
-        maxlength=${props.model.nameLimit ?? nothing}
-        .value=${live(text)}
-        @input=${(event: Event) => {
-          if (event.target instanceof HTMLInputElement) {
-            props.onTypeName(event.target.value);
-          }
-        }}
-      />
-    </label>
+    ${fields}
     <div class=${classOf(styles, "buttons")}>
-      <button type="submit" class=${classOf(styles, "action")}>Add</button>
-      <button type="button" class=${classOf(styles, "action")} @click=${props.onCancelName}>
+      <button type="submit" class=${classOf(styles, "action")}>${submit}</button>
+      <button type="button" class=${classOf(styles, "action")} @click=${props.onCancelForm}>
         Cancel
       </button>
     </div>
   </form>`;
 }
 
-function addGroupView(props: PopulationsPanelProps): TemplateResult {
+/** The colours the group edited can take, one chosen, as radio buttons. */
+function colourField(
+  props: PopulationsPanelProps,
+  code: LevelCode,
+  chosen: string,
+): TemplateResult {
+  return html`<fieldset class=${classOf(styles, "colours")}>
+    <legend class=${classOf(styles, "legend")}>Colour</legend>
+    <div class=${classOf(styles, "colourGrid")}>
+      ${colourChoices(props.model.rows, code, (value) => COUNT.format(value)).map(
+        (choice) =>
+          html`<label class=${classOf(styles, "colourChoice")} title=${choice.label}>
+            <input
+              class=${classOf(styles, "colourInput")}
+              type="radio"
+              name="group-colour"
+              value=${choice.colour}
+              aria-label=${choice.label}
+              .checked=${live(choice.colour === chosen)}
+              @change=${() => {
+                props.onChooseColour(choice.colour);
+              }}
+            />
+            <span
+              class=${classOf(styles, "colourSwatch")}
+              style=${styleMap({ backgroundColor: choice.colour })}
+              aria-hidden="true"
+            ></span>
+          </label>`,
+      )}
+    </div>
+  </fieldset>`;
+}
+
+/** Add group, and Edit group and Delete group when a group is selected. */
+function groupActionsView(props: PopulationsPanelProps): TemplateResult {
   const { model } = props;
   if (model.activeName === null) {
     throw defect("Add group drawn with no active classification");
   }
-  const action: Action = {
+  const add: Action = {
     pressed: null,
     label: "Add group",
     reason: model.takesNewPopulations
       ? null
       : `“${model.activeName}” has both TRUE and FALSE, and takes no other group.`,
   };
-  return html`<div class=${classOf(styles, "buttons")} data-add-group>
-    ${actionButton(action, ["action"], "Add group", props.onOpenName)}
+  const selected = model.rows.find((row) => row.isSelected && row.selected.kind === "population");
+  const name = selected?.name ?? null;
+  return html`<div class=${classOf(styles, "buttons")} data-group-actions>
+    ${actionButton(add, ["action"], "Add group", props.onOpenAdd, "add")}
+    ${
+      selected === undefined || name === null
+        ? nothing
+        : html`${actionButton(
+            { pressed: null, label: `Edit group ${name}`, reason: null },
+            ["action"],
+            "Edit group",
+            () => {
+              props.onOpenEdit(selected);
+            },
+            "edit",
+          )}${actionButton(
+            { pressed: null, label: `Delete group ${name}`, reason: null },
+            ["action"],
+            "Delete group",
+            () => {
+              props.onDelete(selected);
+            },
+            "delete",
+          )}`
+    }
   </div>`;
+}
+
+/** The form open below the groups, or the buttons that open one. */
+function belowGroupsView(props: PopulationsPanelProps): TemplateResult {
+  const { form } = props;
+  switch (form.kind) {
+    case "closed":
+      return groupActionsView(props);
+    case "adding":
+      return formView(
+        props,
+        "Add group",
+        nameInput(props, "Name of the new group", form.text),
+        "Add",
+      );
+    case "editing":
+      return formView(
+        props,
+        `Edit group ${form.name}`,
+        html`${nameInput(props, "Name of the group", form.text)}${colourField(
+          props,
+          form.code,
+          form.colour,
+        )}`,
+        "Save",
+      );
+  }
 }
 
 /** The populations panel of the main window (docs/design.md, section 2.1). */
@@ -245,12 +379,6 @@ export function populationsPanelView(props: PopulationsPanelProps): TemplateResu
             )}
           </ul>`
     }
-    ${
-      model.active === null
-        ? nothing
-        : props.nameField.kind !== "closed"
-          ? nameFieldView(props, props.nameField.text)
-          : addGroupView(props)
-    }
+    ${model.active === null ? nothing : belowGroupsView(props)}
   </section>`;
 }

@@ -125,6 +125,8 @@ impl Session {
             | Command::SetEditMode { .. }
             | Command::AssignRows { .. }
             | Command::UnassignRows { .. }
+            | Command::DeletePopulation { .. }
+            | Command::EditPopulation { .. }
             | Command::SetRole { .. }
             | Command::SetCells { .. }
             | Command::Undo
@@ -410,6 +412,28 @@ impl Session {
                 levels::plan_add_population(state, open, column, &name, &decimal_mark, sent_at)
                     .map(Some)
             }
+            Command::DeletePopulation { column, population } => {
+                let open = state.project.open()?;
+                levels::plan_delete_population(state, open, column, population, based_on, sent_at)
+                    .map(Some)
+            }
+            Command::EditPopulation {
+                column,
+                population,
+                name,
+                colour,
+                decimal_mark,
+            } => {
+                let open = state.project.open()?;
+                let edited = levels::Edited {
+                    column,
+                    population,
+                    name: &name,
+                    colour,
+                    decimal_mark: &decimal_mark,
+                };
+                levels::plan_edit_population(state, open, &edited, based_on, sent_at)
+            }
             Command::SetRole { column, role } => {
                 let open = state.project.open()?;
                 if column == open.table.names().id() {
@@ -600,25 +624,26 @@ impl Session {
             }
             Change::Levels {
                 column,
-                categorical,
+                values,
                 levels_at,
                 active,
+                shown,
                 step,
             } => {
                 let open = open_for_commit(&mut self.state.project)?;
                 let Column {
                     revision: column_revision,
                     levels_at: column_levels_at,
-                    values,
+                    values: slot,
                     ..
                 } = open
                     .table
                     .column_mut(column)
                     .ok_or_else(|| defect(column, "is gone"))?;
-                let Some(slot) = values.categorical_mut() else {
-                    return Err(defect(column, "is no longer a category"));
-                };
-                *slot = categorical;
+                if slot.role() != values.role() {
+                    return Err(defect(column, "has another role"));
+                }
+                *slot = values;
                 *column_revision = revision;
                 if let Some(levels_at) = levels_at {
                     *column_levels_at = levels_at;
@@ -626,6 +651,9 @@ impl Session {
                 open.shape_at = revision;
                 if let Some(active) = active {
                     open.interaction.active = active;
+                }
+                if let Some(shown) = shown {
+                    open.interaction.shown = shown;
                 }
                 open.history.take(step);
                 Changed::State(revision)
@@ -702,14 +730,16 @@ enum Change {
         shown: Option<Shown>,
         step: HistoryStep,
     },
-    /// New levels of a category, with the same codes, the revision its
-    /// levels take when a code may now mean another population, and the
-    /// active classification when the change sets it.
+    /// New levels of a category, and its codes, as values of its role,
+    /// with the revision its levels take when a code may now mean another
+    /// population, the active classification when the change sets it, and
+    /// the rows shown when they change.
     Levels {
         column: ColumnId,
-        categorical: Categorical,
+        values: ColumnValues,
         levels_at: Option<Revision>,
         active: Option<Option<Active>>,
+        shown: Option<Shown>,
         step: HistoryStep,
     },
 }
@@ -808,15 +838,31 @@ fn plan_edit(
             cells::plan_cells(state, open, column, changes, kind, sent_at)
         }
         Edit::SetNames { changes } => cells::plan_names(state, open, changes, kind, sent_at),
-        Edit::AddLevel {
+        Edit::InsertLevel {
             column,
+            code,
             level,
             colour,
-        } => levels::plan_add_level(state, open, column, (level, colour), None, kind, sent_at)
-            .map(Some),
-        Edit::RemoveLevel { column } => {
-            levels::plan_remove_level(state, open, column, kind, sent_at).map(Some)
+            rows,
+        } => {
+            let inserted = levels::Inserted {
+                code,
+                level,
+                colour,
+                rows,
+            };
+            levels::plan_insert_level(state, open, column, inserted, None, kind, sent_at).map(Some)
         }
+        Edit::DeleteLevel { column, code } => {
+            levels::plan_delete_level(state, open, column, code, kind, sent_at).map(Some)
+        }
+        Edit::SetLevel {
+            column,
+            code,
+            level,
+            colour,
+        } => levels::plan_set_level(state, open, column, (code, level, colour), kind, sent_at)
+            .map(Some),
     }
 }
 

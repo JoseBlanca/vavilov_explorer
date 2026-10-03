@@ -1887,3 +1887,5 @@ fn a_search_after_an_edit_reads_the_decimal_numbers_as_edited() {
 mod populations;
 
 mod edit_mode;
+
+mod delete_and_edit;

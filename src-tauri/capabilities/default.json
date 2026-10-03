@@ -15,6 +15,8 @@
     "allow-set-active-classification",
     "allow-select-population",
     "allow-add-population",
+    "allow-delete-population",
+    "allow-edit-population",
     "allow-set-edit-mode",
     "allow-set-role",
     "allow-set-filter",

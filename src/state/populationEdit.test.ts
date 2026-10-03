@@ -2,7 +2,13 @@ import { describe, expect, test } from "vitest";
 
 import { NO_CODE, isLevelCode } from "./ids.ts";
 import type { LevelCode } from "./ids.ts";
-import { addedCount, pressedMessage, releasedMessage, removedCount } from "./populationEdit.ts";
+import {
+  addedCount,
+  deletedMessage,
+  pressedMessage,
+  releasedMessage,
+  removedCount,
+} from "./populationEdit.ts";
 
 function code(value: number): LevelCode {
   if (!isLevelCode(value)) {
@@ -97,5 +103,23 @@ describe("the message after the button is released", () => {
       kind: "information",
       text: "Rows you select no longer leave China.",
     });
+  });
+});
+
+describe("the message after a group is deleted", () => {
+  test("says how many of its individuals are unassigned now, and how to undo", () => {
+    expect(deletedMessage("China", 1_204, (value) => value.toLocaleString("en"))).toEqual({
+      kind: "information",
+      text: "The group China was deleted, and its 1,204 individuals are unassigned now. Edit > Undo brings it back.",
+    });
+    expect(deletedMessage("China", 1, String).text).toBe(
+      "The group China was deleted, and its 1 individual is unassigned now. Edit > Undo brings it back.",
+    );
+  });
+
+  test("of an empty group says only that it was deleted, and how to undo", () => {
+    expect(deletedMessage("China", 0, String).text).toBe(
+      "The group China, which had no individuals, was deleted. Edit > Undo brings it back.",
+    );
   });
 });
