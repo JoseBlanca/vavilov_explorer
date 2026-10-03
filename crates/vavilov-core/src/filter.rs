@@ -14,6 +14,7 @@ use crate::countries;
 use crate::error::CommandError;
 use crate::ids::{ColumnId, LevelCode, RowIndex};
 use crate::table::{Categorical, Column, ColumnValues, LevelValues, Numbers, Table};
+use crate::text::nfc;
 
 /// How the text must match a cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -115,7 +116,8 @@ pub(crate) fn shown_rows(
         what: "a filter with a text and no decimal mark".to_owned(),
     })?;
     let search = Search {
-        text: filter.text.to_lowercase(),
+        // In the composed form of the table's texts (`crate::text`).
+        text: nfc(&filter.text).to_lowercase(),
         cell: filter.cell,
         decimal_mark,
     };

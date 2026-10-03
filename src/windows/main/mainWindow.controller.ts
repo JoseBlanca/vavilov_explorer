@@ -54,13 +54,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       }
       return { kind: "current", description };
     };
-    const panel = createPopulationsPanel(
-      slot(root, "panel"),
-      connection,
-      describedNow,
-      decimalMark,
-      defectBar.show,
-    );
+
     const findBar = createFindBar(
       slot(root, "find"),
       connection,
@@ -72,6 +66,14 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
     const infoBar = createInfoBar(slot(root, "info"), state, () => {
       table.focus();
     });
+    const panel = createPopulationsPanel(
+      slot(root, "panel"),
+      connection,
+      describedNow,
+      decimalMark,
+      infoBar.tell,
+      defectBar.show,
+    );
     const table = createTable(
       slot(root, "table"),
       connection,

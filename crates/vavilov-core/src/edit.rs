@@ -1,15 +1,11 @@
 //! The edits of the document, each of which has a reverse, for undo.
 
 use crate::ids::{ColumnId, LevelCode, RowIndex};
-use crate::table::ColumnValues;
+use crate::table::{Colour, ColumnValues, Level};
 
 /// A change to the document, as the undo history keeps it. Applying an
 /// edit gives the edit that reverses it.
 #[derive(Clone, Debug, PartialEq)]
-#[expect(
-    clippy::enum_variant_names,
-    reason = "each edit sets one part of the document, and docs/core.md names them so"
-)]
 pub(crate) enum Edit {
     /// Sets the code of some rows of a categorical column: an assignment to
     /// a population, a removal from one, or the reverse of either. Only the
@@ -37,6 +33,16 @@ pub(crate) enum Edit {
         column: ColumnId,
         values: ColumnValues,
     },
+    /// Adds a level, with its colour, after the last of a category: a new
+    /// population, or the reverse of removing it. No code changes.
+    AddLevel {
+        column: ColumnId,
+        level: Level,
+        colour: Colour,
+    },
+    /// Removes the last level of a category, which no row holds: the
+    /// reverse of adding it.
+    RemoveLevel { column: ColumnId },
 }
 
 /// The value of one cell of a column of numbers or text, of the column's

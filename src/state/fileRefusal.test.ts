@@ -51,7 +51,7 @@ describe("the errors about a file, as the core serialises them", () => {
       "importRefused",
       "importUnreadable",
     ]);
-    expect(fileErrors()).toHaveLength(34);
+    expect(fileErrors()).toHaveLength(36);
   });
 
   test("each is a refusal the window knows", () => {

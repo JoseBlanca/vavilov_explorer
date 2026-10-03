@@ -328,3 +328,77 @@ fn a_whole_number_beyond_32_bits_is_neither_a_latitude_nor_a_longitude() {
         })
     );
 }
+
+fn spain_peru(codes: Vec<Option<LevelCode>>) -> Categorical {
+    Categorical::new(
+        LevelValues::Text(vec!["Spain".to_owned(), "Peru".to_owned()]),
+        vec![PALETTE[0], PALETTE[1]],
+        codes,
+    )
+}
+
+#[test]
+fn a_level_added_and_then_removed_gives_the_category_back() {
+    let start = spain_peru(vec![code(1), None, code(0)]);
+    let added = start
+        .with_level(Level::Text("China".to_owned()), PALETTE[2])
+        .unwrap();
+    assert_eq!(
+        added.levels(),
+        &LevelValues::Text(vec![
+            "Spain".to_owned(),
+            "Peru".to_owned(),
+            "China".to_owned()
+        ])
+    );
+    assert_eq!(added.colours(), [PALETTE[0], PALETTE[1], PALETTE[2]]);
+    assert_eq!(added.codes(), start.codes());
+    let (removed, level, colour) = added.without_last_level().unwrap();
+    assert_eq!(removed, start);
+    assert_eq!(level, Level::Text("China".to_owned()));
+    assert_eq!(colour, PALETTE[2]);
+}
+
+#[test]
+fn a_level_of_another_type_or_one_there_is_cannot_be_added() {
+    let start = spain_peru(vec![None]);
+    assert!(matches!(
+        start.with_level(Level::Integer(3), PALETTE[2]),
+        Err(CommandError::Defect { .. })
+    ));
+    assert!(matches!(
+        start.with_level(Level::Text("Peru".to_owned()), PALETTE[2]),
+        Err(CommandError::Defect { .. })
+    ));
+}
+
+#[test]
+fn the_last_level_cannot_be_removed_while_a_row_holds_it_or_when_there_is_none() {
+    assert_eq!(
+        spain_peru(vec![None, code(1)]).without_last_level(),
+        Err(CommandError::Defect {
+            what: "the last level removed from a category that a row holds".to_owned()
+        })
+    );
+    let empty = Categorical::new(LevelValues::Text(Vec::new()), Vec::new(), vec![None]);
+    assert_eq!(
+        empty.without_last_level(),
+        Err(CommandError::Defect {
+            what: "the last level removed from a category that has none".to_owned()
+        })
+    );
+}
+
+#[test]
+fn a_number_is_found_among_the_levels_by_its_value_and_minus_0_is_0() {
+    let floats = LevelValues::Float(vec![1.5, 0.0]);
+    assert_eq!(floats.position(&Level::Float(-0.0)), Some(1));
+    assert_eq!(floats.position(&Level::Float(1.5)), Some(0));
+    assert_eq!(floats.position(&Level::Integer(0)), None);
+    let integers = LevelValues::Integer(vec![7, 10]);
+    assert_eq!(integers.position(&Level::Integer(10)), Some(1));
+    assert_eq!(
+        LevelValues::Boolean(vec![false]).position(&Level::Boolean(true)),
+        None
+    );
+}

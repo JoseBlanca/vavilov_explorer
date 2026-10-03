@@ -10,11 +10,15 @@ export type MessagePart =
   | { readonly kind: "noProject" }
   /** A project is open, with its number of rows and the revision of its load. */
   | { readonly kind: "project"; readonly numRows: number; readonly loadedAt: Revision }
-  /** The active classification and what is selected in it, each `null` for none. */
+  /**
+   * The active classification, what is selected in it, and the button
+   * pressed on that, each `null` for none.
+   */
   | {
       readonly kind: "active";
       readonly column: ColumnId | null;
       readonly selected: Selected | null;
+      readonly mode: EditMode | null;
     }
   /**
    * The selection, one bit per row: row `i` is bit `i % 8` of byte `i / 8`, and
@@ -51,6 +55,13 @@ export type MessagePart =
  */
 export type Selected =
   { readonly kind: "population"; readonly code: LevelCode } | { readonly kind: "unassigned" };
+
+/**
+ * The button pressed on what is selected for editing, as `EditMode` in the
+ * core: + puts the individuals that enter the selection in it, and − takes
+ * out of it those that are in it (docs/design.md, section 2.1).
+ */
+export type EditMode = "add" | "remove";
 
 /** Whether there is something to undo and something to redo, as `UndoRedo` in the core. */
 export interface UndoRedo {

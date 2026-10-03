@@ -14,7 +14,12 @@ The first column holds the ID of each individual, and its header must be
 `IndividualID`. Case, spaces and underscores do not matter, so
 `Individual ID`, `individual_id` and `INDIVIDUALID` are accepted too.
 
-- Every row needs an ID, and no ID may appear twice.
+- Every row needs an ID, and no ID may appear twice. Two IDs that differ
+  only in how an accent is written, as part of its letter or as a
+  separate character after it, as some Mac programs write it, are the
+  same ID, and the file is refused; the same holds for two column names.
+  Elsewhere such a difference is ignored: `Perú` written either way is
+  one value.
 - IDs are kept exactly as written: `001` stays `001`, and `NA` is an ID,
   not a missing value.
 - A file whose first column has another header, such as `accession`, is
@@ -116,6 +121,54 @@ saying why, and one Undo
 takes it back from all of them. An IndividualID is changed one at a
 time, and two individuals cannot have the same.
 
+## Moving individuals between groups
+
+The populations panel, left of the table, lists the groups of one
+category column, the one chosen in its Classification column dropdown at
+the top, each with its number of individuals, and last the unassigned
+individuals, those whose cell in that column is empty. Click a group to
+select it, and click it again to unselect it; one group is selected at a
+time.
+
+The row of the selected group shows two buttons, + and −, which stay
+pressed until you press them again; unpressed, they are outlined, and
+pressed, + is filled in blue and − in red. While + is pressed, every row
+you select in the table goes to the group, out of the group it was in: a
+click selects its row alone and moves it, a shift-click selects and moves
+the rows from the last one clicked, and so do Space and Select shown
+rows. While
+− is pressed, every row you select that is in the group
+leaves it, and its cell is left empty, unassigned; rows of other groups
+stay where they are. The rows already selected when you press the button
+are changed at once. A row that was moved stays where it went when you
+select other rows.
+Hold the pointer over + or − to read what it does, such as "Add selected
+to China".
+
+Press the button again, or Escape, to stop; selecting another group or
+another Classification column stops it too. While a button is pressed,
+clicking a row moves it, so double-clicking a cell to change it also
+moves its row. The bar at the bottom of the window says how many rows
+moved when you pressed the button, and when it stops. Edit, Undo takes
+back the last change: one click, one shift-click or one Select shown
+rows, with all the rows it moved. Undo again takes back the change
+before it, so to take back only a row moved earlier, double-click its
+cell and type the group it was in, or select it with − pressed to leave
+it unassigned. With Unassigned
+selected, + makes the rows you select unassigned, and − is greyed out.
+
+To make a new group, press Add group below the list, type its name and
+press Enter, or Escape to give up. The group starts with no individuals,
+even when rows are selected, and is selected, so that pressing + then
+puts the selected rows in it. Its name must be new in the column, of at
+most 30 characters, with no line break or tab; in a column of countries
+it must name a country, and is shown as the country's code; in a column
+of numbers it must be a number, written with your region's decimal
+mark. A column of TRUE and FALSE takes the one of TRUE or FALSE it does
+not have yet, and no other. Once made,
+the group is among the values a cell of the column suggests. Edit, Undo
+removes it again.
+
 ## Undoing an edit
 
 Edit, Undo, or Cmd-Z (Ctrl-Z on Windows and Linux), undoes the last
@@ -136,10 +189,10 @@ in the dropdown at the top of the column:
   clustering. A category is drawn in bar plots, and you can choose any
   category in the populations panel to work with its groups as
   populations: to colour the plots by them, and to move individuals
-  from one to another by drawing around them in a plot. Moving
-  individuals changes the column in the app, never the file you
-  imported; you choose which category to edit, so take care not to edit
-  a trait you recorded by mistake.
+  from one to another with + and − (see "Moving individuals between
+  groups"). Moving individuals changes the column in the app, never the
+  file you imported; you choose which category to edit, so take care
+  not to edit a trait you recorded by mistake.
 - **Text**: notes and identifiers, shown in the table only.
 
 Three roles are more particular forms of these, for columns whose every

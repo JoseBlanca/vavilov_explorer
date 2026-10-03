@@ -13,6 +13,7 @@ use crate::table::{
     Column, ColumnValues, LATITUDE, LONGITUDE, NewColumn, Numbers, Role, Stored, Table,
     check_range, is_individual_id,
 };
+use crate::text::nfc;
 
 /// The largest file the import reads, 20 MB, popnei_web's limit (decided
 /// by the owner on 2 October 2026, `docs/design.md`, section 7).
@@ -71,12 +72,32 @@ pub fn import_table(file_name: &str, bytes: &[u8]) -> Result<Imported, CommandEr
         table_io::HowRead::Text(text) => (FileFormat::Text, text.undecoded_line),
         table_io::HowRead::Xlsx { .. } => (FileFormat::Xlsx, None),
     };
-    if !is_individual_id(&read.names.header) {
+    // Every text in Unicode's composed form (`crate::text`): two that
+    // become one there are refused, since the reader of the file sees one
+    // name where the file has two.
+    let header = nfc(&read.names.header);
+    if !is_individual_id(&header) {
         return Err(refused(
             file_name,
-            ImportRefusal::NotIndividualId {
-                header: read.names.header,
-            },
+            ImportRefusal::NotIndividualId { header },
+        ));
+    }
+    let names: Vec<String> = read.names.names.iter().map(|name| nfc(name)).collect();
+    if let Some(name) = repeated(&names) {
+        return Err(refused(
+            file_name,
+            ImportRefusal::IndividualWrittenTwoWays { name },
+        ));
+    }
+    let column_names: Vec<String> = read
+        .columns
+        .iter()
+        .map(|column| nfc(&column.name))
+        .collect();
+    if let Some(name) = repeated(&column_names) {
+        return Err(refused(
+            file_name,
+            ImportRefusal::ColumnWrittenTwoWays { name },
         ));
     }
     if let Some(column) = read
@@ -95,18 +116,14 @@ pub fn import_table(file_name: &str, bytes: &[u8]) -> Result<Imported, CommandEr
     // The ids are those Table::new gives, 1 and on in the order of the
     // columns, which a refusal of a sub-role would name.
     let mut columns = Vec::with_capacity(read.columns.len());
-    for (id, column) in (1..=u32::MAX).zip(read.columns) {
+    for ((id, column), name) in (1..=u32::MAX).zip(read.columns).zip(column_names) {
         let stored = stored_of(column.values);
-        let role = guessed_role(&column.name, &stored);
-        let values = ColumnValues::from_stored(stored, role, ColumnId::new(id), &column.name)
+        let role = guessed_role(&name, &stored);
+        let values = ColumnValues::from_stored(stored, role, ColumnId::new(id), &name)
             .map_err(|error| defect(&error))?;
-        columns.push(NewColumn {
-            name: column.name,
-            values,
-        });
+        columns.push(NewColumn { name, values });
     }
-    let table =
-        Table::new(read.names.header, read.names.names, columns).map_err(|error| defect(&error))?;
+    let table = Table::new(header, names, columns).map_err(|error| defect(&error))?;
     let active_classification = table
         .columns()
         .iter()
@@ -117,6 +134,16 @@ pub fn import_table(file_name: &str, bytes: &[u8]) -> Result<Imported, CommandEr
         active_classification,
         undecoded_line,
     })
+}
+
+/// The first text of `texts` that an earlier one equals. `table_io` refuses
+/// two names written alike, so one found here became equal when composed.
+fn repeated(texts: &[String]) -> Option<String> {
+    let mut seen = std::collections::HashSet::with_capacity(texts.len());
+    texts
+        .iter()
+        .find(|text| !seen.insert(text.as_str()))
+        .cloned()
 }
 
 fn refused(file_name: &str, refusal: ImportRefusal) -> CommandError {
@@ -169,7 +196,12 @@ fn stored_of(values: table_io::ColumnValues) -> Stored {
         table_io::ColumnValues::Integer(values) => Stored::Integer(values),
         table_io::ColumnValues::Float(values) => Stored::Float(values),
         table_io::ColumnValues::Boolean(values) => Stored::Boolean(values),
-        table_io::ColumnValues::Text(values) => Stored::Text(values),
+        table_io::ColumnValues::Text(values) => Stored::Text(
+            values
+                .into_iter()
+                .map(|value| value.map(|text| nfc(&text)))
+                .collect(),
+        ),
     }
 }
 

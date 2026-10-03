@@ -5,7 +5,7 @@
 import { defect } from "./defect.ts";
 import type { Filter, Shown } from "./filter.ts";
 import type { ColumnId, HoverSeq, Revision, RowIndex } from "./ids.ts";
-import type { Message, MessagePart, Selected, UndoRedo } from "./message.ts";
+import type { EditMode, Message, MessagePart, Selected, UndoRedo } from "./message.ts";
 
 /** What changes together, so that a component redraws only for what it shows. */
 export type Aspect =
@@ -22,6 +22,8 @@ export interface Active {
   readonly column: ColumnId;
   /** What is selected for editing, or `null`. */
   readonly selected: Selected | null;
+  /** The button pressed on what is selected, or `null`. */
+  readonly mode: EditMode | null;
 }
 
 /** The window's copy of the shared state. */
@@ -243,7 +245,10 @@ function withParts(copy: Copy, message: Message): { copy: Copy; changed: Set<Asp
         changed.add("table");
         break;
       case "active":
-        active = part.column === null ? null : { column: part.column, selected: part.selected };
+        active =
+          part.column === null
+            ? null
+            : { column: part.column, selected: part.selected, mode: part.mode };
         changed.add("classification");
         break;
       case "selection":

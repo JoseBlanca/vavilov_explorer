@@ -53,6 +53,12 @@ const PAIRS: readonly (readonly [string, string, number])[] = [
   ["--color-focus", "--color-selected-surface", 3],
   ["--color-danger-text", "--color-danger-surface", 4.5],
   ["--color-danger-text", "--color-selected-surface", 4.5],
+  ["--color-add-text", "--color-add-surface", 4.5],
+  ["--color-remove-text", "--color-remove-surface", 4.5],
+  ["--color-add-surface", "--color-panel", 3],
+  ["--color-remove-surface", "--color-panel", 3],
+  ["--color-add-surface", "--color-selected-surface", 3],
+  ["--color-remove-surface", "--color-selected-surface", 3],
 ];
 
 describe("the tokens", () => {

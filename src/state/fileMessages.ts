@@ -200,6 +200,10 @@ function importText(refusal: ImportRefusal, count: Count): string {
       return `${capital(rowText(refusal.format, refusal.row, count))} has no IndividualID in its first cell. Write the ID of that individual, or delete the row, and import the file again.`;
     case "duplicateIndividual":
       return `The IndividualID “${refusal.name}” is in two rows, ${rowText(refusal.format, refusal.firstRow, count)} and ${rowText(refusal.format, refusal.secondRow, count)}. Give each individual an ID of its own and import the file again.`;
+    case "individualWrittenTwoWays":
+      return `Two individuals have the IndividualID “${refusal.name}”, written with different characters that show the same, such as an accent written as part of its letter or after it. Give each individual an ID of its own and import the file again.`;
+    case "columnWrittenTwoWays":
+      return `Two columns are named “${refusal.name}”, written with different characters that show the same, such as an accent written as part of its letter or after it. Give each column a name of its own and import the file again.`;
     case "notIndividualId":
       return `Its first column, which must hold the ID of each individual, is named “${refusal.header}”. Name it IndividualID and import the file again.`;
     case "namedIndividualId":

@@ -7,7 +7,7 @@ import type { Refusal } from "../state/commandError.ts";
 import { isTableDescription } from "../state/description.ts";
 import type { Role, TableDescription } from "../state/description.ts";
 import type { Filter } from "../state/filter.ts";
-import type { Selected } from "../state/message.ts";
+import type { EditMode, Selected } from "../state/message.ts";
 import { defect } from "../state/defect.ts";
 import type { ColumnId, LevelCode, Position, RowIndex } from "../state/ids.ts";
 import type { Result } from "../state/result.ts";
@@ -24,7 +24,8 @@ import type { CommandName, Transport } from "./transport.ts";
 /**
  * A command's answer: applied, or dropped as stale because it was made before
  * the current table was loaded (which the window does not show, as the owner
- * decided), or the backend's refusal.
+ * decided) or before the populations it names changed, or the backend's
+ * refusal.
  */
 export type Answer = Result<"applied" | "stale", Refusal>;
 
@@ -48,6 +49,21 @@ export interface Connection {
    * the unassigned individuals selected, leaves them unassigned.
    */
   readonly assignRows: (column: ColumnId, target: Selected, rows: Uint8Array) => Promise<Answer>;
+  /**
+   * Adds a population with no individuals to the active classification, and
+   * selects it: `name` is read as a value of the column, a decimal number
+   * with `decimalMark`.
+   */
+  readonly addPopulation: (column: ColumnId, name: string, decimalMark: string) => Promise<Answer>;
+  /**
+   * Presses + or − on what is selected for editing in `column`, `target`,
+   * or releases the button pressed, with `null`.
+   */
+  readonly setEditMode: (
+    column: ColumnId,
+    target: Selected,
+    mode: EditMode | null,
+  ) => Promise<Answer>;
   /** Leaves unassigned the rows of a lasso that are in the selected population. */
   readonly unassignRows: (
     column: ColumnId,
@@ -267,6 +283,10 @@ export async function connect(
         text: encodeURIComponent(text),
         "decimal-mark": encodeURIComponent(decimalMark),
       }),
+    addPopulation: (column, name, decimalMark) =>
+      command("add_population", { column, name, decimalMark }),
+    setEditMode: (column, target, mode) =>
+      command("set_edit_mode", { column, target: selectedArg(target), mode }),
     unassignRows: (column, population, rows) =>
       withRows("unassign_rows", rows, { column: String(column), population: String(population) }),
     describeTable: async () => {
@@ -274,7 +294,12 @@ export async function connect(
       try {
         description = await transport.invoke("describe_table", {});
       } catch (error: unknown) {
-        if (!isCommandError(error) || error.kind === "defect" || error.kind === "madeBeforeLoad") {
+        if (
+          !isCommandError(error) ||
+          error.kind === "defect" ||
+          error.kind === "madeBeforeLoad" ||
+          error.kind === "levelsChanged"
+        ) {
           throw defect(`describe_table failed with ${describe(error)}`);
         }
         return { ok: false, error };
@@ -405,6 +430,12 @@ function refusal(name: CommandName, error: unknown): Result<"stale", Refusal> {
   if (error.kind === "madeBeforeLoad") {
     console.warn(
       `Vavilov Explorer: the command ${name}, made at revision ${String(error.basedOn)}, came after the table loaded at ${String(error.loadedAt)}, and was not applied`,
+    );
+    return { ok: true, value: "stale" };
+  }
+  if (error.kind === "levelsChanged") {
+    console.warn(
+      `Vavilov Explorer: the command ${name}, made at revision ${String(error.basedOn)}, came after the populations of column ${String(error.column)} changed at ${String(error.levelsAt)}, and was not applied`,
     );
     return { ok: true, value: "stale" };
   }

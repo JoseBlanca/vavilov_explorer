@@ -4,8 +4,8 @@
 //! A category's cells are its codes, planned as a lasso's are.
 
 use super::{
-    Change, Plan, StepKind, check_decimal_mark, check_row_set, code_of, plan_codes, refiltered,
-    step_of,
+    Also, Change, Plan, StepKind, check_decimal_mark, check_row_set, code_of, plan_codes,
+    refiltered, step_of,
 };
 use crate::cells::{Typed, name_of, typed};
 use crate::convert::usize_from;
@@ -17,6 +17,7 @@ use crate::message::{MessageKind, MessageWriter};
 use crate::row_set::RowSet;
 use crate::session::{OpenProject, SharedState};
 use crate::table::{ColumnValues, INDIVIDUAL_ID, Numbers};
+use crate::text::nfc;
 
 /// Plans the cells of `rows` in `column` set to what `text` gives, read
 /// with `decimal_mark`; `None` when every row has that value already.
@@ -30,6 +31,8 @@ pub(super) fn plan_set_cells(
     sent_at: Option<SentAt>,
 ) -> Result<Option<Plan>, CommandError> {
     check_decimal_mark(decimal_mark, "a value typed in a cell")?;
+    // In the composed form of the table's texts (`crate::text`).
+    let text = nfc(&text);
     let table = &open.table;
     check_row_set(rows, table.num_rows())?;
     if column == table.names().id() {
@@ -77,7 +80,15 @@ pub(super) fn plan_set_cells(
                 .filter(|row| code_of(codes, *row) != new)
                 .map(|row| (row, new))
                 .collect();
-            plan_codes(state, open, column, changes, StepKind::Record, sent_at)
+            plan_codes(
+                state,
+                open,
+                column,
+                changes,
+                StepKind::Record,
+                Also::NOTHING,
+                sent_at,
+            )
         }
         Typed::Value(value) => {
             let mut changes = Vec::new();

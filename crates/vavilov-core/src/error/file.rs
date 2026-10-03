@@ -139,6 +139,19 @@ pub enum ImportRefusal {
         /// The line or row that repeats it.
         second_row: u32,
     },
+    /// Two individuals whose IDs are one text once both are in Unicode's
+    /// composed form, NFC, such as `José` written with its accent as part of
+    /// the `é` and as a separate character after the `e`.
+    IndividualWrittenTwoWays {
+        /// The ID, in the composed form.
+        name: String,
+    },
+    /// Two columns whose names are one text once both are in Unicode's
+    /// composed form, NFC.
+    ColumnWrittenTwoWays {
+        /// The name, in the composed form.
+        name: String,
+    },
     /// A first column whose header is not `IndividualID`, as
     /// `is_individual_id` compares them.
     NotIndividualId {

@@ -196,7 +196,8 @@ fn loading_a_table_takes_a_revision_that_every_column_takes_too() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None
+            selected: None,
+            mode: None,
         })
     );
     assert_eq!(session.selection().unwrap(), &RowSet::empty(4));
@@ -443,12 +444,13 @@ fn changing_the_active_classification_clears_the_selected_population() {
         session.active(),
         Some(Active {
             column: CLUSTER,
-            selected: None
+            selected: None,
+            mode: None,
         })
     );
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![3, 0, 0, 0, 255, 255, 0])]
+        [(ACTIVE, vec![3, 0, 0, 0, 255, 255, 0, 0])]
     );
     assert_eq!(
         apply(
@@ -525,12 +527,13 @@ fn a_population_is_selected_in_the_active_classification_only() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Population(PERU))
+            selected: Some(Selected::Population(PERU)),
+            mode: None,
         })
     );
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![2, 0, 0, 0, 1, 0, 1])]
+        [(ACTIVE, vec![2, 0, 0, 0, 1, 0, 1, 0])]
     );
     let request = at(
         &session,
@@ -1115,8 +1118,8 @@ const SNAPSHOT_AFTER_EDITS: [u8; 416] = [
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0, // no time; project part
     1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
     1, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 8, 0, 0, 0, // loaded at 1; shape part
-    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, // shape at 1; active part
-    3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
+    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 8, 0, 0, 0, // shape at 1; active part
+    3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none, no button; selection part
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
     13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // filter part: rows shown since 1
@@ -1232,12 +1235,13 @@ fn the_unassigned_individuals_can_be_selected_like_a_population() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Unassigned)
+            selected: Some(Selected::Unassigned),
+            mode: None,
         })
     );
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![2, 0, 0, 0, 255, 255, 2])]
+        [(ACTIVE, vec![2, 0, 0, 0, 255, 255, 2, 0])]
     );
 }
 
@@ -1392,7 +1396,8 @@ fn any_category_can_be_the_active_classification_a_trait_of_yes_or_no_too() {
         session.active(),
         Some(Active {
             column: FERTILE,
-            selected: None
+            selected: None,
+            mode: None,
         })
     );
 }
@@ -1487,7 +1492,8 @@ fn the_active_classification_made_one_of_countries_stays_active_without_its_popu
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None
+            selected: None,
+            mode: None,
         })
     );
     // Spain and Peru as their codes, in their order: ESP, PER.
@@ -1877,3 +1883,7 @@ fn a_search_after_an_edit_reads_the_decimal_numbers_as_edited() {
     apply(&mut session, Command::Undo);
     assert_eq!(shown(&session), [3]);
 }
+
+mod populations;
+
+mod edit_mode;

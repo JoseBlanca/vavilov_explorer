@@ -59,7 +59,8 @@ fn a_json_call_reaches_the_session() {
         session.active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(1),
-            selected: Some(Selected::Population(LevelCode::new(1)))
+            selected: Some(Selected::Population(LevelCode::new(1))),
+            mode: None,
         })
     );
 }

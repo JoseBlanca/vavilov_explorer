@@ -245,6 +245,18 @@ fn file_errors() -> Vec<CommandError> {
                 column: 3,
             },
         ),
+        refused(
+            "plants.csv",
+            I::IndividualWrittenTwoWays {
+                name: "Jos\u{e9}".to_owned(),
+            },
+        ),
+        refused(
+            "plants.csv",
+            I::ColumnWrittenTwoWays {
+                name: "Per\u{fa}".to_owned(),
+            },
+        ),
         CommandError::ImportUnreadable {
             file_name: "plants.xlsx".to_owned(),
             message: "invalid Zip archive: Could not find EOCD".to_owned(),
@@ -351,4 +363,74 @@ fn every_refusal_of_a_cell_crosses_as_the_shared_file_of_literals_says() {
     for (error, expected) in errors.iter().zip(expected) {
         assert_eq!(serde_json::to_value(error).unwrap(), expected);
     }
+}
+
+/// One refusal of a population's name of each kind, in the order of
+/// `population-errors.json`.
+fn population_errors() -> Vec<CommandError> {
+    let refused = |column_name: &str, text: &str, refusal: PopulationRefusal| {
+        CommandError::PopulationRefused {
+            column_name: column_name.to_owned(),
+            text: text.to_owned(),
+            refusal,
+        }
+    };
+    vec![
+        refused("origin", " ", PopulationRefusal::EmptyName),
+        refused(
+            "origin",
+            "Kingdom of Spain",
+            PopulationRefusal::Taken {
+                code: LevelCode::new(0),
+            },
+        ),
+        refused("seeds", "1,5", PopulationRefusal::NotWholeNumber),
+        refused(
+            "height",
+            "2.5",
+            PopulationRefusal::NotDecimalNumber {
+                decimal_mark: ",".to_owned(),
+            },
+        ),
+        refused("origin", "Atlantis", PopulationRefusal::NotACountry),
+        refused("fertile", "maybe", PopulationRefusal::NotYesOrNo),
+        refused(
+            "group",
+            "one more",
+            PopulationRefusal::TooMany { max_levels: 65_535 },
+        ),
+        refused(
+            "origin",
+            "Kingdom of the Netherlands, the",
+            PopulationRefusal::TooLong { max_chars: 30 },
+        ),
+        refused("origin", "Peru\nChile", PopulationRefusal::ControlCharacter),
+    ]
+}
+
+/// Every case of `population_errors`, as the window's tests of the same
+/// file read them (`src/state/populationMessages.test.ts`), so that a field
+/// renamed on one side fails a test.
+#[test]
+fn every_refusal_of_a_population_crosses_as_the_shared_file_of_literals_says() {
+    let expected: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("population-errors.json")).unwrap();
+    let errors = population_errors();
+    assert_eq!(errors.len(), expected.len());
+    for (error, expected) in errors.iter().zip(expected) {
+        assert_eq!(serde_json::to_value(error).unwrap(), expected);
+    }
+}
+
+#[test]
+fn a_command_made_before_the_levels_changed_crosses_with_its_revisions() {
+    assert_eq!(
+        serde_json::to_value(CommandError::LevelsChanged {
+            column: ColumnId::new(2),
+            based_on: Revision::new(2),
+            levels_at: Revision::new(3),
+        })
+        .unwrap(),
+        json!({ "kind": "levelsChanged", "column": 2, "basedOn": 2, "levelsAt": 3 })
+    );
 }

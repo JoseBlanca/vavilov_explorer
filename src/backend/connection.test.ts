@@ -24,7 +24,7 @@ const SNAPSHOT = buffer(
   ...[
     1, 0, 0, 0, 24, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
   ],
-  ...[2, 0, 0, 0, 7, 0, 0, 0, 2, 0, 0, 0, 255, 255, 0, 0],
+  ...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 255, 255, 0, 0],
   ...[3, 0, 0, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[5, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 255, 255, 255, 255],
@@ -124,7 +124,7 @@ describe("connecting", () => {
       { command: "subscribe", args: { onChange: "the channel" }, headers: undefined },
     ]);
     expect(connection.state.revision()).toBe(1);
-    expect(connection.state.active()).toEqual({ column: 2, selected: null });
+    expect(connection.state.active()).toEqual({ column: 2, selected: null, mode: null });
     expect([...(connection.state.codes(column(2)) ?? [])]).toEqual([0, 1, 0xffff, 0]);
   });
 
@@ -289,6 +289,63 @@ describe("a command", () => {
     ]);
   });
 
+  test("adding a population sends its name and the decimal mark as JSON", async () => {
+    const { transport, calls } = fakeTransport();
+    const connection = await connect(transport, failOnDefect);
+    await connection.addPopulation(column(2), " China", ",");
+    expect(calls.slice(1)).toEqual([
+      {
+        command: "add_population",
+        args: {
+          column: 2,
+          name: " China",
+          decimalMark: ",",
+          basedOn: 1,
+          sentAt: 1_727_865_600_000.5,
+        },
+        headers: undefined,
+      },
+    ]);
+  });
+
+  test("pressing + or − sends what is selected and the button as JSON", async () => {
+    const { transport, calls } = fakeTransport();
+    const connection = await connect(transport, failOnDefect);
+    await connection.setEditMode(column(2), { kind: "population", code: code(1) }, "remove");
+    await connection.setEditMode(column(2), { kind: "unassigned" }, null);
+    expect(calls.slice(1).map((call) => [call.command, call.args])).toEqual([
+      [
+        "set_edit_mode",
+        {
+          column: 2,
+          target: { population: 1 },
+          mode: "remove",
+          basedOn: 1,
+          sentAt: 1_727_865_600_000.5,
+        },
+      ],
+      [
+        "set_edit_mode",
+        { column: 2, target: "unassigned", mode: null, basedOn: 1, sentAt: 1_727_865_600_000.5 },
+      ],
+    ]);
+  });
+
+  test("refused for a population's name gives the refusal with its reason", async () => {
+    const refusal = {
+      kind: "populationRefused",
+      columnName: "origin",
+      text: "Peru",
+      refusal: { kind: "taken", code: 1 },
+    };
+    const { transport } = fakeTransport({ answer: () => refusedWith(refusal) });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.addPopulation(column(2), "Peru", ".")).toEqual({
+      ok: false,
+      error: refusal,
+    });
+  });
+
   test("refused gives the refusal as a value", async () => {
     const { transport } = fakeTransport({
       answer: () => refusedWith({ kind: "notSelected", target: { population: 0 } }),
@@ -329,6 +386,22 @@ describe("a command made before the current table was loaded", () => {
     });
     const connection = await connect(transport, failOnDefect);
     expect(await connection.undo()).toEqual({ ok: true, value: "stale" });
+  });
+});
+
+describe("a command made before the populations it names changed", () => {
+  test("is answered as stale, which no caller can show as a refusal", async () => {
+    const { transport } = fakeTransport({
+      answer: () => refusedWith({ kind: "levelsChanged", column: 2, basedOn: 2, levelsAt: 3 }),
+    });
+    const connection = await connect(transport, failOnDefect);
+    expect(
+      await connection.assignRows(
+        column(2),
+        { kind: "population", code: code(2) },
+        new Uint8Array([1]),
+      ),
+    ).toEqual({ ok: true, value: "stale" });
   });
 });
 

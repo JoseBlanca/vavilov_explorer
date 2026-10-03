@@ -20,16 +20,36 @@ pub enum Selected {
     Unassigned,
 }
 
+/// What happens to the individuals that enter the selection while a
+/// population is selected for editing: the button + or − of the populations
+/// panel, pressed (`docs/design.md`, section 2.1).
+///
+/// It crosses to a window as `"add"` or `"remove"`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EditMode {
+    /// They go into what is selected: the population, or none for the
+    /// unassigned individuals.
+    Add,
+    /// Those in the selected population become unassigned.
+    Remove,
+}
+
 /// The active classification, the categorical column that colours every
-/// view, and the population selected in it for editing, if any. They are
-/// one value, so that a selected population cannot exist without the
-/// classification it belongs to.
+/// view, the population selected in it for editing, if any, and the button
+/// pressed on that population, if any. They are one value, so that a
+/// selected population cannot exist without the classification it belongs
+/// to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Active {
     /// The column of the active classification.
     pub column: ColumnId,
     /// What is selected for editing, if anything.
     pub selected: Option<Selected>,
+    /// The button pressed: `None` whenever nothing is selected, and never
+    /// `Remove` with the unassigned individuals selected, which the
+    /// dispatcher keeps so.
+    pub mode: Option<EditMode>,
 }
 
 /// The interaction tier of `docs/design.md`, section 3.

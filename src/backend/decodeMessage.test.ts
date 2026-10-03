@@ -87,19 +87,37 @@ describe("the parts", () => {
     ).toEqual([{ kind: "project", numRows: 4, loadedAt: 3 }]);
   });
 
-  test("the active part gives the column and the population, or null for none", () => {
-    expect(parts(...[2, 0, 0, 0, 7, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0])).toEqual([
-      { kind: "active", column: 2, selected: { kind: "population", code: 1 } },
+  test("the active part gives the column, the population and the button pressed, or null for none", () => {
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0])).toEqual([
+      { kind: "active", column: 2, selected: { kind: "population", code: 1 }, mode: null },
     ]);
-    expect(parts(...[2, 0, 0, 0, 7, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 0])).toEqual([
-      { kind: "active", column: 3, selected: { kind: "unassigned" } },
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 1])).toEqual([
+      { kind: "active", column: 2, selected: { kind: "population", code: 1 }, mode: "add" },
     ]);
-    expect(parts(...[2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0])).toEqual([
-      { kind: "active", column: null, selected: null },
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 2])).toEqual([
+      { kind: "active", column: 2, selected: { kind: "population", code: 1 }, mode: "remove" },
     ]);
-    expect(parts(...[2, 0, 0, 0, 7, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0])).toEqual([
-      { kind: "active", column: 3, selected: null },
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 1])).toEqual([
+      { kind: "active", column: 3, selected: { kind: "unassigned" }, mode: "add" },
     ]);
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0])).toEqual([
+      { kind: "active", column: null, selected: null, mode: null },
+    ]);
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0])).toEqual([
+      { kind: "active", column: 3, selected: null, mode: null },
+    ]);
+  });
+
+  test("a button pressed on nothing, − on the unassigned, or a button of no kind is a defect", () => {
+    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 1])).toThrow(
+      /defect: a button pressed with nothing selected/,
+    );
+    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 2])).toThrow(
+      /defect: − pressed on the unassigned individuals/,
+    );
+    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 3])).toThrow(
+      /defect: a button pressed of kind 3/,
+    );
   });
 
   test("the selection part gives the rows and one bit per row", () => {
@@ -159,12 +177,12 @@ describe("the parts", () => {
       parts(
         ...[5, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
         ...[7, 0, 0, 0, 12, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0],
-        ...[2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0],
+        ...[2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0],
       ),
     ).toEqual([
       { kind: "undo", canUndo: false, canRedo: true },
       { kind: "hover", seq: 1, row: null },
-      { kind: "active", column: null, selected: null },
+      { kind: "active", column: null, selected: null, mode: null },
     ]);
   });
 
@@ -254,7 +272,7 @@ describe("the snapshot after edits that the core's tests write", () => {
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0, // no time; project part
     1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
     1, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 8, 0, 0, 0, // loaded at 1; shape part
-    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, // shape at 1; active part
+    1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 8, 0, 0, 0, // shape at 1; active part
     3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
@@ -312,7 +330,7 @@ describe("the snapshot after edits that the core's tests write", () => {
     expect(summary).toEqual([
       { kind: "project", numRows: 4, loadedAt: 1 },
       { kind: "shape", shapeAt: 1 },
-      { kind: "active", column: 3, selected: null },
+      { kind: "active", column: 3, selected: null, mode: null },
       { kind: "selection", numRows: 4, bits: [0] },
       { kind: "undo", canUndo: true, canRedo: false },
       {

@@ -15,6 +15,8 @@ const COMMANDS: &[&str] = &[
     "set_hover",
     "set_active_classification",
     "select_population",
+    "add_population",
+    "set_edit_mode",
     "set_role",
     "set_filter",
     "set_cells",

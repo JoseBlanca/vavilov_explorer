@@ -142,6 +142,27 @@ impl LevelValues {
         self.len() == 0
     }
 
+    /// The index of `level` among the levels: a number by its value, so
+    /// that −0 is the level 0, a text exactly. `None` when no level is it,
+    /// or when it is of another storage type.
+    pub(crate) fn position(&self, level: &Level) -> Option<usize> {
+        match (self, level) {
+            (Self::Integer(values), Level::Integer(wanted)) => {
+                values.iter().position(|value| value == wanted)
+            }
+            (Self::Float(values), Level::Float(wanted)) => values
+                .iter()
+                .position(|value| float_order(value, wanted).is_eq()),
+            (Self::Boolean(values), Level::Boolean(wanted)) => {
+                values.iter().position(|value| value == wanted)
+            }
+            (Self::Text(values), Level::Text(wanted)) => {
+                values.iter().position(|value| value == wanted)
+            }
+            (Self::Integer(_) | Self::Float(_) | Self::Boolean(_) | Self::Text(_), _) => None,
+        }
+    }
+
     /// The level of `code` as text, for the messages of errors.
     pub(crate) fn text_of(&self, index: usize) -> Option<String> {
         match self {
@@ -151,6 +172,19 @@ impl LevelValues {
             Self::Text(values) => values.get(index).cloned(),
         }
     }
+}
+
+/// One level of a category, of the column's storage type.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Level {
+    /// A whole number.
+    Integer(i64),
+    /// A decimal number, finite.
+    Float(f64),
+    /// Yes or no.
+    Boolean(bool),
+    /// A text, not empty.
+    Text(String),
 }
 
 /// The values of a category: its ordered levels,
@@ -252,6 +286,91 @@ impl Categorical {
         u32::try_from(self.levels.len()).map_err(|_| CommandError::Defect {
             what: format!("a column of {} levels", self.levels.len()),
         })
+    }
+
+    /// The category with `level`, of `colour`, after its last level; the
+    /// codes are the same.
+    ///
+    /// # Errors
+    ///
+    /// A `Defect` for a level of another storage type, or one the
+    /// category has, which the caller checked.
+    pub(crate) fn with_level(&self, level: Level, colour: Colour) -> Result<Self, CommandError> {
+        if self.levels.position(&level).is_some() {
+            return Err(CommandError::Defect {
+                what: format!("a level {level:?} added to a category that has it"),
+            });
+        }
+        let mut levels = self.levels.clone();
+        match (&mut levels, level) {
+            (LevelValues::Integer(values), Level::Integer(value)) => values.push(value),
+            (LevelValues::Float(values), Level::Float(value)) => values.push(value),
+            (LevelValues::Boolean(values), Level::Boolean(value)) => values.push(value),
+            (LevelValues::Text(values), Level::Text(value)) => values.push(value),
+            (
+                LevelValues::Integer(_)
+                | LevelValues::Float(_)
+                | LevelValues::Boolean(_)
+                | LevelValues::Text(_),
+                level,
+            ) => {
+                return Err(CommandError::Defect {
+                    what: format!(
+                        "a level {level:?} added to a category of {:?}",
+                        self.storage_type()
+                    ),
+                });
+            }
+        }
+        let mut colours = self.colours.clone();
+        colours.push(colour);
+        Ok(Self {
+            levels,
+            colours,
+            codes: self.codes.clone(),
+        })
+    }
+
+    /// The category without its last level, and that level with its
+    /// colour; the codes are the same.
+    ///
+    /// # Errors
+    ///
+    /// A `Defect` when the category has no level, or a row holds the last
+    /// one: the history removes only a level it added, after every edit
+    /// that gave it rows was undone.
+    pub(crate) fn without_last_level(&self) -> Result<(Self, Level, Colour), CommandError> {
+        let defect = |what: &str| CommandError::Defect {
+            what: format!("the last level removed from a category that {what}"),
+        };
+        let last = self
+            .levels
+            .len()
+            .checked_sub(1)
+            .ok_or_else(|| defect("has none"))?;
+        let held = super::level_code(last)?;
+        if self.codes.contains(&Some(held)) {
+            return Err(defect("a row holds"));
+        }
+        let mut levels = self.levels.clone();
+        let level = match &mut levels {
+            LevelValues::Integer(values) => values.pop().map(Level::Integer),
+            LevelValues::Float(values) => values.pop().map(Level::Float),
+            LevelValues::Boolean(values) => values.pop().map(Level::Boolean),
+            LevelValues::Text(values) => values.pop().map(Level::Text),
+        }
+        .ok_or_else(|| defect("has none"))?;
+        let mut colours = self.colours.clone();
+        let colour = colours.pop().ok_or_else(|| defect("has no colours"))?;
+        Ok((
+            Self {
+                levels,
+                colours,
+                codes: self.codes.clone(),
+            },
+            level,
+            colour,
+        ))
     }
 
     /// The values of each row, as stored.
@@ -666,6 +785,11 @@ pub struct Column {
     pub(crate) id: ColumnId,
     pub(crate) name: String,
     pub(crate) revision: Revision,
+    /// The revision at which its levels last changed other than by one
+    /// added after the last: the load, a change of role, or a level
+    /// removed. A command that names a level and was made before it is
+    /// refused, since the code may now mean another population.
+    pub(crate) levels_at: Revision,
     pub(crate) values: ColumnValues,
 }
 

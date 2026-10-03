@@ -5,7 +5,7 @@ use crate::filter::{CellMatch, Filter, Showing};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Position, Revision, RowIndex, SentAt};
 use crate::message::{MessageKind, NO_CODE, NO_COLUMN, NO_ROW, PartKind};
 use crate::row_set::RowSet;
-use crate::session::{Active, Selected, Shown, UndoRedo};
+use crate::session::{Active, EditMode, Selected, Shown, UndoRedo};
 
 /// Every payload, and so every message, is padded to a multiple of this.
 const ALIGNMENT: usize = 8;
@@ -77,9 +77,29 @@ impl MessageWriter {
                 Some(Selected::Population(code)) => (1, code.get()),
                 Some(Selected::Unassigned) => (2, NO_CODE),
             };
+            // The button pressed, 0 none, 1 +, 2 −; a window refuses one
+            // with nothing selected, or − on the unassigned individuals, as
+            // a defect, so it is refused here first.
+            let selected = active.and_then(|active| active.selected);
+            let mode = match (active.and_then(|active| active.mode), selected) {
+                (None, _) => 0_u8,
+                (Some(_), None) => {
+                    return Err(CommandError::Defect {
+                        what: "a button pressed with nothing selected".to_owned(),
+                    });
+                }
+                (Some(EditMode::Remove), Some(Selected::Unassigned)) => {
+                    return Err(CommandError::Defect {
+                        what: "− pressed on the unassigned individuals".to_owned(),
+                    });
+                }
+                (Some(EditMode::Add), Some(_)) => 1,
+                (Some(EditMode::Remove), Some(Selected::Population(_))) => 2,
+            };
             payload.extend_from_slice(&column.to_le_bytes());
             payload.extend_from_slice(&code.to_le_bytes());
             payload.push(kind);
+            payload.push(mode);
             Ok(())
         })
     }

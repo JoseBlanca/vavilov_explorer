@@ -22,7 +22,8 @@
   color: var(--color-text-muted);
 }
 
-.select {
+.select,
+.text {
   min-height: var(--target-size);
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-control-border);
@@ -40,11 +41,18 @@
   list-style: none;
 }
 
-.row {
+.item {
   display: flex;
   align-items: center;
+  gap: var(--space-1);
+}
+
+.row {
+  display: flex;
+  flex: 1;
+  align-items: center;
   gap: var(--space-2);
-  width: 100%;
+  min-width: 0;
   min-height: var(--target-size);
   padding: var(--space-1) var(--space-2);
   border: 1px solid transparent;
@@ -92,31 +100,53 @@
   font-variant-numeric: tabular-nums;
 }
 
-.modes {
+.edit,
+.action {
+  min-height: var(--target-size);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  background: var(--color-panel);
+  color: var(--color-text);
+}
+
+.edit {
+  flex: none;
+  min-width: var(--target-size);
+  padding: 0;
+  font-weight: var(--font-weight-strong);
+}
+
+.action {
+  padding: var(--space-1) var(--space-3);
+}
+
+.add[aria-pressed="true"] {
+  border-color: var(--color-add-surface);
+  background: var(--color-add-surface);
+  color: var(--color-add-text);
+}
+
+.remove[aria-pressed="true"] {
+  border-color: var(--color-remove-surface);
+  background: var(--color-remove-surface);
+  color: var(--color-remove-text);
+}
+
+.edit[aria-disabled="true"],
+.action[aria-disabled="true"] {
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.nameForm {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-}
-
-.legend {
-  padding: 0 var(--space-1);
-  color: var(--color-text-muted);
-}
-
-.mode {
-  display: flex;
-  align-items: center;
   gap: var(--space-2);
-  min-height: var(--target-size);
 }
 
-.hint {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-small);
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

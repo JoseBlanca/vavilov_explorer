@@ -1,0 +1,56 @@
+[
+  {
+    "kind": "populationRefused",
+    "columnName": "origin",
+    "text": " ",
+    "refusal": { "kind": "emptyName" }
+  },
+  {
+    "kind": "populationRefused",
+    "columnName": "origin",
+    "text": "Kingdom of Spain",
+    "refusal": { "kind": "taken", "code": 0 }
+  },
+  {
+    "kind": "populationRefused",
+    "columnName": "seeds",
+    "text": "1,5",
+    "refusal": { "kind": "notWholeNumber" }
+  },
+  {
+    "kind": "populationRefused",
+    "columnName": "height",
+    "text": "2.5",
+    "refusal": { "kind": "notDecimalNumber", "decimalMark": "," }
+  },
+  {
+    "kind": "populationRefused",
+    "columnName": "origin",
+    "text": "Atlantis",
+    "refusal": { "kind": "notACountry" }
+  },
+  {
+    "kind": "populationRefused",
+    "columnName": "fertile",
+    "text": "maybe",
+    "refusal": { "kind": "notYesOrNo" }
+  },
+  {
+    "kind": "populationRefused",
+    "columnName": "group",
+    "text": "one more",
+    "refusal": { "kind": "tooMany", "maxLevels": 65535 }
+  },
+  {
+    "kind": "populationRefused",
+    "columnName": "origin",
+    "text": "Kingdom of the Netherlands, the",
+    "refusal": { "kind": "tooLong", "maxChars": 30 }
+  },
+  {
+    "kind": "populationRefused",
+    "columnName": "origin",
+    "text": "Peru\nChile",
+    "refusal": { "kind": "controlCharacter" }
+  }
+]

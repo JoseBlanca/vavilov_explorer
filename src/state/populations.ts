@@ -10,8 +10,15 @@ import { isCategoricalColumn } from "./description.ts";
 import type { TableDescription } from "./description.ts";
 import { NO_CODE, isLevelCode } from "./ids.ts";
 import type { ColumnId, LevelCode } from "./ids.ts";
-import type { Selected } from "./message.ts";
+import type { EditMode, Selected } from "./message.ts";
 import type { Active } from "./windowState.ts";
+
+/**
+ * The most characters the name of a population of text may have, as
+ * `MAX_POPULATION_NAME` in the core: 30, decided by the owner on
+ * 3 October 2026.
+ */
+export const MAX_POPULATION_NAME = 30;
 
 /** A category the user can make the active classification. */
 export interface Classification {
@@ -41,8 +48,23 @@ export interface PopulationsModel {
   readonly classifications: readonly Classification[];
   /** The active classification, or `null`. */
   readonly active: ColumnId | null;
+  /** The name of the active classification, or `null` with none. */
+  readonly activeName: string | null;
   /** Its populations in the order of their codes, then the unassigned; empty with none active. */
   readonly rows: readonly PopulationRow[];
+  /**
+   * Whether a population can be added to it: to a category of TRUE and
+   * FALSE only while it lacks one of them, and not with none active.
+   */
+  readonly takesNewPopulations: boolean;
+  /**
+   * The most characters the name typed for a new population may have, for
+   * a category of text; `null` for one of countries, which keeps the code
+   * of a long name, or of numbers or of TRUE and FALSE.
+   */
+  readonly nameLimit: number | null;
+  /** The button pressed on the selected row, + or −, or `null`. */
+  readonly mode: EditMode | null;
 }
 
 /**
@@ -61,7 +83,15 @@ export function populationsModel(
     isCategoricalColumn(column) ? [{ column: column.id, name: column.name }] : [],
   );
   if (active === null) {
-    return { classifications, active: null, rows: [] };
+    return {
+      classifications,
+      active: null,
+      activeName: null,
+      rows: [],
+      takesNewPopulations: false,
+      nameLimit: null,
+      mode: null,
+    };
   }
   const column = description.columns.find((candidate) => candidate.id === active.column);
   if (column === undefined || !isCategoricalColumn(column)) {
@@ -112,7 +142,15 @@ export function populationsModel(
     count: unassigned,
     isSelected: active.selected?.kind === "unassigned",
   });
-  return { classifications, active: active.column, rows };
+  return {
+    classifications,
+    active: active.column,
+    activeName: column.name,
+    rows,
+    takesNewPopulations: column.storage !== "boolean" || column.levels.length < 2,
+    nameLimit: column.storage === "text" && column.role === "category" ? MAX_POPULATION_NAME : null,
+    mode: active.mode,
+  };
 }
 
 function levelCode(index: number): LevelCode {

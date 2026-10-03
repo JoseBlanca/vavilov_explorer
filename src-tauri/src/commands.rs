@@ -208,6 +208,39 @@ pub fn select_population<R: Runtime>(
     run(&app, &session, "select_population", &request)
 }
 
+/// Adds a population with no individuals to the active classification, and
+/// selects it: `{ column, name, decimalMark, basedOn, sentAt }`, `name`
+/// being the text typed and `decimalMark` the one the window writes
+/// numbers with.
+///
+/// # Errors
+///
+/// The refusals of [`calls::call`].
+#[tauri::command]
+pub fn add_population<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<(), CommandError> {
+    run(&app, &session, "add_population", &request)
+}
+
+/// Presses + or − on what is selected for editing, or releases it: `{
+/// column, target, mode, basedOn, sentAt }`, `target` being `{ population:
+/// code }` or `"unassigned"`, and `mode` `"add"`, `"remove"` or `null`.
+///
+/// # Errors
+///
+/// The refusals of [`calls::call`].
+#[tauri::command]
+pub fn set_edit_mode<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<(), CommandError> {
+    run(&app, &session, "set_edit_mode", &request)
+}
+
 /// Sets the role of a column: `{ column, role, basedOn, sentAt }`, `role`
 /// being `"number"`, `"latitude"`, `"longitude"`, `"category"`,
 /// `"country"` or `"text"`.

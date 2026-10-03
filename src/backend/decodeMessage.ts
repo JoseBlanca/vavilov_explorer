@@ -6,7 +6,7 @@
 
 import { defect } from "../state/defect.ts";
 import { MAX_ROWS, NO_CODE, NO_COLUMN, NO_ROW } from "../state/ids.ts";
-import type { ColumnRevision, Message, MessagePart, Selected } from "../state/message.ts";
+import type { ColumnRevision, EditMode, Message, MessagePart, Selected } from "../state/message.ts";
 import { countRows } from "../state/rowSet.ts";
 import {
   booleanAt,
@@ -71,13 +71,15 @@ function decodePart(
     case PROJECT:
       return projectPart(view, start, length);
     case ACTIVE: {
-      expectLength("active", length, 7);
+      expectLength("active", length, 8);
       const column = view.getUint32(start, true);
       const code = view.getUint16(start + 4, true);
+      const selected = selectedOf(view.getUint8(start + 6), code);
       return {
         kind: "active",
         column: column === NO_COLUMN ? null : columnId(column),
-        selected: selectedOf(view.getUint8(start + 6), code),
+        selected,
+        mode: modeOf(view.getUint8(start + 7), selected),
       };
     }
     case SELECTION:
@@ -267,6 +269,26 @@ function selectedOf(kind: number, code: number): Selected | null {
     return { kind: "unassigned" };
   }
   throw defect(`a kind of selection ${String(kind)}`);
+}
+
+/**
+ * The button pressed, from the last byte of the active part, 0 none, 1 +,
+ * 2 −, which needs something selected, and a population for −.
+ */
+function modeOf(kind: number, selected: Selected | null): EditMode | null {
+  if (kind === 0) {
+    return null;
+  }
+  if (kind !== 1 && kind !== 2) {
+    throw defect(`a button pressed of kind ${String(kind)}`);
+  }
+  if (selected === null) {
+    throw defect("a button pressed with nothing selected");
+  }
+  if (kind === 2 && selected.kind === "unassigned") {
+    throw defect("− pressed on the unassigned individuals");
+  }
+  return kind === 1 ? "add" : "remove";
 }
 
 /** Checks what a message of each kind must hold. */

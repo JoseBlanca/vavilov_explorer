@@ -10,6 +10,7 @@
 //! message.
 
 mod cells;
+mod levels;
 
 use crate::command::{Command, Request};
 use crate::convert::{u64_from, usize_from};
@@ -21,8 +22,8 @@ use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt, Wind
 use crate::message::{MessageKind, MessageWriter, whole_state};
 use crate::row_set::RowSet;
 use crate::session::{
-    Active, History, HistoryStep, Interaction, OpenProject, Project, Selected, SendFailed, Session,
-    SharedState, Shown,
+    Active, EditMode, History, HistoryStep, Interaction, OpenProject, Project, Selected,
+    SendFailed, Session, SharedState, Shown,
 };
 use crate::table::{Categorical, Column, ColumnValues, Table};
 
@@ -113,11 +114,16 @@ impl Session {
                 decimal_mark,
             } => (!filter.text.is_empty()).then(|| decimal_mark.clone()),
             Command::LoadTable { .. }
-            | Command::SetSelection { .. }
             | Command::SetHover { .. }
             | Command::SetActiveClassification { .. }
-            | Command::SelectPopulation { .. } => None,
-            Command::AssignRows { .. }
+            | Command::SelectPopulation { .. }
+            // A population added holds no row, so no row matches anew.
+            | Command::AddPopulation { .. } => None,
+            // A selection assigns the rows that enter it while + or − is
+            // pressed.
+            Command::SetSelection { .. }
+            | Command::SetEditMode { .. }
+            | Command::AssignRows { .. }
             | Command::UnassignRows { .. }
             | Command::SetRole { .. }
             | Command::SetCells { .. }
@@ -162,6 +168,7 @@ impl Session {
     fn plan(&self, request: Request) -> Result<Option<Plan>, CommandError> {
         self.check_based_on(request.based_on)?;
         let state = &self.state;
+        let based_on = request.based_on;
         let sent_at = request.sent_at;
         match request.command {
             Command::LoadTable {
@@ -173,6 +180,27 @@ impl Session {
                 check_row_set(&rows, open.table.num_rows())?;
                 if rows == open.interaction.selection {
                     return Ok(None);
+                }
+                let entering = rows
+                    .rows()
+                    .filter(|row| !open.interaction.selection.contains(*row));
+                if let Some((column, changes)) =
+                    pressed_changes(&open.table, open.interaction.active, entering)?
+                    && !changes.is_empty()
+                {
+                    let also = Also {
+                        selection: Some(rows),
+                        active: None,
+                    };
+                    return plan_codes(
+                        state,
+                        open,
+                        column,
+                        changes,
+                        StepKind::Record,
+                        also,
+                        sent_at,
+                    );
                 }
                 let revision = state.revision.next()?;
                 let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
@@ -251,6 +279,7 @@ impl Session {
                 let active = column.map(|column| Active {
                     column,
                     selected: None,
+                    mode: None,
                 });
                 plan_active(state, active, sent_at)
             }
@@ -258,12 +287,69 @@ impl Session {
                 let open = state.project.open()?;
                 let active = active_classification(open, column)?;
                 if let Some(Selected::Population(code)) = selected {
+                    // Made before a level was removed: its code may name
+                    // another population, or none.
+                    check_levels_at(open, column, based_on)?;
                     check_level(&open.table, column, code)?;
                 }
                 if active.selected == selected {
                     return Ok(None);
                 }
-                plan_active(state, Some(Active { column, selected }), sent_at)
+                // Another population selected, or none, releases + or −.
+                let active = Active {
+                    column,
+                    selected,
+                    mode: None,
+                };
+                plan_active(state, Some(active), sent_at)
+            }
+            Command::SetEditMode {
+                column,
+                target,
+                mode,
+            } => {
+                let open = state.project.open()?;
+                let active = active_classification(open, column)?;
+                if let Selected::Population(_) = target {
+                    check_levels_at(open, column, based_on)?;
+                }
+                let selected = active.selected.ok_or(CommandError::NoPopulationSelected)?;
+                // − on the unassigned individuals, who are in no population,
+                // is refused as a lasso in remove mode is.
+                if selected != target
+                    || (mode == Some(EditMode::Remove) && target == Selected::Unassigned)
+                {
+                    return Err(CommandError::NotSelected { target });
+                }
+                if active.mode == mode {
+                    return Ok(None);
+                }
+                let pressed = Active {
+                    column,
+                    selected: Some(selected),
+                    mode,
+                };
+                if let Some((column, changes)) = pressed_changes(
+                    &open.table,
+                    Some(pressed),
+                    open.interaction.selection.rows(),
+                )? && !changes.is_empty()
+                {
+                    let also = Also {
+                        selection: None,
+                        active: Some(Some(pressed)),
+                    };
+                    return plan_codes(
+                        state,
+                        open,
+                        column,
+                        changes,
+                        StepKind::Record,
+                        also,
+                        sent_at,
+                    );
+                }
+                plan_active(state, Some(pressed), sent_at)
             }
             Command::AssignRows {
                 column,
@@ -271,6 +357,10 @@ impl Session {
                 rows,
             } => {
                 let open = state.project.open()?;
+                if let Selected::Population(_) = target {
+                    active_classification(open, column)?;
+                    check_levels_at(open, column, based_on)?;
+                }
                 let codes = lasso(open, column, target, &rows)?;
                 let new = match target {
                     Selected::Population(code) => Some(code),
@@ -295,6 +385,8 @@ impl Session {
                 rows,
             } => {
                 let open = state.project.open()?;
+                active_classification(open, column)?;
+                check_levels_at(open, column, based_on)?;
                 let codes = lasso(open, column, Selected::Population(population), &rows)?;
                 let changes = rows
                     .rows()
@@ -308,6 +400,15 @@ impl Session {
                     StepKind::Record,
                     sent_at,
                 )
+            }
+            Command::AddPopulation {
+                column,
+                name,
+                decimal_mark,
+            } => {
+                let open = state.project.open()?;
+                levels::plan_add_population(state, open, column, &name, &decimal_mark, sent_at)
+                    .map(Some)
             }
             Command::SetRole { column, role } => {
                 let open = state.project.open()?;
@@ -405,6 +506,8 @@ impl Session {
                 column,
                 codes,
                 shown,
+                selection,
+                active,
                 step,
             } => {
                 let open = open_for_commit(&mut self.state.project)?;
@@ -423,6 +526,12 @@ impl Session {
                 *column_revision = revision;
                 if let Some(shown) = shown {
                     open.interaction.shown = shown;
+                }
+                if let Some(selection) = selection {
+                    open.interaction.selection = selection;
+                }
+                if let Some(active) = active {
+                    open.interaction.active = active;
                 }
                 open.history.take(step);
                 Changed::State(revision)
@@ -469,6 +578,7 @@ impl Session {
                 let open = open_for_commit(&mut self.state.project)?;
                 let Column {
                     revision: column_revision,
+                    levels_at,
                     values: slot,
                     ..
                 } = open
@@ -477,12 +587,45 @@ impl Session {
                     .ok_or_else(|| defect(column, "is gone"))?;
                 *slot = values;
                 *column_revision = revision;
+                *levels_at = revision;
                 open.shape_at = revision;
                 if let Some(active) = active {
                     open.interaction.active = active;
                 }
                 if let Some(shown) = shown {
                     open.interaction.shown = shown;
+                }
+                open.history.take(step);
+                Changed::State(revision)
+            }
+            Change::Levels {
+                column,
+                categorical,
+                levels_at,
+                active,
+                step,
+            } => {
+                let open = open_for_commit(&mut self.state.project)?;
+                let Column {
+                    revision: column_revision,
+                    levels_at: column_levels_at,
+                    values,
+                    ..
+                } = open
+                    .table
+                    .column_mut(column)
+                    .ok_or_else(|| defect(column, "is gone"))?;
+                let Some(slot) = values.categorical_mut() else {
+                    return Err(defect(column, "is no longer a category"));
+                };
+                *slot = categorical;
+                *column_revision = revision;
+                if let Some(levels_at) = levels_at {
+                    *column_levels_at = levels_at;
+                }
+                open.shape_at = revision;
+                if let Some(active) = active {
+                    open.interaction.active = active;
                 }
                 open.history.take(step);
                 Changed::State(revision)
@@ -524,11 +667,15 @@ enum Change {
         row: Option<RowIndex>,
         seq: HoverSeq,
     },
-    /// New codes of a category, with the rows shown when they change.
+    /// New codes of a category, with the rows shown when they change, and
+    /// the selection or the active classification when the command sets
+    /// them.
     Codes {
         column: ColumnId,
         codes: Vec<Option<LevelCode>>,
         shown: Option<Shown>,
+        selection: Option<RowSet>,
+        active: Option<Option<Active>>,
         step: HistoryStep,
     },
     /// New values of some cells of a column of numbers or text, the whole
@@ -553,6 +700,16 @@ enum Change {
         values: ColumnValues,
         active: Option<Option<Active>>,
         shown: Option<Shown>,
+        step: HistoryStep,
+    },
+    /// New levels of a category, with the same codes, the revision its
+    /// levels take when a code may now mean another population, and the
+    /// active classification when the change sets it.
+    Levels {
+        column: ColumnId,
+        categorical: Categorical,
+        levels_at: Option<Revision>,
+        active: Option<Option<Active>>,
         step: HistoryStep,
     },
 }
@@ -583,6 +740,7 @@ fn plan_load(
             active: active_classification.map(|column| Active {
                 column,
                 selected: None,
+                mode: None,
             }),
             selection: RowSet::empty(table.num_rows()),
             hover: None,
@@ -641,7 +799,7 @@ fn plan_edit(
 ) -> Result<Option<Plan>, CommandError> {
     match edit {
         Edit::SetCodes { column, changes } => {
-            plan_codes(state, open, column, changes, kind, sent_at)
+            plan_codes(state, open, column, changes, kind, Also::NOTHING, sent_at)
         }
         Edit::SetValues { column, values } => {
             plan_values(state, open, column, values, kind, sent_at).map(Some)
@@ -650,6 +808,15 @@ fn plan_edit(
             cells::plan_cells(state, open, column, changes, kind, sent_at)
         }
         Edit::SetNames { changes } => cells::plan_names(state, open, changes, kind, sent_at),
+        Edit::AddLevel {
+            column,
+            level,
+            colour,
+        } => levels::plan_add_level(state, open, column, (level, colour), None, kind, sent_at)
+            .map(Some),
+        Edit::RemoveLevel { column } => {
+            levels::plan_remove_level(state, open, column, kind, sent_at).map(Some)
+        }
     }
 }
 
@@ -696,6 +863,7 @@ fn plan_values(
             values.role().is_categorical().then_some(Active {
                 column,
                 selected: None,
+                mode: None,
             })
         });
     let revision = state.revision.next()?;
@@ -726,14 +894,80 @@ fn plan_values(
     })
 }
 
-/// Plans new codes of some rows of a category. An
-/// edit that changes no row changes nothing.
+/// What a change of codes sets of the interaction in the same command: the
+/// selection whose new rows it assigns, or the button pressed whose rows
+/// selected it assigns.
+struct Also {
+    selection: Option<RowSet>,
+    active: Option<Option<Active>>,
+}
+
+impl Also {
+    /// Nothing of the interaction: a lasso, an edit of a cell, an undo.
+    const NOTHING: Self = Self {
+        selection: None,
+        active: None,
+    };
+}
+
+/// The rows whose code changes, each with its new code, in the order of
+/// the rows.
+type CodeChanges = Vec<(RowIndex, Option<LevelCode>)>;
+
+/// The codes that the rows `entering` the selection take while + or − is
+/// pressed on `active`, with the column, or `None` when no button is
+/// pressed. A row already where the button puts it is left out.
+fn pressed_changes(
+    table: &Table,
+    active: Option<Active>,
+    entering: impl Iterator<Item = RowIndex>,
+) -> Result<Option<(ColumnId, CodeChanges)>, CommandError> {
+    let Some(Active {
+        column,
+        selected,
+        mode: Some(mode),
+    }) = active
+    else {
+        return Ok(None);
+    };
+    let target = selected.ok_or_else(|| CommandError::Defect {
+        what: "a button pressed with nothing selected".to_owned(),
+    })?;
+    let codes = classification(table, column)?.codes();
+    let changes = match (mode, target) {
+        (EditMode::Add, target) => {
+            let new = match target {
+                Selected::Population(code) => Some(code),
+                Selected::Unassigned => None,
+            };
+            entering
+                .filter(|row| code_of(codes, *row) != new)
+                .map(|row| (row, new))
+                .collect()
+        }
+        (EditMode::Remove, Selected::Population(population)) => entering
+            .filter(|row| code_of(codes, *row) == Some(population))
+            .map(|row| (row, None))
+            .collect(),
+        (EditMode::Remove, Selected::Unassigned) => {
+            return Err(CommandError::Defect {
+                what: "− pressed on the unassigned individuals".to_owned(),
+            });
+        }
+    };
+    Ok(Some((column, changes)))
+}
+
+/// Plans new codes of some rows of a category, with what `also` sets of
+/// the interaction in the same command. An edit that changes no row
+/// changes nothing.
 fn plan_codes(
     state: &SharedState,
     open: &OpenProject,
     column: ColumnId,
     changes: Vec<(RowIndex, Option<LevelCode>)>,
     kind: StepKind,
+    also: Also,
     sent_at: Option<SentAt>,
 ) -> Result<Option<Plan>, CommandError> {
     if changes.is_empty() {
@@ -774,6 +1008,12 @@ fn plan_codes(
     let revision = state.revision.next()?;
     let shown = refiltered(open, Replaced::Codes(column, &codes), revision)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
+    if let Some(active) = also.active {
+        message.active(active)?;
+    }
+    if let Some(selection) = &also.selection {
+        message.selection(selection)?;
+    }
     message.codes(column, revision, &codes)?;
     message.columns(&[(column, revision)])?;
     message.undo(open.history.after(&step))?;
@@ -787,6 +1027,8 @@ fn plan_codes(
             column,
             codes,
             shown,
+            selection: also.selection,
+            active: also.active,
             step,
         },
     }))
@@ -855,6 +1097,30 @@ fn check_level(table: &Table, column: ColumnId, code: LevelCode) -> Result<(), C
             column,
             code,
             num_levels,
+        });
+    }
+    Ok(())
+}
+
+/// Refuses a command that names a level of `column` and was made, at
+/// `based_on`, before the column's levels last changed other than by one
+/// added last, since its code may now mean another population
+/// (`docs/core.md`, section 4).
+fn check_levels_at(
+    open: &OpenProject,
+    column: ColumnId,
+    based_on: Revision,
+) -> Result<(), CommandError> {
+    let levels_at = open
+        .table
+        .column(column)
+        .ok_or(CommandError::UnknownColumn { column })?
+        .levels_at;
+    if based_on < levels_at {
+        return Err(CommandError::LevelsChanged {
+            column,
+            based_on,
+            levels_at,
         });
     }
     Ok(())

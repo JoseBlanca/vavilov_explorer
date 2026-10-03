@@ -11,8 +11,9 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    CellMatch, ColumnId, Command, CommandError, Filter, LevelCode, Outcome, Position, Request,
-    Revision, Role, RowIndex, RowsRequest, Selected, SentAt, Session, Showing, TableDescription,
+    CellMatch, ColumnId, Command, CommandError, EditMode, Filter, LevelCode, Outcome, Position,
+    Request, Revision, Role, RowIndex, RowsRequest, Selected, SentAt, Session, Showing,
+    TableDescription,
 };
 
 /// The commands `call` takes, every command of the app but `subscribe`.
@@ -25,6 +26,8 @@ pub const COMMANDS: &[&str] = &[
     "set_hover",
     "set_active_classification",
     "select_population",
+    "add_population",
+    "set_edit_mode",
     "set_role",
     "set_filter",
     "set_cells",
@@ -155,6 +158,24 @@ pub fn call(
             };
             request(command, args.based_on, args.sent_at)?
         }
+        "add_population" => {
+            let args: AddPopulationArgs = json_args(command, body)?;
+            let command = Command::AddPopulation {
+                column: ColumnId::new(args.column),
+                name: args.name,
+                decimal_mark: args.decimal_mark,
+            };
+            request(command, args.based_on, args.sent_at)?
+        }
+        "set_edit_mode" => {
+            let args: EditModeArgs = json_args(command, body)?;
+            let command = Command::SetEditMode {
+                column: ColumnId::new(args.column),
+                target: args.target,
+                mode: args.mode,
+            };
+            request(command, args.based_on, args.sent_at)?
+        }
         "set_role" => {
             let args: RoleArgs = json_args(command, body)?;
             let command = Command::SetRole {
@@ -252,6 +273,30 @@ struct ActiveArgs {
 struct PopulationArgs {
     column: u32,
     selected: Option<Selected>,
+    based_on: u64,
+    sent_at: Option<f64>,
+}
+
+/// The arguments of `add_population`: the active classification, the
+/// name typed, and the decimal mark the window writes numbers with.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AddPopulationArgs {
+    column: u32,
+    name: String,
+    decimal_mark: String,
+    based_on: u64,
+    sent_at: Option<f64>,
+}
+
+/// The arguments of `set_edit_mode`: the active classification, what is
+/// selected in it, and the button pressed, `"add"`, `"remove"` or `null`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct EditModeArgs {
+    column: u32,
+    target: Selected,
+    mode: Option<EditMode>,
     based_on: u64,
     sent_at: Option<f64>,
 }

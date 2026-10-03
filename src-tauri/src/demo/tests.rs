@@ -159,6 +159,7 @@ fn loading_it_opens_the_table_with_the_country_active() {
         Some(Active {
             column: COUNTRY,
             selected: None,
+            mode: None,
         })
     );
 }

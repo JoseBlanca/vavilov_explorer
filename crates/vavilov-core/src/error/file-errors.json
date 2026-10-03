@@ -103,6 +103,16 @@
     "refusal": { "kind": "namedIndividualId", "format": "text", "column": 3 }
   },
   {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": { "kind": "individualWrittenTwoWays", "name": "José" }
+  },
+  {
+    "kind": "importRefused",
+    "fileName": "plants.csv",
+    "refusal": { "kind": "columnWrittenTwoWays", "name": "Perú" }
+  },
+  {
     "kind": "importUnreadable",
     "fileName": "plants.xlsx",
     "message": "invalid Zip archive: Could not find EOCD"

@@ -3,9 +3,11 @@
 
 mod cell;
 mod file;
+mod population;
 
 pub use cell::CellRefusal;
 pub use file::{ExportRefusal, ImportRefusal, IoFailure};
+pub use population::PopulationRefusal;
 
 use serde::Serialize;
 
@@ -40,6 +42,22 @@ pub enum CommandError {
         based_on: Revision,
         /// The revision at which the current table was loaded.
         loaded_at: Revision,
+    },
+
+    /// The command names a population of a column whose populations
+    /// changed after the window made it, other than by one added last: a
+    /// population removed, or the column's role changed. Its code may now
+    /// mean another population.
+    #[error(
+        "the command was made at revision {based_on}, before the levels of column {column} changed at {levels_at}"
+    )]
+    LevelsChanged {
+        /// The column the command gave.
+        column: ColumnId,
+        /// The revision of the window's copy when it made the command.
+        based_on: Revision,
+        /// The revision at which the column's levels last changed.
+        levels_at: Revision,
     },
 
     /// A window subscribed with a label that is neither the main window
@@ -394,6 +412,18 @@ pub enum CommandError {
         text: String,
         /// Why.
         refusal: CellRefusal,
+    },
+
+    /// The name typed for a new population of the active classification
+    /// does not fit it, and nothing was added.
+    #[error("{text:?} was not added to column {column_name:?}: {refusal:?}")]
+    PopulationRefused {
+        /// The name of the column.
+        column_name: String,
+        /// The name typed.
+        text: String,
+        /// Why.
+        refusal: PopulationRefusal,
     },
 
     /// A defect of the app: a state the code is meant to make impossible.

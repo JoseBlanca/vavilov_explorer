@@ -128,7 +128,7 @@ for (const engine of Object.keys(ENGINES)) {
       error: { kind: "rowsOutOfRange", first: 3, count: 2, numShown: 4 },
     });
     assert.deepEqual(await send("selectPopulation", 1, peru), applied);
-    assert.deepEqual((await stateAt(2)).active, { column: 1, selected: peru });
+    assert.deepEqual((await stateAt(2)).active, { column: 1, selected: peru, mode: null });
     // Rows 2 and 3 into Peru.
     assert.deepEqual(await send("assignRows", 1, peru, rows(0b1100)), applied);
     assert.deepEqual((await stateAt(3)).codes, [0, 1, 1, 1]);

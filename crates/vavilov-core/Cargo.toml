@@ -15,6 +15,10 @@ thiserror.workspace = true
 # git at the revision of its release js-v0.2.0-dev.1 (docs/design.md,
 # section 7). Only import.rs and export.rs name it.
 table_io = { git = "https://github.com/JoseBlanca/table_io", rev = "c99b3e69f08da9a88eec30f0d3dd26de4d3092d6" }
+# Unicode's composed form, NFC, for every text that enters the core, so
+# that an accent written as one character or as two is one text; approved
+# by the owner on 3 October 2026 (docs/design.md, section 12).
+unicode-normalization = "0.1.25"
 
 [dev-dependencies]
 # To test the shape of the errors as a window receives them, approved by

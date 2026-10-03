@@ -5,11 +5,12 @@
 mod colour;
 mod column;
 
+pub(crate) use colour::unused_colour;
 pub use colour::{Colour, PALETTE, palette};
 pub use column::{
     Categorical, Column, ColumnValues, LevelValues, Numbers, Role, StorageType, Stored,
 };
-pub(crate) use column::{LATITUDE, LONGITUDE, check_range};
+pub(crate) use column::{LATITUDE, LONGITUDE, Level, check_range};
 
 use std::collections::{HashMap, HashSet};
 
@@ -30,6 +31,11 @@ pub const MAX_COLUMNS: u32 = 16_777_216;
 /// The most levels a category may have: a code is 16
 /// bits, and `0xFFFF` means missing in the messages.
 pub const MAX_LEVELS: u32 = 65_535;
+
+/// The most characters the name of a population of text may have, once
+/// the spaces around it are taken away: 30, decided by the owner on
+/// 3 October 2026, so that a name fits the populations panel and a key.
+pub const MAX_POPULATION_NAME: u32 = 30;
 
 /// [`MAX_LEVELS`] as a count of values.
 pub(crate) const MAX_LEVELS_USIZE: usize = MAX_LEVELS as usize;
@@ -150,6 +156,7 @@ impl Table {
                 id: ColumnId::new(next_id),
                 name: column.name,
                 revision: Revision::ZERO,
+                levels_at: Revision::ZERO,
                 values: column.values,
             });
             next_id = next_id.checked_add(1).ok_or_else(|| CommandError::Defect {
@@ -203,6 +210,7 @@ impl Table {
         self.names.revision = revision;
         for column in &mut self.columns {
             column.revision = revision;
+            column.levels_at = revision;
         }
     }
 
@@ -442,7 +450,7 @@ fn repeated<T>(values: &[T], order: impl Fn(&T, &T) -> std::cmp::Ordering) -> Op
 
 /// The code of the level at `index`, which the number of levels was
 /// checked to fit.
-fn level_code(index: usize) -> Result<LevelCode, CommandError> {
+pub(crate) fn level_code(index: usize) -> Result<LevelCode, CommandError> {
     u16::try_from(index)
         .map(LevelCode::new)
         .map_err(|_| CommandError::Defect {

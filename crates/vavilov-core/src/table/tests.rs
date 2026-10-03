@@ -436,3 +436,21 @@ fn a_level_of_a_country_category_that_is_no_country_s_code_is_refused() {
         .is_ok()
     );
 }
+
+#[test]
+fn a_level_added_takes_the_first_colour_of_the_list_its_category_lacks() {
+    let orange = PALETTE[0];
+    let sky_blue = PALETTE[1];
+    let green = PALETTE[2];
+    assert_eq!(unused_colour(&[]).unwrap(), orange);
+    assert_eq!(unused_colour(&[orange, green]).unwrap(), sky_blue);
+    assert_eq!(unused_colour(&[sky_blue, orange]).unwrap(), green);
+}
+
+#[test]
+fn a_level_added_to_a_category_of_every_colour_takes_the_next_of_the_list_again() {
+    let every: Vec<Colour> = palette(21);
+    assert_eq!(unused_colour(&every).unwrap(), PALETTE[0]);
+    let more: Vec<Colour> = palette(23);
+    assert_eq!(unused_colour(&more).unwrap(), PALETTE[2]);
+}

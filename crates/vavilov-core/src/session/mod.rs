@@ -6,7 +6,7 @@ mod interaction;
 mod subscribers;
 
 pub use history::UndoRedo;
-pub use interaction::{Active, Selected};
+pub use interaction::{Active, EditMode, Selected};
 pub use subscribers::{SendFailed, Subscriber};
 
 pub(crate) use history::{History, HistoryStep};

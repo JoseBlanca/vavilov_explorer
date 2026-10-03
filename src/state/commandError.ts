@@ -11,6 +11,8 @@ import { isCellRefusal } from "./cellRefusal.ts";
 import type { CellRefusal } from "./cellRefusal.ts";
 import { isExportRefusal, isImportRefusal } from "./fileRefusal.ts";
 import type { ExportRefusal, ImportRefusal } from "./fileRefusal.ts";
+import { isPopulationRefusal } from "./populationRefusal.ts";
+import type { PopulationRefusal } from "./populationRefusal.ts";
 import { hasFieldsOf } from "./tagged.ts";
 import type { Role, StorageType } from "./description.ts";
 
@@ -29,12 +31,14 @@ type FieldType =
   | "importRefusal"
   | "exportRefusal"
   | "cellRefusal"
+  | "populationRefusal"
   | "ioFailure";
 
 /** The fields of each kind of refusal, and the type of each. */
 const FIELDS = {
   noProject: {},
   madeBeforeLoad: { basedOn: "revision", loadedAt: "revision" },
+  levelsChanged: { column: "columnId", basedOn: "revision", levelsAt: "revision" },
   unknownWindow: { label: "string" },
   unknownColumn: { column: "columnId" },
   notCategory: { column: "columnId" },
@@ -78,6 +82,7 @@ const FIELDS = {
   exportRefused: { refusal: "exportRefusal" },
   fileNotWritten: { fileName: "string", io: "ioFailure", message: "string" },
   cellRefused: { columnName: "string", text: "string", refusal: "cellRefusal" },
+  populationRefused: { columnName: "string", text: "string", refusal: "populationRefusal" },
   defect: { what: "string" },
 } as const satisfies Record<string, Record<string, FieldType>>;
 
@@ -101,6 +106,7 @@ interface TypeOf {
   readonly importRefusal: ImportRefusal;
   readonly exportRefusal: ExportRefusal;
   readonly cellRefusal: CellRefusal;
+  readonly populationRefusal: PopulationRefusal;
   readonly ioFailure: IoFailure;
 }
 
@@ -116,10 +122,14 @@ export type CommandError = {
 
 /**
  * A refusal a window receives as a value: every kind but a defect, which is
- * thrown, and a command made before the current table was loaded, which the
- * window does not show (`docs/core.md`, section 4).
+ * thrown, and a command made before the current table was loaded or before
+ * the populations it names changed, which the window does not show
+ * (`docs/core.md`, section 4).
  */
-export type Refusal = Exclude<CommandError, { readonly kind: "defect" | "madeBeforeLoad" }>;
+export type Refusal = Exclude<
+  CommandError,
+  { readonly kind: "defect" | "madeBeforeLoad" | "levelsChanged" }
+>;
 
 const FIELDS_OF_KIND: ReadonlyMap<string, Readonly<Record<string, FieldType>>> = new Map(
   Object.entries(FIELDS),
@@ -154,6 +164,8 @@ function hasType(value: unknown, type: FieldType): boolean {
       return isExportRefusal(value);
     case "cellRefusal":
       return isCellRefusal(value);
+    case "populationRefusal":
+      return isPopulationRefusal(value);
     case "ioFailure":
       return value === "notFound" || value === "permissionDenied" || value === "other";
   }

@@ -1,5 +1,7 @@
 //! The colour of a level, and the list of colours levels are given.
 
+use crate::error::CommandError;
+
 /// A colour in sRGB, one byte a channel, as a window draws it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Colour {
@@ -52,4 +54,26 @@ pub const PALETTE: [Colour; 21] = [
 #[must_use]
 pub fn palette(num_levels: usize) -> Vec<Colour> {
     PALETTE.iter().copied().cycle().take(num_levels).collect()
+}
+
+/// The colour of a level added to a category whose levels have `colours`:
+/// the first of [`PALETTE`] that none of them has, and, when they have
+/// every one, the colour [`palette`] gives the next level, so that the list
+/// starts again as it does for a category built with more levels.
+///
+/// # Errors
+///
+/// A `Defect` if the list, which is never empty, gave no colour.
+pub(crate) fn unused_colour(colours: &[Colour]) -> Result<Colour, CommandError> {
+    if let Some(colour) = PALETTE.iter().find(|colour| !colours.contains(colour)) {
+        return Ok(*colour);
+    }
+    PALETTE
+        .iter()
+        .copied()
+        .cycle()
+        .nth(colours.len())
+        .ok_or_else(|| CommandError::Defect {
+            what: "no colour in the list of colours".to_owned(),
+        })
 }

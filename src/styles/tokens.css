@@ -18,6 +18,10 @@
   --color-focus: #1d4ed8;
   --color-danger-surface: #fde7e7;
   --color-danger-text: #7f1d1d;
+  --color-add-surface: #1d4ed8;
+  --color-add-text: #ffffff;
+  --color-remove-surface: #b91c1c;
+  --color-remove-text: #ffffff;
   --color-backdrop: rgb(0 0 0 / 30%);
 
   --space-1: 0.25rem;
@@ -59,6 +63,10 @@
     --color-focus: #8fb0ff;
     --color-danger-surface: #4a1f22;
     --color-danger-text: #ffd7d7;
+    --color-add-surface: #8fb0ff;
+    --color-add-text: #10131a;
+    --color-remove-surface: #ff8a8a;
+    --color-remove-text: #1d0b0b;
     --color-backdrop: rgb(0 0 0 / 55%);
   }
 }
@@ -77,6 +85,10 @@
   --color-focus: #8fb0ff;
   --color-danger-surface: #4a1f22;
   --color-danger-text: #ffd7d7;
+  --color-add-surface: #8fb0ff;
+  --color-add-text: #10131a;
+  --color-remove-surface: #ff8a8a;
+  --color-remove-text: #1d0b0b;
   --color-backdrop: rgb(0 0 0 / 55%);
 }
 

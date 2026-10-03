@@ -155,6 +155,14 @@ fn every_command_is_registered_and_finds_the_session() {
             json!({ "column": 1, "selected": null, "basedOn": 0 }),
         ),
         (
+            "add_population",
+            json!({ "column": 1, "name": "China", "decimalMark": ",", "basedOn": 0 }),
+        ),
+        (
+            "set_edit_mode",
+            json!({ "column": 1, "target": "unassigned", "mode": "add", "basedOn": 0 }),
+        ),
+        (
             "set_role",
             json!({ "column": 1, "role": "category", "basedOn": 0 }),
         ),
@@ -445,7 +453,8 @@ fn the_active_classification_reaches_the_session() {
         session_of(&app).active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: None
+            selected: None,
+            mode: None,
         })
     );
 }
@@ -464,7 +473,8 @@ fn a_lasso_in_remove_mode_and_a_redo_through_the_commands() {
         session_of(&app).active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: Some(vavilov_core::Selected::Population(LevelCode::new(1)))
+            selected: Some(vavilov_core::Selected::Population(LevelCode::new(1))),
+            mode: None,
         })
     );
     // Rows 0 and 1 out of Peru, at revision 2: only row 1 is in Peru.
@@ -557,6 +567,92 @@ fn a_lasso_with_the_unassigned_selected_unassigns_through_the_commands() {
 }
 
 #[test]
+fn a_population_added_through_its_command_is_selected_and_a_refusal_names_why() {
+    let (app, window) = app();
+    load(&app);
+    json_command(
+        &window,
+        "add_population",
+        json!({ "column": ORIGIN, "name": " China", "decimalMark": ",", "basedOn": 1, "sentAt": 1.5 }),
+    )
+    .unwrap();
+    let session = session_of(&app);
+    assert_eq!(
+        session
+            .table()
+            .unwrap()
+            .column(ColumnId::new(ORIGIN))
+            .unwrap()
+            .categorical()
+            .unwrap()
+            .levels(),
+        &vavilov_core::LevelValues::Text(vec![
+            "Spain".to_owned(),
+            "Peru".to_owned(),
+            "China".to_owned()
+        ])
+    );
+    assert_eq!(
+        session.active(),
+        Some(vavilov_core::Active {
+            column: ColumnId::new(ORIGIN),
+            selected: Some(vavilov_core::Selected::Population(LevelCode::new(2))),
+            mode: None,
+        })
+    );
+    drop(session);
+    assert_eq!(
+        json_command(
+            &window,
+            "add_population",
+            json!({ "column": ORIGIN, "name": "Peru", "decimalMark": ",", "basedOn": 2 }),
+        )
+        .unwrap_err(),
+        json!({
+            "kind": "populationRefused", "columnName": "origin", "text": "Peru",
+            "refusal": { "kind": "taken", "code": 1 }
+        })
+    );
+}
+
+#[test]
+fn plus_pressed_through_its_command_assigns_the_rows_that_enter_the_selection() {
+    let (app, window) = app();
+    load(&app);
+    json_command(
+        &window,
+        "select_population",
+        json!({ "column": ORIGIN, "selected": { "population": 0 }, "basedOn": 1 }),
+    )
+    .unwrap();
+    json_command(
+        &window,
+        "set_edit_mode",
+        json!({ "column": ORIGIN, "target": { "population": 0 }, "mode": "add", "basedOn": 2 }),
+    )
+    .unwrap();
+    // Row 1, Peru, enters the selection and goes to Spain.
+    invoke(
+        &window,
+        "set_selection",
+        InvokeBody::Raw(vec![0b010]),
+        &[("based-on", "3".to_owned())],
+    )
+    .unwrap();
+    assert_eq!(codes(&app), [Some(0), Some(0), None]);
+    json_command(
+        &window,
+        "set_edit_mode",
+        json!({ "column": ORIGIN, "target": { "population": 0 }, "mode": null, "basedOn": 4 }),
+    )
+    .unwrap();
+    assert_eq!(
+        session_of(&app).active().and_then(|active| active.mode),
+        None
+    );
+}
+
+#[test]
 fn a_page_of_rows_comes_back_as_raw_bytes() {
     let (app, window) = app();
     load(&app);
@@ -624,7 +720,8 @@ fn a_change_of_role_through_its_command_reaches_the_session() {
         session.active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: None
+            selected: None,
+            mode: None,
         })
     );
 }

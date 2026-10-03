@@ -32,6 +32,46 @@ fn roles(imported: &Imported) -> Vec<(&str, Role)> {
 }
 
 #[test]
+fn every_text_of_the_file_is_kept_in_the_composed_form() {
+    // Each accent written as a separate character after its letter, as a
+    // Mac often writes them.
+    let bytes = "IndividualID;Nu\u{301}mero;origin;note\n\
+                 Jose\u{301};1;Peru\u{301};a\u{301}\n\
+                 p2;2;Per\u{fa};b\n";
+    let imported = import_table("plants.csv", bytes.as_bytes()).unwrap();
+    let table = &imported.table;
+    assert_eq!(table.names().names(), ["Jos\u{e9}", "p2"]);
+    assert_eq!(table.columns()[0].name(), "N\u{fa}mero");
+    // The two spellings of Perú are one population.
+    let origin = table.columns()[1].categorical().unwrap();
+    assert_eq!(
+        origin.levels(),
+        &LevelValues::Text(vec!["Per\u{fa}".to_owned()])
+    );
+    assert_eq!(origin.codes(), [code(0), code(0)]);
+    assert_eq!(
+        table.columns()[2].values().to_stored().unwrap(),
+        crate::table::Stored::Text(vec![Some("\u{e1}".to_owned()), Some("b".to_owned())])
+    );
+}
+
+#[test]
+fn two_ids_or_two_column_names_that_differ_only_in_how_an_accent_is_written_are_refused() {
+    assert_eq!(
+        refusal("IndividualID;x\nJose\u{301};1\nJos\u{e9};2\n".as_bytes()),
+        ImportRefusal::IndividualWrittenTwoWays {
+            name: "Jos\u{e9}".to_owned()
+        }
+    );
+    assert_eq!(
+        refusal("IndividualID;Peru\u{301};Per\u{fa}\nA;1;2\n".as_bytes()),
+        ImportRefusal::ColumnWrittenTwoWays {
+            name: "Per\u{fa}".to_owned()
+        }
+    );
+}
+
+#[test]
 fn a_csv_gives_its_individuals_and_each_column_with_its_guessed_role() {
     let bytes = "Individual ID;height;origin;lat;Long;fertile;seeds\n\
                  A;1,5;Spain;40,4;-3,7;TRUE;10\n\

@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import type { TableDescription } from "./description.ts";
 import { isColumnId, isLevelCode, isRevision } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision } from "./ids.ts";
+import { isCategoricalColumn } from "./description.ts";
 import { populationsModel, sameSelected } from "./populations.ts";
 
 function column(value: number): ColumnId {
@@ -20,10 +21,12 @@ function revision(value: number): Revision {
 
 const ORIGIN = column(2);
 const CLUSTER = column(4);
+const FERTILE = column(5);
 
 /**
  * Six plants: height; origin (Spain, Peru, Chile), a category of text;
- * seeds; cluster (1, 20), a category of whole numbers.
+ * seeds; cluster (1, 20), a category of whole numbers; fertile (FALSE,
+ * TRUE), a category of yes or no.
  */
 const DESCRIPTION: TableDescription = {
   loadedAt: revision(1),
@@ -72,6 +75,18 @@ const DESCRIPTION: TableDescription = {
         { value: "20", colour: "#d55e00" },
       ],
     },
+    {
+      id: FERTILE,
+      name: "fertile",
+      revision: revision(1),
+      storage: "boolean",
+      role: "category",
+      roles: ["category"],
+      levels: [
+        { value: false, colour: "#e69f00" },
+        { value: true, colour: "#56b4e9" },
+      ],
+    },
   ],
 };
 
@@ -79,6 +94,7 @@ const DESCRIPTION: TableDescription = {
 const CODES = new Map<number, Uint16Array>([
   [ORIGIN, new Uint16Array([0, 1, 0xffff, 0, 0xffff, 0])],
   [CLUSTER, new Uint16Array([0, 0, 0, 0, 0, 1])],
+  [FERTILE, new Uint16Array([1, 1, 0, 0xffff, 0, 1])],
 ]);
 const codesOf = (id: ColumnId): Uint16Array | null => CODES.get(id) ?? null;
 
@@ -88,14 +104,24 @@ describe("the populations panel's model", () => {
     expect(model.classifications).toEqual([
       { column: 2, name: "origin" },
       { column: 4, name: "cluster" },
+      { column: 5, name: "fertile" },
     ]);
     expect(model.active).toBeNull();
     expect(model.rows).toEqual([]);
+    expect(model.takesNewPopulations).toBe(false);
   });
 
   test("gives each population its colour and count, an empty one too, and the unassigned last", () => {
-    const model = populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, codesOf, ",");
+    const model = populationsModel(
+      DESCRIPTION,
+      { column: ORIGIN, selected: null, mode: null },
+      codesOf,
+      ",",
+    );
     expect(model.active).toBe(2);
+    expect(model.activeName).toBe("origin");
+    expect(model.nameLimit).toBe(30);
+    expect(model.takesNewPopulations).toBe(true);
     expect(model.rows).toEqual([
       {
         selected: { kind: "population", code: 0 },
@@ -125,22 +151,67 @@ describe("the populations panel's model", () => {
   test("marks the selected row, a population or the unassigned", () => {
     const peru = populationsModel(
       DESCRIPTION,
-      { column: ORIGIN, selected: { kind: "population", code: code(1) } },
+      { column: ORIGIN, selected: { kind: "population", code: code(1) }, mode: "remove" },
       codesOf,
       ",",
     );
     expect(peru.rows.map((row) => row.isSelected)).toEqual([false, true, false, false]);
+    expect(peru.mode).toBe("remove");
     const unassigned = populationsModel(
       DESCRIPTION,
-      { column: ORIGIN, selected: { kind: "unassigned" } },
+      { column: ORIGIN, selected: { kind: "unassigned" }, mode: null },
       codesOf,
       ",",
     );
     expect(unassigned.rows.map((row) => row.isSelected)).toEqual([false, false, false, true]);
   });
 
+  test("of a classification of TRUE and FALSE takes a new population only while it lacks one", () => {
+    const model = populationsModel(
+      DESCRIPTION,
+      { column: FERTILE, selected: null, mode: null },
+      codesOf,
+      ",",
+    );
+    expect(model.rows.map((row) => [row.name, row.count])).toEqual([
+      ["FALSE", 2],
+      ["TRUE", 3],
+      [null, 1],
+    ]);
+    expect(model.takesNewPopulations).toBe(false);
+    expect(model.nameLimit).toBeNull();
+    const onlyTrue: TableDescription = {
+      ...DESCRIPTION,
+      columns: DESCRIPTION.columns.map((column) =>
+        column.id === FERTILE && isCategoricalColumn(column)
+          ? { ...column, levels: column.levels.slice(1) }
+          : column,
+      ),
+    };
+    const lacking = populationsModel(
+      onlyTrue,
+      { column: FERTILE, selected: null, mode: null },
+      () => new Uint16Array([0, 0, 0, 0xffff, 0, 0]),
+      ",",
+    );
+    expect(lacking.takesNewPopulations).toBe(true);
+    const cluster = populationsModel(
+      DESCRIPTION,
+      { column: CLUSTER, selected: null, mode: null },
+      codesOf,
+      ",",
+    );
+    expect(cluster.takesNewPopulations).toBe(true);
+    expect(cluster.nameLimit).toBeNull();
+  });
+
   test("counts the active classification, not another, its levels of numbers as text", () => {
-    const model = populationsModel(DESCRIPTION, { column: CLUSTER, selected: null }, codesOf, ",");
+    const model = populationsModel(
+      DESCRIPTION,
+      { column: CLUSTER, selected: null, mode: null },
+      codesOf,
+      ",",
+    );
     expect(model.rows.map((row) => [row.name, row.count])).toEqual([
       ["1", 5],
       ["20", 1],
@@ -151,18 +222,23 @@ describe("the populations panel's model", () => {
   test("codes that do not fit the levels or the table are a defect", () => {
     const tooHigh = (): Uint16Array => new Uint16Array([0, 3, 0, 0, 0, 0]);
     expect(() =>
-      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, tooHigh, ","),
+      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, tooHigh, ","),
     ).toThrow(/defect.*code 3.*3 levels/);
     const short = (): Uint16Array => new Uint16Array([0, 1]);
     expect(() =>
-      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, short, ","),
+      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, short, ","),
     ).toThrow(/defect.*2 codes.*6 rows/);
     const none = (): null => null;
     expect(() =>
-      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null }, none, ","),
+      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, none, ","),
     ).toThrow(/defect.*no codes/);
     expect(() =>
-      populationsModel(DESCRIPTION, { column: column(1), selected: null }, codesOf, ","),
+      populationsModel(
+        DESCRIPTION,
+        { column: column(1), selected: null, mode: null },
+        codesOf,
+        ",",
+      ),
     ).toThrow(/defect.*column 1.*not a category/);
   });
 });

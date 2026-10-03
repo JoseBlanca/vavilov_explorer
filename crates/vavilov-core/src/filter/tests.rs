@@ -779,3 +779,17 @@ mod kept_texts {
         assert_eq!(shown, Some(vec![RowIndex::new(0)]));
     }
 }
+
+#[test]
+fn a_text_searched_with_an_accent_written_apart_finds_the_cells_that_have_it_composed() {
+    let table = Table::new(
+        "IndividualID",
+        names(&["Jos\u{e9}", "Jose"]),
+        vec![column("height", float(vec![Some(1.0), Some(2.0)]))],
+    )
+    .unwrap();
+    assert_eq!(
+        shown(&table, &filter("Jose\u{301}")),
+        Some(vec!["Jos\u{e9}".to_owned()])
+    );
+}

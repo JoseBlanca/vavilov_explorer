@@ -30,6 +30,7 @@ mod row_set;
 mod rows;
 mod session;
 mod table;
+mod text;
 
 pub use action::MenuAction;
 pub use command::{Command, Request};
@@ -38,7 +39,9 @@ pub use description::{
     ColumnDescription, LevelDescription, LevelValue, NamesDescription, TableDescription,
 };
 pub use dispatch::{Changed, Dropped, Outcome};
-pub use error::{CellRefusal, CommandError, ExportRefusal, ImportRefusal, IoFailure};
+pub use error::{
+    CellRefusal, CommandError, ExportRefusal, ImportRefusal, IoFailure, PopulationRefusal,
+};
 pub use export::export_table;
 pub use files::{file_name, read_for_import, write_export};
 pub use filter::{CellMatch, Filter, MAX_FILTER_TEXT, Showing};
@@ -52,9 +55,9 @@ pub use ids::{
 pub use import::{Imported, MAX_GUESSED_LEVELS, MAX_IMPORT_BYTES, MAX_IMPORT_CELLS, import_table};
 pub use row_set::RowSet;
 pub use rows::RowsRequest;
-pub use session::{Active, Selected, SendFailed, Session, Subscriber, UndoRedo};
+pub use session::{Active, EditMode, Selected, SendFailed, Session, Subscriber, UndoRedo};
 pub use table::{
     Categorical, Colour, Column, ColumnValues, INDIVIDUAL_ID, LevelValues, MAX_COLUMNS, MAX_LEVELS,
-    MAX_ROWS, NameColumn, NewColumn, Numbers, PALETTE, Role, StorageType, Stored, Table,
-    is_individual_id, palette,
+    MAX_POPULATION_NAME, MAX_ROWS, NameColumn, NewColumn, Numbers, PALETTE, Role, StorageType,
+    Stored, Table, is_individual_id, palette,
 };

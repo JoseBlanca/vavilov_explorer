@@ -4,7 +4,7 @@
 use crate::filter::Filter;
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, SentAt};
 use crate::row_set::RowSet;
-use crate::session::Selected;
+use crate::session::{EditMode, Selected};
 use crate::table::{Role, Table};
 
 /// A change to the document or the interaction. Each names what it acts
@@ -21,7 +21,8 @@ pub enum Command {
         /// The active classification to start with.
         active_classification: Option<ColumnId>,
     },
-    /// Sets the selection.
+    /// Sets the selection. While + or − is pressed, the rows that enter
+    /// it are assigned or unassigned in the same command, which is one undo.
     SetSelection {
         /// The rows selected.
         rows: RowSet,
@@ -55,6 +56,18 @@ pub enum Command {
         /// What to select, or `None`.
         selected: Option<Selected>,
     },
+    /// Presses the button + or − on what is selected for editing, or
+    /// releases the one pressed. Pressing one gives the rows selected now
+    /// what it gives every row that enters the selection after, in the same
+    /// command (`docs/design.md`, section 2.1).
+    SetEditMode {
+        /// The active classification.
+        column: ColumnId,
+        /// What is selected.
+        target: Selected,
+        /// The button pressed, or `None` to release it.
+        mode: Option<EditMode>,
+    },
     /// Assigns the rows to what is selected: a lasso in add mode, which
     /// with the unassigned individuals selected leaves the rows unassigned.
     AssignRows {
@@ -64,6 +77,21 @@ pub enum Command {
         target: Selected,
         /// The rows inside the lasso.
         rows: RowSet,
+    },
+    /// Adds a population with no individuals to the active classification,
+    /// last, with the first colour of [`crate::PALETTE`] that none of its
+    /// populations has, and selects it for editing. `name` is read as a
+    /// value of the column's storage type, a decimal number with
+    /// `decimal_mark` and a country by any of its ISO names or codes;
+    /// spaces around it are ignored.
+    AddPopulation {
+        /// The active classification.
+        column: ColumnId,
+        /// The name typed.
+        name: String,
+        /// The decimal mark the window writes decimal numbers with, its
+        /// system's region's: one to three characters.
+        decimal_mark: String,
     },
     /// Leaves unassigned the rows of the selected population that are in
     /// `rows`, and leaves the others as they are: a lasso in remove mode.

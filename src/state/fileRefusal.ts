@@ -45,6 +45,8 @@ const IMPORT_FIELDS = {
     firstRow: "number",
     secondRow: "number",
   },
+  individualWrittenTwoWays: { name: "string" },
+  columnWrittenTwoWays: { name: "string" },
   notIndividualId: { header: "string" },
   namedIndividualId: { format: "format", column: "number" },
 } as const satisfies Record<string, Record<string, FieldType>>;

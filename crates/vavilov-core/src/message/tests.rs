@@ -2,7 +2,7 @@ use super::*;
 use crate::fixtures::{code, decode};
 use crate::ids::{ColumnId, LevelCode, RowIndex};
 use crate::row_set::RowSet;
-use crate::session::{Active, Selected, UndoRedo};
+use crate::session::{Active, EditMode, Selected, UndoRedo};
 
 fn written(write: impl FnOnce(&mut MessageWriter)) -> Vec<u8> {
     let mut message = MessageWriter::new(MessageKind::Change, Revision::new(5), None);
@@ -69,39 +69,42 @@ fn the_active_part_has_the_column_and_the_population_or_their_none() {
         m.active(Some(Active {
             column: ColumnId::new(2),
             selected: Some(Selected::Population(LevelCode::new(1))),
+            mode: None,
         }))
         .unwrap();
     });
     assert_eq!(
         after_header(&some),
-        [2, 0, 0, 0, 7, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0]
+        [2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0]
     );
     let none = written(|m| m.active(None).unwrap());
     assert_eq!(
         after_header(&none),
-        [2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0]
+        [2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0]
     );
     let no_population = written(|m| {
         m.active(Some(Active {
             column: ColumnId::new(3),
             selected: None,
+            mode: None,
         }))
         .unwrap()
     });
     assert_eq!(
         after_header(&no_population),
-        [2, 0, 0, 0, 7, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0]
+        [2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0]
     );
     let unassigned = written(|m| {
         m.active(Some(Active {
             column: ColumnId::new(3),
             selected: Some(Selected::Unassigned),
+            mode: None,
         }))
         .unwrap()
     });
     assert_eq!(
         after_header(&unassigned),
-        [2, 0, 0, 0, 7, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 0]
+        [2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 0]
     );
 }
 
@@ -205,7 +208,29 @@ fn parts_follow_one_another_each_at_a_multiple_of_8() {
         [
             (5, vec![0, 1]),
             (7, vec![1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255]),
-            (2, vec![255, 255, 255, 255, 255, 255, 0]),
+            (2, vec![255, 255, 255, 255, 255, 255, 0, 0]),
         ]
     );
+}
+
+#[test]
+fn a_button_pressed_with_nothing_selected_or_minus_on_the_unassigned_is_not_written() {
+    let mut message = MessageWriter::new(MessageKind::Change, Revision::new(5), None);
+    for (selected, mode) in [
+        (None, EditMode::Add),
+        (Some(Selected::Unassigned), EditMode::Remove),
+    ] {
+        let active = Active {
+            column: ColumnId::new(2),
+            selected,
+            mode: Some(mode),
+        };
+        assert!(
+            matches!(
+                message.active(Some(active)),
+                Err(CommandError::Defect { .. })
+            ),
+            "{active:?}"
+        );
+    }
 }

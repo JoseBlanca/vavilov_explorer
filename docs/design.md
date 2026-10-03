@@ -40,18 +40,21 @@ assigned to.
 - **Unassigned**: an individual whose value in the active classification
   is missing. It belongs to no population.
 - **Selected population**: the population the user is editing. It is
-  chosen by clicking it in the populations panel. While one is selected,
-  the pointer is in one of three modes, as in the prototype: ↻ moves the
-  view, + makes a lasso add the individuals inside it to the population,
-  and − makes it remove them, which leaves them unassigned.
+  chosen by clicking it in the populations panel, where its row then
+  shows + and −, two buttons that stay pressed: while + is pressed, every
+  individual selected goes into the population, and while − is pressed,
+  every individual selected that is in it becomes unassigned
+  (section 2.1).
 - **Selection**: a set of individuals, made by a lasso in a plot, by
   rows in the table, or by bars of a histogram. It is shown in every
   window. The selection and the selected population are different things
   and the interface keeps them apart.
 - **Hover**: the one individual under the pointer, shown in every window.
 
-The user edits the cells of the active classification with a lasso in a
-plot, and any cell in the table (section 2.1). The other edits are to
+The user edits the cells of the active classification with + and − in
+the populations panel, which act on the individuals as they are
+selected, in any window, and any cell in the table (section 2.1). The
+other edits are to
 the shape of the table: adding and removing columns, renaming them,
 adding, renaming and removing populations, and changing the type of a
 column. Every edit can be undone. An earlier version of this design let
@@ -206,19 +209,71 @@ it.
   dropdown above it chooses the active classification. It is where a
   population is selected and edited. It sits left of the table, as a
   sidebar. Its last row is the unassigned individuals, with their number,
-  and it can be selected like any population: then + makes every
-  individual inside a lasso unassigned, whatever population it was in,
-  and − is shown disabled, with the reason "Unassigned individuals are in
-  no population to remove them from". Its first version chooses
-  the active classification, shows the populations, selects one and sets
-  the pointer's mode; adding, renaming and removing populations and
-  changing a colour come after, each with its command in the core.
-  Decided by the owner on 2 October 2026. Having seen the panel the
-  same day, the owner decided that the control of the pointer's mode
-  belongs in the windows where a lasso makes sense, the plots, and not
-  in the panel; it stays in the panel until the first plot exists.
-  Whether the mode is one for all windows or one per window is decided
-  then; until then it is the main window's own.
+  and it can be selected like any population. Decided by the owner on
+  2 October 2026. How a population is edited there was decided by the
+  owner on 3 October 2026. The words of what was added then say "group"
+  where the rest of the app says "population": the owner prefers the
+  plainer word, and the rename of the whole app is a change of its own,
+  made after this one.
+
+  - The row of the selected group shows + and − after its number, and no
+    other row does, so that the list stays short. Each is a button that
+    stays pressed until it is pressed again, and pressing one releases
+    the other; + pressed is blue and − pressed is red. Their tooltips
+    say what they do, "Add selected to China" and "Remove selected from
+    China", which a screen reader reads as their names, with the state
+    pressed or not. Decided by the owner on 3 October 2026, after trying
+    a first version in which each acted once on the selection.
+  - While + is pressed, every individual that enters the selection, by a
+    click, a shift-click, Space, Select shown rows, and later a lasso in
+    a plot, goes into the group, out of the group it was in. While − is
+    pressed, every individual that enters the selection and is in the
+    group becomes unassigned; the others are left as they are. The rows
+    selected when the button is pressed are changed at once. A row that
+    leaves the selection is not changed. Each change is one command and
+    one undo. The button is one state for every window, kept in the
+    backend, so that a lasso in a plot does what a click in the table
+    does.
+  - The button is released by pressing it again, by Escape, by selecting
+    another group or none, by choosing another classification, and by
+    importing a table. With the unassigned individuals selected, + makes
+    the individuals selected unassigned, and − is greyed out with the
+    reason "Unassigned individuals are in no group to remove them from".
+  - A click edits while + or − is pressed: the first click of a
+    double-click on a cell adds its row before the cell opens. The
+    assistant proposed accepting it, rather than waiting 500 ms before
+    each change, and the owner did not object.
+  - The information bar says what pressing the button did and how to
+    stop: "3 individuals added to China. Rows you select now go to China
+    too, until you press + again or Escape; Edit > Undo takes back each
+    change." When the button is released, by any of the ways above, it
+    says so: "Rows you select no longer go to China." The words of these
+    messages are the assistant's.
+  - Below the list, "Add group" opens a field, "Name of the new group",
+    with Add and Cancel; Enter adds and Escape gives up. The new group
+    has no individuals, even with rows selected, which stay selected; it
+    goes last in the list, takes the first colour of the list of section
+    5 that no group of the classification has, and is selected. The cell
+    editor then suggests
+    it. A name is refused, with the reason in the information bar and
+    the field kept open, when it is empty, another group's, no country of
+    ISO 3166 in a column of countries, or not a number in a column of
+    numbers; spaces around it are ignored, and a country is kept as its
+    code. A name of text has at most 30 characters, which the field
+    enforces too, and no control character, such as a line break or a
+    mark that turns the text right to left (decided by the owner on
+    3 October 2026, after the review found a name of 10 million
+    characters accepted). A column of TRUE and FALSE takes the one of the
+    two it lacks, typed in any case, and Add group is greyed out once it
+    has both (decided the same day). The field and its buttons, and the
+    reasons a name is refused, were written by the assistant and shown to
+    the owner.
+  - When a group is selected, Edit and "Delete group" are to appear
+    beside Add group, each with its command in the core. Delete leaves
+    the group's individuals unassigned, asks nothing first, since Undo
+    brings the group back, and the information bar says so. What Edit
+    changes, the name alone or the colour too, is decided when it is
+    built.
 - With no project open, the main window shows an empty state: Open
   project…, Import table…, the recent projects, and dropping a file on
   the window, which opens a `.vav` and imports a CSV, TSV or xlsx. An
@@ -486,7 +541,8 @@ Every column but the first has two types, decided by the owner on
   - **category**: values that divide the individuals into groups, a
     trait such as the colour of the flower or populations such as a
     genetic clustering; drawn in a bar plot, and any category can be the
-    active classification, which a lasso edits;
+    active classification, which + and − in the populations panel
+    edit;
   - **text**: notes and identifiers, shown in the table alone.
 
   Category and classification were two roles until the owner merged them
@@ -899,8 +955,9 @@ Raised on 2 October 2026 while the skills of the project were written
 - The population of one individual is changed from the table by typing
   the population's name in the cell of the active classification, with
   the names of its populations suggested as the user types. A name that
-  is not yet a population is refused: a new population is made another
-  way (decided by the owner on 3 October 2026, section 2.1).
+  is not yet a population is refused: a new population is made with Add
+  group in the populations panel (decided by the owner on 3 October 2026,
+  section 2.1).
 
 - The oldest platforms supported: macOS 14, Windows 10 and 11, and Linux
   with WebKitGTK 2.44, such as Ubuntu 24.04. Their engines are about
@@ -935,6 +992,17 @@ Raised on 2 October 2026 while the skills of the project were written
   in `Cargo.lock` already through Tauri: `objc2-foundation` on macOS,
   `windows` on Windows and `libc` on Linux, approved by the owner on
   2 October 2026.
+- Every text that enters the app is kept in Unicode's composed form,
+  NFC, so that an accent written as part of its letter, as typing gives
+  it, and as a separate character after it, as a Mac often writes file
+  names, is one text: `Perú` from a file and `Perú` typed are one group.
+  It is applied to every text of an imported file, its IDs, column names
+  and values, and to what the user types, in a cell, as a group's name,
+  and in the find bar. Two IDs, or two column names, that become one
+  are refused at import, naming the name. Decided by the owner on
+  3 October 2026, with the crate `unicode-normalization`, 0.1.25, of the
+  unicode-rs project, MIT or Apache-2.0, whose one dependency, `tinyvec`,
+  was in `Cargo.lock` already.
 
 The builds are tried on the owner's machines: the Mac, a Windows
 machine, and a Linux virtual machine with both a Wayland and an X11

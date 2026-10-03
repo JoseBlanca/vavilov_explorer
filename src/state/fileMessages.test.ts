@@ -49,6 +49,17 @@ describe("the words of a refused import", () => {
     );
   });
 
+  test("say that two IDs or two column names are written two ways that show the same", () => {
+    const text = (refusal: ImportRefusal): string =>
+      fileRefusalText({ kind: "importRefused", fileName: "plants.csv", refusal }, count).text;
+    expect(text({ kind: "individualWrittenTwoWays", name: "José" })).toBe(
+      "Two individuals have the IndividualID “José”, written with different characters that show the same, such as an accent written as part of its letter or after it. Give each individual an ID of its own and import the file again.",
+    );
+    expect(text({ kind: "columnWrittenTwoWays", name: "Perú" })).toBe(
+      "Two columns are named “Perú”, written with different characters that show the same, such as an accent written as part of its letter or after it. Give each column a name of its own and import the file again.",
+    );
+  });
+
   test("name a place of a text file by its line and one of a sheet by Excel's row and letters", () => {
     const text = (format: "text" | "xlsx"): string =>
       fileRefusalText(
