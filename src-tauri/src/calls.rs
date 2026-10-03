@@ -27,6 +27,7 @@ pub const COMMANDS: &[&str] = &[
     "select_population",
     "set_role",
     "set_filter",
+    "set_cells",
     "undo",
     "redo",
 ];
@@ -34,8 +35,10 @@ pub const COMMANDS: &[&str] = &[
 /// Applies the call of `command` with its body and headers to the session.
 /// A command with rows takes them as a raw body, one bit per row, with the
 /// headers `based-on`, `sent-at` and, for a lasso, `column` and `target`
-/// (add mode: a code, or `unassigned`) or `population` (remove mode); the
-/// others take JSON arguments in camelCase, and an
+/// (add mode: a code, or `unassigned`) or `population` (remove mode), and
+/// for cells typed in, `column`, `text` and `decimal-mark`, the last two
+/// percent-encoded as `encodeURIComponent` writes them, since a header
+/// holds ASCII alone; the others take JSON arguments in camelCase, and an
 /// argument the command does not have is refused, so that a name that
 /// drifts between a window and the app fails at once.
 ///
@@ -102,6 +105,24 @@ pub fn call(
                     column,
                     population,
                     rows,
+                },
+                based_on,
+                sent_at,
+            }
+        }
+        "set_cells" => {
+            let column = ColumnId::new(header(headers, "column")?);
+            let text = percent_header(headers, "text")?;
+            let decimal_mark = percent_header(headers, "decimal-mark")?;
+            let based_on = Revision::new(header(headers, "based-on")?);
+            let sent_at = sent_at_header(headers)?;
+            let rows = session.rows_from_window(raw_body(body)?, based_on)?;
+            Request {
+                command: Command::SetCells {
+                    column,
+                    rows,
+                    text,
+                    decimal_mark,
                 },
                 based_on,
                 sent_at,
@@ -307,6 +328,32 @@ fn raw_body(body: &InvokeBody) -> Result<&[u8], CommandError> {
                 .to_owned(),
         }),
     }
+}
+
+/// The text of a header the command needs, percent-encoded UTF-8 as
+/// `encodeURIComponent` writes it.
+fn percent_header(headers: &HeaderMap, name: &str) -> Result<String, CommandError> {
+    let encoded: String = header(headers, name)?;
+    let defect = || CommandError::Defect {
+        what: format!("a header {name} that is not percent-encoded UTF-8"),
+    };
+    let mut bytes = Vec::with_capacity(encoded.len());
+    let mut rest = encoded.as_bytes();
+    while let Some((&first, after)) = rest.split_first() {
+        if first == b'%' {
+            let (hex, after) = after.split_at_checked(2).ok_or_else(defect)?;
+            if !hex.iter().all(u8::is_ascii_hexdigit) {
+                return Err(defect());
+            }
+            let hex = std::str::from_utf8(hex).map_err(|_| defect())?;
+            bytes.push(u8::from_str_radix(hex, 16).map_err(|_| defect())?);
+            rest = after;
+        } else {
+            bytes.push(first);
+            rest = after;
+        }
+    }
+    String::from_utf8(bytes).map_err(|_| defect())
 }
 
 /// The value of a header the command needs.

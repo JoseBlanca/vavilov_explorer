@@ -5,13 +5,15 @@
 //! names and codes; a missing cell never matches. The filter hides rows of
 //! the table only, and is part of the interaction, not undone.
 
+pub(crate) mod texts;
+
 use serde::Deserialize;
 
 use crate::convert::usize_from;
 use crate::countries;
 use crate::error::CommandError;
 use crate::ids::{ColumnId, LevelCode, RowIndex};
-use crate::table::{Categorical, ColumnValues, LevelValues, Numbers, Table};
+use crate::table::{Categorical, Column, ColumnValues, LevelValues, Numbers, Table};
 
 /// How the text must match a cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -77,12 +79,15 @@ pub(crate) enum Replaced<'a> {
     Values(ColumnId, &'a ColumnValues),
     /// The new codes of a category.
     Codes(ColumnId, &'a [Option<LevelCode>]),
+    /// The new names of the individuals, the first column.
+    Names(&'a [String]),
 }
 
 /// The rows `filter` shows of `table`, in order, with `replaced` in the
 /// place of what it replaces; `None` when the filter has no text and shows
 /// every row. A decimal number matches by its text with `decimal_mark`,
-/// the one the window that set the filter writes numbers with.
+/// the one the window that set the filter writes numbers with, read from
+/// `kept` where they are kept for the column as it is.
 ///
 /// # Errors
 ///
@@ -94,6 +99,7 @@ pub(crate) fn shown_rows(
     decimal_mark: Option<&str>,
     table: &Table,
     replaced: Option<Replaced<'_>>,
+    kept: &texts::NumberTexts,
 ) -> Result<Option<Vec<RowIndex>>, CommandError> {
     let names = table.names();
     if let Some(column) = filter.column
@@ -114,18 +120,22 @@ pub(crate) fn shown_rows(
         decimal_mark,
     };
     let num_rows = usize_from(table.num_rows());
+    let individuals = match replaced {
+        Some(Replaced::Names(new)) => new,
+        Some(Replaced::Values(..) | Replaced::Codes(..)) | None => names.names(),
+    };
     let matches = match filter.column {
-        Some(column) if column == names.id() => texts(names.names().iter().map(Some), &search),
+        Some(column) if column == names.id() => texts(individuals.iter().map(Some), &search),
         Some(column) => {
             let found = table
                 .column(column)
                 .ok_or(CommandError::UnknownColumn { column })?;
-            column_matches(found.id(), found.values(), replaced, &search)?
+            column_matches(found, replaced, &search, kept)?
         }
         None => {
-            let mut any = texts(names.names().iter().map(Some), &search);
+            let mut any = texts(individuals.iter().map(Some), &search);
             for column in table.columns() {
-                let one = column_matches(column.id(), column.values(), replaced, &search)?;
+                let one = column_matches(column, replaced, &search, kept)?;
                 if one.len() != num_rows {
                     return Err(length_defect(column.id(), one.len(), num_rows));
                 }
@@ -165,12 +175,28 @@ struct Search<'a> {
 }
 
 impl Search<'_> {
+    /// Whether the text could be found in a number as the table writes it,
+    /// whose characters are digits, the signs, the `e` of an exponent and
+    /// the decimal mark, since a column holds only finite numbers: a text
+    /// of any other character matches none, and the numbers need not be
+    /// written, which take most of a search of every column.
+    fn can_match_a_number(&self) -> bool {
+        let mark = self.decimal_mark.to_lowercase();
+        self.text
+            .chars()
+            .all(|char| char.is_ascii_digit() || "+-e".contains(char) || mark.contains(char))
+    }
+
     /// Whether the cell whose shown text is `shown` matches.
     fn matches(&self, shown: &str) -> bool {
-        let shown = shown.to_lowercase();
+        self.matches_lower(&shown.to_lowercase())
+    }
+
+    /// Whether the cell whose shown text, in lower case, is `lower` matches.
+    fn matches_lower(&self, lower: &str) -> bool {
         match self.cell {
-            CellMatch::Part => shown.contains(&self.text),
-            CellMatch::Whole => shown == self.text,
+            CellMatch::Part => lower.contains(&self.text),
+            CellMatch::Whole => lower == self.text,
         }
     }
 }
@@ -181,21 +207,31 @@ fn length_defect(column: ColumnId, len: usize, num_rows: usize) -> CommandError 
     }
 }
 
-/// Whether each row of a column matches.
+/// Whether each row of `column` matches, its decimal numbers read from
+/// `kept` when they are kept for it as it is and nothing replaces it.
 fn column_matches(
-    id: ColumnId,
-    values: &ColumnValues,
+    column: &Column,
     replaced: Option<Replaced<'_>>,
     search: &Search<'_>,
+    kept: &texts::NumberTexts,
 ) -> Result<Vec<bool>, CommandError> {
+    let id = column.id();
+    let values = column.values();
     match replaced {
-        Some(Replaced::Values(column, new)) if column == id => {
+        Some(Replaced::Values(replaced, new)) if replaced == id => {
             return values_matches(new, None, search);
         }
-        Some(Replaced::Codes(column, codes)) if column == id => {
+        Some(Replaced::Codes(replaced, codes)) if replaced == id => {
             return values_matches(values, Some(codes), search);
         }
-        Some(Replaced::Values(..) | Replaced::Codes(..)) | None => {}
+        Some(Replaced::Values(..) | Replaced::Codes(..) | Replaced::Names(..)) | None => {}
+    }
+    if search.can_match_a_number()
+        && let Some(texts) = kept.column(id, column.revision(), search.decimal_mark)
+    {
+        return texts
+            .map(|text| Ok(text?.is_some_and(|text| search.matches_lower(text))))
+            .collect();
     }
     values_matches(values, None, search)
 }
@@ -208,6 +244,19 @@ fn values_matches(
     search: &Search<'_>,
 ) -> Result<Vec<bool>, CommandError> {
     Ok(match values {
+        ColumnValues::Number(numbers)
+        | ColumnValues::Latitude(numbers)
+        | ColumnValues::Longitude(numbers)
+            if !search.can_match_a_number() =>
+        {
+            vec![
+                false;
+                match numbers {
+                    Numbers::Integer(values) => values.len(),
+                    Numbers::Float(values) => values.len(),
+                }
+            ]
+        }
         ColumnValues::Number(numbers)
         | ColumnValues::Latitude(numbers)
         | ColumnValues::Longitude(numbers) => match numbers {
@@ -353,7 +402,6 @@ fn shortest_digits(value: f64) -> Result<(String, i32), CommandError> {
     // The neighbours of an odd last digit, from 1 to 9, are even. One of
     // 0 would give back the value only if the form one digit shorter did,
     // which Rust would have given; one of 10 is not a digit.
-    let exact = exact_digits(magnitude)?;
     let below = (last > 1).then(|| format!("{head}{}", last.saturating_sub(1)));
     let above = (last < 9).then(|| format!("{head}{}", last.saturating_add(1)));
     // A neighbour is as close as Rust's digits when the value lies exactly
@@ -367,7 +415,11 @@ fn shortest_digits(value: f64) -> Result<(String, i32), CommandError> {
         let gives_back = format!("0.{even}e{}", exponent.saturating_add(1))
             .parse::<f64>()
             .is_ok_and(|other| other.to_bits() == magnitude.to_bits());
-        if gives_back && exact == (format!("{lower}5"), exponent) {
+        // The exact digits, 800 of them, are written only for a neighbour
+        // that gives back the value, which few do: written for every odd
+        // digit, they took 80 ms of a search of a column of 50,000 decimal
+        // numbers in a release build (2 October 2026).
+        if gives_back && exact_digits(magnitude)? == (format!("{lower}5"), exponent) {
             return Ok((even, exponent));
         }
     }

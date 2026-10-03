@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 
 mod action;
+mod cells;
 mod command;
 mod convert;
 mod countries;
@@ -37,7 +38,7 @@ pub use description::{
     ColumnDescription, LevelDescription, LevelValue, NamesDescription, TableDescription,
 };
 pub use dispatch::{Changed, Dropped, Outcome};
-pub use error::{CommandError, ExportRefusal, ImportRefusal, IoFailure};
+pub use error::{CellRefusal, CommandError, ExportRefusal, ImportRefusal, IoFailure};
 pub use export::export_table;
 pub use files::{file_name, read_for_import, write_export};
 pub use filter::{CellMatch, Filter, MAX_FILTER_TEXT, Showing};

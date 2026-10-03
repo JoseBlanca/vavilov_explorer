@@ -66,6 +66,7 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::describe_table,
             commands::fetch_rows,
             commands::set_selection,
+            commands::set_cells,
             commands::assign_rows,
             commands::unassign_rows,
             commands::set_hover,

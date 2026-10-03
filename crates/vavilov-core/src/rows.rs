@@ -85,7 +85,13 @@ impl Session {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let mut message = MessageWriter::new(MessageKind::Rows, self.state.revision, None);
-        message.page(self.state.loaded_at, shown.at, request.first, &rows)?;
+        message.page(
+            self.state.loaded_at,
+            shown.at,
+            table.names().revision(),
+            request.first,
+            &rows,
+        )?;
         message.names(&in_page(table.names().names(), &rows)?)?;
         for column in columns {
             message.values(

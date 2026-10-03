@@ -124,6 +124,7 @@ const PAGE: RowPage = {
   revision: revision(1),
   loadedAt: revision(1),
   shownAt: revision(1),
+  namesAt: revision(1),
   first: position(2),
   count: 2,
   rows: [row(2), row(3)],
@@ -151,7 +152,7 @@ const codesOf = (id: ColumnId): Uint16Array | null => CODES.get(id) ?? null;
 describe("the columns of the table", () => {
   test("are the names, then every column in the order of the table, with its roles", () => {
     expect(
-      tableColumns(PLANTS).map((c) => [
+      tableColumns(PLANTS, ".").map((c) => [
         c.id,
         c.name,
         c.kind,
@@ -168,6 +169,20 @@ describe("the columns of the table", () => {
       [6, "dose", "category", true, ["Number", "Category"]],
       [7, "origin code", "country", false, ["Category", "Country", "Text"]],
       [8, "lat", "latitude", true, ["Number", "Latitude", "Longitude", "Category"]],
+    ]);
+  });
+
+  test("give each category the values a cell of it can take, as the table writes them", () => {
+    expect(tableColumns(PLANTS, ",").map((c) => [c.id, c.values])).toEqual([
+      [0, []],
+      [1, []],
+      [2, ["Spain", "Peru"]],
+      [3, []],
+      [4, ["FALSE", "TRUE"]],
+      [5, []],
+      [6, ["0,5", "2"]],
+      [7, ["ESP", "PER"]],
+      [8, []],
     ]);
   });
 

@@ -108,6 +108,7 @@ for (const engine of Object.keys(ENGINES)) {
         revision: 1,
         loadedAt: 1,
         shownAt: 1,
+        namesAt: 1,
         rows: [1, 2, 3],
         first: 1,
         count: 3,

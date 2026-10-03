@@ -158,3 +158,46 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* The cell being edited shows its whole field, and the checkbox below it
+   over the rows that follow. */
+.editing {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+  padding: 0;
+}
+
+.editor {
+  width: 100%;
+  height: 100%;
+  padding: 0 var(--space-2);
+  border: 2px solid var(--color-focus);
+  border-radius: 0;
+  background: var(--color-panel);
+  color: var(--color-text);
+  font: inherit;
+  text-align: inherit;
+}
+
+.toSelected {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--target-size);
+  padding: var(--space-1) var(--space-2);
+  white-space: nowrap;
+  color: var(--color-text);
+  background: var(--color-panel);
+  border: 1px solid var(--color-control-border);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+/* The cell the keyboard is on, while the grid has the focus. */
+.grid:focus .active {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}

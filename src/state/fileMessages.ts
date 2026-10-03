@@ -4,10 +4,11 @@
 // file (.claude/skills/writing/SKILL.md, "The text of the app";
 // docs/design.md, sections 2.1 and 7).
 
+import type { BarMessage } from "./barMessages.ts";
 import type { IoFailure, Refusal } from "./commandError.ts";
 import type { ExportRefusal, FileFormat, ImportRefusal, Separator } from "./fileRefusal.ts";
 
-/** What a pop-up says: what happened, in one line, and how to put it right. */
+/** What a refusal says: what happened, in one line, and how to put it right. */
 export interface Explanation {
   /** What happened, in one line. */
   readonly heading: string;
@@ -45,6 +46,23 @@ export type FileRefusal = Extract<Refusal, { readonly kind: (typeof FILE_KINDS)[
 /** Whether `error` is about a file the user chose. */
 export function isFileRefusal(error: Refusal): error is FileRefusal {
   return FILE_KINDS.some((kind) => kind === error.kind);
+}
+
+/**
+ * The error the information bar shows for a refusal of an import or an
+ * export: what happened, then how to put it right.
+ */
+export function fileRefusalMessage(error: FileRefusal, count: Count): BarMessage {
+  const { heading, text } = fileRefusalText(error, count);
+  return { kind: "error", text: `${heading}. ${text}` };
+}
+
+/**
+ * The warning the information bar shows for an import that read a
+ * character it could not decode.
+ */
+export function undecodedMessage(fileName: string, line: number, count: Count): BarMessage {
+  return { kind: "warning", text: undecodedText(fileName, line, count) };
 }
 
 /** The words of a refusal of an import or an export. */
@@ -108,7 +126,7 @@ function counted(value: number, one: string, many: string, count: Count): string
   return `${count(value)} ${value === 1 ? one : many}`;
 }
 
-/** The notice of an import that read a character it could not decode. */
+/** The words of the warning of an import that read a character it could not decode. */
 export function undecodedText(fileName: string, line: number, count: Count): string {
   return `“${fileName}” was imported, but line ${count(line)} has a character that could not be read, shown as �. Save the file as UTF-8 and import it again if the text matters.`;
 }

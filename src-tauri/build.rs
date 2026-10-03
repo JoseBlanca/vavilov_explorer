@@ -17,6 +17,7 @@ const COMMANDS: &[&str] = &[
     "select_population",
     "set_role",
     "set_filter",
+    "set_cells",
     "undo",
     "redo",
     "import_table",

@@ -1,8 +1,8 @@
 // The find bar above the table and the information bar below it, against
 // the real core, in each engine: a text found in any column or in one, a
 // whole cell, the rows that don't match, a number by the region's decimal
-// mark, a country by its ISO names, a shift-click over a filtered table, the
-// count of the rows, Undo and Redo in the field, by the keyboard and by the
+// mark, a country by its ISO names, a shift-click over a filtered table,
+// "Select shown rows", the count of the rows, Undo and Redo in the field, by the keyboard and by the
 // menu, a load clearing the filter, and a filtered table of 250 rows
 // scrolled past its first page. Screenshots, light and dark, land in
 // e2e/output/.
@@ -136,6 +136,25 @@ for (const engine of Object.keys(ENGINES)) {
     await rowsShown(grid, ALL, COUNTRY_CELLS);
     assert.deepEqual(await selectedRows(grid), ["p2", "p5"]);
     await shoot(page, engine, "find-selected");
+
+    // "Select shown rows" makes the rows shown the selection, in place of
+    // the one there was, and with no text, every row.
+    const selectShown = find.getByRole("button", { name: "Select shown rows" });
+    await column.selectOption({ label: "note" });
+    await field.fill("tall");
+    await rowsShown(grid, ["p3", "p4"], COUNTRY_CELLS);
+    await selectShown.click();
+    await countSays(page, "Showing 2 of 6 individuals · 2 selected");
+    await field.fill("");
+    await rowsShown(grid, ALL, COUNTRY_CELLS);
+    assert.deepEqual(await selectedRows(grid), ["p3", "p4"]);
+    await selectShown.click();
+    await countSays(page, "6 individuals · 6 selected");
+    assert.deepEqual(await selectedRows(grid), ALL);
+    await rowNamed(grid, "p2").click();
+    await rowNamed(grid, "p5").click({ modifiers: ["Shift"] });
+    await column.selectOption({ label: "origin" });
+    await countSays(page, "6 individuals · 4 selected");
 
     // Undo and Redo pressed in the field take back its typing and give it
     // back, and the rows follow the text: WebKit takes back the word,

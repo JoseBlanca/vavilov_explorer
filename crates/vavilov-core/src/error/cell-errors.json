@@ -1,0 +1,56 @@
+[
+  {
+    "kind": "cellRefused",
+    "columnName": "seeds",
+    "text": "1,5",
+    "refusal": { "kind": "notWholeNumber" }
+  },
+  {
+    "kind": "cellRefused",
+    "columnName": "height",
+    "text": "1.5",
+    "refusal": { "kind": "notDecimalNumber", "decimalMark": "," }
+  },
+  {
+    "kind": "cellRefused",
+    "columnName": "lat",
+    "text": "91",
+    "refusal": { "kind": "notLatitude" }
+  },
+  {
+    "kind": "cellRefused",
+    "columnName": "lon",
+    "text": "-181",
+    "refusal": { "kind": "notLongitude" }
+  },
+  {
+    "kind": "cellRefused",
+    "columnName": "fertile",
+    "text": "yes",
+    "refusal": { "kind": "notYesOrNo" }
+  },
+  {
+    "kind": "cellRefused",
+    "columnName": "origin",
+    "text": "Atlantis",
+    "refusal": { "kind": "notACountry" }
+  },
+  {
+    "kind": "cellRefused",
+    "columnName": "origin",
+    "text": "Chile",
+    "refusal": { "kind": "notALevel" }
+  },
+  {
+    "kind": "cellRefused",
+    "columnName": "IndividualID",
+    "text": "",
+    "refusal": { "kind": "emptyId" }
+  },
+  {
+    "kind": "cellRefused",
+    "columnName": "IndividualID",
+    "text": "p2",
+    "refusal": { "kind": "idTaken" }
+  }
+]

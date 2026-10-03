@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 
-import { excelColumn, fileRefusalText, undecodedText } from "./fileMessages.ts";
+import {
+  excelColumn,
+  fileRefusalMessage,
+  fileRefusalText,
+  undecodedMessage,
+  undecodedText,
+} from "./fileMessages.ts";
 import type { ExportRefusal, ImportRefusal } from "./fileRefusal.ts";
 
 const count = (value: number): string => new Intl.NumberFormat("en").format(value);
@@ -207,5 +213,26 @@ describe("Excel's letters of a column", () => {
       "AAA",
       "XFD",
     ]);
+  });
+});
+
+describe("the messages of the information bar", () => {
+  test("of a refusal is an error, what happened and then how to put it right", () => {
+    expect(
+      fileRefusalMessage(
+        { kind: "importUnreadable", fileName: "plants.xlsx", message: "zip: bad header" },
+        count,
+      ),
+    ).toEqual({
+      kind: "error",
+      text: "“plants.xlsx” was not imported. It could not be read as an Excel workbook, and may be damaged. Open it in Excel and save it again, or save it as CSV, and import that.",
+    });
+  });
+
+  test("of a character not decoded is a warning that names the line", () => {
+    expect(undecodedMessage("damaged.csv", 1203, count)).toEqual({
+      kind: "warning",
+      text: "“damaged.csv” was imported, but line 1,203 has a character that could not be read, shown as �. Save the file as UTF-8 and import it again if the text matters.",
+    });
   });
 });

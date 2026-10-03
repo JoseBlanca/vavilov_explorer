@@ -1,5 +1,6 @@
 use super::*;
-use crate::fixtures::{code, column, names, plants};
+use crate::filter::texts::NumberTexts;
+use crate::fixtures::{code, column, float, integer, names, plants};
 use crate::table::{Role, Stored};
 
 fn filter(text: &str) -> Filter {
@@ -25,13 +26,19 @@ fn shown(table: &Table, filter: &Filter) -> Option<Vec<String>> {
 /// The names of the rows `filter` shows of `table`, numbers written with
 /// `decimal_mark`, or `None` for every row.
 fn shown_with(table: &Table, filter: &Filter, decimal_mark: &str) -> Option<Vec<String>> {
-    shown_rows(filter, Some(decimal_mark), table, None)
-        .unwrap()
-        .map(|rows| {
-            rows.iter()
-                .map(|row| table.names().names()[usize_from(row.get())].clone())
-                .collect()
-        })
+    shown_rows(
+        filter,
+        Some(decimal_mark),
+        table,
+        None,
+        &NumberTexts::default(),
+    )
+    .unwrap()
+    .map(|rows| {
+        rows.iter()
+            .map(|row| table.names().names()[usize_from(row.get())].clone())
+            .collect()
+    })
 }
 
 #[test]
@@ -176,6 +183,7 @@ fn an_edit_not_yet_applied_is_searched_in_the_place_of_what_it_replaces() {
         Some("."),
         &table,
         Some(Replaced::Codes(ColumnId::new(2), &codes)),
+        &NumberTexts::default(),
     )
     .unwrap()
     .unwrap();
@@ -186,6 +194,7 @@ fn an_edit_not_yet_applied_is_searched_in_the_place_of_what_it_replaces() {
         Some("."),
         &table,
         Some(Replaced::Codes(ColumnId::new(3), &codes)),
+        &NumberTexts::default(),
     )
     .unwrap()
     .unwrap();
@@ -195,7 +204,13 @@ fn an_edit_not_yet_applied_is_searched_in_the_place_of_what_it_replaces() {
 #[test]
 fn a_column_the_table_does_not_have_is_refused() {
     assert_eq!(
-        shown_rows(&in_column("x", 9), Some("."), &plants(), None),
+        shown_rows(
+            &in_column("x", 9),
+            Some("."),
+            &plants(),
+            None,
+            &NumberTexts::default()
+        ),
         Err(CommandError::UnknownColumn {
             column: ColumnId::new(9)
         })
@@ -205,7 +220,13 @@ fn a_column_the_table_does_not_have_is_refused() {
 #[test]
 fn a_column_the_table_does_not_have_is_refused_also_with_no_text() {
     assert_eq!(
-        shown_rows(&in_column("", 9), None, &plants(), None),
+        shown_rows(
+            &in_column("", 9),
+            None,
+            &plants(),
+            None,
+            &NumberTexts::default()
+        ),
         Err(CommandError::UnknownColumn {
             column: ColumnId::new(9)
         })
@@ -215,7 +236,7 @@ fn a_column_the_table_does_not_have_is_refused_also_with_no_text() {
 #[test]
 fn a_text_with_no_decimal_mark_is_a_defect() {
     assert!(matches!(
-        shown_rows(&filter("1"), None, &plants(), None),
+        shown_rows(&filter("1"), None, &plants(), None, &NumberTexts::default()),
         Err(CommandError::Defect { .. })
     ));
 }
@@ -342,7 +363,7 @@ mod in_the_session {
             .unwrap();
         let payload = &decode(&message).parts[0].1;
         let shown_at = u64::from_le_bytes(payload[8..16].try_into().unwrap());
-        let rows = payload[24..]
+        let rows = payload[32..]
             .as_chunks::<4>()
             .0
             .iter()
@@ -466,11 +487,12 @@ mod in_the_session {
             3, 0, 0, 0, 0, 0, 0, 0, // rows, no time
             2, 0, 0, 0, 0, 0, 0, 0, // revision 2
             0, 0, 0, 0, 0, 0, 0, 0, // no time
-            // page: loaded at 1, rows shown since 2, from position 0, 2
-            // rows, which are the rows 0 and 3
-            8, 0, 0, 0, 32, 0, 0, 0,
+            // page: loaded at 1, rows shown since 2, names since 1, from
+            // position 0, 2 rows, which are the rows 0 and 3
+            8, 0, 0, 0, 40, 0, 0, 0,
             1, 0, 0, 0, 0, 0, 0, 0,
             2, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 2, 0, 0, 0,
             0, 0, 0, 0, 3, 0, 0, 0,
             // names: offsets 0, 2, 4, then p1p4
@@ -641,5 +663,119 @@ mod in_the_session {
             },
         );
         assert_eq!(page(&session, 4), (vec![0, 1, 2, 3], 3));
+    }
+}
+
+#[test]
+fn a_number_is_found_by_every_character_its_text_can_have_and_by_no_other() {
+    let table = Table::new(
+        "IndividualID",
+        names(&["a", "b", "c"]),
+        vec![
+            column("size", float(vec![Some(1e21), Some(-1.5), None])),
+            column("count", integer(vec![Some(-12), None, Some(7)])),
+        ],
+    )
+    .unwrap();
+    let comma = |text: &str| shown_with(&table, &in_column(text, 1), ",").unwrap();
+    assert_eq!(comma("E+21"), ["a"]);
+    assert_eq!(comma("-1,5"), ["b"]);
+    assert_eq!(comma("1,5x"), Vec::<String>::new());
+    assert_eq!(comma("1.5"), Vec::<String>::new());
+    let integers = |text: &str| shown_with(&table, &in_column(text, 2), ",").unwrap();
+    assert_eq!(integers("-1"), ["a"]);
+    assert_eq!(integers("7"), ["c"]);
+    assert_eq!(integers("7 "), Vec::<String>::new());
+}
+
+mod kept_texts {
+    use super::*;
+    use crate::filter::texts::NumberTexts;
+    use crate::ids::Revision;
+
+    /// The rows `filter` shows with `texts` kept, or written afresh.
+    fn rows_with(
+        table: &Table,
+        filter: &Filter,
+        mark: &str,
+        texts: &NumberTexts,
+    ) -> Option<Vec<RowIndex>> {
+        shown_rows(filter, Some(mark), table, None, texts).unwrap()
+    }
+
+    #[test]
+    fn the_texts_of_a_decimal_column_are_kept_for_its_revision_and_decimal_mark() {
+        let table = plants();
+        let mut texts = NumberTexts::default();
+        texts.refresh(&table, ",").unwrap();
+        let height = ColumnId::new(1);
+        let revision = table.column(height).unwrap().revision();
+        // height: 1.5, missing, 2, 3.25.
+        let kept: Vec<Option<String>> = texts
+            .column(height, revision, ",")
+            .unwrap()
+            .map(|text| text.unwrap().map(str::to_owned))
+            .collect();
+        assert_eq!(
+            kept,
+            [
+                Some("1,5".to_owned()),
+                None,
+                Some("2".to_owned()),
+                Some("3,25".to_owned())
+            ]
+        );
+        // Not for another decimal mark, another revision, nor a column of
+        // whole numbers, seeds.
+        assert!(texts.column(height, revision, ".").is_none());
+        assert!(texts.column(height, Revision::new(9), ",").is_none());
+        assert!(texts.column(ColumnId::new(4), revision, ",").is_none());
+    }
+
+    #[test]
+    fn a_search_with_the_texts_kept_finds_the_rows_it_finds_without() {
+        let table = Table::new(
+            "IndividualID",
+            names(&["a", "b", "c", "d"]),
+            vec![column(
+                "size",
+                float(vec![Some(1e21), Some(-1.5), Some(-0.0), None]),
+            )],
+        )
+        .unwrap();
+        for mark in [",", "."] {
+            let mut texts = NumberTexts::default();
+            texts.refresh(&table, mark).unwrap();
+            for text in ["1", "e+21", "-1,5", "-1.5", "0", "5", "1,5x"] {
+                for cell in [CellMatch::Part, CellMatch::Whole] {
+                    let filter = Filter {
+                        cell,
+                        ..filter(text)
+                    };
+                    assert_eq!(
+                        rows_with(&table, &filter, mark, &texts),
+                        rows_with(&table, &filter, mark, &NumberTexts::default()),
+                        "{text} with {mark}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn texts_kept_for_a_column_since_changed_are_not_read() {
+        let before = plants();
+        let mut texts = NumberTexts::default();
+        texts.refresh(&before, ",").unwrap();
+        // The same column, height, at revision 5 with other values.
+        let mut after = Table::new(
+            "IndividualID",
+            names(&["p1", "p2", "p3", "p4"]),
+            vec![column("height", float(vec![Some(7.5), None, None, None]))],
+        )
+        .unwrap();
+        after.set_revisions(Revision::new(5));
+        let shown = rows_with(&after, &in_column("7,5", 1), ",", &texts);
+        assert_eq!(shown, Some(vec![RowIndex::new(0)]));
     }
 }

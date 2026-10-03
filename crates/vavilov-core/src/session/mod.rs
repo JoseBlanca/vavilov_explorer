@@ -14,6 +14,7 @@ pub(crate) use interaction::{Interaction, Shown};
 pub(crate) use subscribers::Subscribers;
 
 use crate::error::CommandError;
+use crate::filter::texts::NumberTexts;
 use crate::ids::{HoverSeq, Revision, RowIndex, WindowLabel};
 use crate::message::{MessageKind, whole_state};
 use crate::row_set::RowSet;
@@ -56,6 +57,11 @@ pub(crate) struct OpenProject {
     pub(crate) shape_at: Revision,
     pub(crate) history: History,
     pub(crate) interaction: Interaction,
+    /// The texts of the table's decimal numbers as a search reads them,
+    /// kept between searches; written from the table, and equal to any
+    /// other, so that a test that compares a session before and after a
+    /// command compares what the session holds.
+    pub(crate) number_texts: NumberTexts,
 }
 
 impl Project {

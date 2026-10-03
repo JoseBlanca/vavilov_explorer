@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { rowAt, shownBetween, shownRowsOf } from "./filter.ts";
+import { everyShown, rowAt, shownBetween, shownRowsOf } from "./filter.ts";
 import type { Shown } from "./filter.ts";
 import { isPosition, isRevision, isRowIndex } from "./ids.ts";
 import type { Position, RowIndex } from "./ids.ts";
@@ -56,5 +56,25 @@ describe("the rows shown between two rows", () => {
     expect(() => shownBetween(10, row(2), row(9), null)).toThrow(
       /defect: a range of rows of a table of 10 rows with no rows shown/,
     );
+  });
+});
+
+describe("every row shown, as a selection", () => {
+  test("is the rows the filter shows", () => {
+    const filtered = shown(3, new Uint8Array([0b1000_0100, 0b10]));
+    const bits = everyShown(10, filtered);
+    expect([...bits]).toEqual([0b1000_0100, 0b10]);
+    // A copy, so that a later change of one cannot reach the other.
+    expect(bits).not.toBe(filtered.bits);
+  });
+
+  test("is every row while the filter has no text, the bits beyond the last zero", () => {
+    expect([...everyShown(10, shown(10, null))]).toEqual([0b1111_1111, 0b11]);
+    expect([...everyShown(8, shown(8, null))]).toEqual([0b1111_1111]);
+    expect([...everyShown(0, shown(0, null))]).toEqual([]);
+  });
+
+  test("of a copy with no rows shown is a defect", () => {
+    expect(() => everyShown(10, null)).toThrow(/Vavilov Explorer defect/);
   });
 });

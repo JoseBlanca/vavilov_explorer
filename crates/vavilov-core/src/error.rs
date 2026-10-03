@@ -1,8 +1,10 @@
 //! The one error enum of the core, which is also what a window receives
 //! when a command is refused (`docs/core.md`, section 6).
 
+mod cell;
 mod file;
 
+pub use cell::CellRefusal;
 pub use file::{ExportRefusal, ImportRefusal, IoFailure};
 
 use serde::Serialize;
@@ -380,6 +382,18 @@ pub enum CommandError {
         io: IoFailure,
         /// The system's message, for the technical details.
         message: String,
+    },
+
+    /// A value typed in the cells of a column does not fit it, and every
+    /// cell keeps its value.
+    #[error("{text:?} does not fit column {column_name:?}: {refusal:?}")]
+    CellRefused {
+        /// The name of the column, `IndividualID` for the first.
+        column_name: String,
+        /// The text typed.
+        text: String,
+        /// Why.
+        refusal: CellRefusal,
     },
 
     /// A defect of the app: a state the code is meant to make impossible.

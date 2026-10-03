@@ -83,6 +83,24 @@ pub enum Command {
         /// Its new role.
         role: Role,
     },
+    /// Sets the cells of `rows` in `column` to the value `text` gives, read
+    /// by the column's storage type with `decimal_mark`: a number, a text,
+    /// a value of a category, or a name of the first column; an empty text
+    /// is a missing value, which the first column never has. Every row
+    /// changes or none, and one undo reverts them all.
+    SetCells {
+        /// The column, the first included.
+        column: ColumnId,
+        /// The rows whose cells are set: one, or the selection's; one only
+        /// in the first column.
+        rows: RowSet,
+        /// The text typed.
+        text: String,
+        /// The decimal mark the window writes decimal numbers with, its
+        /// system's region's, by which a decimal number typed is read: one
+        /// to three characters.
+        decimal_mark: String,
+    },
     /// Undoes the last edit of the document.
     Undo,
     /// Redoes the last edit undone.

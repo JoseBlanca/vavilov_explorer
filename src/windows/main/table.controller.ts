@@ -1,6 +1,12 @@
 import { nothing, render } from "lit-html";
 
 import type { Connection } from "../../backend/connection.ts";
+import type { BarMessage } from "../../state/barMessages.ts";
+import { moved, positionOf } from "../../state/activeCell.ts";
+import type { ActiveCell, Move } from "../../state/activeCell.ts";
+import { editedRows, openedEdit } from "../../state/cellEdit.ts";
+import type { CellEdit } from "../../state/cellEdit.ts";
+import { cellRefusalMessage } from "../../state/cellMessages.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow, Role, TableDescription } from "../../state/description.ts";
 import { rowAt, shownBetween, shownRowsOf } from "../../state/filter.ts";
@@ -19,10 +25,11 @@ import {
   rowsInView,
   rowsOfPage,
 } from "../../state/tablePages.ts";
+import { countRows, hasRow } from "../../state/rowSet.ts";
 import { fetchedColumns, tableColumns, tableRow } from "../../state/tableRows.ts";
 import type { TableRow } from "../../state/tableRows.ts";
 import { answered } from "../shared/answered.ts";
-import { tableView } from "./table.view.ts";
+import { ACTIVE_CELL_ID, tableView } from "./table.view.ts";
 
 /** The table in its element. */
 export interface Table {
@@ -38,6 +45,13 @@ export interface Table {
 const MARGIN_ROWS = 30;
 /** Pages kept beyond those the rows drawn need, so that scrolling back does not fetch them again. */
 const PAGES_KEPT = 3;
+/**
+ * How long a click on a row of a selection of several waits for a second
+ * click before it selects that row alone, in milliseconds: Windows' default
+ * double-click time, 500 ms, so that a double-click that opens a cell keeps
+ * the selection "Apply to all selected rows" applies to.
+ */
+const DOUBLE_CLICK_MS = 500;
 
 /**
  * The table of the main window: it draws the rows on screen, fetches their
@@ -48,7 +62,10 @@ const PAGES_KEPT = 3;
  * active classification is put to the user with `ask` first, and the
  * question is withdrawn when another table is loaded meanwhile. When
  * another table takes the place of the one drawn, the focus goes to its
- * grid from a control of the table it replaced, or from nowhere.
+ * grid from a control of the table it replaced, or from nowhere. A
+ * double-click opens a cell for editing, which it keeps as its own until
+ * Enter or leaving the cell sends the value to the backend, whose refusal
+ * goes to `tell`, or Escape gives it up.
  */
 export function createTable(
   element: HTMLElement,
@@ -56,6 +73,7 @@ export function createTable(
   description: () => DescriptionNow,
   decimalMark: string,
   ask: (question: Question, withdrawn: AbortSignal) => Promise<boolean>,
+  tell: (message: BarMessage) => void,
   report: (error: unknown) => void,
 ): Table {
   const { state } = connection;
@@ -66,6 +84,16 @@ export function createTable(
   let anchor: RowIndex | null = null;
   let frame: number | null = null;
   let destroyed = false;
+  /** The cell being edited, and whether its field is still to take the focus. */
+  let editing: CellEdit | null = null;
+  /** The cell the keyboard is on, and whether it is still to be scrolled into view. */
+  let active: ActiveCell | null = null;
+  let revealing = false;
+  let editorOpened = false;
+  /** The rows drawn last, from which a cell double-clicked is opened. */
+  let drawnRows: readonly TableRow[] = [];
+  /** The click on a row of a selection of several that waits for a second one. */
+  let narrowing: number | null = null;
   /** The question about a role being asked, and the load of the table it is about. */
   let asking: { readonly loadedAt: Revision; readonly withdraw: AbortController } | null = null;
   /**
@@ -111,7 +139,15 @@ export function createTable(
     table: TableDescription,
     shown: Shown,
   ): ReturnType<typeof pageStanding> =>
-    pageStanding(page, index, table.loadedAt, shown, fetchedColumns(table), state.columnRevision);
+    pageStanding(
+      page,
+      index,
+      table.loadedAt,
+      shown,
+      fetchedColumns(table),
+      state.columnRevision,
+      table.names.id,
+    );
 
   const fetchPage = (index: number, table: TableDescription, numShown: number): void => {
     const { first, end } = rowsOfPage(index, numShown);
@@ -219,17 +255,174 @@ export function createTable(
    * one clicked to it: a shift-click over a filtered table selects none of
    * the rows the filter hides between the two.
    */
-  const select = (row: RowIndex, extend: boolean): void => {
+  const select = (row: RowIndex, extend: boolean, by: "mouse" | "keyboard" = "mouse"): void => {
     const project = state.project();
     if (project.kind !== "open") {
       return;
     }
+    stopNarrowing();
     const from = extend && anchor !== null ? anchor : row;
     if (!extend) {
       anchor = row;
     }
-    const bits = shownBetween(project.numRows, from, row, state.shown());
-    connection.setSelection(bits).then(answered("selecting rows", schedule), report);
+    const send = (): void => {
+      const bits = shownBetween(project.numRows, from, row, state.shown());
+      connection.setSelection(bits).then(answered("selecting rows", schedule), report);
+    };
+    const selection = state.selection();
+    if (
+      by === "mouse" &&
+      !extend &&
+      selection !== null &&
+      hasRow(selection, row) &&
+      countRows(selection) > 1
+    ) {
+      narrowing = window.setTimeout(() => {
+        narrowing = null;
+        if (isLoaded(project.loadedAt)) {
+          send();
+        }
+      }, DOUBLE_CLICK_MS);
+      return;
+    }
+    send();
+  };
+
+  const stopNarrowing = (): void => {
+    if (narrowing !== null) {
+      clearTimeout(narrowing);
+      narrowing = null;
+    }
+  };
+
+  /** Opens the cell of `row` in `column` for editing, when it is drawn with its values. */
+  const openCell = (table: TableDescription, row: RowIndex, column: ColumnId): void => {
+    stopNarrowing();
+    const index = tableColumns(table, decimalMark).findIndex((each) => each.id === column);
+    const cell = drawnRows.find((each) => each.row === row)?.cells?.[index];
+    if (cell === undefined) {
+      return;
+    }
+    editing = openedEdit(table.loadedAt, row, column, table.names.id, cell);
+    editorOpened = true;
+    draw();
+  };
+
+  /**
+   * Sends the value of the cell being edited, and closes it, giving the
+   * focus back to the grid after Enter; after the focus left the cell, it
+   * stays where it went.
+   */
+  const commitEdit = (how: "enter" | "left"): void => {
+    const edit = editing;
+    if (edit === null) {
+      return;
+    }
+    const project = state.project();
+    const selection = state.selection();
+    editing = null;
+    if (how === "enter") {
+      // As in a spreadsheet, Enter moves on to the cell below.
+      if (active?.row === edit.row && active.column === edit.column) {
+        moveActive("down");
+      }
+      focusGrid();
+    }
+    draw();
+    if (project.kind !== "open" || project.loadedAt !== edit.loadedAt) {
+      return;
+    }
+    if (selection === null) {
+      throw defect("a cell edited in a table with no selection in the copy");
+    }
+    connection
+      .setCells(edit.column, editedRows(edit, project.numRows, selection), edit.text, decimalMark)
+      .then((answer) => {
+        if (!answer.ok && answer.error.kind === "cellRefused") {
+          tell(cellRefusalMessage(answer.error));
+          return;
+        }
+        answered("editing cells", schedule)(answer);
+      }, report);
+  };
+
+  /** Gives up the cell being edited, after Escape, and gives the focus back to the grid. */
+  const cancelEdit = (): void => {
+    if (editing === null) {
+      return;
+    }
+    editing = null;
+    draw();
+    focusGrid();
+  };
+
+  /** Moves the cell the keyboard is on by `move`, and scrolls it into view. */
+  const moveActive = (move: Move): void => {
+    const now = description();
+    if (now.kind !== "current") {
+      return;
+    }
+    const { shown, rows } = shownNow(now.description);
+    const scroller = part("scroller");
+    const probe = part("probe");
+    const rowHeight = probe?.getBoundingClientRect().height ?? 0;
+    const pageRows =
+      scroller === null || rowHeight === 0
+        ? 1
+        : Math.max(1, Math.floor(scroller.clientHeight / rowHeight) - 2);
+    active = moved(
+      active,
+      move,
+      tableColumns(now.description, decimalMark).map((column) => column.id),
+      { numShown: shown.numShown, rows },
+      pageRows,
+    );
+    revealing = true;
+    schedule();
+  };
+
+  /**
+   * Scrolls the cell the keyboard is on into view, clear of the header and
+   * of the column of the names, which stay over the others; to its row
+   * first when that is not drawn, and again once it is.
+   */
+  const reveal = (table: TableDescription): void => {
+    revealing = false;
+    const scroller = part("scroller");
+    if (active === null || scroller === null) {
+      return;
+    }
+    const cell = element.querySelector(`#${ACTIVE_CELL_ID}`);
+    if (!(cell instanceof HTMLElement)) {
+      const { shown, rows } = shownNow(table);
+      const position = positionOf(active.row, { numShown: shown.numShown, rows });
+      const rowHeight = part("probe")?.getBoundingClientRect().height ?? 0;
+      if (position !== null && rowHeight > 0) {
+        scroller.scrollTop = position * rowHeight;
+        revealing = true;
+        schedule();
+      }
+      return;
+    }
+    const box = cell.getBoundingClientRect();
+    const view = scroller.getBoundingClientRect();
+    const headerBottom =
+      element.querySelector('[aria-rowindex="1"]')?.getBoundingClientRect().bottom ?? view.top;
+    const namesRight = part("names")?.getBoundingClientRect().right ?? view.left;
+    const bottom = view.top + scroller.clientHeight;
+    const right = view.left + scroller.clientWidth;
+    if (box.top < headerBottom) {
+      scroller.scrollTop -= headerBottom - box.top;
+    } else if (box.bottom > bottom) {
+      scroller.scrollTop += box.bottom - bottom;
+    }
+    if (active.column !== table.names.id) {
+      if (box.left < namesRight) {
+        scroller.scrollLeft -= namesRight - box.left;
+      } else if (box.right > right) {
+        scroller.scrollLeft += box.right - right;
+      }
+    }
   };
 
   /** Whether the table loaded at `at` is the one the copy holds. */
@@ -272,6 +465,9 @@ export function createTable(
       fetching.clear();
       loadedAt = table.loadedAt;
       anchor = null;
+      editing = null;
+      active = null;
+      stopNarrowing();
       part("scroller")?.scrollTo({ top: 0 });
     }
     // A page ahead of the copy is kept, not drawn, until the message of
@@ -322,13 +518,61 @@ export function createTable(
         decimalMark,
       ),
     );
+    drawnRows = rows;
     render(
       tableView({
-        columns: tableColumns(table),
+        columns: tableColumns(table, decimalMark),
         numShown: shown.numShown,
         range,
         rows,
-        onRowClick: select,
+        editing,
+        active,
+        onGridFocus: () => {
+          if (
+            active === null ||
+            positionOf(active.row, { numShown: shown.numShown, rows: rowAtPosition }) === null
+          ) {
+            moveActive("down");
+          }
+        },
+        onMove: moveActive,
+        onActiveOpen: () => {
+          if (active !== null) {
+            openCell(table, active.row, active.column);
+          }
+        },
+        onActiveSelect: (extend) => {
+          if (active !== null) {
+            select(active.row, extend, "keyboard");
+          }
+        },
+        onCellClick: (row, column) => {
+          active = { row, column };
+        },
+        onRowClick: (row, extend) => {
+          select(row, extend);
+        },
+        onCellOpen: (row, column) => {
+          openCell(table, row, column);
+        },
+        onEditText: (text) => {
+          if (editing !== null) {
+            editing = { ...editing, text };
+          }
+        },
+        onEditToSelected: (toSelected) => {
+          if (editing !== null) {
+            editing = { ...editing, toSelected };
+            draw();
+          }
+        },
+        onEditCommit: () => {
+          commitEdit("enter");
+        },
+        onEditCancel: cancelEdit,
+        onEditLeave: () => {
+          commitEdit("left");
+        },
         onRole: (column, role) => {
           changeRole(table, column, role);
         },
@@ -337,6 +581,17 @@ export function createTable(
       }),
       element,
     );
+    if (revealing) {
+      reveal(table);
+    }
+    if (editorOpened) {
+      const field = element.querySelector("[data-editor] input");
+      if (field instanceof HTMLInputElement) {
+        editorOpened = false;
+        field.focus();
+        field.select();
+      }
+    }
     if (another) {
       const focused = document.activeElement;
       if (focused === null || focused === document.body || element.contains(focused)) {
@@ -377,6 +632,7 @@ export function createTable(
     focus: focusGrid,
     destroy: () => {
       destroyed = true;
+      stopNarrowing();
       resized.disconnect();
       if (frame !== null) {
         cancelAnimationFrame(frame);

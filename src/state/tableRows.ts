@@ -29,6 +29,11 @@ export interface TableColumn {
   readonly alignEnd: boolean;
   /** The roles it can take, none for the first column. */
   readonly choices: readonly RoleChoice[];
+  /**
+   * The values a cell of a category can take, as the table writes them, in
+   * the order of their codes; none for the other columns.
+   */
+  readonly values: readonly string[];
 }
 
 /** A row on screen. */
@@ -48,8 +53,8 @@ function isNumeric(storage: StorageType): boolean {
   return storage === "integer" || storage === "float";
 }
 
-/** Every column of the table, the names first. */
-export function tableColumns(description: TableDescription): TableColumn[] {
+/** Every column of the table, the names first, a decimal number written with `decimalMark`. */
+export function tableColumns(description: TableDescription, decimalMark: string): TableColumn[] {
   return [
     {
       id: description.names.id,
@@ -57,6 +62,7 @@ export function tableColumns(description: TableDescription): TableColumn[] {
       kind: "names",
       alignEnd: false,
       choices: [],
+      values: [],
     },
     ...description.columns.map((column) => ({
       id: column.id,
@@ -64,6 +70,9 @@ export function tableColumns(description: TableDescription): TableColumn[] {
       kind: column.role,
       alignEnd: isNumeric(column.storage),
       choices: roleChoices(column),
+      values: isCategoricalColumn(column)
+        ? column.levels.map((level) => levelText(level.value, column.storage, decimalMark))
+        : [],
     })),
   ];
 }

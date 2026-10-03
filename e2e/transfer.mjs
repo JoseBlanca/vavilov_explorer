@@ -2,13 +2,14 @@
 // real core, in each engine: the menu's item handed to the main window as
 // the app hands it, the file the test writes in the place of the one the
 // user picks in the system's dialog. A table imported with its roles
-// guessed; a refused import in the dialog, with OK; a character not
-// decoded in the notice, dismissed with ×, and gone with a later import; a
-// closed dialog that changes nothing; an export as CSV with the choices of
-// a Spanish Excel and with others, their bytes compared, and one
-// cancelled; two exports chosen at once; a refused export as
-// Excel; a question about a role withdrawn by an import; and where the
-// focus goes after each. Screenshots, light and dark, land in e2e/output/.
+// guessed; a refused import as an error in the information bar, with no
+// table loaded and with one, dismissed with ×; a character not decoded as
+// a warning there, gone after 5 seconds or with a later import; a refusal
+// that waits behind the warning; a closed dialog that changes nothing; an
+// export as CSV with the choices of a Spanish Excel and with others, their
+// bytes compared, and one cancelled; two exports chosen at once; a refused
+// export as Excel; a question about a role withdrawn by an import; and
+// where the focus goes after each. Screenshots, light and dark, land in e2e/output/.
 //
 // Run with `npm run test:e2e`.
 import assert from "node:assert/strict";
@@ -63,6 +64,8 @@ try {
       };
       await page.getByRole("heading", { name: "Vavilov Explorer" }).waitFor();
       const grid = page.getByRole("grid", { name: "Individuals" });
+      const errorShown = (text) => page.getByRole("alert").filter({ hasText: text });
+      const warningShown = (text) => page.getByRole("status").filter({ hasText: text });
       /**
        * Chooses the menu's `action`, the dialog giving `pick`, a path or
        * cancel, and waits until the window's command took it; with no pick,
@@ -79,6 +82,21 @@ try {
         // An export as CSV takes its pick once its choices are given.
         if (pick !== null && action !== "exportCsv") await untilTaken(backend);
       };
+
+      // A refused import with no table loaded: the information bar shows
+      // the error below the title, and nothing else.
+      await choose("importTable", { path: ACCESSIONS });
+      const firstRefused = errorShown("“accessions.csv” was not imported");
+      await firstRefused.waitFor();
+      assert.match(await firstRefused.textContent(), /^\s*Error:/);
+      await page.getByRole("heading", { name: "Vavilov Explorer" }).waitFor();
+      await shoot(page, engine, "transfer-refused-empty");
+      await firstRefused.getByRole("button", { name: "Dismiss" }).click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: "accessions" })
+        .waitFor({ state: "detached" });
+      await quiet(page);
 
       // A table imported: its individuals, and each column with its role,
       // and nothing else shown.
@@ -97,40 +115,64 @@ try {
       await quiet(page);
       assert.equal(await grid.getAttribute("aria-rowcount"), "4");
 
-      // A refused import: the dialog says why, in the file's names, with OK,
-      // and gives the focus back.
+      // A refused import: the information bar says why, in the file's
+      // names, as an error, until it is dismissed with ×, which gives the
+      // focus back.
       await roleOf(grid, "origin").focus();
       await choose("importTable", { path: ACCESSIONS });
-      const refused = page.getByRole("dialog", { name: "“accessions.csv” was not imported" });
+      const refused = errorShown("“accessions.csv” was not imported");
       await refused.waitFor();
       assert.match(
         await refused.textContent(),
-        /Its first column, which must hold the ID of each individual, is named “accession”\. Name it IndividualID and import the file again\./,
+        /Error:\s*“accessions\.csv” was not imported\. Its first column, which must hold the ID of each individual, is named “accession”\. Name it IndividualID and import the file again\./,
       );
+      assert.equal(await page.getByRole("dialog").count(), 0, "no dialog");
       await shoot(page, engine, "transfer-refused");
-      await refused.getByRole("button", { name: "OK" }).click();
-      await refused.waitFor({ state: "hidden" });
+      await refused.getByRole("button", { name: "Dismiss" }).click();
+      await refused.waitFor({ state: "detached" });
       await focusOn(page, "Role of origin");
       // Nothing was loaded: the table is still the plants'.
       await rowNamed(grid, "p1").waitFor();
 
       // A character not decoded: the table, which takes the focus from a
-      // control of the table it replaced, and a notice with ×, which gives
-      // the focus back to the table.
+      // control of the table it replaced, and a warning, with no ×, which
+      // goes by itself after 5 seconds and leaves the focus where it is.
       await choose("importTable", { path: DAMAGED });
-      const notice = page.getByRole("status").filter({ hasText: "damaged.csv" });
+      const notice = warningShown("damaged.csv");
       await notice.waitFor();
       await focusOn(page, "grid");
-      assert.match(await notice.textContent(), /line 3 has a character that could not be read/);
+      assert.match(
+        await notice.textContent(),
+        /Warning:\s*“damaged\.csv” was imported, but line 3 has a character that could not be read/,
+      );
+      assert.equal(await notice.getByRole("button", { name: "Dismiss" }).count(), 0, "no ×");
       await shoot(page, engine, "transfer-notice");
-      await notice.getByRole("button", { name: "Dismiss" }).click();
-      await notice.waitFor({ state: "detached" });
+      await notice.waitFor({ state: "detached", timeout: 10_000 });
       await focusOn(page, "grid");
 
-      // The notice of an earlier file goes with a later import that read
-      // every character.
+      // A refusal while the warning is shown waits behind it, which says
+      // so, and shows once the warning goes; dismissing the error gives the
+      // focus back to the table.
       await choose("importTable", { path: DAMAGED });
       await notice.waitFor();
+      await focusOn(page, "grid");
+      await choose("importTable", { path: ACCESSIONS });
+      await notice.filter({ hasText: "(1 more)" }).waitFor();
+      assert.equal(await errorShown("accessions.csv").count(), 0, "the error waits");
+      await shoot(page, engine, "transfer-waiting");
+      const waited = errorShown("“accessions.csv” was not imported");
+      await waited.waitFor({ timeout: 10_000 });
+      await notice.waitFor({ state: "detached" });
+      await waited.getByRole("button", { name: "Dismiss" }).click();
+      await waited.waitFor({ state: "detached" });
+      await focusOn(page, "grid");
+
+      // The warning of an earlier file goes with a later import that read
+      // every character, and so does an error waiting behind it.
+      await choose("importTable", { path: DAMAGED });
+      await notice.waitFor();
+      await choose("importTable", { path: ACCESSIONS });
+      await notice.filter({ hasText: "more)" }).waitFor();
       await choose("importTable", { path: PLANTS });
       await rowNamed(grid, "p1").waitFor();
       await notice.waitFor({ state: "detached" });
@@ -246,15 +288,21 @@ try {
       // A refused export as Excel: a whole number beyond 2^53.
       // Refused before the Save dialog: no file is picked.
       await choose("exportXlsx");
-      const notExported = page.getByRole("dialog", { name: "The table was not exported" });
+      const notExported = errorShown("The table was not exported");
       await notExported.waitFor();
       assert.match(
         await notExported.textContent(),
         /The value of B in “seeds” is a whole number beyond ±9\.007\.199\.254\.740\.992, which a number of Excel does not hold exactly\. Export as CSV instead\./,
       );
       await shoot(page, engine, "transfer-not-exported");
-      await page.keyboard.press("Escape");
-      await notExported.waitFor({ state: "hidden" });
+      // The same refusal again is not added behind it. The menu's items are
+      // carried out in turn, so once a later import took its pick, the
+      // export before it has been answered.
+      await choose("exportXlsx");
+      await choose("importTable", { cancel: true });
+      assert.equal(await notExported.filter({ hasText: "more)" }).count(), 0, "no repeat waits");
+      await notExported.getByRole("button", { name: "Dismiss" }).click();
+      await notExported.waitFor({ state: "detached" });
 
       // A question about a role left open across an import goes, and
       // changes nothing in the table imported.
@@ -301,19 +349,16 @@ async function focusOn(page, label) {
   );
 }
 
-/** Asserts that no dialog is open and that the notice's place is empty. */
+/** Asserts that no dialog is open and that the information bar shows no message. */
 async function quiet(page) {
   assert.equal(await page.getByRole("dialog").count(), 0, "no dialog");
-  // The count of the information bar, in the table's area, is a status
-  // too, empty until the count stops changing, and is left out.
-  const statuses = await page
-    .getByRole("status")
-    .and(page.locator(":not(main *)"))
-    .allTextContents();
+  // The count of the information bar is told to a screen reader in a
+  // status of its own, a paragraph, and is left out.
+  const regions = await page.locator('[role="alert"], div[role="status"]').allTextContents();
   assert.deepEqual(
-    statuses.map((text) => text.trim()),
-    [""],
-    "an empty notice",
+    regions.map((text) => text.trim()),
+    ["", ""],
+    "no message",
   );
 }
 

@@ -3,6 +3,7 @@ import { nothing, render } from "lit-html";
 import type { Answer, Connection } from "../../backend/connection.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow } from "../../state/description.ts";
+import { everyShown } from "../../state/filter.ts";
 import type { Filter } from "../../state/filter.ts";
 import {
   NO_DRAFT,
@@ -23,7 +24,10 @@ export interface FindBar {
   readonly destroy: () => void;
 }
 
-/** Nothing to draw again for the console's warning of a filter refused: the step below draws. */
+/**
+ * Nothing to draw again for the console's warning of a filter refused, the
+ * step below draws, or of a selection refused, which the bar does not show.
+ */
 const ignore = (): void => undefined;
 
 /**
@@ -33,6 +37,8 @@ const ignore = (): void => undefined;
  * the bar's own until the backend holds it, and at most one filter is on
  * its way to the backend, the newest sent once it is answered
  * (src/state/findDraft.ts); a load drops it, with the text of the field.
+ * "Select shown rows" asks the backend to make the rows the table shows,
+ * those of the backend's filter in the window's copy, the selection.
  */
 export function createFindBar(
   element: HTMLElement,
@@ -94,6 +100,16 @@ export function createFindBar(
     draw();
   };
 
+  const selectShown = (): void => {
+    const project = state.project();
+    if (project.kind !== "open") {
+      return;
+    }
+    connection
+      .setSelection(everyShown(project.numRows, state.shown()))
+      .then(answered("selecting the rows shown", ignore), report);
+  };
+
   const draw = (): void => {
     if (destroyed) {
       return;
@@ -134,6 +150,7 @@ export function createFindBar(
         onNotMatching: (notMatching) => {
           change({ showing: notMatching ? "notMatching" : "matching" });
         },
+        onSelectShown: selectShown,
       }),
       element,
     );

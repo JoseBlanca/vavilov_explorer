@@ -7,7 +7,6 @@ import type { DescriptionNow, TableDescription } from "../../state/description.t
 import { createDialog } from "../shared/dialog.controller.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
 import { installFieldUndo } from "../shared/fieldUndo.ts";
-import { createNotice } from "../shared/notice.controller.ts";
 import { createCsvDialog } from "./csvDialog.controller.ts";
 import { createFindBar } from "./findBar.controller.ts";
 import { createInfoBar } from "./infoBar.controller.ts";
@@ -69,23 +68,20 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       decimalMark,
       defectBar.show,
     );
-    createInfoBar(slot(root, "info"), state);
     const dialog = createDialog(slot(root, "dialog"));
+    const infoBar = createInfoBar(slot(root, "info"), state, () => {
+      table.focus();
+    });
     const table = createTable(
       slot(root, "table"),
       connection,
       describedNow,
       decimalMark,
       dialog.ask,
+      infoBar.tell,
       defectBar.show,
     );
-    createMenuActions(
-      connection,
-      dialog,
-      createNotice(slot(root, "notice"), table.focus),
-      createCsvDialog(slot(root, "export")),
-      defectBar.show,
-    );
+    createMenuActions(connection, infoBar, createCsvDialog(slot(root, "export")), defectBar.show);
 
     /**
      * Asks for the description of the table the copy holds, once per load

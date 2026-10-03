@@ -102,7 +102,33 @@ it.
   the cell keeps its value. IndividualID is edited one cell at a time,
   since one ID given to several rows would repeat it. An edit of many
   rows is one command: it changes every row or none, and one undo
-  reverts it. Decided by the owner on 2 October 2026.
+  reverts it. Decided by the owner on 2 October 2026. Built so, and
+  confirmed or decided by the owner on 3 October 2026:
+
+  - Enter applies the value, and so does leaving the cell for another
+    place, so that the user need not press Enter each time; Escape gives
+    the cell back as it was. Enter moves on to the cell below, as in a
+    spreadsheet.
+  - The keyboard moves on the cells as in a spreadsheet: the table is a
+    stop of Tab, the arrows move a cell, Home and End to the first and
+    last column, Page Up and Page Down a screenful, and Enter opens the
+    cell for editing; Space selects its row, and Shift-Space the rows
+    from the last one selected. The cell is drawn with the focus ring,
+    and a screen reader is told it as the grid's active cell. Space and
+    Shift-Space were added by the assistant, to select by the keyboard as
+    a click does.
+  - The checkbox sits below the cell. A value refused is an error in the
+    information bar, such as "“1,5” was not put in “seeds”, which holds
+    whole numbers, such as 12. Type a whole number, or nothing for a
+    missing value."
+  - A category suggests its values as the user types, and a name that is
+    none of them is refused: a new population is made another way, not
+    by typing it in a cell.
+  - A click on a row of a selection of several waits 500 ms, Windows'
+    default double-click time, before it selects that row alone: the
+    first click of a double-click would otherwise leave that row the only
+    one selected, and "Apply to all selected rows" could not be used
+    with the mouse.
 - Above the table, a find bar: a field for the text searched, a Column
   dropdown, "Any column" first and then every column from IndividualID
   on, a checkbox "Whole cell", off by default, and a checkbox "Show rows
@@ -114,15 +140,53 @@ it.
   not of the other windows, and the backend holds it and finds the
   rows. The filter by the selection or by one population planned here
   before is left out: a population is a search of its column, whole
-  cell. Decided by the owner on 2 October 2026.
+  cell. Decided by the owner on 2 October 2026. A button "Select shown
+  rows" makes the rows the table shows the selection, in place of the
+  one there was (decided by the owner the same day). It sits in the
+  find bar, after the checkboxes, and with an empty field it selects
+  every row (confirmed by the owner on 3 October 2026).
 - Below the table, an information bar, the one place for information,
   warnings and errors about the table: the count of the rows shown,
-  "Showing 312 of 2,000 individuals", and messages, each with its kind
-  in words and dismissed with ×. The refusals of an import and an
-  export and the notice of a character that could not be read move
-  there from their pop-up and notice. A defect of the app keeps its red
-  bar, and a question that needs an answer before anything happens
-  keeps its dialog. Decided by the owner on 2 October 2026.
+  "Showing 312 of 2,000 individuals", and above it the messages, each
+  with its kind in words, "Error:", "Warning:" or "Information:". The
+  refusals of an import and an export are errors there, and a
+  character an import could not read is a warning. A defect of the app
+  keeps its red bar across the top of the window (section 12), and a
+  question that needs an answer before anything happens, such as "Make
+  “origin” text?" (section 6), keeps its dialog. Decided by the owner
+  on 2 October 2026.
+
+  The bar shows one message at a time. Decided by the owner on
+  2 and 3 October 2026:
+
+  - An error stays until the user closes it with ×. A warning stays 5
+    seconds, with no ×. An informational message has no ×, and stays
+    until another message takes its place.
+  - Errors and warnings wait in a queue, in the order they came, and the
+    next shows when the one shown goes. An informational message never
+    waits: it takes the place of nothing or of another informational
+    message at once, and while an error or a warning is shown it is
+    dropped.
+
+  The rest was proposed by the assistant on 2 October 2026 and built so:
+
+  - While messages wait, the one shown ends with "(2 more)".
+  - A message with the same words as one shown or waiting is not added
+    again, so three refused exports show one error.
+  - A successful import empties the bar and its queue: their messages
+    were about the table or the file before it.
+  - The count is not a message: it stays on its own line, always
+    there.
+  - The bar is there with no table loaded too, below the title of the
+    empty window, so that a refused first import is told.
+  - For a user of the keyboard: closing an error with × moves the
+    keyboard's place to the × of the next error, or, when none follows,
+    back to the control it was on before the first error appeared.
+  - For a screen reader, which reads the window aloud to a user who
+    cannot see it: an error is read out at once, and a warning or an
+    informational message at the next pause.
+
+  Nothing makes an informational message yet.
 - Undo and Redo are in an Edit menu, with Cmd-Z and Cmd-Shift-Z, Ctrl-Z
   and Ctrl-Shift-Z on Windows and Linux (decided by the owner on
   2 October 2026). They are greyed out when there is nothing to undo or
@@ -167,10 +231,10 @@ it.
   a file (decided by the owner on 2 October 2026). The dialog of Import
   table… shows only `.csv`, `.tsv`, `.txt` and `.xlsx` files, and that
   of Open project… only `.vav` files (decided the same day).
-- An import that is refused is a pop-up that says what happened and how
-  to put it right, in the names of the user's file, with OK. An import
-  that read a character it could not decode shows a notice, dismissed
-  with ×, that names its line. Choosing the separator, the decimal mark
+- An import that is refused says what happened and how to put it right,
+  in the names of the user's file, as an error in the information bar.
+  An import that read a character it could not decode says so as a
+  warning there, which names its line. Choosing the separator, the decimal mark
   or the encoding by hand, and importing again, comes later. Decided by
   the owner on 2 October 2026.
 
@@ -564,8 +628,8 @@ write each decimal number in quotes, `"1,5"`, which the import reads
 back as text, and a column's storage type never changes (decided by the
 owner on 2 October 2026). The default file name of an export is
 `table.csv` or `table.xlsx` (decided the same day). An export that is
-refused is a pop-up that names the column and the row (decided by the
-owner on 2 October 2026).
+refused names the column and the row (decided by the owner on 2 October
+2026), as an error in the information bar (section 2.1).
 
 Polars was considered for the table and not taken. Its Rust version does
 not read xlsx, so an Excel reader is needed anyway, and type guessing of
@@ -828,8 +892,9 @@ Raised on 2 October 2026 while the skills of the project were written
   once the view is drawn again.
 - The population of one individual is changed from the table by typing
   the population's name in the cell of the active classification, with
-  the names of its populations suggested as the user types. What a name
-  that is not yet a population does is decided when the cell is built.
+  the names of its populations suggested as the user types. A name that
+  is not yet a population is refused: a new population is made another
+  way (decided by the owner on 3 October 2026, section 2.1).
 
 - The oldest platforms supported: macOS 14, Windows 10 and 11, and Linux
   with WebKitGTK 2.44, such as Ubuntu 24.04. Their engines are about

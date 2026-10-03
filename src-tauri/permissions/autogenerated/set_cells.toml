@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-cells"
+description = "Enables the set_cells command without any pre-configured scope."
+commands.allow = ["set_cells"]
+
+[[permission]]
+identifier = "deny-set-cells"
+description = "Denies the set_cells command without any pre-configured scope."
+commands.deny = ["set_cells"]

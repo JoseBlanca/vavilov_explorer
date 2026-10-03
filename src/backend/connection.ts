@@ -54,6 +54,17 @@ export interface Connection {
     population: LevelCode,
     rows: Uint8Array,
   ) => Promise<Answer>;
+  /**
+   * Sets the cells of `rows`, one bit per row, in `column` to the value
+   * `text` gives, a decimal number read with `decimalMark`; an empty text
+   * is a missing value.
+   */
+  readonly setCells: (
+    column: ColumnId,
+    rows: Uint8Array,
+    text: string,
+    decimalMark: string,
+  ) => Promise<Answer>;
   /** Sets the role of a column other than the first. */
   readonly setRole: (column: ColumnId, role: Role) => Promise<Answer>;
   /**
@@ -248,6 +259,13 @@ export async function connect(
       withRows("assign_rows", rows, {
         column: String(column),
         target: target.kind === "unassigned" ? "unassigned" : String(target.code),
+      }),
+    setCells: (column, rows, text, decimalMark) =>
+      // A header holds ASCII alone, so the texts are percent-encoded.
+      withRows("set_cells", rows, {
+        column: String(column),
+        text: encodeURIComponent(text),
+        "decimal-mark": encodeURIComponent(decimalMark),
       }),
     unassignRows: (column, population, rows) =>
       withRows("unassign_rows", rows, { column: String(column), population: String(population) }),

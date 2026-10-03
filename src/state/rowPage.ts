@@ -25,6 +25,8 @@ export interface RowPage {
   readonly loadedAt: Revision;
   /** The revision at which the rows the filter shows last changed, when it was read. */
   readonly shownAt: Revision;
+  /** The revision at which the names of the individuals last changed, when it was read. */
+  readonly namesAt: Revision;
   /** The position of the page's first row among the rows shown. */
   readonly first: Position;
   /** The number of rows, which may be 0. */

@@ -311,3 +311,44 @@ fn every_error_about_a_file_crosses_as_the_shared_file_of_literals_says() {
         assert_eq!(serde_json::to_value(error).unwrap(), expected);
     }
 }
+
+/// One refusal of a value typed in a cell of each kind, in the order of
+/// `cell-errors.json`.
+fn cell_errors() -> Vec<CommandError> {
+    let refused = |column_name: &str, text: &str, refusal: CellRefusal| CommandError::CellRefused {
+        column_name: column_name.to_owned(),
+        text: text.to_owned(),
+        refusal,
+    };
+    vec![
+        refused("seeds", "1,5", CellRefusal::NotWholeNumber),
+        refused(
+            "height",
+            "1.5",
+            CellRefusal::NotDecimalNumber {
+                decimal_mark: ",".to_owned(),
+            },
+        ),
+        refused("lat", "91", CellRefusal::NotLatitude),
+        refused("lon", "-181", CellRefusal::NotLongitude),
+        refused("fertile", "yes", CellRefusal::NotYesOrNo),
+        refused("origin", "Atlantis", CellRefusal::NotACountry),
+        refused("origin", "Chile", CellRefusal::NotALevel),
+        refused("IndividualID", "", CellRefusal::EmptyId),
+        refused("IndividualID", "p2", CellRefusal::IdTaken),
+    ]
+}
+
+/// Every case of `cell_errors`, as the window's tests of the same file read
+/// them (`src/state/cellMessages.test.ts`), so that a field renamed on one
+/// side fails a test.
+#[test]
+fn every_refusal_of_a_cell_crosses_as_the_shared_file_of_literals_says() {
+    let expected: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("cell-errors.json")).unwrap();
+    let errors = cell_errors();
+    assert_eq!(errors.len(), expected.len());
+    for (error, expected) in errors.iter().zip(expected) {
+        assert_eq!(serde_json::to_value(error).unwrap(), expected);
+    }
+}

@@ -3,10 +3,11 @@ use std::sync::{Arc, Mutex};
 use super::*;
 use crate::command::{Command, Request};
 use crate::dispatch::{Changed, Dropped};
+use crate::error::CellRefusal;
 use crate::fixtures::{code, decode, float, part_kinds, plants};
 use crate::ids::{ColumnId, LevelCode, MAX_EXACT_IN_JAVASCRIPT, SentAt};
 use crate::session::Selected;
-use crate::table::{LevelValues, Role, StorageType, Table};
+use crate::table::{ColumnValues, LevelValues, Numbers, Role, StorageType, Table};
 
 const PROJECT: u16 = 1;
 const ACTIVE: u16 = 2;
@@ -1542,4 +1543,337 @@ fn a_lasso_on_a_classification_of_countries_assigns_its_rows() {
         codes_of(&session, ORIGIN),
         [code(1), code(1), code(1), code(0)]
     );
+}
+
+const NAMES: ColumnId = ColumnId::new(0);
+
+fn set_cells(session: &Session, column: ColumnId, cells: &[u32], text: &str) -> Request {
+    at(
+        session,
+        Command::SetCells {
+            column,
+            rows: rows(session, cells),
+            text: text.to_owned(),
+            decimal_mark: ",".to_owned(),
+        },
+    )
+}
+
+fn heights(session: &Session) -> Vec<Option<f64>> {
+    let ColumnValues::Number(Numbers::Float(values)) =
+        session.table().unwrap().column(HEIGHT).unwrap().values()
+    else {
+        panic!("height is not of decimal numbers");
+    };
+    values.clone()
+}
+
+fn seeds(session: &Session) -> Vec<Option<i64>> {
+    let ColumnValues::Number(Numbers::Integer(values)) =
+        session.table().unwrap().column(SEEDS).unwrap().values()
+    else {
+        panic!("seeds is not of whole numbers");
+    };
+    values.clone()
+}
+
+fn individuals(session: &Session) -> Vec<String> {
+    session.table().unwrap().names().names().to_vec()
+}
+
+fn refused(column_name: &str, text: &str, refusal: CellRefusal) -> CommandError {
+    CommandError::CellRefused {
+        column_name: column_name.to_owned(),
+        text: text.to_owned(),
+        refusal,
+    }
+}
+
+#[test]
+fn a_decimal_typed_in_a_cell_takes_a_revision_and_sends_its_column_but_not_the_shape() {
+    let (mut session, recorder) = loaded();
+    let request = set_cells(&session, HEIGHT, &[1], "2,75");
+    assert_eq!(
+        session.dispatch(request).unwrap().changed,
+        Changed::State(Revision::new(2))
+    );
+    assert_eq!(
+        heights(&session),
+        [Some(1.5), Some(2.75), Some(2.0), Some(3.25)]
+    );
+    assert_eq!(revision_of(&session, HEIGHT), 2);
+    assert_eq!(revision_of(&session, ORIGIN), 1);
+    assert_eq!(session.describe().unwrap().shape_at, Revision::new(1));
+    let messages = recorder.take();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(part_kinds(&messages[0]), [COLUMNS, UNDO]);
+    assert_eq!(
+        decode(&messages[0]).parts[0].1,
+        [
+            1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
+        ]
+    );
+    // An empty text is a missing value.
+    let request = set_cells(&session, HEIGHT, &[0], "");
+    session.dispatch(request).unwrap();
+    assert_eq!(heights(&session), [None, Some(2.75), Some(2.0), Some(3.25)]);
+}
+
+#[test]
+fn a_value_given_to_many_rows_is_one_edit_that_one_undo_reverts() {
+    let (mut session, _recorder) = loaded();
+    let request = set_cells(&session, SEEDS, &[0, 2, 3], "5");
+    session.dispatch(request).unwrap();
+    assert_eq!(seeds(&session), [Some(5), Some(12), Some(5), Some(5)]);
+    assert_eq!(
+        apply(&mut session, Command::Undo),
+        Changed::State(Revision::new(3))
+    );
+    assert_eq!(seeds(&session), [Some(10), Some(12), None, Some(7)]);
+    assert_eq!(revision_of(&session, SEEDS), 3);
+    assert_eq!(
+        session.undo_redo(),
+        UndoRedo {
+            can_undo: false,
+            can_redo: true
+        }
+    );
+    apply(&mut session, Command::Redo);
+    assert_eq!(seeds(&session), [Some(5), Some(12), Some(5), Some(5)]);
+}
+
+#[test]
+fn a_value_every_row_has_already_changes_nothing() {
+    let (mut session, recorder) = loaded();
+    let request = set_cells(&session, SEEDS, &[0], " 10 ");
+    assert_eq!(session.dispatch(request).unwrap().changed, Changed::Nothing);
+    let request = set_cells(&session, NOTE, &[1, 2], "");
+    assert_eq!(session.dispatch(request).unwrap().changed, Changed::Nothing);
+    let request = set_cells(&session, SEEDS, &[], "3");
+    assert_eq!(session.dispatch(request).unwrap().changed, Changed::Nothing);
+    assert!(recorder.take().is_empty());
+    assert!(!session.undo_redo().can_undo);
+}
+
+#[test]
+fn a_value_that_does_not_fit_its_column_is_refused_and_every_cell_keeps_its_value() {
+    let (mut session, _recorder) = loaded();
+    let request = set_cells(&session, SEEDS, &[0, 1], "1,5");
+    assert_refused(
+        &mut session,
+        request,
+        refused("seeds", "1,5", CellRefusal::NotWholeNumber),
+    );
+    let request = set_cells(&session, HEIGHT, &[0], "1.5");
+    assert_refused(
+        &mut session,
+        request,
+        refused(
+            "height",
+            "1.5",
+            CellRefusal::NotDecimalNumber {
+                decimal_mark: ",".to_owned(),
+            },
+        ),
+    );
+    let request = set_cells(&session, ORIGIN, &[2], "Chile");
+    assert_refused(
+        &mut session,
+        request,
+        refused("origin", "Chile", CellRefusal::NotALevel),
+    );
+    let request = set_cells(&session, FERTILE, &[2], "yes");
+    assert_refused(
+        &mut session,
+        request,
+        refused("fertile", "yes", CellRefusal::NotYesOrNo),
+    );
+}
+
+#[test]
+fn a_value_of_a_category_sets_the_codes_of_its_rows() {
+    let (mut session, recorder) = loaded();
+    let request = set_cells(&session, ORIGIN, &[2, 3], "Peru");
+    session.dispatch(request).unwrap();
+    assert_eq!(
+        codes_of(&session, ORIGIN),
+        [code(0), code(1), code(1), code(1)]
+    );
+    assert_eq!(part_kinds(&recorder.take()[0]), [CODES, COLUMNS, UNDO]);
+    let request = set_cells(&session, ORIGIN, &[1], "");
+    session.dispatch(request).unwrap();
+    assert_eq!(
+        codes_of(&session, ORIGIN),
+        [code(0), None, code(1), code(1)]
+    );
+    apply(&mut session, Command::Undo);
+    apply(&mut session, Command::Undo);
+    assert_eq!(
+        codes_of(&session, ORIGIN),
+        [code(0), code(1), None, code(0)]
+    );
+}
+
+#[test]
+fn an_id_is_edited_one_individual_at_a_time_and_never_given_twice() {
+    let (mut session, recorder) = loaded();
+    let request = set_cells(&session, NAMES, &[1], "p9");
+    session.dispatch(request).unwrap();
+    assert_eq!(individuals(&session), ["p1", "p9", "p3", "p4"]);
+    assert_eq!(
+        session.table().unwrap().names().revision(),
+        Revision::new(2)
+    );
+    let messages = recorder.take();
+    assert_eq!(part_kinds(&messages[0]), [COLUMNS, UNDO]);
+    assert_eq!(
+        decode(&messages[0]).parts[0].1,
+        [
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
+        ]
+    );
+    let request = set_cells(&session, NAMES, &[0], "p3");
+    assert_refused(
+        &mut session,
+        request,
+        refused("IndividualID", "p3", CellRefusal::IdTaken),
+    );
+    let request = set_cells(&session, NAMES, &[0], "");
+    assert_refused(
+        &mut session,
+        request,
+        refused("IndividualID", "", CellRefusal::EmptyId),
+    );
+    let before = session.state.clone();
+    let request = set_cells(&session, NAMES, &[0, 2], "p7");
+    assert!(matches!(
+        session.dispatch(request),
+        Err(CommandError::Defect { .. })
+    ));
+    assert_eq!(session.state, before);
+    apply(&mut session, Command::Undo);
+    assert_eq!(individuals(&session), ["p1", "p2", "p3", "p4"]);
+}
+
+#[test]
+fn an_edit_that_changes_which_rows_a_filter_shows_sends_them() {
+    let (mut session, recorder) = loaded();
+    apply(
+        &mut session,
+        Command::SetFilter {
+            filter: crate::filter::Filter {
+                text: "tall".to_owned(),
+                ..crate::filter::Filter::none()
+            },
+            decimal_mark: ",".to_owned(),
+        },
+    );
+    recorder.take();
+    let request = set_cells(&session, NOTE, &[0], "tall");
+    session.dispatch(request).unwrap();
+    assert_eq!(part_kinds(&recorder.take()[0]), [COLUMNS, UNDO, FILTER]);
+    let shown: Vec<u32> = session
+        .state
+        .project
+        .as_open()
+        .unwrap()
+        .interaction
+        .shown
+        .rows
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|row| row.get())
+        .collect();
+    assert_eq!(shown, [0, 3]);
+    // An ID that matches is searched too, in any column.
+    let request = set_cells(&session, NAMES, &[1], "tall one");
+    session.dispatch(request).unwrap();
+    assert_eq!(part_kinds(&recorder.take()[0]), [COLUMNS, UNDO, FILTER]);
+}
+
+#[test]
+fn cells_of_a_column_or_of_rows_the_table_does_not_have_are_refused() {
+    let (mut session, _recorder) = loaded();
+    let request = set_cells(&session, ColumnId::new(99), &[0], "1");
+    assert_refused(
+        &mut session,
+        request,
+        CommandError::UnknownColumn {
+            column: ColumnId::new(99),
+        },
+    );
+    let request = at(
+        &session,
+        Command::SetCells {
+            column: SEEDS,
+            rows: RowSet::from_rows(9, [RowIndex::new(0)]).unwrap(),
+            text: "1".to_owned(),
+            decimal_mark: ",".to_owned(),
+        },
+    );
+    assert_refused(
+        &mut session,
+        request,
+        CommandError::RowSetLength {
+            num_rows: 4,
+            num_bytes: 2,
+        },
+    );
+    let before = session.state.clone();
+    let mut request = set_cells(&session, HEIGHT, &[0], "1");
+    if let Command::SetCells { decimal_mark, .. } = &mut request.command {
+        *decimal_mark = String::new();
+    }
+    assert!(matches!(
+        session.dispatch(request),
+        Err(CommandError::Defect { .. })
+    ));
+    assert_eq!(session.state, before);
+}
+
+#[test]
+fn a_search_after_an_edit_reads_the_decimal_numbers_as_edited() {
+    let (mut session, _recorder) = loaded();
+    let search = |session: &Session, text: &str| {
+        at(
+            session,
+            Command::SetFilter {
+                filter: crate::filter::Filter {
+                    text: text.to_owned(),
+                    ..crate::filter::Filter::none()
+                },
+                decimal_mark: ",".to_owned(),
+            },
+        )
+    };
+    let shown = |session: &Session| -> Vec<u32> {
+        let open = session.state.project.as_open().unwrap();
+        open.interaction
+            .shown
+            .rows
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|row| row.get())
+            .collect()
+    };
+    // height: 1.5, missing, 2, 3.25; "3,2" finds p4 and keeps the texts.
+    let request = search(&session, "3,2");
+    session.dispatch(request).unwrap();
+    assert_eq!(shown(&session), [3]);
+    // p2 given 3.2 while the filter searches: the edit shows it.
+    let request = set_cells(&session, HEIGHT, &[1], "3,2");
+    session.dispatch(request).unwrap();
+    assert_eq!(shown(&session), [1, 3]);
+    // Another text, then the first again: read from the column as edited.
+    let request = search(&session, "1,5");
+    session.dispatch(request).unwrap();
+    assert_eq!(shown(&session), [0]);
+    let request = search(&session, "3,2");
+    session.dispatch(request).unwrap();
+    assert_eq!(shown(&session), [1, 3]);
+    // Undone, p2 is missing again.
+    apply(&mut session, Command::Undo);
+    assert_eq!(shown(&session), [3]);
 }

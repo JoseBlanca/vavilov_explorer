@@ -13,7 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run --passWithNoTests",
-    "test:e2e": "node e2e/smoke.mjs && node e2e/connection.mjs && node e2e/populationsPanel.mjs && node e2e/table.mjs && node e2e/tableRaces.mjs && node e2e/transfer.mjs && node e2e/undo.mjs && node e2e/find.mjs"
+    "test:e2e": "node e2e/smoke.mjs && node e2e/connection.mjs && node e2e/populationsPanel.mjs && node e2e/table.mjs && node e2e/tableRaces.mjs && node e2e/transfer.mjs && node e2e/undo.mjs && node e2e/find.mjs && node e2e/cells.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.1",

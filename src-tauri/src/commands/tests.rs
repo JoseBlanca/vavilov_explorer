@@ -572,10 +572,10 @@ fn a_page_of_rows_comes_back_as_raw_bytes() {
     #[rustfmt::skip]
     let expected: Vec<u8> = vec![
         3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // page: loaded at 1, rows shown since 1, from position 1, 2 rows,
-        // which are the rows 1 and 2
-        8, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-        1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0,
+        // page: loaded at 1, rows shown since 1, names since 1, from
+        // position 1, 2 rows, which are the rows 1 and 2
+        8, 0, 0, 0, 40, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0,
         // names: p2, p3
         9, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, b'p', b'2', b'p', b'3',
         // origin: Peru, missing

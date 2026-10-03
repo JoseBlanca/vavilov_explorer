@@ -145,13 +145,13 @@ fn a_page_of_rows_is_read_from_its_json_arguments() {
     .unwrap() else {
         panic!("another reply than rows");
     };
-    // The page part: loaded at 1, rows shown since 1, from position 2, 1
-    // row, which is row 2.
+    // The page part: loaded at 1, rows shown since 1, names since 1, from
+    // position 2, 1 row, which is row 2.
     assert_eq!(
-        &bytes[24..64],
+        &bytes[24..72],
         [
-            8, 0, 0, 0, 28, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 1,
-            0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
+            8, 0, 0, 0, 36, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
         ]
     );
 }
@@ -168,4 +168,76 @@ fn a_page_of_rows_with_an_argument_it_does_not_have_is_a_defect() {
         matches!(&refused, Err(CommandError::Defect { what }) if what.contains("sentAt")),
         "{refused:?}"
     );
+}
+
+/// The headers of a `set_cells` call on `column`, of `text` and the
+/// decimal mark `mark`, both percent-encoded as `encodeURIComponent` does.
+fn cell_headers(column: &str, text: &str, mark: &str) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert("column", column.parse().unwrap());
+    headers.insert("text", text.parse().unwrap());
+    headers.insert("decimal-mark", mark.parse().unwrap());
+    headers.insert("based-on", "1".parse().unwrap());
+    headers
+}
+
+#[test]
+fn a_value_typed_in_cells_reaches_the_session_with_its_text_decoded() {
+    let mut session = loaded();
+    // Rows 1 and 2, given Peru; then the ID of row 0, "Ñandú 1".
+    call(
+        &mut session,
+        "set_cells",
+        &InvokeBody::Raw(vec![0b110]),
+        &cell_headers("1", "Peru", "%2C"),
+    )
+    .unwrap();
+    let codes = session.table().unwrap().columns()[0]
+        .categorical()
+        .unwrap()
+        .codes()
+        .to_vec();
+    assert_eq!(
+        codes,
+        [
+            Some(LevelCode::new(0)),
+            Some(LevelCode::new(1)),
+            Some(LevelCode::new(1))
+        ]
+    );
+    call(
+        &mut session,
+        "set_cells",
+        &InvokeBody::Raw(vec![0b1]),
+        &cell_headers("0", "%C3%91and%C3%BA%201", "."),
+    )
+    .unwrap();
+    assert_eq!(session.table().unwrap().names().names()[0], "Ñandú 1");
+}
+
+#[test]
+fn a_text_that_is_not_percent_encoded_utf8_is_a_defect() {
+    let mut session = loaded();
+    for text in ["%C3", "%ZZ", "%", "%FF", "Ñ"] {
+        let mut headers = cell_headers("1", "Peru", ".");
+        if let Ok(value) = text.parse() {
+            headers.insert("text", value);
+        } else {
+            continue;
+        }
+        let before = session.table().unwrap().clone();
+        assert!(
+            matches!(
+                call(
+                    &mut session,
+                    "set_cells",
+                    &InvokeBody::Raw(vec![0b1]),
+                    &headers
+                ),
+                Err(CommandError::Defect { .. })
+            ),
+            "{text}"
+        );
+        assert_eq!(session.table().unwrap(), &before);
+    }
 }

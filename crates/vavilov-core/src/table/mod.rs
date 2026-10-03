@@ -206,6 +206,13 @@ impl Table {
         }
     }
 
+    /// Gives the individuals `names`, which the caller checked, and the
+    /// first column `revision`.
+    pub(crate) fn set_names(&mut self, names: Vec<String>, revision: Revision) {
+        self.names.names = names;
+        self.names.revision = revision;
+    }
+
     /// The id the next column added will get.
     #[must_use]
     pub const fn next_column_id(&self) -> ColumnId {

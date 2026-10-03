@@ -7,6 +7,8 @@ import { isColumnId, isLevelCode, isPosition, isRevision, isRowIndex } from "./i
 import type { ColumnId, LevelCode, Position, Revision, RowIndex } from "./ids.ts";
 import type { Selected } from "./message.ts";
 import { isRole, isStorageType } from "./description.ts";
+import { isCellRefusal } from "./cellRefusal.ts";
+import type { CellRefusal } from "./cellRefusal.ts";
 import { isExportRefusal, isImportRefusal } from "./fileRefusal.ts";
 import type { ExportRefusal, ImportRefusal } from "./fileRefusal.ts";
 import { hasFieldsOf } from "./tagged.ts";
@@ -26,6 +28,7 @@ type FieldType =
   | "string"
   | "importRefusal"
   | "exportRefusal"
+  | "cellRefusal"
   | "ioFailure";
 
 /** The fields of each kind of refusal, and the type of each. */
@@ -74,6 +77,7 @@ const FIELDS = {
   fileNotRead: { fileName: "string", io: "ioFailure", message: "string" },
   exportRefused: { refusal: "exportRefusal" },
   fileNotWritten: { fileName: "string", io: "ioFailure", message: "string" },
+  cellRefused: { columnName: "string", text: "string", refusal: "cellRefusal" },
   defect: { what: "string" },
 } as const satisfies Record<string, Record<string, FieldType>>;
 
@@ -96,6 +100,7 @@ interface TypeOf {
   readonly string: string;
   readonly importRefusal: ImportRefusal;
   readonly exportRefusal: ExportRefusal;
+  readonly cellRefusal: CellRefusal;
   readonly ioFailure: IoFailure;
 }
 
@@ -147,6 +152,8 @@ function hasType(value: unknown, type: FieldType): boolean {
       return isImportRefusal(value);
     case "exportRefusal":
       return isExportRefusal(value);
+    case "cellRefusal":
+      return isCellRefusal(value);
     case "ioFailure":
       return value === "notFound" || value === "permissionDenied" || value === "other";
   }

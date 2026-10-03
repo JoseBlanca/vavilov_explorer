@@ -9,6 +9,7 @@ export type CommandName =
   | "describe_table"
   | "fetch_rows"
   | "set_selection"
+  | "set_cells"
   | "assign_rows"
   | "unassign_rows"
   | "set_hover"

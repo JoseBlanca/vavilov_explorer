@@ -43,9 +43,11 @@ fn a_page_carries_the_names_and_the_values_of_the_columns_asked_for_in_their_ord
         3, 0, 0, 0, 0, 0, 0, 0, // rows, no time
         1, 0, 0, 0, 0, 0, 0, 0, // revision 1
         0, 0, 0, 0, 0, 0, 0, 0, // no time
-        // page: loaded at 1, rows shown since 1, from position 1, 3
-        // rows, which are the rows 1, 2 and 3; 36 bytes, padded
-        8, 0, 0, 0, 36, 0, 0, 0,
+        // page: loaded at 1, rows shown since 1, names since 1, from
+        // position 1, 3 rows, which are the rows 1, 2 and 3; 44 bytes,
+        // padded
+        8, 0, 0, 0, 44, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 0, 0, 0, 0,
         1, 0, 0, 0, 3, 0, 0, 0,
@@ -156,6 +158,7 @@ fn a_page_of_nine_rows_takes_two_bytes_of_missing_rows_and_names_in_utf8() {
                 vec![
                     1, 0, 0, 0, 0, 0, 0, 0, // loaded at 1
                     1, 0, 0, 0, 0, 0, 0, 0, // rows shown since 1
+                    1, 0, 0, 0, 0, 0, 0, 0, // names since 1
                     0, 0, 0, 0, 9, 0, 0, 0, // from position 0, 9 rows
                     0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, //
                     5, 0, 0, 0, 6, 0, 0, 0, 7, 0, 0, 0, 8, 0, 0, 0, // rows 0 to 8
@@ -179,6 +182,7 @@ fn a_page_of_no_rows_at_the_end_of_the_table_has_its_parts_and_no_values() {
                 vec![
                     1, 0, 0, 0, 0, 0, 0, 0, // loaded at 1
                     1, 0, 0, 0, 0, 0, 0, 0, // rows shown since 1
+                    1, 0, 0, 0, 0, 0, 0, 0, // names since 1
                     4, 0, 0, 0, 0, 0, 0, 0, // from position 4, no rows
                 ]
             ),
@@ -331,4 +335,38 @@ fn a_page_asked_for_at_a_revision_still_to_come_is_a_defect() {
         session.rows(&request(0, 1, &[1], 2)),
         Err(CommandError::Defect { .. })
     ));
+}
+
+#[test]
+fn a_page_after_an_id_was_edited_carries_the_new_name_and_the_revision_of_the_names() {
+    let mut session = loaded(plants());
+    session
+        .dispatch(Request {
+            command: Command::SetCells {
+                column: ColumnId::new(0),
+                rows: crate::row_set::RowSet::from_bytes(&[0b0010], 4).unwrap(),
+                text: "Ñ2".to_owned(),
+                decimal_mark: ".".to_owned(),
+            },
+            based_on: Revision::new(1),
+            sent_at: None,
+        })
+        .unwrap();
+    let parts = decode(&session.rows(&request(1, 1, &[], 2)).unwrap()).parts;
+    assert_eq!(
+        parts,
+        [
+            (
+                8,
+                vec![
+                    1, 0, 0, 0, 0, 0, 0, 0, // loaded at 1
+                    1, 0, 0, 0, 0, 0, 0, 0, // rows shown since 1
+                    2, 0, 0, 0, 0, 0, 0, 0, // names since 2
+                    1, 0, 0, 0, 1, 0, 0, 0, // from position 1, 1 row
+                    1, 0, 0, 0, // row 1
+                ]
+            ),
+            (9, vec![0, 0, 0, 0, 3, 0, 0, 0, 0xC3, 0x91, b'2']),
+        ]
+    );
 }

@@ -67,18 +67,20 @@ describe("the pages of the table", () => {
 
 describe("a page of rows against the window's copy", () => {
   // A page of the table loaded at 2, of the rows shown since 3, read at 6,
-  // with height (1) at 4 and note (5) at 6: its first row, at position 0,
-  // of one row shown.
+  // with the names (0) at 2, height (1) at 4 and note (5) at 6: its first
+  // row, at position 0, of one row shown.
   const page = (
     columns: readonly [number, number][],
     loadedAt = 2,
     shownAt = 3,
     first = 0,
     count = 1,
+    namesAt = 2,
   ): RowPage => ({
     revision: revision(6),
     loadedAt: revision(loadedAt),
     shownAt: revision(shownAt),
+    namesAt: revision(namesAt),
     first: position(first),
     count,
     rows: Array.from({ length: count }, (_, index) => {
@@ -101,23 +103,36 @@ describe("a page of rows against the window's copy", () => {
     [1, 4],
     [5, 6],
   ];
-  /** The copy's revisions of the columns: height at 4, note at `noteAt`. */
+  /** The copy's revisions of the columns: the names at `namesAt`, height at 4, note at `noteAt`. */
   const copy =
-    (noteAt: number) =>
+    (noteAt: number, namesAt = 2) =>
     (id: ColumnId): Revision | null =>
-      id === column(1) ? revision(4) : id === column(5) ? revision(noteAt) : null;
+      id === column(0)
+        ? revision(namesAt)
+        : id === column(1)
+          ? revision(4)
+          : id === column(5)
+            ? revision(noteAt)
+            : null;
+  const NAMES = column(0);
 
   test("is current when each column is at the copy's revision", () => {
-    expect(pageStanding(page(columns), 0, revision(2), shown(3), wanted, copy(6))).toBe("current");
+    expect(pageStanding(page(columns), 0, revision(2), shown(3), wanted, copy(6), NAMES)).toBe(
+      "current",
+    );
   });
 
   test("is ahead when a column changed after the copy and none before", () => {
     // note was made a category at 6, and the copy has not heard yet.
-    expect(pageStanding(page(columns), 0, revision(2), shown(3), wanted, copy(3))).toBe("ahead");
+    expect(pageStanding(page(columns), 0, revision(2), shown(3), wanted, copy(3), NAMES)).toBe(
+      "ahead",
+    );
   });
 
   test("is behind when a column changed after it was read", () => {
-    expect(pageStanding(page(columns), 0, revision(2), shown(3), wanted, copy(7))).toBe("behind");
+    expect(pageStanding(page(columns), 0, revision(2), shown(3), wanted, copy(7), NAMES)).toBe(
+      "behind",
+    );
     // Behind for one column and ahead for another: fetched again.
     expect(
       pageStanding(
@@ -130,17 +145,18 @@ describe("a page of rows against the window's copy", () => {
         shown(3),
         wanted,
         copy(3),
+        NAMES,
       ),
     ).toBe("behind");
   });
 
   test("is behind when it is of rows shown before, and ahead of rows shown after the copy's", () => {
-    expect(pageStanding(page(columns, 2, 3), 0, revision(2), shown(5), wanted, copy(6))).toBe(
-      "behind",
-    );
-    expect(pageStanding(page(columns, 2, 5), 0, revision(2), shown(3), wanted, copy(6))).toBe(
-      "ahead",
-    );
+    expect(
+      pageStanding(page(columns, 2, 3), 0, revision(2), shown(5), wanted, copy(6), NAMES),
+    ).toBe("behind");
+    expect(
+      pageStanding(page(columns, 2, 5), 0, revision(2), shown(3), wanted, copy(6), NAMES),
+    ).toBe("ahead");
   });
 
   test("is behind when it was fetched for another number of rows shown", () => {
@@ -148,16 +164,37 @@ describe("a page of rows against the window's copy", () => {
     // read once the rows shown were 120, since 5: the copy has those too,
     // and its page 1 is positions 100 to 119.
     const fetched = page(columns, 2, 5, 100, 50);
-    expect(pageStanding(fetched, 1, revision(2), shown(5, 120), wanted, copy(6))).toBe("behind");
-    expect(pageStanding(fetched, 1, revision(2), shown(5, 150), wanted, copy(6))).toBe("current");
+    expect(pageStanding(fetched, 1, revision(2), shown(5, 120), wanted, copy(6), NAMES)).toBe(
+      "behind",
+    );
+    expect(pageStanding(fetched, 1, revision(2), shown(5, 150), wanted, copy(6), NAMES)).toBe(
+      "current",
+    );
     // Not the page of its index.
-    expect(pageStanding(fetched, 2, revision(2), shown(5, 150), wanted, copy(6))).toBe("behind");
+    expect(pageStanding(fetched, 2, revision(2), shown(5, 150), wanted, copy(6), NAMES)).toBe(
+      "behind",
+    );
     // Of rows shown after the copy's, it waits for their message.
-    expect(pageStanding(fetched, 1, revision(2), shown(3, 150), wanted, copy(6))).toBe("ahead");
+    expect(pageStanding(fetched, 1, revision(2), shown(3, 150), wanted, copy(6), NAMES)).toBe(
+      "ahead",
+    );
+  });
+
+  test("is behind when the names changed after it was read, and ahead when after the copy", () => {
+    // An ID edited at 7, after the page was read.
+    expect(pageStanding(page(columns), 0, revision(2), shown(3), wanted, copy(6, 7), NAMES)).toBe(
+      "behind",
+    );
+    // An ID edited at 5, which the copy has not heard of yet.
+    const edited = page(columns, 2, 3, 0, 1, 5);
+    expect(pageStanding(edited, 0, revision(2), shown(3), wanted, copy(6), NAMES)).toBe("ahead");
+    expect(pageStanding(edited, 0, revision(2), shown(3), wanted, copy(6, 5), NAMES)).toBe(
+      "current",
+    );
   });
 
   test("is behind when it is of another table, or of other columns", () => {
-    expect(pageStanding(page(columns, 1), 0, revision(2), shown(3), wanted, copy(6))).toBe(
+    expect(pageStanding(page(columns, 1), 0, revision(2), shown(3), wanted, copy(6), NAMES)).toBe(
       "behind",
     );
     expect(
@@ -171,9 +208,12 @@ describe("a page of rows against the window's copy", () => {
         shown(3),
         wanted,
         copy(6),
+        NAMES,
       ),
     ).toBe("behind");
-    expect(pageStanding(page([[1, 4]]), 0, revision(2), shown(3), wanted, copy(6))).toBe("behind");
+    expect(pageStanding(page([[1, 4]]), 0, revision(2), shown(3), wanted, copy(6), NAMES)).toBe(
+      "behind",
+    );
     expect(
       pageStanding(
         page([
@@ -185,6 +225,7 @@ describe("a page of rows against the window's copy", () => {
         shown(3),
         [column(1), column(7)],
         copy(6),
+        NAMES,
       ),
     ).toBe("behind");
   });

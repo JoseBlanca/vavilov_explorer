@@ -116,3 +116,18 @@ export function shownBetween(
   }
   return intersection(rangeBits(numRows, from, to), shown.bits);
 }
+
+/**
+ * Every row of a table of `numRows` that the filter shows, as a selection:
+ * those "Select shown rows" selects, all of them while the filter has no
+ * text.
+ *
+ * @throws A defect for `null`, a copy of an open table with no rows shown.
+ */
+export function everyShown(numRows: number, shown: Shown | null): Uint8Array {
+  if (shown === null) {
+    throw defect(`the rows shown of a table of ${String(numRows)} rows with no rows shown`);
+  }
+  const every = numRows === 0 ? new Uint8Array(0) : rangeBits(numRows, 0, numRows - 1);
+  return intersection(every, shown.bits);
+}

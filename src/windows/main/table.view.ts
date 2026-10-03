@@ -4,11 +4,14 @@ import { live } from "lit-html/directives/live.js";
 import { repeat } from "lit-html/directives/repeat.js";
 import { styleMap } from "lit-html/directives/style-map.js";
 
+import type { ActiveCell, Move } from "../../state/activeCell.ts";
+import type { CellEdit } from "../../state/cellEdit.ts";
 import type { Cell } from "../../state/cellText.ts";
 import type { Role } from "../../state/description.ts";
 import type { ColumnId, RowIndex } from "../../state/ids.ts";
 import type { RowRange } from "../../state/tablePages.ts";
 import type { TableColumn, TableRow } from "../../state/tableRows.ts";
+import { defect } from "../../state/defect.ts";
 import { classOf } from "../shared/classOf.ts";
 import styles from "./table.module.css";
 
@@ -22,8 +25,34 @@ export interface TableProps {
   readonly range: RowRange;
   /** The rows of `range`, in order. */
   readonly rows: readonly TableRow[];
+  /** The cell being edited, or `null`. */
+  readonly editing: CellEdit | null;
+  /** The cell the keyboard is on, or `null`. */
+  readonly active: ActiveCell | null;
+  /** The grid took the focus. */
+  readonly onGridFocus: () => void;
+  /** The user pressed a key that moves the cell the keyboard is on. */
+  readonly onMove: (move: Move) => void;
+  /** The user pressed Enter on the cell the keyboard is on. */
+  readonly onActiveOpen: () => void;
+  /** The user pressed Space on the cell the keyboard is on, with Shift when `extend`. */
+  readonly onActiveSelect: (extend: boolean) => void;
+  /** The user clicked a cell, which the keyboard is then on. */
+  readonly onCellClick: (row: RowIndex, column: ColumnId) => void;
   /** The user clicked a row, with the shift key when `extend`. */
   readonly onRowClick: (row: RowIndex, extend: boolean) => void;
+  /** The user double-clicked a cell, to edit it. */
+  readonly onCellOpen: (row: RowIndex, column: ColumnId) => void;
+  /** The user typed in the field of the cell being edited. */
+  readonly onEditText: (text: string) => void;
+  /** The user ticked or unticked "Apply to all selected rows". */
+  readonly onEditToSelected: (ticked: boolean) => void;
+  /** The user pressed Enter in the cell being edited. */
+  readonly onEditCommit: () => void;
+  /** The user pressed Escape in the cell being edited. */
+  readonly onEditCancel: () => void;
+  /** The focus left the cell being edited for another place, which applies it. */
+  readonly onEditLeave: () => void;
   /** The user chose a role for a column. */
   readonly onRole: (column: ColumnId, role: Role) => void;
   /** The user scrolled the table. */
@@ -77,26 +106,210 @@ function blank(count: number): TemplateResult | typeof nothing {
       ></div>`;
 }
 
-function cellView(cell: Cell, first: boolean): TemplateResult {
-  const place = first ? "nameCell" : "cell";
+/** The id of the list of the values the field of a category's cell suggests. */
+const VALUES_LIST = "table-cell-values";
+
+/**
+ * The field of the cell being edited, of `column` in the row of the
+ * individual `individual`: the values of a category suggested as the user
+ * types, and below the cell, but in the first column, the checkbox "Apply
+ * to all selected rows". Enter applies, and so does leaving the field and
+ * its checkbox; Escape gives the cell back as it was.
+ */
+function editorView(
+  edit: CellEdit,
+  column: TableColumn,
+  individual: string,
+  first: boolean,
+  props: TableProps,
+): TemplateResult {
+  const stop = (event: Event): void => {
+    // A click in the editor is not a click on its row.
+    event.stopPropagation();
+  };
+  return html`<div
+    role="gridcell"
+    class="${classOf(styles, first ? "nameCell" : "cell")} ${classOf(styles, "editing")}"
+    data-editor
+    @click=${stop}
+    @dblclick=${stop}
+    @mousedown=${(event: MouseEvent) => {
+      stop(event);
+      // WebKit gives no focus to a checkbox clicked, so the field would
+      // seem left: a press beside the field keeps the focus in it, and the
+      // click still ticks the checkbox.
+      if (!(event.target instanceof HTMLInputElement && event.target.type === "text")) {
+        event.preventDefault();
+      }
+    }}
+    @keydown=${(event: KeyboardEvent) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        props.onEditCommit();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        props.onEditCancel();
+      }
+    }}
+    @focusout=${(event: FocusEvent) => {
+      const editor = event.currentTarget;
+      const next = event.relatedTarget;
+      if (editor instanceof Element && !(next instanceof Node && editor.contains(next))) {
+        props.onEditLeave();
+      }
+    }}
+  >
+    <input
+      class=${classOf(styles, "editor")}
+      aria-label=${`${column.name} of ${individual}`}
+      list=${column.values.length > 0 ? VALUES_LIST : nothing}
+      autocomplete="off"
+      spellcheck="false"
+      .value=${live(edit.text)}
+      @input=${(event: Event) => {
+        if (event.target instanceof HTMLInputElement) {
+          props.onEditText(event.target.value);
+        }
+      }}
+    />
+    ${
+      column.values.length > 0
+        ? html`<datalist id=${VALUES_LIST}>
+            ${column.values.map((value) => html`<option value=${value}></option>`)}
+          </datalist>`
+        : nothing
+    }
+    ${
+      edit.offersSelected
+        ? html`<label class=${classOf(styles, "toSelected")}>
+            <input
+              type="checkbox"
+              .checked=${live(edit.toSelected)}
+              @change=${(event: Event) => {
+                if (event.target instanceof HTMLInputElement) {
+                  props.onEditToSelected(event.target.checked);
+                }
+              }}
+            />
+            Apply to all selected rows
+          </label>`
+        : nothing
+    }
+  </div>`;
+}
+
+/** The id of the cell the keyboard is on, which the grid names as its active descendant. */
+export const ACTIVE_CELL_ID = "table-active-cell";
+
+/** What a cell does when the user clicks it, double-clicks it, and whether the keyboard is on it. */
+interface CellEvents {
+  readonly active: boolean;
+  readonly onClick: () => void;
+  readonly onOpen: () => void;
+}
+
+function cellView(cell: Cell, first: boolean, events: CellEvents): TemplateResult {
+  const place = classOf(styles, first ? "nameCell" : "cell");
+  const active = events.active ? classOf(styles, "active") : "";
   if (cell.kind === "missing") {
-    return html`<div role="gridcell" class=${classOf(styles, place)}>
+    return html`<div
+      role="gridcell"
+      class="${place} ${active}"
+      id=${events.active ? ACTIVE_CELL_ID : nothing}
+      @click=${events.onClick}
+      @dblclick=${events.onOpen}
+    >
       <span class=${classOf(styles, "hidden")}>missing</span>
     </div>`;
   }
   return html`<div
     role="gridcell"
-    class="${classOf(styles, place)} ${classOf(styles, cell.align === "end" ? "end" : "start")}"
+    class="${place} ${classOf(styles, cell.align === "end" ? "end" : "start")} ${active}"
+    id=${events.active ? ACTIVE_CELL_ID : nothing}
     title=${cell.text}
+    @click=${events.onClick}
+    @dblclick=${events.onOpen}
   >
     ${cell.text}
   </div>`;
 }
 
+/** The cells of `row`, the one being edited, if any, as its field. */
+function cellsView(row: TableRow, cells: readonly Cell[], props: TableProps): TemplateResult[] {
+  const nameCell = cells[0];
+  const individual = nameCell?.kind === "value" ? nameCell.text : "";
+  const { editing } = props;
+  return cells.map((cell, index) => {
+    const column = props.columns[index];
+    if (column === undefined) {
+      throw defect(`a cell ${String(index)} of a table of ${String(props.columns.length)} columns`);
+    }
+    if (editing?.row === row.row && editing.column === column.id) {
+      return editorView(editing, column, individual, index === 0, props);
+    }
+    return cellView(cell, index === 0, {
+      active: props.active?.row === row.row && props.active.column === column.id,
+      onClick: () => {
+        props.onCellClick(row.row, column.id);
+      },
+      onOpen: () => {
+        props.onCellOpen(row.row, column.id);
+      },
+    });
+  });
+}
+
+/** Whether the cell the keyboard is on is drawn with its values, not being edited. */
+function activeDrawn(props: TableProps): boolean {
+  const { active, editing } = props;
+  if (active === null || (editing?.row === active.row && editing.column === active.column)) {
+    return false;
+  }
+  return props.rows.some((row) => row.row === active.row && row.cells !== null);
+}
+
+/** The moves of the keys of the table, when the grid itself has the focus. */
+const MOVES: ReadonlyMap<string, Move> = new Map([
+  ["ArrowUp", "up"],
+  ["ArrowDown", "down"],
+  ["ArrowLeft", "left"],
+  ["ArrowRight", "right"],
+  ["Home", "home"],
+  ["End", "end"],
+  ["PageUp", "pageUp"],
+  ["PageDown", "pageDown"],
+] as const);
+
+/**
+ * A key pressed on the grid, not in a control inside it: an arrow, Home,
+ * End, Page Up or Page Down moves the cell the keyboard is on, Enter opens
+ * it for editing, Space selects its row and Shift-Space the rows from the
+ * last one selected.
+ */
+function gridKey(event: KeyboardEvent, props: TableProps): void {
+  if (event.target !== event.currentTarget || event.metaKey || event.ctrlKey || event.altKey) {
+    return;
+  }
+  const move = MOVES.get(event.key);
+  if (move !== undefined) {
+    event.preventDefault();
+    props.onMove(move);
+  } else if (event.key === "Enter") {
+    event.preventDefault();
+    props.onActiveOpen();
+  } else if (event.key === " ") {
+    event.preventDefault();
+    props.onActiveSelect(event.shiftKey);
+  }
+}
+
 /**
  * The table of the main window (docs/design.md, section 2.1): a header with
  * the name of each column and the dropdown of its role, and the rows on screen, each selected or not; a
- * click selects a row, and a shift-click the rows from the last one clicked.
+ * click selects a row, and a shift-click the rows from the last one clicked;
+ * a double-click opens a cell for editing. The grid is in the order of Tab,
+ * and the keyboard moves on its cells (gridKey).
  * Only the rows of `range` are drawn, between blank space as tall as the
  * rows above and below them, so the scroll bar is that of the whole table.
  * The grid can take the focus from the controller, not from Tab.
@@ -115,7 +328,12 @@ export function tableView(props: TableProps): TemplateResult {
         role="grid"
         class=${classOf(styles, "grid")}
         data-grid
-        tabindex="-1"
+        tabindex="0"
+        aria-activedescendant=${activeDrawn(props) ? ACTIVE_CELL_ID : nothing}
+        @focus=${props.onGridFocus}
+        @keydown=${(event: KeyboardEvent) => {
+          gridKey(event, props);
+        }}
         style=${styleMap({ gridTemplateColumns: columns })}
         aria-label="Individuals"
         aria-rowcount=${String(props.numShown + 1)}
@@ -173,7 +391,7 @@ export function tableView(props: TableProps): TemplateResult {
                           class=${classOf(styles, index === 0 ? "nameCell" : "cell")}
                         ></div>`,
                     )
-                  : row.cells.map((cell, index) => cellView(cell, index === 0))
+                  : cellsView(row, row.cells, props)
               }
             </div>`,
         )}

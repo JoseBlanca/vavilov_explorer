@@ -333,6 +333,27 @@ had. Only rows that change are stored, 8 bytes each in memory, a
 `RowIndex` and an `Option<LevelCode>`: a lasso over all of 50,000 rows
 stores 400 kB.
 
+A value typed in the table's cells (`design.md`, section 2.1) is the
+command `SetCells { column, rows, text, decimal_mark }`: the rows are
+one, or the selection's when "Apply to all selected rows" is ticked, and
+the text is read by the column's storage type in
+`crates/vavilov-core/src/cells.rs`, a decimal number with the window's
+decimal mark and a point refused where the mark is another, so that
+`1.500` typed in Spain is not one and a half; an empty text is a missing
+value. A text that does not fit is refused as `CellRefused`, with the
+column's name, the text, and a `CellRefusal` that says why: not a whole
+or a decimal number, a latitude or a longitude out of its range, neither
+`TRUE` nor `FALSE`, no country, none of a category's values (a new value
+of a category waits for the owner's design), an empty ID or one another
+individual has. In a category the value becomes `SetCodes`; in a column
+of numbers or text, `SetCells { column, changes }`, the rows whose value
+changes with their new values, each of the column's storage type; in the
+first column, `SetNames { changes }`, one row only, since one ID given
+to several rows would repeat it, a defect when a window sends more. Each
+stores only the cells that change, and its reverse is the same edit with
+the values they had. None changes the shape of the table, and a value
+every row has already changes nothing.
+
 - **Undo restores the data, not the revisions.** An undo is a command
   that takes the next revision, and the columns it touches take that
   revision too, so that a window that cached a column fetches it again.
@@ -497,7 +518,7 @@ read an integer of 2^53 or more as another. Its parts, in this order:
 
 | part | payload |
 |---|---|
-| page | the revision at which the table was loaded, `u64`; the revision at which the rows shown last changed, `u64`, so that a window drops a page of the rows shown before; the position of the first row, `u32`; the number of rows, `u32`; then the row of the table each is, a `u32` each |
+| page | the revision at which the table was loaded, `u64`; the revision at which the rows shown last changed, `u64`, so that a window drops a page of the rows shown before; the revision at which the names of the individuals last changed, `u64`, so that a window drops a page of names an edited ID replaced; the position of the first row, `u32`; the number of rows, `u32`; then the row of the table each is, a `u32` each |
 | names | the names of the page's rows, as a text list (below) |
 | values, one per column asked for | the column id, `u32`; a byte, 0 decimal numbers, 1 whole numbers, 2 text, 4 the codes of a category, and 3 not used; three zero bytes; the column's revision, `u64`; then its values |
 
@@ -550,6 +571,37 @@ column, a row matches when one of its cells does, the first column's
 included. The same filter with the same decimal mark again changes
 nothing. The filter is part of the interaction and is not
 undone.
+
+The rows are found under the session's lock, on every key typed and
+after every edit while the filter has a text, so every window waits for
+them. Measured on the owner's Mac (Apple M5 Pro), in a release build,
+on a table of 50,000 rows shaped as the demo's, with six columns of
+decimal numbers, one of whole numbers, four categories and a text, each
+`set_filter` of a key typed, the median:
+
+| search | 2 October, first | 2 October, after two fixes | 3 October, texts kept |
+|---|---|---|---|
+| any column, a text with a letter other than `e`, `collected 19` | 445 ms | 2.5 ms | 2.5 ms |
+| any column, a text of digits, `0,5` | 447 ms | 82 ms | 8.4 ms |
+| one column of decimal numbers, digits | 80 ms | 14 ms | 0.8 ms |
+| one column of text, or a category | 1 ms | 1 ms | 1 ms |
+| a change of role while any column is searched for `e` | 459 ms | 93 ms | 20 ms |
+
+The first fix: writing a decimal number as JavaScript does wrote its
+exact digits, 800 of them, for every number whose last digit is odd, to
+settle a tie that almost never happens; it now writes them only when a
+tie is possible. The second: a text with a character that no number's
+text has, anything but digits, `+`, `-`, `e` and the decimal mark,
+skips the columns of numbers. The third, decided by the owner on
+3 October 2026: the open project keeps the text of every decimal
+column, written with the window's decimal mark
+(`crates/vavilov-core/src/filter/texts.rs`), and writes a column's again
+only when the column's revision or the mark changes; the column an edit
+replaces is written afresh for that edit. The first key after a load or
+an edit pays for the writing, 77 ms for the six columns above, and the
+texts take about 3.4 MB for them. They are not part of the state: a
+refused command may have written them, and two sessions are compared
+without them.
 
 The find bar keeps as its own the whole filter the user asked for last,
 its text, column and checkboxes, with the load of the table it was made
@@ -736,7 +788,7 @@ the file a test picked in the place of the dialog's.
 
 The menu is the backend's, and an item the user chooses in File or Edit
 is carried out by the main window, so that the window shows the answer of
-the command, a refusal in its dialog, as it would for a control of its
+the command, a refusal in its information bar, as it would for a control of its
 own. The backend hands the item to the window as a message of the kind
 action, 4, whose header has the current revision, which takes no part
 in the order, and whose one part, kind 12, holds the item's code as a

@@ -1,15 +1,14 @@
 import type { Connection } from "../../backend/connection.ts";
 import type { Refusal } from "../../state/commandError.ts";
 import { defect } from "../../state/defect.ts";
-import { fileRefusalText, isFileRefusal, undecodedText } from "../../state/fileMessages.ts";
+import { fileRefusalMessage, isFileRefusal, undecodedMessage } from "../../state/fileMessages.ts";
 import { csvDefaults } from "../../state/transfer.ts";
 import type { ExportFormat, MenuAction } from "../../state/transfer.ts";
-import type { Dialog } from "../shared/dialog.controller.ts";
-import type { Notice } from "../shared/notice.controller.ts";
 import { countText } from "../shared/numbers.ts";
 import { answered } from "../shared/answered.ts";
 import { undoOrRedoField } from "../shared/fieldUndo.ts";
 import type { CsvDialog } from "./csvDialog.controller.ts";
+import type { InfoBar } from "./infoBar.controller.ts";
 
 /** Nothing to draw again after an undo or a redo the backend did not apply. */
 const ignore = (): void => undefined;
@@ -22,37 +21,38 @@ export interface MenuActions {
 
 /**
  * Carries out the items of the menu that the backend hands to the main
- * window: Import table… asks the backend to import, and shows a refusal in
- * the dialog, and a character it could not decode in the notice; Export as
- * CSV… asks for the CSV's choices first, and both exports show a refusal in
- * the dialog (docs/design.md, sections 2.1 and 7); Undo and Redo ask the
+ * window: Import table… asks the backend to import, and tells the
+ * information bar of a refusal, as an error, or of a character it could
+ * not decode, as a warning, after clearing the bar of the messages about
+ * the table and the files before; Export as CSV… asks for the CSV's
+ * choices first, and both exports tell the bar of a refusal, as an error
+ * (docs/design.md, sections 2.1 and 7); Undo and Redo ask the
  * backend to undo or redo the last edit of the window's copy, or the
  * typing of the text field that has the focus. The items are carried out
  * one at a time, in the order they came, each once the one before has
- * ended, its dialogs answered. A refusal that is not about a file is a
+ * ended, its dialog answered. A refusal that is not about a file is a
  * defect, since the backend gives none here.
  */
 export function createMenuActions(
   connection: Connection,
-  dialog: Dialog,
-  notice: Notice,
+  infoBar: InfoBar,
   csvDialog: CsvDialog,
   report: (error: unknown) => void,
 ): MenuActions {
   const importTable = async (): Promise<void> => {
     const answer = await connection.importTable();
     if (!answer.ok) {
-      await refused(answer.error);
+      refused(answer.error);
       return;
     }
     const { value } = answer;
     if (value === "stale" || value.kind !== "imported") {
       return;
     }
-    // The notice of an earlier file is not about the table there is now.
-    notice.clear();
+    // The messages before were about the table and the files before.
+    infoBar.clear();
     if (value.undecodedLine !== null) {
-      notice.show(undecodedText(value.fileName, value.undecodedLine, countText));
+      infoBar.tell(undecodedMessage(value.fileName, value.undecodedLine, countText));
     }
   };
 
@@ -67,15 +67,15 @@ export function createMenuActions(
     }
     const answer = await connection.exportTable(format);
     if (!answer.ok) {
-      await refused(answer.error);
+      refused(answer.error);
     }
   };
 
-  const refused = async (error: Refusal): Promise<void> => {
+  const refused = (error: Refusal): void => {
     if (!isFileRefusal(error)) {
       throw defect(`an import or an export refused as ${error.kind}`);
     }
-    await dialog.tell(fileRefusalText(error, countText));
+    infoBar.tell(fileRefusalMessage(error, countText));
   };
 
   const run = (action: MenuAction): Promise<void> => {

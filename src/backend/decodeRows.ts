@@ -55,19 +55,20 @@ export function decodeRows(bytes: ArrayBuffer): RowPage {
   if (pagePart?.kind !== PAGE) {
     throw defect("a message of rows that does not start with its page part");
   }
-  if (pagePart.length < 24) {
+  if (pagePart.length < 32) {
     throw defect(`a page part of ${String(pagePart.length)} bytes`);
   }
   const loadedAt = revisionAt(view, pagePart.start);
   const shownAt = revisionAt(view, pagePart.start + 8);
-  const first = position(view.getUint32(pagePart.start + 16, true));
-  const count = view.getUint32(pagePart.start + 20, true);
+  const namesAt = revisionAt(view, pagePart.start + 16);
+  const first = position(view.getUint32(pagePart.start + 24, true));
+  const count = view.getUint32(pagePart.start + 28, true);
   if (first + count > MAX_ROWS) {
     throw defect(`a page of ${String(count)} rows from position ${String(first)}, past the table`);
   }
-  expectLength("page", pagePart.length, 24 + 4 * count);
+  expectLength("page", pagePart.length, 32 + 4 * count);
   const rows = Array.from({ length: count }, (_, index) =>
-    rowIndex(view.getUint32(pagePart.start + 24 + 4 * index, true)),
+    rowIndex(view.getUint32(pagePart.start + 32 + 4 * index, true)),
   );
   if (namesPart?.kind !== NAMES) {
     throw defect("a message of rows with no names part after its page part");
@@ -80,7 +81,17 @@ export function decodeRows(bytes: ArrayBuffer): RowPage {
     }
     return valuesPart(bytes, page, part);
   });
-  return { revision: header.revision, loadedAt, shownAt, first, count, rows, names, columns };
+  return {
+    revision: header.revision,
+    loadedAt,
+    shownAt,
+    namesAt,
+    first,
+    count,
+    rows,
+    names,
+    columns,
+  };
 }
 
 /** Where a page's rows are, for the messages of its defects. */

@@ -115,6 +115,22 @@ pub fn set_selection<R: Runtime>(
     run(&app, &session, "set_selection", &request)
 }
 
+/// Sets the cells of some rows in one column to the value a text gives:
+/// the body is one bit per row, with the headers `column`, `text` and
+/// `decimal-mark`, percent-encoded, `based-on` and `sent-at`.
+///
+/// # Errors
+///
+/// The refusals of [`calls::call`].
+#[tauri::command]
+pub fn set_cells<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<(), CommandError> {
+    run(&app, &session, "set_cells", &request)
+}
+
 /// Assigns the rows of a lasso to what is selected: the body is one bit
 /// per row, with the headers `column`, `target` (a code, or `unassigned`),
 /// `based-on` and `sent-at`.

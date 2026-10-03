@@ -36,8 +36,13 @@ with the separator, the decimal mark and the encoding found in it, and
 an Excel workbook from its first sheet that is not hidden. The file can
 be of up to 20 MB, and the sheet of up to 2,000,000 cells, counted from
 its first value to its last. A file that
-cannot be imported loads nothing, and the message says what was found
-and where, by its line in a CSV, or its row and column in the sheet.
+cannot be imported loads nothing, and the bar at the bottom of the
+window says what was found and where, by its line in a CSV, or its row
+and column in the sheet. Close the message with × when you have read
+it; a warning, such as a character of the file that could not be read,
+goes by itself after 5 seconds. When several messages are waiting, the
+bar says how many more there are, and the next shows when one goes. A
+table imported clears the messages about the one before.
 
 Each column but the first gets a role from its values, which you can
 change: a column of numbers is a number, or a latitude or a longitude
@@ -70,7 +75,9 @@ column included, or one column. A cell matches when what you typed is
 part of what the table shows in it, capital letters or not; accents
 count, so `cote` does not find `Côte`. Tick Whole cell to find only the
 cells that are exactly what you typed, so that `1` does not find `10`.
-Tick Show rows that don't match to see the others instead. An empty cell
+Tick Show rows that don't match to see the others instead. Select shown
+rows selects the rows shown, in place of those selected before; with
+nothing typed in Find it selects every row. An empty cell
 never matches, so it shows among the rows that don't match.
 
 A decimal number is found as the table shows it, with your region's
@@ -81,12 +88,37 @@ other views keep every individual. The bar below the table says how
 many rows are shown, "Showing 312 of 2,000 individuals", and how many
 are selected. Importing another table clears the search.
 
+## Editing a cell
+
+Double-click a cell to change it, type the new value, and press Enter or
+click elsewhere; Escape leaves the cell as it was. With the keyboard,
+press Tab until the table has the focus, move with the arrow keys, Home,
+End, Page Up and Page Down, and press Enter to change the cell; Enter
+then applies the value and moves to the cell below. Space selects the
+row of the cell, and Shift-Space the rows from the last one selected. Every column
+can be edited. A value must be of the kind the column holds: a whole
+number, a decimal number written with your region's decimal mark, `1,5`
+in Spain, `TRUE` or `FALSE`, or text. A latitude must be from −90 to 90
+and a longitude from −180 to 180. In a category the cell suggests its
+values as you type, and the value must be one of them; a country can be
+typed by any of its ISO names or codes. For a missing value, delete
+the text and press Enter. A value that does not fit is refused, the bar at the
+bottom of the window says why, and the cell keeps its value.
+
+To give one value to many individuals, select their rows, double-click
+a cell of one of them in the column to change, tick Apply to all
+selected rows below the cell, type the value and press Enter. Every
+selected row takes it, or none does when it does not fit, the bar
+saying why, and one Undo
+takes it back from all of them. An IndividualID is changed one at a
+time, and two individuals cannot have the same.
+
 ## Undoing an edit
 
 Edit, Undo, or Cmd-Z (Ctrl-Z on Windows and Linux), undoes the last
-change to the table, such as a change of a column's role, and Edit,
-Redo, or Cmd-Shift-Z, makes it again. Each can be repeated, back to the
-table as it was imported. Importing another table starts its history
+change to the table, such as a cell edited or a column's role changed,
+and Edit, Redo, or Cmd-Shift-Z, makes it again. Each can be repeated,
+back to the table as it was imported. Importing another table starts its history
 afresh. The selection and the choice of the Classification column are
 not undone.
 

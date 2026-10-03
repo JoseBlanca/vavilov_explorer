@@ -269,6 +269,26 @@ describe("a command", () => {
     ]);
   });
 
+  test("of cells sends the rows as raw bytes, and the text and the decimal mark percent-encoded", async () => {
+    const { transport, calls } = fakeTransport();
+    const connection = await connect(transport, failOnDefect);
+    const bits = new Uint8Array([0b0110]);
+    await connection.setCells(column(0), bits, "Ñandú 1,5%", ",");
+    expect(calls.slice(1)).toEqual([
+      {
+        command: "set_cells",
+        args: bits,
+        headers: {
+          column: "0",
+          text: "%C3%91and%C3%BA%201%2C5%25",
+          "decimal-mark": "%2C",
+          "based-on": "1",
+          "sent-at": "1727865600000.5",
+        },
+      },
+    ]);
+  });
+
   test("refused gives the refusal as a value", async () => {
     const { transport } = fakeTransport({
       answer: () => refusedWith({ kind: "notSelected", target: { population: 0 } }),
@@ -490,8 +510,8 @@ describe("the description of the table", () => {
 // prettier-ignore
 const PAGE = buffer(
   ...header(3, 1),
-  ...[8, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-  ...[1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0],
+  ...[8, 0, 0, 0, 40, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+  ...[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0],
   ...[9, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0x70, 0x32, 0x70, 0x33],
   ...[10, 0, 0, 0, 20, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
   ...[1, 0, 0xff, 0xff, 0, 0, 0, 0],
@@ -507,6 +527,7 @@ describe("fetching rows", () => {
         revision: 1,
         loadedAt: 1,
         shownAt: 1,
+        namesAt: 1,
         first: 1,
         count: 2,
         rows: [1, 2],

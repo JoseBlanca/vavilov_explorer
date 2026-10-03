@@ -9,10 +9,13 @@
 //! assigns values the plan holds, takes the history step and sends the
 //! message.
 
+mod cells;
+
 use crate::command::{Command, Request};
 use crate::convert::{u64_from, usize_from};
 use crate::edit::Edit;
 use crate::error::CommandError;
+use crate::filter::texts::NumberTexts;
 use crate::filter::{Filter, MAX_FILTER_TEXT, Replaced, shown_rows};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt, WindowLabel};
 use crate::message::{MessageKind, MessageWriter, whole_state};
@@ -67,6 +70,7 @@ impl Session {
     /// a level, a population or a row that the table does not have, a set
     /// of rows of the wrong length, nothing to undo or redo; or a `Defect`.
     pub fn dispatch(&mut self, request: Request) -> Result<Outcome, CommandError> {
+        self.keep_number_texts(&request.command)?;
         match self.plan(request)? {
             Some(plan) => self.commit(plan),
             None => Ok(Outcome {
@@ -93,6 +97,43 @@ impl Session {
         self.check_based_on(based_on)?;
         let open = self.state.project.open()?;
         RowSet::from_bytes(bytes, open.table.num_rows())
+    }
+
+    /// Writes the texts of the decimal numbers a search by `command` will
+    /// read, when it searches: a filter with a text, or an edit while the
+    /// filter has one. They are not part of the state, so a command refused
+    /// after this has still changed nothing.
+    fn keep_number_texts(&mut self, command: &Command) -> Result<(), CommandError> {
+        let Project::Open(open) = &mut self.state.project else {
+            return Ok(());
+        };
+        let mark = match command {
+            Command::SetFilter {
+                filter,
+                decimal_mark,
+            } => (!filter.text.is_empty()).then(|| decimal_mark.clone()),
+            Command::LoadTable { .. }
+            | Command::SetSelection { .. }
+            | Command::SetHover { .. }
+            | Command::SetActiveClassification { .. }
+            | Command::SelectPopulation { .. } => None,
+            Command::AssignRows { .. }
+            | Command::UnassignRows { .. }
+            | Command::SetRole { .. }
+            | Command::SetCells { .. }
+            | Command::Undo
+            | Command::Redo => {
+                if open.interaction.filter.text.is_empty() {
+                    None
+                } else {
+                    open.interaction.decimal_mark.clone()
+                }
+            }
+        };
+        match mark {
+            Some(mark) => open.number_texts.refresh(&open.table, &mark),
+            None => Ok(()),
+        }
     }
 
     /// Refuses a command made at a revision still to come, a defect, or
@@ -147,13 +188,7 @@ impl Session {
                 decimal_mark,
             } => {
                 let open = state.project.open()?;
-                // A region's decimal mark has one character on macOS and
-                // at most three on Windows, by LOCALE_SDECIMAL.
-                if !(1..=3).contains(&decimal_mark.chars().count()) {
-                    return Err(CommandError::Defect {
-                        what: format!("a filter with the decimal mark {decimal_mark:?}"),
-                    });
-                }
+                check_decimal_mark(&decimal_mark, "a filter")?;
                 let length = filter.text.chars().count();
                 if length > MAX_FILTER_TEXT {
                     return Err(CommandError::Defect {
@@ -167,7 +202,13 @@ impl Session {
                 {
                     return Ok(None);
                 }
-                let rows = shown_rows(&filter, Some(&decimal_mark), &open.table, None)?;
+                let rows = shown_rows(
+                    &filter,
+                    Some(&decimal_mark),
+                    &open.table,
+                    None,
+                    &open.number_texts,
+                )?;
                 let revision = state.revision.next()?;
                 let shown = Shown { rows, at: revision };
                 let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
@@ -288,6 +329,15 @@ impl Session {
                     sent_at,
                 )
             }
+            Command::SetCells {
+                column,
+                rows,
+                text,
+                decimal_mark,
+            } => {
+                let open = state.project.open()?;
+                cells::plan_set_cells(state, open, column, &rows, text, &decimal_mark, sent_at)
+            }
             Command::Undo => {
                 let open = state.project.open()?;
                 let edit = open
@@ -377,6 +427,38 @@ impl Session {
                 open.history.take(step);
                 Changed::State(revision)
             }
+            Change::Cells {
+                column,
+                values,
+                shown,
+                step,
+            } => {
+                let open = open_for_commit(&mut self.state.project)?;
+                let Column {
+                    revision: column_revision,
+                    values: slot,
+                    ..
+                } = open
+                    .table
+                    .column_mut(column)
+                    .ok_or_else(|| defect(column, "is gone"))?;
+                *slot = values;
+                *column_revision = revision;
+                if let Some(shown) = shown {
+                    open.interaction.shown = shown;
+                }
+                open.history.take(step);
+                Changed::State(revision)
+            }
+            Change::Names { names, shown, step } => {
+                let open = open_for_commit(&mut self.state.project)?;
+                open.table.set_names(names, revision);
+                if let Some(shown) = shown {
+                    open.interaction.shown = shown;
+                }
+                open.history.take(step);
+                Changed::State(revision)
+            }
             Change::Values {
                 column,
                 values,
@@ -449,6 +531,21 @@ enum Change {
         shown: Option<Shown>,
         step: HistoryStep,
     },
+    /// New values of some cells of a column of numbers or text, the whole
+    /// column as they leave it, with the rows shown when they change.
+    Cells {
+        column: ColumnId,
+        values: ColumnValues,
+        shown: Option<Shown>,
+        step: HistoryStep,
+    },
+    /// New names of some individuals, all of them as they leave them, with
+    /// the rows shown when they change.
+    Names {
+        names: Vec<String>,
+        shown: Option<Shown>,
+        step: HistoryStep,
+    },
     /// New values of a column, with the active classification when the
     /// change clears it, and the rows shown when they change.
     Values {
@@ -498,6 +595,7 @@ fn plan_load(
         },
         history: History::default(),
         table,
+        number_texts: NumberTexts::default(),
     };
     let message = whole_state(
         MessageKind::Change,
@@ -548,6 +646,10 @@ fn plan_edit(
         Edit::SetValues { column, values } => {
             plan_values(state, open, column, values, kind, sent_at).map(Some)
         }
+        Edit::SetCells { column, changes } => {
+            cells::plan_cells(state, open, column, changes, kind, sent_at)
+        }
+        Edit::SetNames { changes } => cells::plan_names(state, open, changes, kind, sent_at),
     }
 }
 
@@ -703,6 +805,7 @@ fn refiltered(
         open.interaction.decimal_mark.as_deref(),
         &open.table,
         Some(replaced),
+        &open.number_texts,
     )?;
     Ok((rows != open.interaction.shown.rows).then_some(Shown { rows, at: revision }))
 }
@@ -752,6 +855,18 @@ fn check_level(table: &Table, column: ColumnId, code: LevelCode) -> Result<(), C
             column,
             code,
             num_levels,
+        });
+    }
+    Ok(())
+}
+
+/// Refuses as a defect a decimal mark that no region has: one character
+/// on macOS, at most three on Windows, by `LOCALE_SDECIMAL`. `what` says
+/// what came with it.
+fn check_decimal_mark(decimal_mark: &str, what: &str) -> Result<(), CommandError> {
+    if !(1..=3).contains(&decimal_mark.chars().count()) {
+        return Err(CommandError::Defect {
+            what: format!("{what} with the decimal mark {decimal_mark:?}"),
         });
     }
     Ok(())

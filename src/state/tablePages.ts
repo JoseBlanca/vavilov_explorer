@@ -86,8 +86,9 @@ export function rowsOfPage(page: number, numShown: number): RowRange {
  * How page `index` stands against the window's copy: `current` when it is
  * of the table loaded at `loadedAt` and of the rows `shown` the copy has,
  * holds the rows of its index among them and the columns `wanted` in their
- * order, and each column at the revision the copy has; `ahead` when the
- * rows shown or one of the columns changed after the copy and none before,
+ * order, and each column at the revision the copy has, the names of the
+ * individuals, `namesColumn`, among them; `ahead` when the rows shown or
+ * one of the columns changed after the copy and none before,
  * so that the message of the change is on its way and will make it current,
  * or not; `behind` otherwise, a page to fetch again. A page asked for while
  * another number of rows was shown, and read once the copy's were, holds
@@ -100,6 +101,7 @@ export function pageStanding(
   shown: Shown,
   wanted: readonly ColumnId[],
   columnRevision: (column: ColumnId) => Revision | null,
+  namesColumn: ColumnId,
 ): PageStanding {
   if (
     page.loadedAt !== loadedAt ||
@@ -118,7 +120,7 @@ export function pageStanding(
       return "behind";
     }
   }
-  for (const column of page.columns) {
+  for (const column of [{ id: namesColumn, revision: page.namesAt }, ...page.columns]) {
     const copy = columnRevision(column.id);
     if (copy === null || column.revision < copy) {
       return "behind";

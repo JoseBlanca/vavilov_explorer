@@ -37,6 +37,8 @@ export interface FindBarProps {
   readonly onWhole: (whole: boolean) => void;
   /** The user ticked or unticked "Show rows that don't match". */
   readonly onNotMatching: (notMatching: boolean) => void;
+  /** The user asked to select the rows the table shows. */
+  readonly onSelectShown: () => void;
 }
 
 /** The value of the option "Any column" in the Column dropdown. */
@@ -61,8 +63,9 @@ function chosenColumn(value: string, columns: readonly FindColumn[]): ColumnId |
 /**
  * The find bar above the table (docs/design.md, section 2.1): the field of
  * the text searched for, the Column dropdown, "Any column" and then every
- * column, and the checkboxes "Whole cell" and "Show rows that don't
- * match".
+ * column, the checkboxes "Whole cell" and "Show rows that don't match",
+ * and the button "Select shown rows", which makes the rows the table shows
+ * the selection.
  */
 export function findBarView(props: FindBarProps): TemplateResult {
   return html`<div class=${classOf(styles, "bar")} role="search" aria-label="Find in the table">
@@ -125,5 +128,8 @@ export function findBarView(props: FindBarProps): TemplateResult {
       />
       Show rows that don't match
     </label>
+    <button type="button" class=${classOf(styles, "action")} @click=${props.onSelectShown}>
+      Select shown rows
+    </button>
   </div>`;
 }

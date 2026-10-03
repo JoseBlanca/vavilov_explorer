@@ -8,6 +8,7 @@
     "allow-describe-table",
     "allow-fetch-rows",
     "allow-set-selection",
+    "allow-set-cells",
     "allow-assign-rows",
     "allow-unassign-rows",
     "allow-set-hover",

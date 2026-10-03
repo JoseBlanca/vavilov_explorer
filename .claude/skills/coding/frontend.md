@@ -163,9 +163,12 @@ The table draws only the rows on screen (`docs/design.md`, section 2.1):
   classification the user types a population's name, with the names of
   the classification's populations suggested as they type, as the owner
   decided (`docs/design.md`, section 12); `<input list>` with a
-  `<datalist>` of the names is the native element for it. What a name that
-  is not yet a population does is decided with the owner when the cell is
-  built.
+  `<datalist>` of the names is the native element for it, and a name that
+  is not yet a population is refused (`docs/design.md`, section 2.1).
+- Only the rows on screen exist in the page, so the cell the keyboard is
+  on is not focused itself: the grid keeps the focus and names the cell
+  with `aria-activedescendant`, and the controller scrolls the cell into
+  view, clear of the sticky header and column of the names.
 
 ## The D3 plots
 

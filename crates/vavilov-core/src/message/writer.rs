@@ -197,13 +197,15 @@ impl MessageWriter {
     }
 
     /// The first part of a message of rows: the load of the table, the
-    /// revision at which the rows shown last changed, the position of the
-    /// page's first row among them, its number of rows, and the row of the
-    /// table each is.
+    /// revision at which the rows shown last changed, that at which the
+    /// names of the individuals last changed, the position of the page's
+    /// first row among the rows shown, its number of rows, and the row of
+    /// the table each is.
     pub(crate) fn page(
         &mut self,
         loaded_at: Revision,
         shown_at: Revision,
+        names_at: Revision,
         first: Position,
         rows: &[RowIndex],
     ) -> Result<(), CommandError> {
@@ -212,6 +214,7 @@ impl MessageWriter {
         self.part(PartKind::Page, |payload| {
             payload.extend_from_slice(&loaded_at.get().to_le_bytes());
             payload.extend_from_slice(&shown_at.get().to_le_bytes());
+            payload.extend_from_slice(&names_at.get().to_le_bytes());
             payload.extend_from_slice(&first.get().to_le_bytes());
             payload.extend_from_slice(&count.to_le_bytes());
             for row in rows {

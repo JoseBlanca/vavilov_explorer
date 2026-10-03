@@ -32,7 +32,8 @@ const UTF8 = (text: string): number[] => [...new TextEncoder().encode(text)];
 const page = (first: number, count: number): readonly [number, number[]] => [
   8,
   [
-    ...[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, first, 0, 0, 0, count, 0, 0, 0],
+    ...[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    ...[first, 0, 0, 0, count, 0, 0, 0],
     ...Array.from({ length: count }, (_, index) => [first + index, 0, 0, 0]).flat(),
   ],
 ];
@@ -58,7 +59,8 @@ describe("a page of rows", () => {
       3, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
-      8, 0, 0, 0, 36, 0, 0, 0,
+      8, 0, 0, 0, 44, 0, 0, 0,
+      1, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 3, 0, 0, 0,
@@ -102,6 +104,7 @@ describe("a page of rows", () => {
       revision: 1,
       loadedAt: 1,
       shownAt: 1,
+      namesAt: 1,
       first: 1,
       count: 3,
       rows: [1, 2, 3],
@@ -160,6 +163,7 @@ describe("a page of rows", () => {
       revision: 1,
       loadedAt: 1,
       shownAt: 1,
+      namesAt: 1,
       first: 4,
       count: 0,
       rows: [],
@@ -271,7 +275,8 @@ describe("a page that does not decode is a defect", () => {
     const past: readonly [number, number[]] = [
       8,
       [
-        ...[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 1, 0, 0, 0],
+        ...[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+        ...[0, 0, 0, 0x10, 1, 0, 0, 0],
         ...[0, 0, 0, 0x10],
       ],
     ];
@@ -281,9 +286,12 @@ describe("a page that does not decode is a defect", () => {
   test("whose rows part is not one row for each of the page's", () => {
     const short: readonly [number, number[]] = [
       8,
-      [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+      [
+        ...[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+        ...[1, 0, 0, 0, 1, 0, 0, 0],
+      ],
     ];
-    expectDefect(rows(1, short, P2), /a page part of 24 bytes, not 28/);
+    expectDefect(rows(1, short, P2), /a page part of 32 bytes, not 36/);
   });
 
   test("a page with the time of a window", () => {
