@@ -95,7 +95,9 @@ click elsewhere; Escape leaves the cell as it was. With the keyboard,
 press Tab until the table has the focus, move with the arrow keys, Home,
 End, Page Up and Page Down, and press Enter to change the cell; Enter
 then applies the value and moves to the cell below. Space selects the
-row of the cell, and Shift-Space the rows from the last one selected. Every column
+row of the cell, Shift-Space the rows from the last one selected, and
+Shift with the up or down arrow, Page Up or Page Down extends the
+selection as you move. Every column
 can be edited. A value must be of the kind the column holds: a whole
 number, a decimal number written with your region's decimal mark, `1,5`
 in Spain, `TRUE` or `FALSE`, or text. A latitude must be from −90 to 90
@@ -107,7 +109,8 @@ bottom of the window says why, and the cell keeps its value.
 
 To give one value to many individuals, select their rows, double-click
 a cell of one of them in the column to change, tick Apply to all
-selected rows below the cell, type the value and press Enter. Every
+selected rows beside the cell, which is offered while several rows are
+selected, type the value and press Enter. Every
 selected row takes it, or none does when it does not fit, the bar
 saying why, and one Undo
 takes it back from all of them. An IndividualID is changed one at a

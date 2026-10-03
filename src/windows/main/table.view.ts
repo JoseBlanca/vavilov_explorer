@@ -5,6 +5,7 @@ import { repeat } from "lit-html/directives/repeat.js";
 import { styleMap } from "lit-html/directives/style-map.js";
 
 import type { ActiveCell, Move } from "../../state/activeCell.ts";
+import { suggestedValues } from "../../state/cellEdit.ts";
 import type { CellEdit } from "../../state/cellEdit.ts";
 import type { Cell } from "../../state/cellText.ts";
 import type { Role } from "../../state/description.ts";
@@ -27,12 +28,14 @@ export interface TableProps {
   readonly rows: readonly TableRow[];
   /** The cell being edited, or `null`. */
   readonly editing: CellEdit | null;
+  /** Whether the cell being edited offers "Apply to all selected rows". */
+  readonly offersSelected: boolean;
   /** The cell the keyboard is on, or `null`. */
   readonly active: ActiveCell | null;
   /** The grid took the focus. */
   readonly onGridFocus: () => void;
-  /** The user pressed a key that moves the cell the keyboard is on. */
-  readonly onMove: (move: Move) => void;
+  /** The user pressed a key that moves the cell the keyboard is on, with Shift up or down when `extend`. */
+  readonly onMove: (move: Move, extend: boolean) => void;
   /** The user pressed Enter on the cell the keyboard is on. */
   readonly onActiveOpen: () => void;
   /** The user pressed Space on the cell the keyboard is on, with Shift when `extend`. */
@@ -112,17 +115,20 @@ const VALUES_LIST = "table-cell-values";
 /**
  * The field of the cell being edited, of `column` in the row of the
  * individual `individual`: the values of a category suggested as the user
- * types, and below the cell, but in the first column, the checkbox "Apply
- * to all selected rows". Enter applies, and so does leaving the field and
+ * types, and, when the cell's row is one of several selected, the checkbox
+ * "Apply to all selected rows" to the right of the cell, or to its left in
+ * the last column, where the list of suggestions below the field does not
+ * cover it. Enter applies, and so does leaving the field and
  * its checkbox; Escape gives the cell back as it was.
  */
 function editorView(
   edit: CellEdit,
   column: TableColumn,
   individual: string,
-  first: boolean,
+  place: { readonly first: boolean; readonly last: boolean },
   props: TableProps,
 ): TemplateResult {
+  const { first, last } = place;
   const stop = (event: Event): void => {
     // A click in the editor is not a click on its row.
     event.stopPropagation();
@@ -176,13 +182,15 @@ function editorView(
     ${
       column.values.length > 0
         ? html`<datalist id=${VALUES_LIST}>
-            ${column.values.map((value) => html`<option value=${value}></option>`)}
+            ${suggestedValues(column.values, edit.text).map(
+              (value) => html`<option value=${value}></option>`,
+            )}
           </datalist>`
         : nothing
     }
     ${
-      edit.offersSelected
-        ? html`<label class=${classOf(styles, "toSelected")}>
+      props.offersSelected
+        ? html`<label class=${classOf(styles, last ? "toSelectedLeft" : "toSelectedRight")}>
             <input
               type="checkbox"
               .checked=${live(edit.toSelected)}
@@ -246,7 +254,13 @@ function cellsView(row: TableRow, cells: readonly Cell[], props: TableProps): Te
       throw defect(`a cell ${String(index)} of a table of ${String(props.columns.length)} columns`);
     }
     if (editing?.row === row.row && editing.column === column.id) {
-      return editorView(editing, column, individual, index === 0, props);
+      return editorView(
+        editing,
+        column,
+        individual,
+        { first: index === 0, last: index === props.columns.length - 1 },
+        props,
+      );
     }
     return cellView(cell, index === 0, {
       active: props.active?.row === row.row && props.active.column === column.id,
@@ -283,7 +297,8 @@ const MOVES: ReadonlyMap<string, Move> = new Map([
 
 /**
  * A key pressed on the grid, not in a control inside it: an arrow, Home,
- * End, Page Up or Page Down moves the cell the keyboard is on, Enter opens
+ * End, Page Up or Page Down moves the cell the keyboard is on, and with
+ * Shift a move up or down extends the selection to its row; Enter opens
  * it for editing, Space selects its row and Shift-Space the rows from the
  * last one selected.
  */
@@ -294,7 +309,9 @@ function gridKey(event: KeyboardEvent, props: TableProps): void {
   const move = MOVES.get(event.key);
   if (move !== undefined) {
     event.preventDefault();
-    props.onMove(move);
+    // Shift with a move up or down extends the selection, as in a spreadsheet.
+    const vertical = move === "up" || move === "down" || move === "pageUp" || move === "pageDown";
+    props.onMove(move, event.shiftKey && vertical);
   } else if (event.key === "Enter") {
     event.preventDefault();
     props.onActiveOpen();

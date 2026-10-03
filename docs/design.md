@@ -113,17 +113,23 @@ it.
     stop of Tab, the arrows move a cell, Home and End to the first and
     last column, Page Up and Page Down a screenful, and Enter opens the
     cell for editing; Space selects its row, and Shift-Space the rows
-    from the last one selected. The cell is drawn with the focus ring,
-    and a screen reader is told it as the grid's active cell. Space and
-    Shift-Space were added by the assistant, to select by the keyboard as
-    a click does.
-  - The checkbox sits below the cell. A value refused is an error in the
-    information bar, such as "“1,5” was not put in “seeds”, which holds
-    whole numbers, such as 12. Type a whole number, or nothing for a
-    missing value."
-  - A category suggests its values as the user types, and a name that is
-    none of them is refused: a new population is made another way, not
-    by typing it in a cell.
+    from the last one selected; Shift with ↑, ↓, Page Up or Page Down
+    extends the selection from the row where the run of such keys
+    started (decided by the owner on 3 October 2026). The cell is drawn
+    with the focus ring, and a screen reader is told it as the grid's
+    active cell. Space and Shift-Space were added by the assistant, to
+    select by the keyboard as a click does.
+  - The checkbox is offered only when the cell's row is one of several
+    selected, and sits beside the cell, at its right, or at its left in
+    the last column, where the list of suggestions below the field does
+    not cover it (decided by the owner on 3 October 2026). A value
+    refused is an error in the information bar, such as "“1,5” was not
+    put in “seeds”, which holds whole numbers, such as 12. Type a whole
+    number, or nothing for a missing value."
+  - A category suggests its values as the user types; the list closes
+    once the one value that fits is the text typed (decided by the
+    owner on 3 October 2026). A name that is none of them is refused: a
+    new population is made another way, not by typing it in a cell.
   - A click on a row of a selection of several waits 500 ms, Windows'
     default double-click time, before it selects that row alone: the
     first click of a double-click would otherwise leave that row the only

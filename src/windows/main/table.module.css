@@ -159,8 +159,8 @@
   white-space: nowrap;
 }
 
-/* The cell being edited shows its whole field, and the checkbox below it
-   over the rows that follow. */
+/* The cell being edited shows its whole field, and the checkbox beside it
+   over the cells that follow, clear of the suggestions below the field. */
 .editing {
   position: relative;
   z-index: 2;
@@ -180,20 +180,30 @@
   text-align: inherit;
 }
 
-.toSelected {
+.toSelectedRight,
+.toSelectedLeft {
   position: absolute;
-  top: 100%;
-  left: 0;
+  top: 0;
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  height: 100%;
   min-height: var(--target-size);
-  padding: var(--space-1) var(--space-2);
+  padding: 0 var(--space-2);
   white-space: nowrap;
   color: var(--color-text);
   background: var(--color-panel);
   border: 1px solid var(--color-control-border);
-  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.toSelectedRight {
+  left: 100%;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.toSelectedLeft {
+  right: 100%;
+  border-radius: var(--radius) 0 0 var(--radius);
 }
 
 /* The cell the keyboard is on, while the grid has the focus. */

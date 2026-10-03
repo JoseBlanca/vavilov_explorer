@@ -4,7 +4,7 @@ import type { Connection } from "../../backend/connection.ts";
 import type { BarMessage } from "../../state/barMessages.ts";
 import { moved, positionOf } from "../../state/activeCell.ts";
 import type { ActiveCell, Move } from "../../state/activeCell.ts";
-import { editedRows, openedEdit } from "../../state/cellEdit.ts";
+import { editedRows, offersSelected, openedEdit } from "../../state/cellEdit.ts";
 import type { CellEdit } from "../../state/cellEdit.ts";
 import { cellRefusalMessage } from "../../state/cellMessages.ts";
 import { defect } from "../../state/defect.ts";
@@ -82,6 +82,8 @@ export function createTable(
   const fetching = new Map<number, object>();
   let loadedAt: Revision | null = null;
   let anchor: RowIndex | null = null;
+  /** Whether the last move of the keyboard extended the selection with Shift. */
+  let extending = false;
   let frame: number | null = null;
   let destroyed = false;
   /** The cell being edited, and whether its field is still to take the focus. */
@@ -260,6 +262,9 @@ export function createTable(
     if (project.kind !== "open") {
       return;
     }
+    if (!extend) {
+      extending = false;
+    }
     stopNarrowing();
     const from = extend && anchor !== null ? anchor : row;
     if (!extend) {
@@ -309,6 +314,19 @@ export function createTable(
   };
 
   /**
+   * Closes the list of values the field of the cell being edited suggests,
+   * before the field goes: WebKit kept the list on screen when the field
+   * went while it was open.
+   */
+  const closeSuggestions = (): void => {
+    const field = element.querySelector("[data-editor] input");
+    if (field instanceof HTMLInputElement) {
+      field.removeAttribute("list");
+      field.blur();
+    }
+  };
+
+  /**
    * Sends the value of the cell being edited, and closes it, giving the
    * focus back to the grid after Enter; after the focus left the cell, it
    * stays where it went.
@@ -321,6 +339,7 @@ export function createTable(
     const project = state.project();
     const selection = state.selection();
     editing = null;
+    closeSuggestions();
     if (how === "enter") {
       // As in a spreadsheet, Enter moves on to the cell below.
       if (active?.row === edit.row && active.column === edit.column) {
@@ -352,12 +371,18 @@ export function createTable(
       return;
     }
     editing = null;
+    closeSuggestions();
     draw();
     focusGrid();
   };
 
-  /** Moves the cell the keyboard is on by `move`, and scrolls it into view. */
-  const moveActive = (move: Move): void => {
+  /**
+   * Moves the cell the keyboard is on by `move`, and scrolls it into view.
+   * With `extend`, Shift held, the selection becomes the rows from the row
+   * where the run of such moves started to the cell's new row, as a
+   * shift-click does.
+   */
+  const moveActive = (move: Move, extend = false): void => {
     const now = description();
     if (now.kind !== "current") {
       return;
@@ -370,6 +395,7 @@ export function createTable(
       scroller === null || rowHeight === 0
         ? 1
         : Math.max(1, Math.floor(scroller.clientHeight / rowHeight) - 2);
+    const from = active?.row ?? null;
     active = moved(
       active,
       move,
@@ -379,6 +405,18 @@ export function createTable(
     );
     revealing = true;
     schedule();
+    if (active === null) {
+      return;
+    }
+    if (extend) {
+      if (!extending) {
+        anchor = from;
+        extending = true;
+      }
+      select(active.row, true, "keyboard");
+    } else {
+      extending = false;
+    }
   };
 
   /**
@@ -526,6 +564,12 @@ export function createTable(
         range,
         rows,
         editing,
+        offersSelected: (() => {
+          const selection = state.selection();
+          return editing !== null && selection !== null
+            ? offersSelected(editing, selection)
+            : false;
+        })(),
         active,
         onGridFocus: () => {
           if (
@@ -558,6 +602,8 @@ export function createTable(
         onEditText: (text) => {
           if (editing !== null) {
             editing = { ...editing, text };
+            // The values suggested follow the text.
+            draw();
           }
         },
         onEditToSelected: (toSelected) => {

@@ -6,7 +6,9 @@
 // reverts, the double-click keeping the selection; a click on a row of a
 // selection of several narrows it once no second click follows; a
 // category suggests its values; an ID is edited alone and never twice; the
-// keyboard moves on the cells, opens one with Enter and selects with Space.
+// keyboard moves on the cells, opens one with Enter, selects with Space
+// and extends the selection with Shift and a move up or down; the checkbox
+// is offered for a selection of several rows only, beside the cell.
 // Screenshots, light and dark, land in e2e/output/.
 //
 // Run with `npm run test:e2e`.
@@ -65,6 +67,11 @@ for (const engine of Object.keys(ENGINES)) {
       await height.evaluate((field) => [field.selectionStart, field.selectionEnd].join()),
       "0,1",
     );
+    // With no selection of several rows, no checkbox is offered.
+    assert.equal(
+      await grid.getByRole("checkbox", { name: "Apply to all selected rows" }).count(),
+      0,
+    );
     await shoot(page, engine, "cells-editing");
     await page.keyboard.type("2,75");
     await page.keyboard.press("Enter");
@@ -116,6 +123,15 @@ for (const engine of Object.keys(ENGINES)) {
       ),
       ["Spain", "Peru"],
     );
+    // The list closes once the one value that fits is the text typed.
+    const suggested = () =>
+      origin.evaluate((field) => [...(field.list?.options ?? [])].map((option) => option.value));
+    await origin.fill("Pe");
+    assert.deepEqual(await suggested(), ["Spain", "Peru"]);
+    await origin.fill("Peru");
+    await page.waitForFunction(
+      () => globalThis.document.querySelectorAll("datalist option").length === 0,
+    );
     await page.keyboard.press("Escape");
 
     // "Apply to all selected rows": three rows selected, and a double-click
@@ -128,6 +144,14 @@ for (const engine of Object.keys(ENGINES)) {
     await many.waitFor();
     const toSelected = grid.getByRole("checkbox", { name: "Apply to all selected rows" });
     assert.equal(await toSelected.isChecked(), false);
+    // Beside the cell, clear of the suggestions below the field.
+    const field = await many.boundingBox();
+    const box = await toSelected.locator("..").boundingBox();
+    assert.ok(
+      box.x >= field.x + field.width - 1,
+      `the checkbox at ${box.x}, the field ends at ${field.x + field.width}`,
+    );
+    assert.ok(box.y < field.y + field.height, "the checkbox beside the field, not below it");
     await toSelected.check();
     await shoot(page, engine, "cells-to-selected");
     await many.fill("Spain");
@@ -204,7 +228,34 @@ for (const engine of Object.keys(ENGINES)) {
     await page.keyboard.press("Shift+ ");
     await countSays(page, "4 individuals · 2 selected");
     assert.deepEqual(await selectedRows(page), ["p3", "p9"]);
+    // Shift with a move up or down extends the selection from the row the
+    // run of moves started on.
+    for (const key of ["ArrowUp", "ArrowUp", "ArrowUp"]) {
+      await page.keyboard.press(key);
+    }
+    await activeIs(page, ["p1", 1, "1,5"]);
+    await page.keyboard.press("Shift+ArrowDown");
+    await page.keyboard.press("Shift+ArrowDown");
+    await countSays(page, "4 individuals · 3 selected");
+    assert.deepEqual(await selectedRows(page), ["p1", "p2", "p3"]);
+    await page.keyboard.press("Shift+ArrowUp");
+    await countSays(page, "4 individuals · 2 selected");
+    assert.deepEqual(await selectedRows(page), ["p1", "p2"]);
+    // The checkbox is offered in the last column, at the cell's left.
     await page.keyboard.press("End");
+    await activeIs(page, ["p2", 3, "12"]);
+    await page.keyboard.press("Enter");
+    const seeds = grid.getByRole("textbox", { name: "seeds of p2" });
+    await seeds.waitFor();
+    const last = await seeds.boundingBox();
+    const left = await grid
+      .getByRole("checkbox", { name: "Apply to all selected rows" })
+      .locator("..")
+      .boundingBox();
+    assert.ok(left.x + left.width <= last.x + 1, "the checkbox at the left of the last column");
+    await shoot(page, engine, "cells-last-column");
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("PageDown");
     await activeIs(page, ["p9", 3, "7"]);
     await page.keyboard.press("Home");
     await activeIs(page, ["p9", 0, "p9"]);
