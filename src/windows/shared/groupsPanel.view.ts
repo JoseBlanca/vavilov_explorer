@@ -11,7 +11,7 @@ import { targetWords } from "../../state/groupEdit.ts";
 import { colourChoices, editTargetOf } from "../../state/groups.ts";
 import { singleOf } from "../../state/selectedGroups.ts";
 import type { GroupRow, GroupsModel } from "../../state/groups.ts";
-import { classOf } from "../shared/classOf.ts";
+import { classOf } from "./classOf.ts";
 import styles from "./groupsPanel.module.css";
 
 /**

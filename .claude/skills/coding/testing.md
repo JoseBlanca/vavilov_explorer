@@ -38,7 +38,12 @@ seconds, and when it fails says only that something on the path broke.
   a window would. The mock runtime has no web view, so these tests check
   the wiring, not what a window draws. They call every command once,
   which is what catches a command whose `State` type was never managed, a
-  panic at run time (`tauri.md`). They cannot see a window closed: the
+  panic at run time (`tauri.md`), and they call each command from every
+  kind of window that uses it, so that a permission missing from that
+  window's capability fails a test: the e2e harness goes through
+  `calls::call` and never sees the capabilities, and the widget's
+  permissions could be taken out with every check passing (the review of
+  3 October 2026). They cannot see a window closed: the
   mock runtime never sends the event that removes a destroyed window
   from Tauri's list, so `get_webview_window` still finds it, and the
   closing is left to the tests of the real app.
@@ -93,15 +98,21 @@ The harness opens one page, in one of two modes:
   the modules it tests from the dev server, `await
   import("/src/backend/connection.ts")`, until a window uses them.
 
-The design extends it (`docs/design.md`, section 11), and the extension
-is built with the first code that needs it:
-
-- **One page per window**, in one browser, each with its window's label.
-- **Opening and closing windows** goes through the core's interface for
-  windows, which the test program implements by asking the harness to
-  open and close pages.
-- Tauri's own `mockIPC` is not used: it replaces the backend rather than
-  the transport, and its event mocking cannot send to one window.
+With the test program, each window is a page of one browser, with its
+window's label (`docs/design.md`, section 11), and each channel message
+goes to the page of its window. The test program opens and closes a
+widget's window through the core's `WindowHost` by writing a line that
+asks the harness for a page, or to close one, before the answer of the
+call; `app.window(label)` resolves with the page once it is open, and
+fails when none has opened within 10 seconds, so that a window that never
+opens fails the test instead of hanging it,
+`app.closeWindow(label)` closes one as the user closes a window and tells
+the session with `e2e:closed`, as Tauri tells the app, and
+`app.windows()` gives the labels of the pages open (`e2e/widgets.mjs`).
+Playwright's `context.newPage()` takes no options, so each page sets its
+size with `setViewportSize`. Tauri's own `mockIPC` is not used: it
+replaces the backend rather than the transport, and its event mocking
+cannot send to one window.
 
 How a test is written:
 
@@ -134,6 +145,25 @@ once:
 - sample the pixel that contains a position with `floor`, not `round`;
 - measure a point's isolation against every visible point, not only the
   candidates away from the edges;
+- a point view draws on its next frame, so a screenshot after a change
+  of appearance, `emulateMedia`, waits two animation frames first;
+- `mouse.click` takes no modifier, only a locator's `click` does: a
+  Cmd-click on a point is `keyboard.down("ControlOrMeta")` around the
+  click, and `ControlOrMeta` is Cmd on the Mac, where Control-click is a
+  right click;
+- a lost WebGL context gives no `WEBGL_lose_context` extension, so the
+  test of a loss keeps the one it fetched before, to restore with it;
+- the dev server's build exposes a 3D scatter's `placeOf(row)` as
+  `__vavilovScatter3d`, behind `import.meta.env.DEV`, which a build for
+  users does not have;
+- a point is checked where the centre of the pixels of its colour is,
+  within 1 px of its place, not by one pixel at its place, which passed
+  with the place 2 px off;
+- Chromium's change of the device pixel ratio through the DevTools
+  protocol does not fire the media query of the resolution in a page
+  whose size Playwright set with `setViewportSize`, as every widget's page
+  is, so a window moved to a screen of another density is not tested in
+  the harness;
 - in Playwright's WebKit on the Mac the GPU draws; in its Chromium,
   SwiftShader draws on the processor (popnei_web's `testing.md`), so a
   test of pixels runs in both and a difference between them is looked at,

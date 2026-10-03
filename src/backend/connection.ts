@@ -2,6 +2,7 @@
 // copy of the state up to date from the channel, and sends the commands
 // (docs/core.md, sections 4 and 5).
 
+import type { ColumnNumbers } from "../state/columnNumbers.ts";
 import { isCommandError } from "../state/commandError.ts";
 import type { Refusal } from "../state/commandError.ts";
 import { isTableDescription } from "../state/description.ts";
@@ -15,10 +16,13 @@ import type { Result } from "../state/result.ts";
 import type { RowPage } from "../state/rowPage.ts";
 import { exportAnswerOf, importAnswerOf } from "../state/transfer.ts";
 import type { ExportAnswer, ExportFormat, ImportAnswer, MenuAction } from "../state/transfer.ts";
+import { isWidgetSpec } from "../state/widget.ts";
+import type { WidgetSpec } from "../state/widget.ts";
 import { createWindowState } from "../state/windowState.ts";
 import type { WindowState } from "../state/windowState.ts";
 import { decodeAction, isActionMessage } from "./decodeAction.ts";
 import { decodeMessage } from "./decodeMessage.ts";
+import { decodeNumbers } from "./decodeNumbers.ts";
 import { decodeRows } from "./decodeRows.ts";
 import type { CommandName, Transport } from "./transport.ts";
 
@@ -124,6 +128,35 @@ export interface Connection {
     count: number,
     columns: readonly ColumnId[],
   ) => Promise<Result<RowPage | "stale", Refusal>>;
+  /**
+   * The values of the numeric column `column`, whole, or "stale" when the
+   * table was replaced after the window's copy was made, or the backend's
+   * refusal.
+   */
+  readonly fetchColumn: (column: ColumnId) => Promise<Result<ColumnNumbers | "stale", Refusal>>;
+  /**
+   * The row `row` of the table, with its name and the values of `columns` in
+   * that order, whatever the filter shows: a page of one row at position 0;
+   * or "stale" when the table was replaced after the window's copy was made,
+   * or the backend's refusal.
+   */
+  readonly fetchRow: (
+    row: RowIndex,
+    columns: readonly ColumnId[],
+  ) => Promise<Result<RowPage | "stale", Refusal>>;
+  /**
+   * Opens a widget's window that shows `spec`, or gives the backend's
+   * refusal; "stale" when the copy it was chosen from is of a table replaced
+   * since.
+   */
+  readonly openWidget: (spec: WidgetSpec) => Promise<Answer>;
+  /**
+   * What this window's widget shows.
+   *
+   * @throws A defect when the window is no open widget's, or the answer does
+   * not fit.
+   */
+  readonly describeWidget: () => Promise<WidgetSpec>;
   /**
    * Imports a table: the backend asks the user for the file with the
    * system's dialog, and loads its table, or gives the refusal.
@@ -362,6 +395,70 @@ export async function connect(
         );
       }
       return { ok: true, value: decoded };
+    },
+    fetchColumn: async (column) => {
+      let numbers: unknown;
+      try {
+        numbers = await transport.invoke("fetch_column", { column, basedOn: ready.revision() });
+      } catch (error: unknown) {
+        return refusal("fetch_column", error);
+      }
+      if (!(numbers instanceof ArrayBuffer)) {
+        throw defect(
+          `a column that is not bytes, as after Tauri's fallback to postMessage: ${describe(numbers)}`,
+        );
+      }
+      const decoded = decodeNumbers(numbers);
+      if (decoded.column !== column) {
+        throw defect(`column ${String(decoded.column)}, asked for as ${String(column)}`);
+      }
+      return { ok: true, value: decoded };
+    },
+    fetchRow: async (row, columns) => {
+      let page: unknown;
+      try {
+        page = await transport.invoke("fetch_row", { row, columns, basedOn: ready.revision() });
+      } catch (error: unknown) {
+        return refusal("fetch_row", error);
+      }
+      if (!(page instanceof ArrayBuffer)) {
+        throw defect(
+          `a row that is not bytes, as after Tauri's fallback to postMessage: ${describe(page)}`,
+        );
+      }
+      const decoded = decodeRows(page);
+      const given = decoded.columns.map((column) => column.id);
+      if (
+        decoded.first !== 0 ||
+        decoded.count !== 1 ||
+        decoded.rows[0] !== row ||
+        given.length !== columns.length ||
+        given.some((id, index) => id !== columns[index])
+      ) {
+        throw defect(
+          `rows ${decoded.rows.join(", ")} with columns ${given.join(", ")}, asked for as row ${String(row)} with columns ${columns.join(", ")}`,
+        );
+      }
+      return { ok: true, value: decoded };
+    },
+    openWidget: async (spec) => {
+      checkSound("open_widget");
+      return answer(
+        "open_widget",
+        transport.invoke("open_widget", { spec, basedOn: ready.revision() }),
+      );
+    },
+    describeWidget: async () => {
+      let spec: unknown;
+      try {
+        spec = await transport.invoke("describe_widget", {});
+      } catch (error: unknown) {
+        throw defect(`describe_widget failed with ${describe(error)}`);
+      }
+      if (!isWidgetSpec(spec)) {
+        throw defect(`a widget described as ${describe(spec)}`);
+      }
+      return spec;
     },
     setRole: (column, role) => command("set_role", { column, role }),
     setFilter: (filter, decimalMark) =>

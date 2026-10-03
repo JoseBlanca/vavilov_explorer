@@ -9,6 +9,7 @@ pub mod dialogs;
 pub mod menu;
 pub mod region;
 pub mod transfer;
+pub mod windows;
 
 use std::sync::Mutex;
 
@@ -53,9 +54,9 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
                 match window.try_state::<Mutex<Session>>() {
-                    Some(session) => commands::unsubscribe(&session, window.label()),
+                    Some(session) => commands::window_closed(&session, window.label()),
                     None => eprintln!(
-                        "Vavilov Explorer defect: no session to unsubscribe window {}",
+                        "Vavilov Explorer defect: no session to forget window {}",
                         window.label()
                     ),
                 }
@@ -65,6 +66,10 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::subscribe,
             commands::describe_table,
             commands::fetch_rows,
+            commands::fetch_column,
+            commands::fetch_row,
+            commands::open_widget,
+            commands::describe_widget,
             commands::set_selection,
             commands::set_cells,
             commands::assign_rows,

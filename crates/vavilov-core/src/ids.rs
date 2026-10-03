@@ -16,7 +16,7 @@ pub const MAX_EXACT_IN_JAVASCRIPT: u64 = 9_007_199_254_740_991;
 /// The id of a column, given when the column is created and never
 /// changed or given again within a table. `u32::MAX` is never an id: the
 /// messages use it for "no column".
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ColumnId(u32);
 

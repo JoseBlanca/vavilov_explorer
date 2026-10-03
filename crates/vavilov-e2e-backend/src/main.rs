@@ -24,7 +24,13 @@
 //!   item of the menu to the main window, as a click in the app's menu;
 //! - `{"id", "command": "e2e:region", "decimalMark": ","}` sets the decimal
 //!   mark of the system's region, which `region_decimal_mark` gives;
-//! - `{"window", "message": [...]}` is a message of the window's channel.
+//! - `{"id", "window", "command": "e2e:closed"}` tells the session that the
+//!   page of the window was closed, as Tauri tells the app that a window
+//!   was destroyed;
+//! - `{"window", "message": [...]}` is a message of the window's channel;
+//! - `{"open": label, "widget": {...}}` asks the harness for the page of a
+//!   widget's window, and `{"close": label}` to close one; each comes
+//!   before the answer of the call that opened or closed it.
 
 mod load;
 mod wire;
@@ -32,11 +38,14 @@ mod wire;
 use std::io::{BufRead, Write};
 use std::process::ExitCode;
 
-use vavilov_core::{SendFailed, Session, Subscriber, WindowLabel};
+use vavilov_core::{
+    CommandError, SendFailed, Session, Subscriber, WidgetSpec, WindowHost, WindowLabel,
+};
 
 fn main() -> ExitCode {
     let mut session = Session::new();
     let mut stand_ins = wire::StandIns::default();
+    let mut host = Pages;
     for line in std::io::stdin().lock().lines() {
         let line = match line {
             Ok(line) => line,
@@ -45,9 +54,13 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
-        let answer = wire::answer(&mut session, &mut stand_ins, &line, |label| {
-            Box::new(Stdout { label })
-        });
+        let answer = wire::answer(
+            &mut session,
+            &mut stand_ins,
+            &line,
+            |label| Box::new(Stdout { label }),
+            &mut host,
+        );
         if let Err(error) = write_line(&answer) {
             eprintln!("vavilov-e2e-backend: writing to the harness: {error}");
             return ExitCode::FAILURE;
@@ -68,6 +81,28 @@ impl Subscriber for Stdout {
         write_line(&line).map_err(|error| SendFailed {
             reason: error.to_string(),
         })
+    }
+}
+
+/// The windows of the widgets, as pages the harness opens and closes.
+struct Pages;
+
+impl WindowHost for Pages {
+    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), CommandError> {
+        let line = serde_json::json!({ "open": label.as_str(), "widget": widget });
+        write_line(&line).map_err(|error| failed(label, &error))
+    }
+
+    fn close(&mut self, label: &WindowLabel) -> Result<(), CommandError> {
+        let line = serde_json::json!({ "close": label.as_str() });
+        write_line(&line).map_err(|error| failed(label, &error))
+    }
+}
+
+fn failed(label: &WindowLabel, error: &std::io::Error) -> CommandError {
+    CommandError::WindowFailed {
+        label: label.clone(),
+        message: error.to_string(),
     }
 }
 

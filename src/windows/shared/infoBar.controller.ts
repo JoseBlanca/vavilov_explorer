@@ -11,9 +11,8 @@ import {
   withTimePassed,
 } from "../../state/barMessages.ts";
 import type { BarMessage, BarMessages } from "../../state/barMessages.ts";
-import type { WindowState } from "../../state/windowState.ts";
-import { tableCountOf, tableCountText } from "../../state/tableCount.ts";
-import { countText } from "../shared/numbers.ts";
+import type { Aspect, WindowState } from "../../state/windowState.ts";
+import { countText } from "./numbers.ts";
 import { infoBarView } from "./infoBar.view.ts";
 import type { InfoBarMessage } from "./infoBar.view.ts";
 
@@ -23,8 +22,18 @@ export interface InfoBar {
   readonly tell: (message: BarMessage) => void;
   /** Takes away the message shown and those waiting. */
   readonly clear: () => void;
+  /** Draws the count again, when it changed other than with its aspects. */
+  readonly recount: () => void;
   /** Unsubscribes, stops its timers, and empties the element. */
   readonly destroy: () => void;
+}
+
+/** The count the bar shows after its message: what the window counts. */
+export interface InfoCount {
+  /** The aspects of the window's copy the count is drawn from. */
+  readonly aspects: readonly Aspect[];
+  /** The count in words, or `null` when there is none, as with no project open. */
+  readonly text: () => string | null;
 }
 
 /**
@@ -35,12 +44,12 @@ export interface InfoBar {
 const ANNOUNCE_AFTER_MS = 500;
 
 /**
- * The information bar below the table: the message shown, of those the
- * window tells it, one at a time (src/state/barMessages.ts); and the count
- * of the rows the filter shows, of the table and of the selection, drawn
- * again when any of them changes, and told to a screen reader once it has
- * not changed for {@link ANNOUNCE_AFTER_MS}, with no count with no project
- * open. When the user dismisses a message, the focus goes to the × of the
+ * The information bar at the bottom of a window: the message shown, of
+ * those the window tells it, one at a time (src/state/barMessages.ts); and
+ * the window's `count`, the rows of the table in the main window, the
+ * individuals drawn in a plot window, drawn again when any of its aspects
+ * changes, and told to a screen reader once it has not changed for
+ * {@link ANNOUNCE_AFTER_MS}. When the user dismisses a message, the focus goes to the × of the
  * next, when it has one, and otherwise back to where it was when the bar
  * first showed a message with its ×, or, when that is no longer in the
  * window, to `refocus`.
@@ -48,6 +57,7 @@ const ANNOUNCE_AFTER_MS = 500;
 export function createInfoBar(
   element: HTMLElement,
   state: WindowState,
+  count: InfoCount,
   refocus: () => void,
 ): InfoBar {
   /** The count told to a screen reader. */
@@ -128,18 +138,16 @@ export function createInfoBar(
   };
 
   const draw = (): void => {
-    const table = tableCountOf(state.project(), state.shown(), state.selection());
-    let count: string | null = null;
-    if (table === null) {
+    const counted = count.text();
+    if (counted === null) {
       stopWaiting();
       announced = "";
     } else {
-      count = tableCountText(table, countText);
-      if (count === announced) {
+      if (counted === announced) {
         stopWaiting();
-      } else if (waiting?.count !== count) {
+      } else if (waiting?.count !== counted) {
         stopWaiting();
-        const told = count;
+        const told = counted;
         waiting = {
           count: told,
           timer: window.setTimeout(() => {
@@ -150,11 +158,12 @@ export function createInfoBar(
         };
       }
     }
-    render(infoBarView({ message: shownMessage(), count, announced, onDismiss: dismiss }), element);
+    render(
+      infoBarView({ message: shownMessage(), count: counted, announced, onDismiss: dismiss }),
+      element,
+    );
   };
-  const unsubscribes = (["table", "filter", "selection"] as const).map((aspect) =>
-    state.subscribe(aspect, draw),
-  );
+  const unsubscribes = count.aspects.map((aspect) => state.subscribe(aspect, draw));
   draw();
   return {
     tell: (message) => {
@@ -163,6 +172,7 @@ export function createInfoBar(
     clear: () => {
       change(NO_MESSAGES);
     },
+    recount: draw,
     destroy: () => {
       stopWaiting();
       if (messageTimer !== null) {

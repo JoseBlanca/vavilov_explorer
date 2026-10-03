@@ -193,8 +193,8 @@ it and whether it is undone. `OpenProject` holds the first two:
   project file saves, the history apart.
 - **The interaction**: the active classification, the selected
   groups, the button + or − pressed on them, the selection, the hover,
-  and later the open widgets. The active classification, the selected
-  groups and the button are one value, `Option<Active { column,
+  and the open widgets (section 7). The active classification, the
+  selected groups and the button are one value, `Option<Active { column,
   selected: SelectedGroups, mode: Option<EditMode> }>`, so that a
   selected group cannot exist without the classification it belongs
   to; a selected group is a value of the active classification
@@ -526,7 +526,7 @@ numbers are little-endian, the order of every platform the app targets.
 
 | bytes | field |
 |---|---|
-| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows, 4 action (below) |
+| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows, 4 action, 5 numbers (below) |
 | 1 | flags: bit 0 set when the time below was given, the other bits zero |
 | 2 to 7 | zero |
 | 8 to 15 | the revision, `u64` |
@@ -633,6 +633,41 @@ A text list is the end of each text, as an offset into the bytes that
 follow, one `u32` per row after a first 0, then the texts one after the
 other in UTF-8. A window that finds an offset that goes back or past the
 bytes, or bytes that are not UTF-8, treats the message as a defect.
+
+### A numeric column
+
+A point view draws whole columns, not pages: a 3D scatter asks for the
+three columns on its axes with `fetch_column`, which takes, as JSON, the
+column's id and the revision of the window's copy, `{ column, basedOn }`,
+and changes nothing (`design.md`, section 4). It is refused as a command
+made before the current table was loaded when `basedOn` is older than the
+load, as `UnknownColumn` for an id the table does not have, the first
+column's included, and as `NotNumber` for a column whose role is not a
+number, a latitude or a longitude.
+
+The answer is raw bytes, a message of a fifth kind, numbers, whose header
+has the current revision and no time, with one part, numbers, 14:
+
+| part | payload |
+|---|---|
+| numbers, 14 | the column id, `u32`; four zero bytes; the column's revision, `u64`; the number of rows, `u32`; four zero bytes; the middle of the column's values, `f64`, the half-way point of the smallest and the largest, 0 with every row missing; which rows are missing, one bit per row in the order of the selection's bits, padded with zeros to a multiple of 8; then an `f32` per row, its value's distance from the middle, zero in a missing row |
+
+The distances are 32-bit floats, as the GPU draws them, written by one
+function of the writer (`rust.md`, "Floats"), and the window adds the
+middle back in its own 64-bit numbers. A 32-bit float keeps about 7
+significant digits, and the distances keep them of the spread of the
+values rather than of their size: positions on a genome or coordinates in
+metres, 4,500,000.05, 4,500,000.10 and 4,500,000.15, would all become
+4,500,000 as 32-bit floats of their own (decided by the owner on
+3 October 2026, after the review of that day). A whole number goes
+through the nearest `f64` first. A distance beyond about 3.4 × 10^38
+becomes an infinity, which a window counts among the values it cannot
+draw; a NaN, which the core never holds, is a defect, and so is a middle
+that is not finite, or a missing row that holds anything but zero. The
+message of a column of 50,000 rows is 206,320 bytes. The column's revision tells the window
+whether the values are those of its copy: it uses them only when the
+revision is the one its copy has for the column, and asks again when the
+copy's grows.
 
 ### The filter
 
@@ -805,8 +840,36 @@ text, and a poisoned lock is a `Defect`.
 Some rules about windows are rules about the data, and belong in the
 core: removing a column closes every widget that shows it (`design.md`,
 section 2.2). The session keeps the open widgets, each with its label,
-its kind and its columns, and gives the labels, `scatter3d-1` and on,
-from a counter that only grows, so that a label is never given twice.
+its kind and its columns, a `WidgetSpec` such as `Scatter3d { axes: [x,
+y, z] }`, and gives the labels, `scatter3d-1` and on, from a counter that
+only grows, so that a label is never given twice. The widgets are part of
+the open project, since they show its columns, so a load closes them all;
+the counter is the session's, so that a label is not given again in the
+next project.
+
+`Session::open_widget(spec, based_on)` adds a widget and returns its
+label; it is refused as a command made before the load, as `NoProject`,
+and as `UnknownColumn` or `NotNumber` for a column it cannot show, and it
+takes no revision and sends no message, since no window's copy holds the
+widgets: the main window does not list them, and each widget's window
+learns only its own. It asks for it with `describe_widget`, which takes
+no argument and which the app answers from the label of the window that
+calls it, so that a page cannot ask for another window's: the widget's
+`WidgetSpec` as JSON, `{ "kind": "scatter3d", "axes": [4, 5, 6] }`, the
+ids of the columns on the x, y and z axes, or `UnknownWindow` for a
+window that is no open widget. When a window is closed, by the
+user or by the app, `Session::window_closed(label)` forgets its
+subscriber and its widget.
+
+A command that leaves a widget with a column it can no longer show closes
+it: after a load, every widget; after a change of role, a widget with the
+column on an axis when the column is no longer a number, a latitude or a
+longitude (decided by the assistant on 3 October 2026, to be confirmed by
+the owner). The dispatcher drops such widgets and their subscribers
+before it sends the command's message, so that their windows receive
+nothing more, and returns their labels in `Outcome::closed`. Undoing the
+change brings the column back as it was but does not reopen the widget,
+as `design.md`, section 2.2, has it for a column removed.
 
 A command does not open or close a window itself. It returns, with its
 outcome, the windows to open and close, and the caller does it once it
@@ -814,13 +877,21 @@ has released the lock, through the core's trait:
 
 ```rust
 pub trait WindowHost {
-    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), WindowFailed>;
-    fn close(&mut self, label: &WindowLabel) -> Result<(), WindowFailed>;
+    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), CommandError>;
+    fn close(&mut self, label: &WindowLabel) -> Result<(), CommandError>;
 }
 ```
 
-The app implements it with Tauri windows and the e2e test program by
-asking the harness to open and close pages (`design.md`, section 11).
+Each returns `CommandError::WindowFailed`, with the window's label and
+the system's message, when the window could not be opened or closed. The
+app implements it with Tauri windows (`src-tauri/src/windows.rs`) and the
+e2e test program by asking the harness to open and close pages
+(`design.md`, section 11). The app's `open_widget` and the test program
+both take the label from the call's reply, open the window once the lock
+is released, and tell the session with `window_closed` when it failed;
+both close the windows of `Outcome::closed` after every command, and a
+window that cannot be closed is written to the log, since the session has
+forgotten it already.
 The windows are opened outside the lock for two reasons: a new window
 subscribes as it starts, which takes the lock, and in Tauri a window
 created from a synchronous command deadlocks on Windows (`tauri.md`).
@@ -828,12 +899,16 @@ created from a synchronous command deadlocks on Windows (`tauri.md`).
 Because the lock is released before the windows are opened, two
 commands can interleave there: one adds widget W and releases the lock,
 a second removes W's column and asks to close W before W's window
-exists, and then the first opens it. The session is what settles it: a
-window subscribes with its label as it starts, and the session refuses a
-label that is not an open widget (section 5), so the app closes a window
-the session no longer has. A window that fails to open is reported to
-the session by a command that removes it from the widgets, so that the
-session does not keep a widget no window shows.
+exists, and then the first opens it. The session is what settles it.
+Once the window exists, the app's `open_widget` checks under the lock
+that W is still open, and closes the window when it is not
+(`windows::open_widget_window`), before its page can show anything. And
+a window subscribes with its label as it starts, and the session refuses
+a label that is not an open widget (section 5), so the app closes a
+window the session no longer has however it came to be open. A window that fails to open is reported to
+the session with `window_closed`, which removes it from the widgets, so
+that the session does not keep a widget no window shows; the user sees
+the error the main window writes from `WindowFailed`.
 
 ## 8. The import and the export
 
@@ -944,9 +1019,10 @@ Later, each in its own slice:
   removing groups, changing a colour (a group is added since
   3 October 2026, section 4);
 - the description of the table as JSON and the fetching of columns, with
-  their layouts;
-- the widgets and `WindowHost`, with the e2e test program, and the
-  layouts of `design.md`, section 2.4;
+  their layouts (built: the description, the pages of rows, and a
+  numeric column whole, section 5);
+- the widgets and `WindowHost`, with the e2e test program (built on
+  3 October 2026, section 7), and the layouts of `design.md`, section 2.4;
 - the project file, a zip of Parquet and JSON (`design.md`, section 8),
   whose two crates the owner has not approved, and the flag of unsaved
   changes;

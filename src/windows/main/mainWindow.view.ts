@@ -40,5 +40,6 @@ export function mainWindowView(props: MainWindowProps): TemplateResult {
     </div>
     <div data-slot="dialog"></div>
     <div data-slot="export"></div>
+    <div data-slot="plot"></div>
   </div>`;
 }

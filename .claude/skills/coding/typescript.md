@@ -54,7 +54,10 @@ TypeScript 6.0. The options, in `tsconfig.json`, beyond the template's:
   needed, check the value, and a missing one the code makes impossible is
   a defect (below). Not `array[i]!` and not `array[i] ?? 0`: the first
   silences the check, the second turns a bug into a zero that looks like
-  a value. A typed array, `Float32Array`, is indexed the same way.
+  a value. A typed array, `Float32Array`, is indexed the same way. An
+  element the code knows is there, by a length it checked or the way it
+  built the array, is read with `at(values, index)` of `src/state/at.ts`,
+  which throws the defect.
 - **`exactOptionalPropertyTypes`**: an optional field may be absent but
   not `undefined`.
 - **`verbatimModuleSyntax` and `erasableSyntaxOnly`**: Vite removes the

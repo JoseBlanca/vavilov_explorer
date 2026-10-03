@@ -8,8 +8,8 @@ use std::sync::{Mutex, MutexGuard};
 use tauri::ipc::{Channel, InvokeResponseBody, Response};
 use tauri::{AppHandle, Manager, Runtime, State, WebviewWindow};
 use vavilov_core::{
-    CommandError, Dropped, SendFailed, Session, Subscriber, TableDescription, WindowLabel,
-    export_table as export_bytes,
+    CommandError, Dropped, SendFailed, Session, Subscriber, TableDescription, WidgetSpec,
+    WindowLabel, export_table as export_bytes,
 };
 
 use crate::calls;
@@ -17,6 +17,7 @@ use crate::dialogs;
 use crate::menu;
 use crate::region;
 use crate::transfer::{self, ExportAnswer, ImportAnswer};
+use crate::windows::{self, TauriWindows};
 
 /// The session, as every command takes it.
 pub type SessionState<'a> = State<'a, Mutex<Session>>;
@@ -66,9 +67,11 @@ pub fn describe_table(
         request.headers(),
     )? {
         calls::Reply::Description(description) => Ok(description),
-        calls::Reply::Applied(_) | calls::Reply::Rows(_) => Err(CommandError::Defect {
-            what: "describe_table gave another reply than a description".to_owned(),
-        }),
+        calls::Reply::Applied(_) | calls::Reply::Bytes(_) | calls::Reply::Opened { .. } => {
+            Err(CommandError::Defect {
+                what: "describe_table gave another reply than a description".to_owned(),
+            })
+        }
     }
 }
 
@@ -93,11 +96,116 @@ pub fn fetch_rows(
         request.body(),
         request.headers(),
     )? {
-        calls::Reply::Rows(bytes) => Ok(Response::new(bytes)),
-        calls::Reply::Applied(_) | calls::Reply::Description(_) => Err(CommandError::Defect {
-            what: "fetch_rows gave another reply than rows".to_owned(),
-        }),
+        calls::Reply::Bytes(bytes) => Ok(Response::new(bytes)),
+        calls::Reply::Applied(_) | calls::Reply::Description(_) | calls::Reply::Opened { .. } => {
+            Err(CommandError::Defect {
+                what: "fetch_rows gave another reply than rows".to_owned(),
+            })
+        }
     }
+}
+
+/// The values of a numeric column, whole, as raw bytes: `{ column, basedOn
+/// }`. It changes nothing.
+///
+/// # Errors
+///
+/// `MadeBeforeLoad`, `NoProject`, `UnknownColumn`, `NotNumber`, or the
+/// refusals of [`calls::call`].
+#[tauri::command]
+pub fn fetch_column(
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<Response, CommandError> {
+    let mut session = lock(&session)?;
+    match calls::call(
+        &mut session,
+        "fetch_column",
+        request.body(),
+        request.headers(),
+    )? {
+        calls::Reply::Bytes(bytes) => Ok(Response::new(bytes)),
+        calls::Reply::Applied(_) | calls::Reply::Description(_) | calls::Reply::Opened { .. } => {
+            Err(CommandError::Defect {
+                what: "fetch_column gave another reply than numbers".to_owned(),
+            })
+        }
+    }
+}
+
+/// One row of the table by its index, as raw bytes: `{ row, columns,
+/// basedOn }`, a page of one row at position 0, whatever the filter shows,
+/// with its name and the values of `columns` in that order. It changes
+/// nothing.
+///
+/// # Errors
+///
+/// `MadeBeforeLoad`, `NoProject`, `RowOutOfRange`, `UnknownColumn`, or the
+/// refusals of [`calls::call`].
+#[tauri::command]
+pub fn fetch_row(
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<Response, CommandError> {
+    let mut session = lock(&session)?;
+    match calls::call(&mut session, "fetch_row", request.body(), request.headers())? {
+        calls::Reply::Bytes(bytes) => Ok(Response::new(bytes)),
+        calls::Reply::Applied(_) | calls::Reply::Description(_) | calls::Reply::Opened { .. } => {
+            Err(CommandError::Defect {
+                what: "fetch_row gave another reply than a row".to_owned(),
+            })
+        }
+    }
+}
+
+/// Opens a widget's window: `{ spec, basedOn }`, `spec` being what it
+/// shows, such as `{ kind: "scatter3d", axes: [x, y, z] }`. The session
+/// adds the widget under its lock, and the window is made once the lock
+/// is released, since it subscribes as it starts
+/// ([`windows::open_widget_window`]). It is `async`, since a
+/// window made from a synchronous command deadlocks on Windows (tauri.md).
+///
+/// # Errors
+///
+/// `MadeBeforeLoad`, `NoProject`, `UnknownColumn`, `NotNumber`,
+/// `WindowFailed`, or the refusals of [`calls::call`].
+#[tauri::command]
+pub async fn open_widget<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<(), CommandError> {
+    let reply = calls::call(
+        &mut *lock(&session)?,
+        "open_widget",
+        request.body(),
+        request.headers(),
+    )?;
+    let calls::Reply::Opened { label, spec } = reply else {
+        return Err(CommandError::Defect {
+            what: "open_widget gave another reply than a widget".to_owned(),
+        });
+    };
+    windows::open_widget_window(&session, &mut TauriWindows(&app), &label, &spec)
+}
+
+/// What the calling window's widget shows, as `{ kind, ... }`: a 3D
+/// scatter's `{ kind: "scatter3d", axes: [x, y, z] }`. Takes no arguments.
+///
+/// # Errors
+///
+/// `UnknownWindow` for a window that is no open widget, or a `Defect`.
+#[tauri::command]
+pub fn describe_widget<R: Runtime>(
+    window: WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<WidgetSpec, CommandError> {
+    calls::describe_widget(
+        &*lock(&session)?,
+        &WindowLabel::new(window.label()),
+        request.body(),
+    )
 }
 
 /// Sets the selection: the body is one bit per row, with the headers
@@ -365,6 +473,7 @@ pub async fn import_table<R: Runtime>(
         (answer, outcome, session.undo_redo())
     };
     report_dropped(&app, outcome.dropped);
+    windows::close_all(&mut TauriWindows(&app), &outcome.closed);
     menu::enable_table_items(&app);
     // A table loaded has no history.
     menu::show_undo_redo(&app, undo_redo);
@@ -396,12 +505,13 @@ pub async fn export_table<R: Runtime>(
     transfer::write(&path, &bytes)
 }
 
-/// Forgets the subscriber of a window that was closed.
-pub(crate) fn unsubscribe(session: &Mutex<Session>, label: &str) {
+/// Forgets a window that was closed: its subscriber, and its widget when
+/// it is one.
+pub(crate) fn window_closed(session: &Mutex<Session>, label: &str) {
     match session.lock() {
-        Ok(mut session) => session.unsubscribe(&WindowLabel::new(label)),
+        Ok(mut session) => session.window_closed(&WindowLabel::new(label)),
         Err(_) => eprintln!(
-            "Vavilov Explorer defect: the session's lock is poisoned; window {label} was not unsubscribed"
+            "Vavilov Explorer defect: the session's lock is poisoned; window {label} was not forgotten"
         ),
     }
 }
@@ -421,16 +531,20 @@ fn run<R: Runtime>(
     match reply {
         calls::Reply::Applied(outcome) => {
             report_dropped(app, outcome.dropped);
+            windows::close_all(&mut TauriWindows(app), &outcome.closed);
             menu::show_undo_redo(app, undo_redo);
             Ok(())
         }
-        calls::Reply::Description(_) | calls::Reply::Rows(_) => Err(CommandError::Defect {
-            what: format!("the command {command} gave a reply of a read, not an outcome"),
-        }),
+        calls::Reply::Description(_) | calls::Reply::Bytes(_) | calls::Reply::Opened { .. } => {
+            Err(CommandError::Defect {
+                what: format!("the command {command} gave a reply of a read, not an outcome"),
+            })
+        }
     }
 }
 
-fn lock<'a>(session: &'a SessionState<'_>) -> Result<MutexGuard<'a, Session>, CommandError> {
+/// Takes the session's lock; a poisoned lock is a defect.
+pub(crate) fn lock(session: &Mutex<Session>) -> Result<MutexGuard<'_, Session>, CommandError> {
     session.lock().map_err(|_| CommandError::Defect {
         what: "the session's lock is poisoned".to_owned(),
     })

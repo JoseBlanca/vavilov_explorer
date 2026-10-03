@@ -141,3 +141,13 @@ fn undo_and_redo_have_the_codes_4_and_5() {
         .collect();
     assert_eq!(codes, [4, 5]);
 }
+
+#[test]
+fn the_items_with_a_dialog_or_a_message_show_in_the_main_window() {
+    assert!(MenuAction::ImportTable.shows_in_main_window());
+    assert!(MenuAction::ExportCsv.shows_in_main_window());
+    assert!(MenuAction::ExportXlsx.shows_in_main_window());
+    assert!(MenuAction::Scatter3d.shows_in_main_window());
+    assert!(!MenuAction::Undo.shows_in_main_window());
+    assert!(!MenuAction::Redo.shows_in_main_window());
+}

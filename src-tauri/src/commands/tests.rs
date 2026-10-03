@@ -6,7 +6,7 @@ use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use vavilov_core::{
     Categorical, Colour, ColumnId, ColumnValues, Command, LevelCode, LevelValues, NewColumn,
-    Request, RowIndex, Table, UndoRedo,
+    Numbers, Request, RowIndex, Table, UndoRedo,
 };
 
 use super::*;
@@ -138,7 +138,7 @@ fn lasso_headers(group: u16, based_on: u64) -> Vec<(&'static str, String)> {
 
 #[test]
 fn every_command_is_registered_and_finds_the_session() {
-    let (_app, window) = app();
+    let (app, window) = app();
     assert!(matches!(
         json_command(&window, "subscribe", json!({ "onChange": "__CHANNEL__:1" })),
         Ok(InvokeResponseBody::Raw(_))
@@ -190,6 +190,10 @@ fn every_command_is_registered_and_finds_the_session() {
             "fetch_rows",
             json!({ "first": 0, "count": 0, "columns": [], "basedOn": 0 }),
         ),
+        (
+            "open_widget",
+            json!({ "spec": { "kind": "scatter3d", "axes": [1, 1, 1] }, "basedOn": 0 }),
+        ),
     ] {
         assert_eq!(
             json_command(&window, cmd, args).unwrap_err(),
@@ -210,6 +214,23 @@ fn every_command_is_registered_and_finds_the_session() {
             "{cmd}"
         );
     }
+    // A widget's window, which only a widget asks for.
+    let widget = WebviewWindowBuilder::new(&app, "scatter3d-1", WebviewUrl::default())
+        .build()
+        .unwrap();
+    assert_eq!(
+        json_command(
+            &widget,
+            "fetch_column",
+            json!({ "column": 1, "basedOn": 0 })
+        )
+        .unwrap_err(),
+        no_project
+    );
+    assert_eq!(
+        json_command(&widget, "describe_widget", json!({})).unwrap_err(),
+        json!({ "kind": "unknownWindow", "label": "scatter3d-1" })
+    );
     // The region's decimal mark needs no table.
     assert!(matches!(
         json_command(&window, "region_decimal_mark", json!({})),
@@ -384,25 +405,191 @@ fn a_raw_command_without_a_header_it_needs_is_a_defect() {
     );
 }
 
-// The capability lets only the main window call the commands, so a widget's
-// window is refused before the session sees it. The session's own refusal of
-// a label it does not know, and the closing of such a window, come into play
-// once the widgets are in the capability (core.md, section 7); the session's
-// refusal is tested in the core.
-#[test]
-fn a_window_of_a_widget_cannot_subscribe_yet() {
-    let (app, _main) = app();
-    let stray = WebviewWindowBuilder::new(&app, "scatter3d-1", WebviewUrl::default())
-        .build()
+/// Three plants with `origin` as column 1, active, and `height` as
+/// column 2, a number, loaded at revision 1.
+fn load_with_height(app: &App<MockRuntime>) {
+    let colour = Colour {
+        red: 0,
+        green: 114,
+        blue: 178,
+    };
+    let table = Table::new(
+        "IndividualID",
+        vec!["p1".to_owned(), "p2".to_owned(), "p3".to_owned()],
+        vec![
+            NewColumn {
+                name: "origin".to_owned(),
+                values: ColumnValues::Category(Categorical::new(
+                    LevelValues::Text(vec!["Spain".to_owned()]),
+                    vec![colour],
+                    vec![Some(LevelCode::new(0)), None, None],
+                )),
+            },
+            NewColumn {
+                name: "height".to_owned(),
+                values: ColumnValues::Number(Numbers::Float(vec![Some(1.5), None, Some(2.0)])),
+            },
+        ],
+    )
+    .unwrap();
+    session_of(app)
+        .dispatch(Request {
+            command: Command::LoadTable {
+                table,
+                active_classification: Some(ColumnId::new(ORIGIN)),
+            },
+            based_on: vavilov_core::Revision::ZERO,
+            sent_at: None,
+        })
         .unwrap();
-    let refusal =
-        json_command(&stray, "subscribe", json!({ "onChange": "__CHANNEL__:2" })).unwrap_err();
-    assert!(
+}
+
+fn not_allowed(answer: Result<InvokeResponseBody, Value>) -> bool {
+    answer.is_err_and(|refusal| {
         refusal
             .as_str()
-            .is_some_and(|text| text.contains("subscribe not allowed")),
-        "{refusal}"
+            .is_some_and(|text| text.contains("not allowed"))
+    })
+}
+
+#[test]
+fn a_widget_opened_from_the_main_window_subscribes_describes_itself_and_fetches_its_columns() {
+    let (app, main) = app();
+    load_with_height(&app);
+    let spec = json!({ "kind": "scatter3d", "axes": [2, 2, 2] });
+    assert!(json_command(&main, "open_widget", json!({ "spec": spec, "basedOn": 1 })).is_ok());
+    let widget = app.get_webview_window("scatter3d-1").unwrap();
+    assert!(matches!(
+        json_command(&widget, "subscribe", json!({ "onChange": "__CHANNEL__:2" })),
+        Ok(InvokeResponseBody::Raw(_))
+    ));
+    let InvokeResponseBody::Json(described) =
+        json_command(&widget, "describe_widget", json!({})).unwrap()
+    else {
+        panic!("a widget described as raw bytes");
+    };
+    assert_eq!(serde_json::from_str::<Value>(&described).unwrap(), spec);
+    assert!(matches!(
+        json_command(&widget, "fetch_column", json!({ "column": 2, "basedOn": 1 })),
+        Ok(InvokeResponseBody::Raw(bytes)) if bytes.first() == Some(&5)
+    ));
+    assert_eq!(
+        json_command(
+            &widget,
+            "fetch_column",
+            json!({ "column": 1, "basedOn": 1 })
+        )
+        .unwrap_err(),
+        json!({ "kind": "notNumber", "column": 1 })
     );
+}
+
+#[test]
+fn a_widget_of_a_column_that_is_no_number_is_refused_and_opens_no_window() {
+    let (app, main) = app();
+    load_with_height(&app);
+    let spec = json!({ "kind": "scatter3d", "axes": [2, 1, 2] });
+    assert_eq!(
+        json_command(&main, "open_widget", json!({ "spec": spec, "basedOn": 1 })).unwrap_err(),
+        json!({ "kind": "notNumber", "column": 1 })
+    );
+    assert!(app.get_webview_window("scatter3d-1").is_none());
+}
+
+#[test]
+fn a_window_of_no_open_widget_cannot_subscribe() {
+    let (app, _main) = app();
+    load_with_height(&app);
+    let stray = WebviewWindowBuilder::new(&app, "scatter3d-7", WebviewUrl::default())
+        .build()
+        .unwrap();
+    assert_eq!(
+        json_command(&stray, "subscribe", json!({ "onChange": "__CHANNEL__:2" })).unwrap_err(),
+        json!({ "kind": "unknownWindow", "label": "scatter3d-7" })
+    );
+    assert_eq!(
+        json_command(&stray, "describe_widget", json!({})).unwrap_err(),
+        json!({ "kind": "unknownWindow", "label": "scatter3d-7" })
+    );
+}
+
+#[test]
+fn each_window_is_refused_the_commands_it_does_not_use() {
+    let (app, main) = app();
+    load_with_height(&app);
+    let widget = WebviewWindowBuilder::new(&app, "scatter3d-1", WebviewUrl::default())
+        .build()
+        .unwrap();
+    for cmd in ["describe_widget", "fetch_column", "fetch_row"] {
+        assert!(
+            not_allowed(json_command(
+                &main,
+                cmd,
+                json!({ "column": 2, "basedOn": 1 })
+            )),
+            "main, {cmd}"
+        );
+    }
+    for cmd in [
+        "open_widget",
+        "import_table",
+        "export_table",
+        "set_role",
+        "set_cells",
+        "fetch_rows",
+    ] {
+        assert!(
+            not_allowed(json_command(&widget, cmd, json!({ "basedOn": 1 }))),
+            "widget, {cmd}"
+        );
+    }
+}
+
+#[test]
+fn a_widget_is_allowed_every_command_its_window_calls() {
+    let (app, main) = app();
+    load_with_height(&app);
+    let spec = json!({ "kind": "scatter3d", "axes": [2, 2, 2] });
+    assert!(json_command(&main, "open_widget", json!({ "spec": spec, "basedOn": 1 })).is_ok());
+    let widget = app.get_webview_window("scatter3d-1").unwrap();
+    // Each with the arguments it takes, or none: a refusal of the arguments
+    // is an answer, and only "not allowed" is the capability's.
+    for (cmd, args) in [
+        ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
+        ("describe_table", json!({})),
+        ("describe_widget", json!({})),
+        ("region_decimal_mark", json!({})),
+        ("fetch_column", json!({ "column": 2, "basedOn": 1 })),
+        (
+            "fetch_row",
+            json!({ "row": 0, "columns": [2], "basedOn": 1 }),
+        ),
+        ("set_hover", json!({ "row": 0, "basedOn": 1 })),
+        ("set_selection", json!({})),
+        ("assign_rows", json!({})),
+        ("unassign_rows", json!({})),
+        // The groups panel, which a plot window has too.
+        (
+            "set_active_classification",
+            json!({ "column": 1, "basedOn": 1 }),
+        ),
+        ("select_groups", json!({})),
+        ("set_edit_mode", json!({})),
+        ("add_group", json!({})),
+        ("edit_group", json!({})),
+        ("delete_group", json!({})),
+    ] {
+        let answer = json_command(&widget, cmd, args);
+        assert!(!not_allowed(answer.clone()), "widget, {cmd}: {answer:?}");
+    }
+    assert!(matches!(
+        json_command(
+            &widget,
+            "fetch_row",
+            json!({ "row": 0, "columns": [2], "basedOn": 1 })
+        ),
+        Ok(InvokeResponseBody::Raw(_))
+    ));
 }
 
 #[test]

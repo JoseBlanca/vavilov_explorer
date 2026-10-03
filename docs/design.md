@@ -346,7 +346,8 @@ A widget is a window with one view of some columns:
 The same kind of widget can be open more than once, for example two
 scatters of different principal components. A widget is created from a
 Plot menu, which opens a small dialog to choose the columns, filled in
-from the columns selected in the table. The dialog offers every column
+from the columns selected in the table once columns can be selected
+there (below, for the 3D scatter). The dialog offers every column
 whose role fits, so that a table with two latitude columns, `lat` and
 `Latitude`, offers both to the map (decided by the owner on 2 October
 2026). It can also be created by
@@ -355,6 +356,107 @@ the backend for the same thing.
 
 Removing a column closes every widget that shows it. Undoing the
 removal brings the column back but does not reopen those widgets.
+
+The 3D scatter, decided by the owner on 3 October 2026, and its first
+slice, built the same day:
+
+- Plot > 3D scatter… opens a dialog, "3D scatter", with a dropdown for
+  each axis, "X axis", "Y axis" and "Z axis", which offers the columns
+  whose role is a number, a latitude or a longitude, in the order of the
+  table, and Cancel and Open. It starts from the first three such
+  columns; with two, from the first, the second and the first, and with
+  one, from it on every axis. Starting from the columns selected in the
+  table comes with the selection of columns, which does not exist yet,
+  and so does "Create 3D plot" in the menu of a right-click on the
+  headers. With no such column, the information bar of the main window
+  says so as an error and no dialog opens: "No 3D scatter was opened: the
+  table has no column of numbers. A column of numbers shown as a category
+  becomes one when “number” is chosen as its role." The words are the
+  assistant's, for the owner to review. Enter in the dialog does what Open
+  does (decided by the owner on 3 October 2026).
+- On a computer whose web view cannot draw WebGL, Plot > 3D scatter…
+  opens no window, and the information bar of the main window says so as
+  an error: "WebGL plots are not supported on this computer." A plot
+  window that cannot draw although the main window could, which a
+  graphics card that refuses one more drawing would cause, shows the same
+  sentence in its place (decided by the owner on 3 October 2026).
+- When a plot window is in front, an item of the app's menu that shows a
+  dialog or a message in the main window, Plot > 3D scatter… among them,
+  first brings the main window to the front (decided by the owner on
+  3 October 2026).
+- The window is named after its columns, "3D scatter of PC1, PC2 and
+  PC3", and has an information bar at its bottom that says how many
+  individuals it draws: "Drawing all 2,000 individuals." or "Drawing
+  1,688 of 2,000 individuals: 312 have no value on an axis." An
+  individual is left out when it is missing on an axis, or its value is
+  beyond about 3.4 × 10^38 from the middle of its column's values, which
+  the GPU cannot draw.
+- A change of role that leaves an axis without a column of numbers, a
+  number made a category, closes the window, as removing the column
+  would, and undoing it does not reopen it; a change between number,
+  latitude and longitude keeps it. Opening another table closes every
+  widget. Proposed by the assistant on 3 October 2026, for the owner to
+  confirm.
+- Hovering a point shows its individual's ID, its group in the active
+  classification, and its values in the first three columns of the
+  table that are neither the IDs nor the active classification (decided
+  by the owner on 3 October 2026), in a label beside the pointer; a
+  missing value is written "missing".
+- The points, built on 3 October 2026 from the prototype
+  (`prototype-lessons.md`): each in its group's colour, an unassigned
+  individual in grey, every point in one blue while there is no active
+  classification; a group past the 21 colours of the list takes the
+  next of five shapes, circle, square, diamond, cross and x. A point is
+  8 CSS pixels across, with a ring of one pixel in the colour of the box's
+  lines, which stands out from the background by at least 3 to 1, so
+  that a point of a pale group, yellow on the light background, still
+  has an edge (decided by the owner on 3 October 2026, after the review
+  found 11 of the 21 colours of the list below 3 to 1 on the light
+  background); with
+  groups selected, those of the groups selected are 1.5 times as large
+  and the others 0.4 times, as in the prototype. The individuals selected
+  have a ring of the text's colour, two pixels wide, and are drawn at
+  least 12 pixels across so that their colour shows inside it; the hover,
+  from any window, is drawn 16 pixels across with the same ring. The
+  sizes were chosen by the assistant, for the owner to judge on screen.
+  The data is drawn over the box and its grid.
+- The box has the names of the columns and round values on its edges;
+  where two axes meet, the values of their ends can overlap.
+- A drag rotates, the wheel zooms, a right drag pans, a double click
+  frames the box again. The plot takes the keyboard's focus too, and then
+  the arrows rotate, + and − zoom, and Home frames the box again (decided
+  by the owner on 3 October 2026), since a drag is not something every
+  user can make. While + or − is pressed a drag draws a lasso
+  instead, and the plot does not rotate: the user releases the button to
+  rotate (decided by the owner on 3 October 2026); the wheel still zooms.
+  The lasso, a dashed line in the colour of the button pressed, blue for
+  + and red for −, waits for Enter, with the individuals inside it ringed
+  in that colour; Enter applies it, Escape drops it, and so does moving
+  the camera, releasing the button, or pressing the other. It stays in
+  its window. With + it puts the individuals inside it in the group
+  selected, with − it takes those in a group selected out of it, one undo
+  each.
+- A click on a point selects its individual alone, and Cmd-click on
+  macOS, Ctrl-click on Windows and Linux, adds it to the selection or
+  takes it away; on macOS a Ctrl-click is the system's secondary click,
+  and does nothing on a point (decided by the owner on 3 October 2026). A click on empty space does nothing, since a selection cannot be
+  undone (decided by the owner on 3 October 2026). While + or − is
+  pressed a click selects too, and so puts the individual in the group or
+  takes it out, as a click in the table does.
+- Each plot window has the groups panel of the main window, the same
+  component doing the same things, in a panel at its right that can be
+  collapsed, so that the user edits the groups without going back to the
+  main window; the panels of every window show one state, the backend's,
+  so a group selected or + pressed in one shows in all (decided by the
+  owner on 3 October 2026; section 12 had deferred a compact key).
+- The values of a column are sent to the plot window as their distance
+  from the middle of the column's range, so that values far from zero and
+  close together, positions on a genome or coordinates in metres, are not
+  drawn on top of one another (decided by the owner on 3 October 2026;
+  `core.md`, section 5).
+- A refused command of the window, a lasso whose group was deselected in
+  another window meanwhile, is written to the console, as in the main
+  window, until section 12 decides how a window tells it.
 
 Histograms and bar plots select too: dragging across bins or clicking a
 bar selects the individuals in them, and the selected share of each bar
@@ -961,9 +1063,6 @@ Open decisions:
   shown by size, and the colour may follow another column; separating
   the two is the guard against editing a trait by mistake that the
   merge of category and classification left (section 6).
-- A compact key of the groups, with a line saying which group
-  is being edited, in each plot window. Deferred by the owner until the
-  first views exist.
 - How a window tells the user that the backend refused a command, which
   today goes only to the console. The owner's direction, on 2 October
   2026: nothing that takes over the window the user is looking at and
@@ -1037,6 +1136,9 @@ Raised on 2 October 2026 while the skills of the project were written
   3 October 2026, with the crate `unicode-normalization`, 0.1.25, of the
   unicode-rs project, MIT or Apache-2.0, whose one dependency, `tinyvec`,
   was in `Cargo.lock` already.
+- Three.js is taken at 0.186.1, with its TypeScript types from the
+  development package `@types/three` 0.186.0 (DefinitelyTyped), which add
+  nothing to the app (approved by the owner on 3 October 2026).
 
 The builds are tried on the owner's machines: the Mac, a Windows
 machine, and a Linux virtual machine with both a Wayland and an X11

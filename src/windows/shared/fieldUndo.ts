@@ -21,11 +21,14 @@ function editField(action: "undo" | "redo"): void {
 
 /**
  * Undoes or redoes the typing in the text field that has the focus, when
- * one has it, and says whether one had: Edit > Undo clicked in the menu
- * reaches the window as an action, not as a key.
+ * one has it in a window that has the focus, and says whether one had:
+ * Edit > Undo clicked in the menu reaches the window as an action, not as
+ * a key. On macOS the app's menu reaches the main window while another is
+ * in front, and the field the main window keeps focused behind it is not
+ * what the user is undoing.
  */
 export function undoOrRedoField(action: "undo" | "redo"): boolean {
-  const typing = isTextField(document.activeElement);
+  const typing = document.hasFocus() && isTextField(document.activeElement);
   if (typing) {
     editField(action);
   }

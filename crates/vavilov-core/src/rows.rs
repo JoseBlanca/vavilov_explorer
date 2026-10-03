@@ -67,16 +67,54 @@ impl Session {
                 .to_vec(),
             None => (first..end).map(RowIndex::new).collect(),
         };
+        self.page_message(request.first, &rows, &request.columns)
+    }
+
+    /// The row `row` of the table, with its name and the values of
+    /// `columns` in that order, as the bytes of a message of rows at the
+    /// current revision, for a window whose copy is at `based_on`: a page
+    /// of one row, asked for by its row and not among the rows the filter
+    /// shows, whose position is therefore 0. It changes nothing.
+    ///
+    /// # Errors
+    ///
+    /// `MadeBeforeLoad`; `NoProject`; `RowOutOfRange` for a row beyond the
+    /// table; `UnknownColumn` for an id the table does not have, the first
+    /// column's included; or a `Defect`, for a column asked for twice among
+    /// them.
+    pub fn row(
+        &self,
+        row: RowIndex,
+        columns: &[ColumnId],
+        based_on: Revision,
+    ) -> Result<Vec<u8>, CommandError> {
+        self.check_based_on(based_on)?;
+        let num_rows = self.state.project.open()?.table.num_rows();
+        if row.get() >= num_rows {
+            return Err(CommandError::RowOutOfRange { row, num_rows });
+        }
+        self.page_message(Position::new(0), &[row], columns)
+    }
+
+    /// The message of rows of `rows`, the first at `first` among those
+    /// shown, with the values of `columns`.
+    fn page_message(
+        &self,
+        first: Position,
+        rows: &[RowIndex],
+        columns: &[ColumnId],
+    ) -> Result<Vec<u8>, CommandError> {
+        let open = self.state.project.open()?;
+        let table = &open.table;
         // A window asks for each column once; a column asked for again
         // would let a short request make a page of any size.
-        let mut asked = std::collections::HashSet::with_capacity(request.columns.len());
-        if let Some(twice) = request.columns.iter().find(|id| !asked.insert(**id)) {
+        let mut asked = std::collections::HashSet::with_capacity(columns.len());
+        if let Some(twice) = columns.iter().find(|id| !asked.insert(**id)) {
             return Err(CommandError::Defect {
                 what: format!("a page that asks for column {twice} twice"),
             });
         }
-        let columns = request
-            .columns
+        let columns = columns
             .iter()
             .map(|id| {
                 table
@@ -87,17 +125,17 @@ impl Session {
         let mut message = MessageWriter::new(MessageKind::Rows, self.state.revision, None);
         message.page(
             self.state.loaded_at,
-            shown.at,
+            open.interaction.shown.at,
             table.names().revision(),
-            request.first,
-            &rows,
+            first,
+            rows,
         )?;
-        message.names(&in_page(table.names().names(), &rows)?)?;
+        message.names(&in_page(table.names().names(), rows)?)?;
         for column in columns {
             message.values(
                 column.id(),
                 column.revision(),
-                page_values(column.values(), &rows)?,
+                page_values(column.values(), rows)?,
             )?;
         }
         Ok(message.finish())

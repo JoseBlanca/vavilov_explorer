@@ -33,6 +33,8 @@ const FIELDS = {
   unknownWindow: { label: isText },
   unknownColumn: { column: isColumnIdField },
   notCategory: { column: isColumnIdField },
+  notNumber: { column: isColumnIdField },
+  windowFailed: { label: isText, message: isText },
   roleNotPossible: { column: isColumnIdField, storage: isStorageType, role: isRole },
   valueNotFor: { column: isColumnIdField, role: isRole, row: isRowIndexField },
   notActiveClassification: { column: isColumnIdField },

@@ -59,6 +59,13 @@ const PAIRS: readonly (readonly [string, string, number])[] = [
   ["--color-remove-surface", "--color-panel", 3],
   ["--color-add-surface", "--color-selected-surface", 3],
   ["--color-remove-surface", "--color-selected-surface", 3],
+  // The marks of the point views, against the surface they are drawn on.
+  ["--color-point", "--color-surface", 3],
+  ["--color-point-unassigned", "--color-surface", 3],
+  ["--color-add-surface", "--color-surface", 3],
+  ["--color-remove-surface", "--color-surface", 3],
+  ["--color-text", "--color-surface", 3],
+  ["--color-control-border", "--color-surface", 3],
 ];
 
 describe("the tokens", () => {

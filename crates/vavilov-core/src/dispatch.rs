@@ -36,6 +36,11 @@ pub struct Outcome {
     /// removed. The command was applied all the same; the app reports each
     /// as a defect and reloads the window if it is still open.
     pub dropped: Vec<Dropped>,
+    /// The widgets the command left with a column they cannot show, all of
+    /// them after a load: the session no longer has them nor their
+    /// subscribers, and the caller closes their windows once it has
+    /// released the lock (`docs/core.md`, section 7).
+    pub closed: Vec<WindowLabel>,
 }
 
 /// What a command changed.
@@ -77,6 +82,7 @@ impl Session {
             None => Ok(Outcome {
                 changed: Changed::Nothing,
                 dropped: Vec::new(),
+                closed: Vec::new(),
             }),
         }
     }
@@ -488,12 +494,16 @@ impl Session {
 
     /// Applies a plan. It first finds what it changes, which fails only on
     /// a defect and before anything is changed; from there it only assigns.
+    /// The widgets the change leaves with a column they cannot show are
+    /// dropped before the message is sent, so that their windows, which
+    /// the caller closes, receive nothing more.
     fn commit(&mut self, plan: Plan) -> Result<Outcome, CommandError> {
         let Plan {
             revision,
             message,
             change,
         } = plan;
+        let widgets_before = self.widget_labels();
         let changed = match change {
             Change::Load { project, hover_seq } => {
                 self.state.project = Project::Open(project);
@@ -662,13 +672,18 @@ impl Session {
             }
         };
         self.state.revision = revision;
+        let closed = self.drop_unfit_widgets(widgets_before);
         let dropped = self
             .subscribers
             .broadcast(&message)
             .into_iter()
             .map(|(label, reason)| Dropped { label, reason })
             .collect();
-        Ok(Outcome { changed, dropped })
+        Ok(Outcome {
+            changed,
+            dropped,
+            closed,
+        })
     }
 }
 
@@ -786,6 +801,7 @@ fn plan_load(
         history: History::default(),
         table,
         number_texts: NumberTexts::default(),
+        widgets: Vec::new(),
     };
     let message = whole_state(
         MessageKind::Change,

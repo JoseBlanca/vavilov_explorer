@@ -19,6 +19,7 @@ use crate::ids::{HoverSeq, Revision, RowIndex, WindowLabel};
 use crate::message::{MessageKind, whole_state};
 use crate::row_set::RowSet;
 use crate::table::Table;
+use crate::widgets::Widget;
 
 /// The session of the app. The app holds it once, behind a lock, and
 /// every change goes through [`Session::dispatch`].
@@ -37,6 +38,9 @@ pub(crate) struct SharedState {
     /// The revision at which the current table was loaded: a command made
     /// before it is refused.
     pub(crate) loaded_at: Revision,
+    /// The number of the last widget's label, 0 before the first: it only
+    /// grows, across projects, so that a label is never given twice.
+    pub(crate) widgets_given: u32,
 }
 
 /// Whether a project is open.
@@ -62,10 +66,20 @@ pub(crate) struct OpenProject {
     /// other, so that a test that compares a session before and after a
     /// command compares what the session holds.
     pub(crate) number_texts: NumberTexts,
+    /// The widgets open on the table, in the order they were opened; a load
+    /// closes them all, since they show the columns of the table before.
+    pub(crate) widgets: Vec<Widget>,
 }
 
 impl Project {
     pub(crate) const fn as_open(&self) -> Option<&OpenProject> {
+        match self {
+            Self::Open(open) => Some(open),
+            Self::None => None,
+        }
+    }
+
+    pub(crate) fn as_open_mut(&mut self) -> Option<&mut OpenProject> {
         match self {
             Self::Open(open) => Some(open),
             Self::None => None,
@@ -103,6 +117,7 @@ impl Session {
                 revision: Revision::ZERO,
                 hover_seq: HoverSeq::ZERO,
                 loaded_at: Revision::ZERO,
+                widgets_given: 0,
             },
             subscribers: Subscribers::default(),
         }
@@ -112,20 +127,19 @@ impl Session {
     /// shared state at the current revision, in one call, so that no change
     /// falls between the two: the subscriber receives every change after
     /// the snapshot's revision. A window that subscribes again replaces its
-    /// subscriber.
+    /// subscriber. The window is the main window or an open widget's.
     ///
     /// # Errors
     ///
-    /// `UnknownWindow` for a label that is not the main window's, and a
-    /// `Defect` when the snapshot cannot be encoded.
+    /// `UnknownWindow` for a label that is neither the main window's nor an
+    /// open widget's, such as that of a widget closed before its window
+    /// subscribed; and a `Defect` when the snapshot cannot be encoded.
     pub fn subscribe(
         &mut self,
         label: WindowLabel,
         subscriber: Box<dyn Subscriber>,
     ) -> Result<Vec<u8>, CommandError> {
-        // The widgets come with a later slice; until then only the main
-        // window is open.
-        if label.as_str() != WindowLabel::MAIN {
+        if label.as_str() != WindowLabel::MAIN && self.widget(&label).is_none() {
             return Err(CommandError::UnknownWindow { label });
         }
         let state = &self.state;
@@ -139,11 +153,6 @@ impl Session {
         )?;
         self.subscribers.register(label, subscriber);
         Ok(snapshot)
-    }
-
-    /// Forgets the window's subscriber, when the window is closed.
-    pub fn unsubscribe(&mut self, label: &WindowLabel) {
-        self.subscribers.unregister(label);
     }
 
     /// The current revision.

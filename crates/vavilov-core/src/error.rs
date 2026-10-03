@@ -81,6 +81,23 @@ pub enum CommandError {
         column: ColumnId,
     },
 
+    /// The command needs a number, of its sub-roles or not, such as an axis
+    /// of a 3D scatter, and the column is a category or text.
+    #[error("column {column} is not a number")]
+    NotNumber {
+        /// The column the command gave.
+        column: ColumnId,
+    },
+
+    /// A window could not be opened or closed by the system.
+    #[error("window {label} could not be opened or closed: {message}")]
+    WindowFailed {
+        /// The window's label.
+        label: WindowLabel,
+        /// The system's message, for the technical details.
+        message: String,
+    },
+
     /// The column's storage type cannot take the role asked for: a number
     /// needs numbers, and text needs text (`docs/design.md`, section 6).
     #[error("column {column}, of {storage:?}, cannot be a {role:?}")]

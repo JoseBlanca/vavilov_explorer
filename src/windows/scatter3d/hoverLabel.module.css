@@ -1,0 +1,34 @@
+.label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  max-width: var(--dialog-width);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  background: var(--color-panel);
+  font-size: var(--font-size-small);
+  pointer-events: none;
+}
+
+.title {
+  margin: 0;
+  font-weight: var(--font-weight-strong);
+}
+
+.lines {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 var(--space-2);
+  margin: 0;
+}
+
+.name {
+  color: var(--color-text-muted);
+}
+
+.value {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

@@ -370,3 +370,90 @@ fn a_page_after_an_id_was_edited_carries_the_new_name_and_the_revision_of_the_na
         ]
     );
 }
+
+#[test]
+fn a_row_asked_for_by_its_index_is_a_page_of_one_at_position_0_whatever_the_filter_shows() {
+    let mut session = loaded(plants());
+    // The filter shows Peru's p2 alone, at revision 2; p4 is not shown.
+    session
+        .dispatch(Request {
+            command: Command::SetFilter {
+                filter: crate::filter::Filter {
+                    text: "Peru".to_owned(),
+                    column: None,
+                    cell: crate::filter::CellMatch::Part,
+                    showing: crate::filter::Showing::Matching,
+                },
+                decimal_mark: ".".to_owned(),
+            },
+            based_on: Revision::new(1),
+            sent_at: None,
+        })
+        .unwrap();
+    let message = session
+        .row(
+            RowIndex::new(3),
+            &[ColumnId::new(2), ColumnId::new(4)],
+            Revision::new(2),
+        )
+        .unwrap();
+    #[rustfmt::skip]
+    let expected: Vec<u8> = vec![
+        3, 0, 0, 0, 0, 0, 0, 0, // rows, no time
+        2, 0, 0, 0, 0, 0, 0, 0, // revision 2
+        0, 0, 0, 0, 0, 0, 0, 0, // no time
+        // page: loaded at 1, rows shown since 2, names since 1, position
+        // 0, 1 row, row 3; 36 bytes, padded
+        8, 0, 0, 0, 36, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, 0,
+        3, 0, 0, 0, 0, 0, 0, 0,
+        // names: offsets 0, 2, then p4
+        9, 0, 0, 0, 10, 0, 0, 0,
+        0, 0, 0, 0, 2, 0, 0, 0,
+        b'p', b'4', 0, 0, 0, 0, 0, 0,
+        // origin, column 2, categorical, revision 1: Spain
+        10, 0, 0, 0, 18, 0, 0, 0,
+        2, 0, 0, 0, 4, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        // seeds, column 4, integer, revision 1: 7
+        10, 0, 0, 0, 32, 0, 0, 0,
+        4, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        7, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    assert_eq!(message, expected);
+}
+
+#[test]
+fn a_row_beyond_the_table_or_asked_for_before_the_load_is_refused() {
+    let session = loaded(plants());
+    assert_eq!(
+        session.row(RowIndex::new(4), &[], Revision::new(1)),
+        Err(CommandError::RowOutOfRange {
+            row: RowIndex::new(4),
+            num_rows: 4,
+        })
+    );
+    assert_eq!(
+        session.row(RowIndex::new(0), &[], Revision::ZERO),
+        Err(CommandError::MadeBeforeLoad {
+            based_on: Revision::ZERO,
+            loaded_at: Revision::new(1),
+        })
+    );
+    assert_eq!(
+        session.row(RowIndex::new(0), &[ColumnId::new(0)], Revision::new(1)),
+        Err(CommandError::UnknownColumn {
+            column: ColumnId::new(0)
+        })
+    );
+    assert_eq!(
+        Session::new().row(RowIndex::new(0), &[], Revision::ZERO),
+        Err(CommandError::NoProject)
+    );
+}

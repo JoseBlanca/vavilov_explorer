@@ -2,13 +2,22 @@ import type { Connection } from "../../backend/connection.ts";
 import type { Refusal } from "../../state/commandError.ts";
 import { defect } from "../../state/defect.ts";
 import { fileRefusalMessage, isFileRefusal, undecodedMessage } from "../../state/fileMessages.ts";
+import { axisColumns, startingAxes } from "../../state/scatterAxes.ts";
 import { csvDefaults } from "../../state/transfer.ts";
+import {
+  isWidgetRefused,
+  noNumbersMessage,
+  noWebGlMessage,
+  widgetRefusalMessage,
+} from "../../state/widgetMessages.ts";
 import type { ExportFormat, MenuAction } from "../../state/transfer.ts";
 import { countText } from "../shared/numbers.ts";
 import { answered } from "../shared/answered.ts";
 import { undoOrRedoField } from "../shared/fieldUndo.ts";
+import { canDrawWebGl } from "../shared/webgl.ts";
 import type { CsvDialog } from "./csvDialog.controller.ts";
-import type { InfoBar } from "./infoBar.controller.ts";
+import type { InfoBar } from "../shared/infoBar.controller.ts";
+import type { Scatter3dDialog } from "./scatter3dDialog.controller.ts";
 
 /** Nothing to draw again after an undo or a redo the backend did not apply. */
 const ignore = (): void => undefined;
@@ -30,13 +39,15 @@ export interface MenuActions {
  * backend to undo or redo the last edit of the window's copy, or the
  * typing of the text field that has the focus. The items are carried out
  * one at a time, in the order they came, each once the one before has
- * ended, its dialog answered. A refusal that is not about a file is a
+ * ended, its dialog answered. Plot > 3D scatter… asks for the axes and opens
+ * the 3D scatter's window, and tells the bar why it could not, as an error. A refusal that is not about a file is a
  * defect, since the backend gives none here.
  */
 export function createMenuActions(
   connection: Connection,
   infoBar: InfoBar,
   csvDialog: CsvDialog,
+  scatter3dDialog: Scatter3dDialog,
   report: (error: unknown) => void,
 ): MenuActions {
   const importTable = async (): Promise<void> => {
@@ -71,6 +82,50 @@ export function createMenuActions(
     }
   };
 
+  /**
+   * Asks for the three axes, from the columns of numbers of the table the
+   * backend has now, and opens the 3D scatter; the backend checks the
+   * columns again against its table, and refuses one that changed meanwhile.
+   */
+  const openScatter3d = async (): Promise<void> => {
+    if (!canDrawWebGl()) {
+      infoBar.tell(noWebGlMessage());
+      return;
+    }
+    const described = await connection.describeTable();
+    if (!described.ok) {
+      throw defect(`Plot > 3D scatter… with no table: ${described.error.kind}`);
+    }
+    const description = described.value;
+    const columns = axisColumns(description);
+    const axes = startingAxes(columns);
+    if (axes === null) {
+      infoBar.tell(noNumbersMessage());
+      return;
+    }
+    const chosen = await scatter3dDialog.ask(columns, axes);
+    if (chosen === null) {
+      return;
+    }
+    const answer = await connection.openWidget({ kind: "scatter3d", axes: chosen });
+    if (answer.ok) {
+      return;
+    }
+    const { error } = answer;
+    if (!isWidgetRefused(error)) {
+      throw defect(`a 3D scatter refused as ${error.kind}`);
+    }
+    // The bar says what happened; the system's reason for a window that
+    // failed goes to the log.
+    console.warn("Vavilov Explorer: a 3D scatter was refused", error);
+    infoBar.tell(
+      widgetRefusalMessage(
+        error,
+        (id) => description.columns.find((column) => column.id === id)?.name ?? null,
+      ),
+    );
+  };
+
   const refused = (error: Refusal): void => {
     if (!isFileRefusal(error)) {
       throw defect(`an import or an export refused as ${error.kind}`);
@@ -94,6 +149,8 @@ export function createMenuActions(
         return undoOrRedoField("redo")
           ? Promise.resolve()
           : connection.redo().then(answered("redoing", ignore));
+      case "scatter3d":
+        return openScatter3d();
     }
   };
 

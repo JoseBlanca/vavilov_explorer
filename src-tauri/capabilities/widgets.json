@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "widgets",
+  "description": "What the windows of the widgets may call: the app's commands they use, and none of Tauri's own",
+  "windows": ["scatter3d-*"],
+  "permissions": [
+    "allow-subscribe",
+    "allow-describe-table",
+    "allow-describe-widget",
+    "allow-fetch-column",
+    "allow-fetch-row",
+    "allow-set-hover",
+    "allow-set-selection",
+    "allow-assign-rows",
+    "allow-unassign-rows",
+    "allow-region-decimal-mark",
+    "allow-set-active-classification",
+    "allow-select-groups",
+    "allow-set-edit-mode",
+    "allow-add-group",
+    "allow-edit-group",
+    "allow-delete-group"
+  ]
+}

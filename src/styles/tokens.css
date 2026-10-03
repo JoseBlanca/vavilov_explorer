@@ -22,6 +22,10 @@
   --color-add-text: #ffffff;
   --color-remove-surface: #b91c1c;
   --color-remove-text: #ffffff;
+  /* The points of a point view: of no group, and of every individual
+     while there is no active classification. */
+  --color-point-unassigned: #7c7c84;
+  --color-point: #1d4ed8;
   --color-backdrop: rgb(0 0 0 / 30%);
 
   --space-1: 0.25rem;
@@ -67,6 +71,8 @@
     --color-add-text: #10131a;
     --color-remove-surface: #ff8a8a;
     --color-remove-text: #1d0b0b;
+    --color-point-unassigned: #8b8b94;
+    --color-point: #8fb0ff;
     --color-backdrop: rgb(0 0 0 / 55%);
   }
 }
@@ -89,6 +95,8 @@
   --color-add-text: #10131a;
   --color-remove-surface: #ff8a8a;
   --color-remove-text: #1d0b0b;
+  --color-point-unassigned: #8b8b94;
+  --color-point: #8fb0ff;
   --color-backdrop: rgb(0 0 0 / 55%);
 }
 

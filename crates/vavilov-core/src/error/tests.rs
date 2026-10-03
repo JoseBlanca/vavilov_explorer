@@ -423,3 +423,22 @@ fn a_command_made_before_the_levels_changed_crosses_with_its_revisions() {
         json!({ "kind": "levelsChanged", "column": 2, "basedOn": 2, "levelsAt": 3 })
     );
 }
+
+#[test]
+fn a_column_that_is_no_number_and_a_window_that_failed_cross_with_their_fields() {
+    assert_eq!(
+        serde_json::to_value(CommandError::NotNumber {
+            column: ColumnId::new(2)
+        })
+        .unwrap(),
+        json!({ "kind": "notNumber", "column": 2 })
+    );
+    assert_eq!(
+        serde_json::to_value(CommandError::WindowFailed {
+            label: WindowLabel::new("scatter3d-1"),
+            message: "no display".to_owned(),
+        })
+        .unwrap(),
+        json!({ "kind": "windowFailed", "label": "scatter3d-1", "message": "no display" })
+    );
+}

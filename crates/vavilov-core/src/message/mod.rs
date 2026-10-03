@@ -34,6 +34,9 @@ pub(crate) enum MessageKind {
     /// An item of the menu for the window to carry out, which takes no
     /// revision: the header has the current one.
     Action,
+    /// The values of a numeric column as a window draws them, which it
+    /// asked for, at the current revision.
+    Numbers,
 }
 
 impl MessageKind {
@@ -44,6 +47,7 @@ impl MessageKind {
             Self::Hover => 2,
             Self::Rows => 3,
             Self::Action => 4,
+            Self::Numbers => 5,
         }
     }
 }
@@ -64,6 +68,7 @@ pub(crate) enum PartKind {
     Shape,
     Action,
     Filter,
+    Numbers,
 }
 
 impl PartKind {
@@ -82,6 +87,7 @@ impl PartKind {
             Self::Shape => 11,
             Self::Action => 12,
             Self::Filter => 13,
+            Self::Numbers => 14,
         }
     }
 }

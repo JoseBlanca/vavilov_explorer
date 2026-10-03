@@ -19,7 +19,13 @@ is the other way, and is taken if the pages grow apart. A window:
    revision and a channel for every change after it, and builds its copy
    of the state from the snapshot (`src/state/`).
 2. **Fetches the columns it shows**, as raw bytes, by column id, and again
-   when a column's revision changes.
+   when the copy's revision of a column becomes newer than that of the
+   values held. The backend answers at its own revision, which can be
+   ahead of the copy's until the message arrives: those values are kept
+   and become current with it, and are not fetched again; an answer
+   "stale" is not fetched again either. Fetching again whenever the two
+   differed fetched a whole column back to back (the review of 3 October
+   2026).
 3. **Builds its components**, each a controller in its element.
 4. **Applies each message** to its copy and tells the components that
    show what changed.
@@ -108,6 +114,10 @@ The rules of lit-html (version 3.3, `lit-html` alone, no `LitElement`):
   an attribute, `?disabled=${bool}` for a boolean attribute, `.value=${v}`
   for a property, `@click=${handler}` for an event. A text binding
   escapes what it is given; `unsafeHTML` is never used (`typescript.md`).
+- **A label or a view that shows values fetched for one row** fetches them
+  again when the row may have changed, on the aspects its values come
+  from: the hover label of the 3D scatter kept a group that an Undo had
+  changed (the review of 3 October 2026).
 - **A list whose items can be added, removed or reordered** is drawn with
   the `repeat` directive and a key that is the item's identity, a
   group's id and never its index, so that removing a group does
@@ -236,11 +246,39 @@ background.
 - **The hover is sent at most once per frame**, and drawn only when it
   comes back from the backend, like every change. On macOS a window that
   is not active receives no pointer movement (`docs/design.md`, section
-  10), so a view never relies on hover events while inactive.
+  10), so a view never relies on hover events while inactive: it gives up
+  its hover when the window loses the focus. The points also move under a
+  pointer that does not, with the wheel or a coasting camera, so the view
+  picks again at the pointer's last place after a frame drawn with a
+  moved camera (the review of 3 October 2026).
+- **Nothing laid over the canvas takes the pointer from it.** The lasso's
+  layer and the labels let every event through, and the view reads the
+  lasso from the pointer's events on its frame: a layer that took the
+  pointer while + or − was pressed kept the wheel and the double click
+  from the camera's controls, and a touch it did not set `touch-action`
+  on was cancelled by WebView2 as a scroll. A `pointercancel` drops the
+  lasso being drawn.
+- **A colour read from the theme is read again when the appearance
+  changes**, by whoever reads it: the base tells the kind, and the window
+  draws again, since the colour of the points with no group is a token
+  the window reads (found by the review of 3 October 2026).
+- **A change of style writes into the buffers the points have**, with
+  `needsUpdate`; a new `BufferAttribute` for each hover leaves the old
+  buffer on the GPU until the browser collects it, since the geometry's
+  `dispose` frees only the buffers it still holds.
 - **The pixel ratio** is `Math.min(devicePixelRatio, 2)`, read again on
   every resize, since a window moved to another screen changes it; and
   `renderer.setSize(width, height, false)`, so that Three.js does not write
   the canvas's CSS size.
+- **What frames the data is drawn under it**: the box and the grid of a
+  3D scatter draw first and write no depth, so that a point on an edge of
+  the box, as the largest value of two axes is, is drawn over the edge.
+  Neither is transparent: Three.js draws every transparent object after
+  the opaque ones, whatever their `renderOrder`, and a half transparent
+  grid crossed the points (found by the pixel test of 3 October 2026).
+- **A lasso is told from a click by its path**, how far it went from
+  where it began, not by where it ended: a lasso closes where it started,
+  and its release there looked like a click (found the same day).
 - **The camera framing** fits the box's eight corners, by bisection on the
   distance, not its bounding sphere (`prototype-lessons.md`).
 - **The map** is Web Mercator under an orthographic camera looking down,

@@ -4,24 +4,20 @@ import { connect } from "../../backend/connection.ts";
 import { tauriTransport } from "../../backend/transport.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow, TableDescription } from "../../state/description.ts";
+import { tableCountOf, tableCountText } from "../../state/tableCount.ts";
 import { createDialog } from "../shared/dialog.controller.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
 import { installFieldUndo } from "../shared/fieldUndo.ts";
+import { countText } from "../shared/numbers.ts";
+import { slot } from "../shared/slot.ts";
 import { createCsvDialog } from "./csvDialog.controller.ts";
 import { createFindBar } from "./findBar.controller.ts";
-import { createInfoBar } from "./infoBar.controller.ts";
+import { createInfoBar } from "../shared/infoBar.controller.ts";
 import { mainWindowView } from "./mainWindow.view.ts";
-import { createGroupsPanel } from "./groupsPanel.controller.ts";
+import { createGroupsPanel } from "../shared/groupsPanel.controller.ts";
 import { createTable } from "./table.controller.ts";
 import { createMenuActions } from "./menuActions.controller.ts";
-
-function slot(root: HTMLElement, name: string): HTMLElement {
-  const element = root.querySelector(`[data-slot="${name}"]`);
-  if (!(element instanceof HTMLElement)) {
-    throw defect(`the main window without its slot ${name}`);
-  }
-  return element;
-}
+import { createScatter3dDialog } from "./scatter3dDialog.controller.ts";
 
 /**
  * Starts the main window in `root`: the frame, the bar of a defect, the
@@ -63,9 +59,21 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       defectBar.show,
     );
     const dialog = createDialog(slot(root, "dialog"));
-    const infoBar = createInfoBar(slot(root, "info"), state, () => {
-      table.focus();
-    });
+    const infoBar = createInfoBar(
+      slot(root, "info"),
+      state,
+      {
+        // The rows the filter shows, of the table and of the selection.
+        aspects: ["table", "filter", "selection"],
+        text: () => {
+          const counted = tableCountOf(state.project(), state.shown(), state.selection());
+          return counted === null ? null : tableCountText(counted, countText);
+        },
+      },
+      () => {
+        table.focus();
+      },
+    );
     const panel = createGroupsPanel(
       slot(root, "panel"),
       connection,
@@ -83,7 +91,13 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       infoBar.tell,
       defectBar.show,
     );
-    createMenuActions(connection, infoBar, createCsvDialog(slot(root, "export")), defectBar.show);
+    createMenuActions(
+      connection,
+      infoBar,
+      createCsvDialog(slot(root, "export")),
+      createScatter3dDialog(slot(root, "plot")),
+      defectBar.show,
+    );
 
     /**
      * Asks for the description of the table the copy holds, once per load

@@ -149,7 +149,11 @@ possible break and a possible abandonment.
   on Windows and `libc` on Linux, already in `Cargo.lock` through Tauri,
   to read the decimal mark of the system's region, approved the same day;
   `unicode-normalization`, 0.1.25, to keep every text in Unicode's
-  composed form, approved by the owner on 3 October 2026.
+  composed form, approved by the owner on 3 October 2026. Three.js is
+  `three` 0.186.1, with its types, the development package
+  `@types/three` 0.186.0, approved by the owner on 3 October 2026; the
+  types pull in six packages of their own, among them a physics engine
+  of 7 MB, which stay in `node_modules` and reach no build.
 - **Named by these skills and not yet decided**, each to be proposed when
   the first code needs it: a
   Parquet crate and a zip crate for the project file (`docs/design.md`,
@@ -199,10 +203,8 @@ core made the core crate `crates/vavilov-core` and the Cargo workspace at
 the root, with the lint table. These parts come with the first code that
 needs them:
 
-- the folders of `src/` (`backend`, `state`, `plots`, `windows`), whose
-  import rules `eslint.config.js` already holds;
-- the harness's several pages (`testing.md`); the test-only backend
-  exists, for one page.
+- the folder `src/plots`, whose import rules `eslint.config.js` already
+  holds.
 
 Until a part exists, a session follows the rule and reports the check as
 not there.

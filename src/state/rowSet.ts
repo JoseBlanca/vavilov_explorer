@@ -19,6 +19,39 @@ export function hasRow(bits: Uint8Array, row: number): boolean {
   return ((bits[Math.floor(row / 8)] ?? 0) & (1 << (row % 8))) !== 0;
 }
 
+/** The rows of a table of `numRows` for which `test` holds. */
+export function rowsWhere(numRows: number, test: (row: number) => boolean): Uint8Array {
+  const bits = new Uint8Array(Math.ceil(numRows / 8));
+  let byte = 0;
+  for (let row = 0; row < numRows; row += 1) {
+    if (test(row)) {
+      byte |= 1 << (row % 8);
+    }
+    if (row % 8 === 7 || row === numRows - 1) {
+      bits[Math.floor(row / 8)] = byte;
+      byte = 0;
+    }
+  }
+  return bits;
+}
+
+/** `row` alone, in a set of `numRows`. */
+export function onlyRow(numRows: number, row: number): Uint8Array {
+  if (!(row >= 0 && row < numRows)) {
+    throw defect(`row ${String(row)} in a set of ${String(numRows)} rows`);
+  }
+  return rowsWhere(numRows, (each) => each === row);
+}
+
+/** A copy of `bits` with `row` added, or taken away when it was in it. */
+export function toggledRow(bits: Uint8Array, row: number): Uint8Array {
+  const at = Math.floor(row / 8);
+  if (bits[at] === undefined) {
+    throw defect(`row ${String(row)} in a set of ${String(bits.length)} bytes`);
+  }
+  return bits.map((byte, index) => (index === at ? byte ^ (1 << (row % 8)) : byte));
+}
+
 /**
  * The rows of `bits` that are also in `within`, a set of the same table;
  * all of `bits` for `null`.

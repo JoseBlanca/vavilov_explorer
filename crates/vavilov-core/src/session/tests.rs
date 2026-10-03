@@ -990,7 +990,7 @@ fn a_window_the_session_does_not_know_cannot_subscribe() {
 #[test]
 fn a_subscriber_that_fails_is_removed_and_reported_and_the_command_still_applies() {
     let (mut session, _main) = loaded();
-    session.unsubscribe(&WindowLabel::main());
+    session.window_closed(&WindowLabel::main());
     session
         .subscribe(WindowLabel::main(), Box::new(Failing))
         .unwrap();
@@ -1025,7 +1025,7 @@ fn a_subscriber_that_fails_is_removed_and_reported_and_the_command_still_applies
 #[test]
 fn an_unsubscribed_window_receives_nothing() {
     let (mut session, main) = loaded();
-    session.unsubscribe(&WindowLabel::main());
+    session.window_closed(&WindowLabel::main());
     apply(
         &mut session,
         Command::SetHover {

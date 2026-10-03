@@ -13,13 +13,17 @@ use tauri::ipc::InvokeBody;
 use vavilov_core::{
     CellMatch, Colour, ColumnId, Command, CommandError, EditMode, Filter, LevelCode, Outcome,
     Position, Request, Revision, Role, RowIndex, RowsRequest, Selected, SelectedGroups, SentAt,
-    Session, Showing, TableDescription,
+    Session, Showing, TableDescription, WidgetSpec, WindowLabel,
 };
 
-/// The commands `call` takes, every command of the app but `subscribe`.
+/// The commands `call` takes, every command of the app but `subscribe`
+/// and `describe_widget`, which need the caller's window.
 pub const COMMANDS: &[&str] = &[
     "describe_table",
     "fetch_rows",
+    "fetch_column",
+    "fetch_row",
+    "open_widget",
     "set_selection",
     "assign_rows",
     "unassign_rows",
@@ -71,7 +75,32 @@ pub fn call(
             columns: args.columns.into_iter().map(ColumnId::new).collect(),
             based_on: Revision::new(args.based_on),
         };
-        return session.rows(&request).map(Reply::Rows);
+        return session.rows(&request).map(Reply::Bytes);
+    }
+    if command == "fetch_column" {
+        let args: ColumnArgs = json_args(command, body)?;
+        return session
+            .numbers(ColumnId::new(args.column), Revision::new(args.based_on))
+            .map(Reply::Bytes);
+    }
+    if command == "fetch_row" {
+        let args: RowArgs = json_args(command, body)?;
+        let columns: Vec<ColumnId> = args.columns.into_iter().map(ColumnId::new).collect();
+        return session
+            .row(
+                RowIndex::new(args.row),
+                &columns,
+                Revision::new(args.based_on),
+            )
+            .map(Reply::Bytes);
+    }
+    if command == "open_widget" {
+        let args: WidgetArgs = json_args(command, body)?;
+        let label = session.open_widget(args.spec.clone(), Revision::new(args.based_on))?;
+        return Ok(Reply::Opened {
+            label,
+            spec: args.spec,
+        });
     }
     let request = match command {
         "set_selection" => {
@@ -243,12 +272,45 @@ pub fn call(
 /// What a call gives back.
 #[derive(Debug)]
 pub enum Reply {
-    /// A command applied, with the windows whose channel failed.
+    /// A command applied, with the windows whose channel failed and the
+    /// widgets whose windows the caller closes.
     Applied(Outcome),
     /// The description of the table, for `describe_table`.
     Description(TableDescription),
-    /// A page of rows, as the bytes of a message of rows, for `fetch_rows`.
-    Rows(Vec<u8>),
+    /// The bytes of a message for the window alone: a page of rows, for
+    /// `fetch_rows` and `fetch_row`, or the values of a numeric column, for
+    /// `fetch_column`.
+    Bytes(Vec<u8>),
+    /// A widget added, for `open_widget`, whose window the caller opens
+    /// once it has released the session's lock, and reports to the session
+    /// with `window_closed` when it cannot.
+    Opened {
+        /// The label of its window.
+        label: WindowLabel,
+        /// What it shows.
+        spec: WidgetSpec,
+    },
+}
+
+/// What the widget of the calling window, `label`, shows, for
+/// `describe_widget`, which takes no arguments.
+///
+/// # Errors
+///
+/// `UnknownWindow` when no widget of that label is open, as for the main
+/// window; or a `Defect` for an argument given.
+pub fn describe_widget(
+    session: &Session,
+    label: &WindowLabel,
+    body: &InvokeBody,
+) -> Result<WidgetSpec, CommandError> {
+    json_args::<Nothing>("describe_widget", body)?;
+    session
+        .widget(label)
+        .cloned()
+        .ok_or_else(|| CommandError::UnknownWindow {
+            label: label.clone(),
+        })
 }
 
 /// The arguments of a command that takes none.
@@ -274,6 +336,34 @@ struct RowsArgs {
     first: u32,
     count: u32,
     columns: Vec<u32>,
+    based_on: u64,
+}
+
+/// The arguments of `fetch_column`, which changes nothing and so carries
+/// no time.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ColumnArgs {
+    column: u32,
+    based_on: u64,
+}
+
+/// The arguments of `fetch_row`, which changes nothing and so carries no
+/// time: the row, and the ids of the columns wanted, in the order wanted.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RowArgs {
+    row: u32,
+    columns: Vec<u32>,
+    based_on: u64,
+}
+
+/// The arguments of `open_widget`: what the widget shows. It takes no
+/// revision of its own, so it carries no time.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WidgetArgs {
+    spec: WidgetSpec,
     based_on: u64,
 }
 

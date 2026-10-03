@@ -86,6 +86,12 @@ follows:
   arrives as JSON and a raw response or channel message as a JSON array of
   numbers. The commands and the decoder then fail loudly, as defects whose
   message names the fallback; a reload restores the protocol.
+- **A window made outside the session's lock may be one the session has
+  closed meanwhile**: a load or a change of role that runs while it is
+  being built closes a label that has no window yet. So once the window
+  exists, the command checks under the lock that its widget is still open,
+  and closes the window when it is not (`windows::open_widget_window`,
+  found by the review of 3 October 2026).
 - **A window is never destroyed from inside its own call**: the close is
   queued with `run_on_main_thread`, as creating one from a synchronous
   command deadlocks on Windows.
@@ -180,15 +186,20 @@ backend never sends text meant for the user: the words are the window's.
 
 - **Labels**: `main`, and for widgets the kind and a number,
   `scatter3d-1`, `histogram-2`. A label never contains a user's text.
-- **One capability file covers them** with a pattern of labels,
-  `"windows": ["main", "scatter3d-*", ...]`, and grants the fewest
-  permissions that work: the `allow-` of each command of ours a window
-  calls, and of Tauri's own functions only those a window calls, never a
-  whole set such as `core:default` when one permission is used. The
-  windows call none of Tauri's own today: the window's label is read
-  without a call, and a channel's fetch is exempt from the check
-  (`tauri-2.12.1/src/webview/mod.rs`). A test of the commands checks
-  that the main window is refused the ones it does not use.
+- **A capability for each kind of window**, each granting the fewest
+  permissions that work: the `allow-` of each command of ours its windows
+  call, and of Tauri's own functions only those they call, never a whole
+  set such as `core:default` when one permission is used.
+  `capabilities/default.json` is the main window's, and
+  `capabilities/widgets.json` covers the widgets with a pattern of labels,
+  `"windows": ["scatter3d-*"]`, to which each new kind adds its pattern.
+  One file for all windows, as this rule said before 3 October 2026,
+  would let a widget call what only the main window needs, an import
+  among them. The windows call none of Tauri's own today: the window's
+  label is read without a call, its title is set from its page's
+  (below), and a channel's fetch is exempt from the check
+  (`tauri-2.12.1/src/webview/mod.rs`). A test of the commands checks that
+  each window is refused the commands it does not use.
 - **Our commands are listed in `src-tauri/build.rs`**, in the
   `AppManifest` given to `tauri_build::try_build`. Without the list Tauri
   checks the capabilities only for its own and plugins' commands, and any
@@ -207,9 +218,19 @@ backend never sends text meant for the user: the words are the window's.
 - **`accept_first_mouse(true)` on the point views only**, the 3D scatter
   and the map; the histograms, the bar plots and the main window keep the
   default (`docs/design.md`, section 10).
-- **Widgets cannot go fullscreen**; they can be maximized.
+- **Widgets cannot go fullscreen**; they can be maximized. On macOS the
+  builder's `maximizable(false)` disables the green button, which would
+  take the window fullscreen (tao 0.37, `set_maximizable`); Window >
+  Maximize of the menu still fills the screen.
 - **Windows are created hidden**, given their size and position, and then
   shown, so that a restored layout does not flash in the wrong place.
+- **A widget's title is its page's**: the window sets `document.title`,
+  in its words, and the app copies it to the window with the builder's
+  `on_document_title_changed`, so that no window needs Tauri's permission
+  to set a title and the e2e harness reads the title from the page.
+- **A widget opens with no position of its own**, at 800 by 640 logical
+  pixels, where the system puts a new window, until the layouts of
+  `docs/design.md`, section 2.4, restore one.
   Positions are checked against the monitors present, and under Wayland
   they are neither set nor read (tao: "has no effect").
 - **The menu** is defined once, in the backend: the app's menu bar on

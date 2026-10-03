@@ -26,11 +26,13 @@ mod formats;
 mod ids;
 mod import;
 mod message;
+mod numbers;
 mod row_set;
 mod rows;
 mod session;
 mod table;
 mod text;
+mod widgets;
 
 pub use action::MenuAction;
 pub use command::{Command, Request};
@@ -61,3 +63,4 @@ pub use table::{
     MAX_GROUP_NAME, MAX_LEVELS, MAX_ROWS, NameColumn, NewColumn, Numbers, PALETTE, Role,
     StorageType, Stored, Table, is_individual_id, palette,
 };
+pub use widgets::{WidgetSpec, WindowHost};

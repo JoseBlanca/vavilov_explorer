@@ -138,7 +138,7 @@ fn a_time_that_is_not_finite_is_a_defect_in_both_forms_of_call() {
 #[test]
 fn a_page_of_rows_is_read_from_its_json_arguments() {
     let mut session = loaded();
-    let Reply::Rows(bytes) = json_call(
+    let Reply::Bytes(bytes) = json_call(
         &mut session,
         "fetch_rows",
         json!({ "first": 2, "count": 1, "columns": [1], "basedOn": 1 }),

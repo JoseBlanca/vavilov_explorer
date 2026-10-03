@@ -3,7 +3,7 @@
 use serde::Deserialize;
 use vavilov_core::{
     Categorical, Colour, ColumnId, ColumnValues, Command, CommandError, LevelCode, LevelValues,
-    NewColumn, Request, Role, Session, Stored, Table,
+    NewColumn, Outcome, Request, Role, Session, Stored, Table,
 };
 
 /// A table as a test describes it: the first column, then columns of
@@ -33,8 +33,9 @@ struct ColumnSpec {
     role: Option<Role>,
 }
 
-/// Loads the table into the session, as the import will.
-pub(crate) fn load(session: &mut Session, spec: TableSpec) -> Result<(), CommandError> {
+/// Loads the table into the session, as the import does, and gives what
+/// the load did, with the widgets it closed.
+pub(crate) fn load(session: &mut Session, spec: TableSpec) -> Result<Outcome, CommandError> {
     let columns = (1..=u32::MAX)
         .zip(spec.columns)
         .map(|(id, column_spec)| column(ColumnId::new(id), column_spec))
@@ -48,8 +49,7 @@ pub(crate) fn load(session: &mut Session, spec: TableSpec) -> Result<(), Command
         },
         based_on,
         sent_at: None,
-    })?;
-    Ok(())
+    })
 }
 
 fn column(id: ColumnId, spec: ColumnSpec) -> Result<NewColumn, CommandError> {

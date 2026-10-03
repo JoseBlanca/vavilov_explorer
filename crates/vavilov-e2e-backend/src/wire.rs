@@ -4,8 +4,8 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::http::{HeaderMap, HeaderName, HeaderValue};
 use tauri::ipc::InvokeBody;
-use vavilov_core::{CommandError, Session, Subscriber, WindowLabel, export_table};
-use vavilov_explorer_lib::{calls, menu, transfer};
+use vavilov_core::{CommandError, Session, Subscriber, WindowHost, WindowLabel, export_table};
+use vavilov_explorer_lib::{calls, menu, transfer, windows};
 
 use crate::load;
 
@@ -56,6 +56,7 @@ pub(crate) fn answer(
     stand_ins: &mut StandIns,
     line: &str,
     subscriber: impl FnOnce(WindowLabel) -> Box<dyn Subscriber>,
+    host: &mut impl WindowHost,
 ) -> Value {
     let line: Line = match serde_json::from_str(line) {
         Ok(line) => line,
@@ -64,7 +65,7 @@ pub(crate) fn answer(
         }
     };
     let id = line.id;
-    match outcome(session, stand_ins, line, subscriber) {
+    match outcome(session, stand_ins, line, subscriber, host) {
         Ok(Answer::Bytes(bytes)) => json!({ "id": id, "bytes": bytes }),
         Ok(Answer::Done) => json!({ "id": id, "ok": null }),
         Ok(Answer::Value(value)) => json!({ "id": id, "ok": value }),
@@ -100,13 +101,16 @@ fn outcome(
     stand_ins: &mut StandIns,
     line: Line,
     subscriber: impl FnOnce(WindowLabel) -> Box<dyn Subscriber>,
+    host: &mut impl WindowHost,
 ) -> Result<Answer, Failure> {
     match line.command.as_str() {
         "e2e:load" => {
             let table = line
                 .table
                 .ok_or_else(|| Failure::Harness("e2e:load without a table".to_owned()))?;
-            load::load(session, table)?;
+            let outcome = load::load(session, table)?;
+            channels_sent("e2e:load", &outcome)?;
+            windows::close_all(host, &outcome.closed);
             Ok(Answer::Done)
         }
         "e2e:action" => {
@@ -160,6 +164,7 @@ fn outcome(
             let (file_name, imported) = transfer::read(&path)?;
             let (answer, outcome) = transfer::load(session, file_name, imported, args)?;
             channels_sent("import_table", &outcome)?;
+            windows::close_all(host, &outcome.closed);
             value(&answer)
         }
         "export_table" => {
@@ -178,6 +183,17 @@ fn outcome(
             let snapshot = session.subscribe(label.clone(), subscriber(label))?;
             Ok(Answer::Bytes(snapshot))
         }
+        "describe_widget" => {
+            let label = WindowLabel::new(window(line.window)?);
+            let spec = calls::describe_widget(session, &label, &json_body(line.json)?)?;
+            value(&spec)
+        }
+        // The harness closed the page of a window, as the user closes a
+        // window, or as a window closed by the session goes.
+        "e2e:closed" => {
+            session.window_closed(&WindowLabel::new(window(line.window)?));
+            Ok(Answer::Done)
+        }
         command => {
             window(line.window)?;
             let body = match (line.json, line.raw) {
@@ -193,9 +209,17 @@ fn outcome(
             match calls::call(session, command, &body, &headers)? {
                 calls::Reply::Applied(outcome) => {
                     channels_sent(command, &outcome)?;
+                    windows::close_all(host, &outcome.closed);
                     Ok(Answer::Done)
                 }
-                calls::Reply::Rows(bytes) => Ok(Answer::Bytes(bytes)),
+                calls::Reply::Opened { label, spec } => {
+                    if let Err(error) = host.open(&label, &spec) {
+                        session.window_closed(&label);
+                        return Err(Failure::Refused(error));
+                    }
+                    Ok(Answer::Done)
+                }
+                calls::Reply::Bytes(bytes) => Ok(Answer::Bytes(bytes)),
                 calls::Reply::Description(description) => serde_json::to_value(description)
                     .map(Answer::Value)
                     .map_err(|error| Failure::Harness(error.to_string())),

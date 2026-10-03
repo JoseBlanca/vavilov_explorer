@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fetch-row"
+description = "Enables the fetch_row command without any pre-configured scope."
+commands.allow = ["fetch_row"]
+
+[[permission]]
+identifier = "deny-fetch-row"
+description = "Denies the fetch_row command without any pre-configured scope."
+commands.deny = ["fetch_row"]

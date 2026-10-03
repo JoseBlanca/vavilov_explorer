@@ -2,7 +2,7 @@ import { html, nothing } from "lit-html";
 import type { TemplateResult } from "lit-html";
 
 import type { MessageKind } from "../../state/barMessages.ts";
-import { classOf } from "../shared/classOf.ts";
+import { classOf } from "./classOf.ts";
 import styles from "./infoBar.module.css";
 
 /** The message the information bar shows, in words. */
@@ -23,7 +23,7 @@ export interface InfoBarMessage {
 export interface InfoBarProps {
   /** The message shown, or `null` for none. */
   readonly message: InfoBarMessage | null;
-  /** The count of the rows the table shows, and of those selected; `null` with no project open. */
+  /** What the window counts, the rows of the table or the individuals drawn; `null` for none. */
   readonly count: string | null;
   /** The count a screen reader is told, once it stopped changing; empty before. */
   readonly announced: string;
@@ -59,10 +59,10 @@ function messageView(message: InfoBarMessage, onDismiss: () => void): TemplateRe
 }
 
 /**
- * The information bar below the table, the one place for information,
- * warnings and errors about it (docs/design.md, section 2.1): one message
- * at a time, its kind in words, then the count of the rows, which is not
- * there with no project open. An error is in a live region that a screen
+ * The information bar at the bottom of a window, the one place for
+ * information, warnings and errors about it (docs/design.md, section 2.1):
+ * one message at a time, its kind in words, then what the window counts,
+ * which is not there with no project open. An error is in a live region that a screen
  * reader reads at once, a warning or an informational message in one that
  * waits for a pause; both are there, empty, while no such message is, so
  * that a reader announces the message put in them. A last live region,

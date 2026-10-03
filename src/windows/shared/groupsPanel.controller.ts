@@ -20,8 +20,8 @@ import { groupRefusalMessage } from "../../state/groupMessages.ts";
 import type { TypedFor } from "../../state/groupMessages.ts";
 import { editTargetOf, groupsModel } from "../../state/groups.ts";
 import type { GroupRow, GroupsModel } from "../../state/groups.ts";
-import { answered } from "../shared/answered.ts";
-import { countText } from "../shared/numbers.ts";
+import { answered } from "./answered.ts";
+import { countText } from "./numbers.ts";
 import { groupsPanelView } from "./groupsPanel.view.ts";
 import type { GroupClick, GroupForm } from "./groupsPanel.view.ts";
 

@@ -1,0 +1,56 @@
+.window {
+  display: grid;
+  /* The defect bar, the plot and its groups, then the information bar. */
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+
+.body {
+  display: grid;
+  /* The plot, then the groups at its right, as wide as their content. */
+  grid-template-columns: 1fr auto;
+  min-height: 0;
+}
+
+.plot {
+  min-width: 0;
+  min-height: 0;
+  user-select: none;
+}
+
+.cannotDraw {
+  align-self: center;
+  justify-self: center;
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-text);
+}
+
+.side {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: var(--panel-width);
+  min-height: 0;
+  border-left: 1px solid var(--color-border);
+}
+
+/* Hidden, the groups leave their button alone, in a narrow column. */
+.sideHidden {
+  display: grid;
+  align-content: start;
+  border-left: 1px solid var(--color-border);
+}
+
+.toggle {
+  margin: var(--space-1);
+  justify-self: end;
+}
+
+.panel {
+  display: grid;
+  min-height: 0;
+}
+
+.hidden {
+  display: none;
+}

@@ -17,7 +17,7 @@ use crate::commands::report_dropped;
 /// the window gives its action, its text, the action, and its shortcut.
 /// Undo and Redo have Cmd-Z and Cmd-Shift-Z, Ctrl outside macOS
 /// (`docs/design.md`, section 2.1).
-const ITEMS: [(&str, &str, MenuAction, Option<&str>); 5] = [
+const ITEMS: [(&str, &str, MenuAction, Option<&str>); 6] = [
     (
         "importTable",
         "Import table…",
@@ -33,10 +33,15 @@ const ITEMS: [(&str, &str, MenuAction, Option<&str>); 5] = [
     ),
     ("undo", "Undo", MenuAction::Undo, Some("CmdOrCtrl+Z")),
     ("redo", "Redo", MenuAction::Redo, Some("CmdOrCtrl+Shift+Z")),
+    ("scatter3d", "3D scatter…", MenuAction::Scatter3d, None),
 ];
 
 /// The actions whose items need a table, disabled until one is open.
-const NEED_A_TABLE: [MenuAction; 2] = [MenuAction::ExportCsv, MenuAction::ExportXlsx];
+const NEED_A_TABLE: [MenuAction; 3] = [
+    MenuAction::ExportCsv,
+    MenuAction::ExportXlsx,
+    MenuAction::Scatter3d,
+];
 
 /// The id of our Close Window item, outside macOS. muda's own renders
 /// disabled on Linux (`muda-0.20.0/src/platform_impl/gtk/mod.rs`).
@@ -83,9 +88,9 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             && !matches!(action, MenuAction::Undo | MenuAction::Redo);
         MenuItem::with_id(app, id, text, enabled, shortcut)
     });
-    let [import, export_csv, export_xlsx, undo, redo] = items;
-    let (import, export_csv, export_xlsx, undo, redo) =
-        (import?, export_csv?, export_xlsx?, undo?, redo?);
+    let [import, export_csv, export_xlsx, undo, redo, scatter3d] = items;
+    let (import, export_csv, export_xlsx, undo, redo, scatter3d) =
+        (import?, export_csv?, export_xlsx?, undo?, redo?, scatter3d?);
     let file = Submenu::with_items(
         app,
         "File",
@@ -118,6 +123,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             &PredefinedMenuItem::select_all(app, None)?,
         ],
     )?;
+    let plot = Submenu::with_items(app, "Plot", true, &[&scatter3d])?;
     #[cfg(target_os = "macos")]
     {
         let name = app.package_info().name.clone();
@@ -146,12 +152,12 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 &PredefinedMenuItem::maximize(app, None)?,
             ],
         )?;
-        let menu = Menu::with_items(app, &[&application, &file, &edit, &window])?;
+        let menu = Menu::with_items(app, &[&application, &file, &edit, &plot, &window])?;
         app.set_menu(menu)?;
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let menu = Menu::with_items(app, &[&file, &edit])?;
+        let menu = Menu::with_items(app, &[&file, &edit, &plot])?;
         // Builder::menu would give it to every window (tauri-2.12.1,
         // src/window/mod.rs, the window's menu), and the widgets have none.
         app.get_webview_window(WindowLabel::MAIN)
@@ -159,7 +165,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             .set_menu(menu)?;
     }
     app.manage(FollowingItems {
-        table: vec![export_csv, export_xlsx],
+        table: vec![export_csv, export_xlsx, scatter3d],
         undo,
         redo,
     });
@@ -211,6 +217,9 @@ pub fn chosen<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         eprintln!("Vavilov Explorer defect: no session for the menu's {action:?}");
         return;
     };
+    if action.shows_in_main_window() {
+        bring_main_window_forward(app);
+    }
     let sent = match session.lock() {
         Ok(mut session) => session.send_action(&WindowLabel::main(), action),
         Err(_) => {
@@ -224,6 +233,21 @@ pub fn chosen<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         Err(error) => {
             eprintln!("Vavilov Explorer: the menu's {action:?} reached no window: {error}")
         }
+    }
+}
+
+/// Brings the main window to the front, where an item of the menu shows its
+/// dialog or its message, when another window was in front of it.
+fn bring_main_window_forward<R: Runtime>(app: &AppHandle<R>) {
+    match app.get_webview_window(WindowLabel::MAIN) {
+        Some(window) => {
+            if let Err(error) = window.set_focus() {
+                eprintln!(
+                    "Vavilov Explorer: the main window could not be brought forward: {error}"
+                );
+            }
+        }
+        None => eprintln!("Vavilov Explorer defect: an item of the menu with no main window"),
     }
 }
 

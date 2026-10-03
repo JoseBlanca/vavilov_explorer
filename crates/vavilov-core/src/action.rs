@@ -23,6 +23,8 @@ pub enum MenuAction {
     Undo,
     /// Edit, Redo.
     Redo,
+    /// Plot, 3D scatter….
+    Scatter3d,
 }
 
 impl MenuAction {
@@ -34,6 +36,18 @@ impl MenuAction {
             Self::ExportXlsx => 3,
             Self::Undo => 4,
             Self::Redo => 5,
+            Self::Scatter3d => 6,
+        }
+    }
+
+    /// Whether the main window shows something for it, a dialog or a
+    /// message in its information bar, so that it is brought to the front
+    /// when another window is (`docs/design.md`, section 2.2).
+    #[must_use]
+    pub const fn shows_in_main_window(self) -> bool {
+        match self {
+            Self::ImportTable | Self::ExportCsv | Self::ExportXlsx | Self::Scatter3d => true,
+            Self::Undo | Self::Redo => false,
         }
     }
 }

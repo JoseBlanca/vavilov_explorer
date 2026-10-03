@@ -6,6 +6,7 @@ use crate::ids::{ColumnId, HoverSeq, LevelCode, Position, Revision, RowIndex, Se
 use crate::message::{MessageKind, NO_CODE, NO_COLUMN, NO_ROW, PartKind};
 use crate::row_set::RowSet;
 use crate::session::{Active, EditMode, SelectedGroups, Shown, UndoRedo};
+use crate::table::Numbers;
 
 /// Every payload, and so every message, is padded to a multiple of this.
 const ALIGNMENT: usize = 8;
@@ -293,6 +294,51 @@ impl MessageWriter {
         })
     }
 
+    /// The values of a numeric column as a window draws them: its id, its
+    /// revision and its number of rows, which rows are missing, one bit per
+    /// row, then an `f32` per row, zero in a missing row.
+    pub(crate) fn numbers(
+        &mut self,
+        column: ColumnId,
+        revision: Revision,
+        numbers: &Numbers,
+    ) -> Result<(), CommandError> {
+        let num_rows = match numbers {
+            Numbers::Float(values) => values.len(),
+            Numbers::Integer(values) => values.len(),
+        };
+        let num_rows =
+            u32::try_from(num_rows).map_err(|_| defect(&format!("a column of {num_rows} rows")))?;
+        self.part(PartKind::Numbers, |payload| {
+            payload.extend_from_slice(&column.get().to_le_bytes());
+            payload.extend_from_slice(&[0; 4]);
+            payload.extend_from_slice(&revision.get().to_le_bytes());
+            payload.extend_from_slice(&num_rows.to_le_bytes());
+            payload.extend_from_slice(&[0; 4]);
+            match numbers {
+                Numbers::Float(values) => {
+                    let centre = middle(values.iter().flatten().copied());
+                    payload.extend_from_slice(&centre.to_le_bytes());
+                    missing(payload, values)?;
+                    for value in values {
+                        let offset = value.map_or(0.0, |value| value - centre);
+                        payload.extend_from_slice(&drawn(offset).to_le_bytes());
+                    }
+                }
+                Numbers::Integer(values) => {
+                    let centre = middle(values.iter().flatten().map(|value| widened(*value)));
+                    payload.extend_from_slice(&centre.to_le_bytes());
+                    missing(payload, values)?;
+                    for value in values {
+                        let offset = value.map_or(0.0, |value| widened(value) - centre);
+                        payload.extend_from_slice(&drawn(offset).to_le_bytes());
+                    }
+                }
+            }
+            Ok(())
+        })
+    }
+
     /// A part: its kind, two zero bytes, the length of its payload as a
     /// `u32`, then the payload written by `write`, padded with zeros.
     fn part(
@@ -400,6 +446,42 @@ fn text_list<'a>(
         bytes.extend_from_slice(text.as_bytes());
     }
     Ok(())
+}
+
+/// The middle of the smallest and the largest of `values`, which the values
+/// of a numeric column are sent as their distances from, so that values far
+/// from zero and close together keep their differences in 32 bits; 0 when
+/// there is none. Halved before they are added, so that two values near
+/// the largest float do not add up to an infinity.
+fn middle(values: impl Iterator<Item = f64>) -> f64 {
+    let range = values.fold(None, |range: Option<(f64, f64)>, value| {
+        Some(range.map_or((value, value), |(min, max)| {
+            (min.min(value), max.max(value))
+        }))
+    });
+    range.map_or(0.0, |(min, max)| min / 2.0 + max / 2.0)
+}
+
+/// A distance from the middle of a column as the GPU draws it, a 32-bit
+/// float: the one place where a value of the table becomes one (`rust.md`,
+/// "Floats"). It keeps about 7 significant digits of the distance, and a
+/// distance beyond about 3.4 × 10^38 becomes an infinity, which a window
+/// counts among the values it cannot draw.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the GPU draws 32-bit floats: the value is rounded to the nearest one, which is what is drawn"
+)]
+const fn drawn(value: f64) -> f32 {
+    value as f32
+}
+
+/// A whole number as the nearest 64-bit float.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "an i64 past 2^53 is rounded to the nearest float; a value drawn on a screen needs far fewer digits"
+)]
+const fn widened(value: i64) -> f64 {
+    value as f64
 }
 
 fn defect(what: &str) -> CommandError {

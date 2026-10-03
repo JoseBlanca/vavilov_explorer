@@ -1,0 +1,79 @@
+/* The global classes the plots write from TypeScript, which D3 and the
+   point views set as strings (.claude/skills/coding/css.md). */
+
+.plot-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* A drag rotates or draws a lasso; it must not select the labels. */
+  user-select: none;
+}
+
+.plot-canvas,
+.plot-lasso {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The lasso is drawn from the pointer's events on the frame, and lets them
+   through to the canvas, whose controls zoom with the wheel even while + or
+   − is pressed. */
+.plot-lasso {
+  pointer-events: none;
+}
+
+/* The frame clips what is outside it, so the focus ring is drawn inside. */
+.plot-canvas:focus-visible {
+  outline-offset: -2px;
+}
+
+.plot-lasso-armed {
+  cursor: crosshair;
+}
+
+.plot-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.plot-tick,
+.plot-axis-title {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+}
+
+.plot-tick {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.plot-axis-title {
+  color: var(--color-text);
+  font-weight: var(--font-weight-strong);
+}
+
+.plot-lost {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: 80%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  background: var(--color-panel);
+}
+
+.plot-lost:empty {
+  display: none;
+}

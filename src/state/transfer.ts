@@ -7,11 +7,18 @@ import type { Separator } from "./fileRefusal.ts";
 import { isText, taggedDecoder } from "./tagged.ts";
 
 /** The items of the menu a window carries out, in the order of their codes, 1 and on. */
-export const MENU_ACTIONS = ["importTable", "exportCsv", "exportXlsx", "undo", "redo"] as const;
+export const MENU_ACTIONS = [
+  "importTable",
+  "exportCsv",
+  "exportXlsx",
+  "undo",
+  "redo",
+  "scatter3d",
+] as const;
 
 /**
  * An item of the menu a window carries out: Import table…, Export as CSV…,
- * Export as Excel…, Undo and Redo.
+ * Export as Excel…, Undo, Redo and 3D scatter….
  */
 export type MenuAction = (typeof MENU_ACTIONS)[number];
 
