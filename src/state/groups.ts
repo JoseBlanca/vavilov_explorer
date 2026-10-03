@@ -12,6 +12,9 @@ import { NO_CODE, isLevelCode } from "./ids.ts";
 import type { ColumnId, LevelCode } from "./ids.ts";
 import type { EditMode, Selected } from "./message.ts";
 import { PALETTE } from "./palette.ts";
+import type { EditTarget } from "./groupEdit.ts";
+import { isRowSelected, removableGroups, singleOf } from "./selectedGroups.ts";
+import type { SelectedGroups } from "./selectedGroups.ts";
 import type { Active } from "./windowState.ts";
 
 /**
@@ -39,8 +42,12 @@ export interface GroupRow {
   readonly colour: string | null;
   /** How many individuals it holds. */
   readonly count: number;
-  /** Whether it is the one selected for editing. */
+  /** Whether it is selected. */
   readonly isSelected: boolean;
+  /** Whether it shows +: it is the one row selected. */
+  readonly showsPlus: boolean;
+  /** Whether it shows −: it is the one row selected, or the last group of several selected. */
+  readonly showsMinus: boolean;
 }
 
 /** What the panel shows. */
@@ -64,7 +71,9 @@ export interface GroupsModel {
    * of a long name, or of numbers or of TRUE and FALSE.
    */
   readonly nameLimit: number | null;
-  /** The button pressed on the selected row, + or −, or `null`. */
+  /** What is selected, in the core's order; empty for nothing. */
+  readonly selected: SelectedGroups;
+  /** The button pressed, + or −, or `null`. */
   readonly mode: EditMode | null;
 }
 
@@ -91,6 +100,7 @@ export function groupsModel(
       rows: [],
       takesNewGroups: false,
       nameLimit: null,
+      selected: [],
       mode: null,
     };
   }
@@ -122,6 +132,24 @@ export function groupsModel(
       counts[value] = count + 1;
     }
   }
+  const single = singleOf(active.selected);
+  const groups = removableGroups(active.selected);
+  const lastGroup = groups.at(-1);
+  /** Whether `row` is selected, and which buttons it shows. */
+  const marks = (row: Selected): Pick<GroupRow, "isSelected" | "showsPlus" | "showsMinus"> => {
+    const isSelected = isRowSelected(active.selected, row);
+    const isSingle = single !== null && isSelected;
+    return {
+      isSelected,
+      showsPlus: isSingle,
+      showsMinus:
+        isSingle ||
+        (single === null &&
+          row.kind === "group" &&
+          lastGroup !== undefined &&
+          row.code === lastGroup),
+    };
+  };
   const rows: GroupRow[] = column.levels.map((level, index) => {
     const selected: Selected = { kind: "group", code: levelCode(index) };
     const count = counts[index];
@@ -133,15 +161,16 @@ export function groupsModel(
       name: levelText(level.value, column.storage, decimalMark),
       colour: level.colour,
       count,
-      isSelected: sameSelected(active.selected, selected),
+      ...marks(selected),
     };
   });
+  const unassignedRow: Selected = { kind: "unassigned" };
   rows.push({
-    selected: { kind: "unassigned" },
+    selected: unassignedRow,
     name: null,
     colour: null,
     count: unassigned,
-    isSelected: active.selected?.kind === "unassigned",
+    ...marks(unassignedRow),
   });
   return {
     classifications,
@@ -150,6 +179,7 @@ export function groupsModel(
     rows,
     takesNewGroups: column.storage !== "boolean" || column.levels.length < 2,
     nameLimit: column.storage === "text" && column.role === "category" ? MAX_GROUP_NAME : null,
+    selected: active.selected,
     mode: active.mode,
   };
 }
@@ -161,15 +191,38 @@ function levelCode(index: number): LevelCode {
   return index;
 }
 
-/** Whether two selections are the same. */
-export function sameSelected(first: Selected | null, second: Selected | null): boolean {
-  if (first === null || second === null) {
-    return first === second;
+/**
+ * What + or − acts on, as the bar names it: the one row selected, or the
+ * groups selected, or `null` with nothing selected.
+ *
+ * @throws A defect for the row of a group with no name, which only the
+ * unassigned individuals' has.
+ */
+export function editTargetOf(model: GroupsModel): EditTarget | null {
+  const selected = model.rows.filter((row) => row.isSelected);
+  const [first, ...rest] = selected;
+  if (first === undefined) {
+    return null;
   }
-  if (first.kind === "unassigned" || second.kind === "unassigned") {
-    return first.kind === second.kind;
+  const nameOf = (row: GroupRow): string => {
+    if (row.name === null) {
+      throw defect(`a row of a group with no name`);
+    }
+    return row.name;
+  };
+  if (rest.length > 0) {
+    // − acts on the groups among them, the unassigned individuals aside.
+    const groups = selected.filter((row) => row.selected.kind === "group");
+    const [only, ...others] = groups;
+    if (only?.selected.kind === "group" && others.length === 0) {
+      return { kind: "group", code: only.selected.code, name: nameOf(only) };
+    }
+    return { kind: "groups", names: groups.map(nameOf) };
   }
-  return first.code === second.code;
+  if (first.selected.kind === "unassigned") {
+    return { kind: "unassigned" };
+  }
+  return { kind: "group", code: first.selected.code, name: nameOf(first) };
 }
 
 /** A colour a group edited can take, with its name as a screen reader reads it. */

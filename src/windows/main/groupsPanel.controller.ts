@@ -5,7 +5,7 @@ import type { BarMessage } from "../../state/barMessages.ts";
 import { defect } from "../../state/defect.ts";
 import type { DescriptionNow } from "../../state/description.ts";
 import type { ColumnId, LevelCode, Revision } from "../../state/ids.ts";
-import type { EditMode } from "../../state/message.ts";
+import type { EditMode, Selected } from "../../state/message.ts";
 import {
   addedCount,
   deletedMessage,
@@ -14,14 +14,16 @@ import {
   removedCount,
 } from "../../state/groupEdit.ts";
 import type { EditTarget } from "../../state/groupEdit.ts";
+import { rangeOf, removableGroups, singleOf, toggled } from "../../state/selectedGroups.ts";
+import type { SelectedGroups } from "../../state/selectedGroups.ts";
 import { groupRefusalMessage } from "../../state/groupMessages.ts";
 import type { TypedFor } from "../../state/groupMessages.ts";
-import { groupsModel } from "../../state/groups.ts";
+import { editTargetOf, groupsModel } from "../../state/groups.ts";
 import type { GroupRow, GroupsModel } from "../../state/groups.ts";
 import { answered } from "../shared/answered.ts";
 import { countText } from "../shared/numbers.ts";
 import { groupsPanelView } from "./groupsPanel.view.ts";
-import type { GroupForm } from "./groupsPanel.view.ts";
+import type { GroupClick, GroupForm } from "./groupsPanel.view.ts";
 
 /** The groups panel in its element. */
 export interface GroupsPanel {
@@ -75,6 +77,12 @@ export function createGroupsPanel(
   /** The model last drawn, which names the groups of a refusal and of a release. */
   let drawn: GroupsModel | null = null;
   let pressed: Pressed | null = null;
+  /**
+   * The row last clicked without Shift, where a Shift-click's range starts,
+   * with its classification, so that a range never starts from a row of
+   * another one.
+   */
+  let anchor: { readonly column: ColumnId; readonly row: Selected } | null = null;
   /** Whether `destroy` ran, after which an answer that comes back draws nothing. */
   let destroyed = false;
 
@@ -82,14 +90,38 @@ export function createGroupsPanel(
     form = { kind: "closed" };
   };
 
-  const press = (row: GroupRow): void => {
+  /**
+   * Selects `row` alone, or nothing when it was the one selected; a
+   * Cmd-click or a Ctrl-click adds it to what is selected or takes it away;
+   * a Shift-click selects every row from the last one clicked, the anchor,
+   * to it.
+   */
+  const press = (row: GroupRow, click: GroupClick): void => {
     const active = state.active();
-    if (active === null) {
+    if (active === null || drawn === null) {
       return;
     }
+    let selected: SelectedGroups;
+    switch (click) {
+      case "alone":
+        selected = row.isSelected && singleOf(active.selected) !== null ? [] : [row.selected];
+        anchor = { column: active.column, row: row.selected };
+        break;
+      case "toggle":
+        selected = toggled(active.selected, row.selected);
+        anchor = { column: active.column, row: row.selected };
+        break;
+      case "range":
+        selected = rangeOf(
+          drawn.rows.map((other) => other.selected),
+          anchor?.column === active.column ? anchor.row : null,
+          row.selected,
+        );
+        break;
+    }
     connection
-      .selectGroup(active.column, row.isSelected ? null : row.selected)
-      .then(answered("selecting a group", draw), report);
+      .selectGroups(active.column, selected)
+      .then(answered("selecting groups", draw), report);
   };
 
   /** The active classification, the selection and its codes, or `null` with none active. */
@@ -109,32 +141,38 @@ export function createGroupsPanel(
   };
 
   /**
-   * Presses `mode` on `row`, or releases it when it is the one pressed. The
-   * individuals selected that pressing it changes are counted from the copy,
-   * which the command is made from.
+   * Presses `mode` on what is selected, or releases it when it is the one
+   * pressed. The individuals selected that pressing it changes are counted
+   * from the copy, which the command is made from.
    */
-  const toggle = (row: GroupRow, mode: EditMode): void => {
+  const toggle = (mode: EditMode): void => {
     const now = edited();
-    if (now === null) {
+    const active = state.active();
+    if (now === null || active === null || drawn === null) {
       return;
     }
-    const next = state.active()?.mode === mode ? null : mode;
+    const next = active.mode === mode ? null : mode;
     if (next === null) {
       connection
-        .setEditMode(now.column, row.selected, null)
+        .setEditMode(now.column, active.selected, null)
         .then(answered("releasing a button", draw), report);
       return;
     }
-    const target = targetOfRow(row);
+    const target = editTargetOf(drawn);
+    if (target === null) {
+      throw defect(`${next} pressed with nothing selected`);
+    }
     let count: number;
     if (next === "add") {
-      count = addedCount(now.selection, now.codes, row.selected);
-    } else if (row.selected.kind === "group") {
-      count = removedCount(now.selection, now.codes, row.selected.code);
+      const single = singleOf(active.selected);
+      if (single === null) {
+        throw defect("+ pressed with other than one row selected");
+      }
+      count = addedCount(now.selection, now.codes, single);
     } else {
-      throw defect("− pressed on the unassigned individuals");
+      count = removedCount(now.selection, now.codes, removableGroups(active.selected));
     }
-    connection.setEditMode(now.column, row.selected, next).then((answer) => {
+    connection.setEditMode(now.column, active.selected, next).then((answer) => {
       if (answer.ok && answer.value === "applied") {
         tell(pressedMessage(count, target, next, countText));
         return;
@@ -146,22 +184,22 @@ export function createGroupsPanel(
   /**
    * Follows the button pressed in the copy, as `model` draws it, from any
    * window or command, and tells the bar when it is released: by pressing it
-   * again, by Escape, or by another selection for editing or another
-   * classification. A load of another table releases it silently, since the
-   * bar starts afresh. It runs on every draw from a current description, so
-   * that a window that starts, or reloads, with a button pressed knows it.
+   * again, by Escape, or by another selection or another classification. A
+   * load of another table releases it silently, since the bar starts
+   * afresh. It runs on every draw from a current description, so that a
+   * window that starts, or reloads, with a button pressed knows it.
    */
   const follow = (model: GroupsModel): void => {
     const project = state.project();
-    const selectedRow = model.rows.find((row) => row.isSelected) ?? null;
-    if (project.kind !== "open" || model.mode === null || selectedRow === null) {
+    const target = editTargetOf(model);
+    if (project.kind !== "open" || model.mode === null || target === null) {
       if (pressed !== null && project.kind === "open" && project.loadedAt === pressed.loadedAt) {
-        tell(releasedMessage(pressed.target, pressed.mode));
+        tell(releasedMessage(pressed.target, pressed.mode, countText));
       }
       pressed = null;
       return;
     }
-    pressed = { loadedAt: project.loadedAt, target: targetOfRow(selectedRow), mode: model.mode };
+    pressed = { loadedAt: project.loadedAt, target, mode: model.mode };
   };
 
   /**
@@ -176,13 +214,12 @@ export function createGroupsPanel(
       return;
     }
     const active = state.active();
-    const selected = active?.selected ?? null;
-    if (active === null || selected === null || active.mode === null) {
+    if (active === null || active.selected.length === 0 || active.mode === null) {
       return;
     }
     event.preventDefault();
     connection
-      .setEditMode(active.column, selected, null)
+      .setEditMode(active.column, active.selected, null)
       .then(answered("releasing a button", draw), report);
   };
 
@@ -275,6 +312,7 @@ export function createGroupsPanel(
         const { code } = form;
         return (
           model.active === form.column &&
+          singleOf(model.selected)?.kind === "group" &&
           model.rows.some(
             (row) => row.isSelected && row.selected.kind === "group" && row.selected.code === code,
           )
@@ -418,22 +456,6 @@ export function createGroupsPanel(
       render(nothing, element);
     },
   };
-}
-
-/**
- * What `row` is as the bar names it.
- *
- * @throws A defect for the row of a group with no name, which only the
- * unassigned individuals' has.
- */
-function targetOfRow(row: GroupRow): EditTarget {
-  if (row.selected.kind === "unassigned") {
-    return { kind: "unassigned" };
-  }
-  if (row.name === null) {
-    throw defect(`a row of the group ${String(row.selected.code)} with no name`);
-  }
-  return { kind: "group", code: row.selected.code, name: row.name };
 }
 
 /** The types of `<input>` the user types text into, where Escape belongs to the field. */

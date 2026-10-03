@@ -14,7 +14,7 @@ const COMMANDS: &[&str] = &[
     "unassign_rows",
     "set_hover",
     "set_active_classification",
-    "select_group",
+    "select_groups",
     "add_group",
     "delete_group",
     "edit_group",

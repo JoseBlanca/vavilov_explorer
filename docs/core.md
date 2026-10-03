@@ -16,10 +16,10 @@ needs from `table_io` is in `table_io-needs.md`.
 
 The words of the app are those of `design.md`, section 1: the **active
 classification** is the categorical column that colours every view, a
-**group** is one of its values, the **selected group** is the
-one the user is editing, and a **lasso** is the outline the user draws
-around points in a plot to add them to the selected group or to
-remove them from it. A **widget** is a window with one plot, a 3D
+**group** is one of its values, the **selected groups** are those the
+user chose in the groups panel, none, one or several, and a **lasso** is
+the outline the user draws around points in a plot to add them to the
+one group selected or to remove them from those selected. A **widget** is a window with one plot, a 3D
 scatter, a map, a histogram or a bar plot. `table_io` is the owner's
 library that reads and writes CSV and xlsx files, being built in its own
 repository. The **e2e harness** is the program that runs the windows of
@@ -192,15 +192,18 @@ it and whether it is undone. `OpenProject` holds the first two:
   colours, and the undo and redo history of edits to it. It is what the
   project file saves, the history apart.
 - **The interaction**: the active classification, the selected
-  group, the button + or − pressed on it, the selection, the hover,
+  groups, the button + or − pressed on them, the selection, the hover,
   and later the open widgets. The active classification, the selected
-  group and the button are one value, `Option<Active { column,
-  selected: Option<Selected>, mode: Option<EditMode> }>`, so that a
+  groups and the button are one value, `Option<Active { column,
+  selected: SelectedGroups, mode: Option<EditMode> }>`, so that a
   selected group cannot exist without the classification it belongs
   to; a selected group is a value of the active classification
   (`design.md`, section 1), so changing the active classification clears
-  it. The button is `None` whenever nothing is selected, and never − on
-  the unassigned individuals; the type allows both, and the dispatcher
+  them. `SelectedGroups` holds the codes of the groups in ascending
+  order, each once, and whether the unassigned individuals are
+  selected. The button is `None` whenever nothing is selected, + only
+  with exactly one row selected, and − only with a group among them; the
+  type allows the others, and the dispatcher
   keeps them out: every command that selects something else, or nothing,
   sets the button to `None` in the same value. Should one be made all the
   same, the writer of the messages refuses it as a defect, so that it
@@ -310,13 +313,13 @@ user's own action, opening the other project, has already replaced what
 the command was about (decided by the owner on 2 October 2026).
 
 A command also names what it acts on rather than leaning on the
-session's current value. Assigning rows names the column and the code of
-the group, and is refused unless they are still the active
-classification and the selected group: otherwise a lasso drawn
-while group A was selected would land in group B, which
-another window selected a moment before. Removing rows from the selected
-group leaves unassigned those of its rows that are inside the
-lasso, and leaves the others as they are.
+session's current value. Assigning rows names the column and the one
+row selected, and is refused unless they are still the active
+classification and what is selected, as `NotSelected`: otherwise a lasso
+drawn while group A was selected would land in group B, which another
+window selected a moment before. Removing rows names the whole
+selection the same way, and leaves unassigned the rows inside the lasso
+that are in one of its groups, and leaves the others as they are.
 
 Within one table, a column id is never given twice and rows do not
 change. A level can be removed, by deleting a group or undoing one
@@ -427,23 +430,24 @@ a name changed, a level gone or its rows given back can change which
 rows the filter's text matches.
 
 While + or − is pressed (`design.md`, section 2.1), the selection
-assigns. `SetEditMode { column, target, mode }` presses a button on what
-is selected, named as the lasso names it, or releases it with `None`; it
-is refused as a lasso is, when `target` is not what is selected, and −
-on the unassigned individuals as `NotSelected`. Pressing one gives the
+assigns. `SetEditMode { column, selected, mode }` presses a button on
+what is selected, which it names whole, or releases it with `None`; it
+is refused as a lasso is, as `NotSelected`, when `selected` is not what
+is selected. + with other than one row selected, and − with no group
+among them, are defects, since no window offers them. Pressing one gives the
 rows selected now what it gives the rows that enter the selection after,
 in the same command. `SetSelection`, while a button is pressed, assigns
 the rows that enter the selection, those in the new selection and not in
 the old: + gives them the group, or none for the unassigned
-individuals, and − leaves unassigned those in the group. A row
+individuals, and − leaves unassigned those in any group selected. A row
 already where the button puts it, or one that leaves the selection, is
 not changed. Either command is then one edit, `SetCodes`, whose message
 carries the selection or the active classification beside the codes, and
 one undo; undoing it gives the codes back and leaves the selection and
-the button as they are. A command that selects another group, or
-none, another classification, a group added, a load, and a change
-of role or an undo that clears the selected group, releases the
-button in the same command.
+the button as they are. `SelectGroups { column, selected }` selects
+groups; any other selection, another classification, a group added, a
+load, a change of role, and a group deleted or undone that was among
+those selected, release the button in the same command.
 
 - **Undo restores the data, not the revisions.** An undo is a command
   that takes the next revision, and the columns it touches take that
@@ -538,7 +542,7 @@ parts of the first slice:
 | part | payload |
 |---|---|
 | project | whether a project is open, a byte, and seven zero bytes; when one is, the number of rows, `u32`, four zero bytes, and the revision at which its table was loaded, `u64` |
-| active | the active classification's column id, `u32::MAX` for none; the selected group's code, `0xFFFF` for none; what is selected, a byte, 0 nothing, 1 a group, 2 the unassigned individuals; the button pressed, a byte, 0 none, 1 +, 2 − |
+| active | the active classification's column id, `u32::MAX` for none; the button pressed, a byte, 0 none, 1 +, 2 −; whether the unassigned individuals are selected, a byte, 0 or 1; the number of groups selected, `u16`; their codes, `u16` each, in ascending order |
 | selection | the number of rows, `u32`; four zero bytes; one bit per row, row `i` in bit `i % 8` of byte `i / 8`, the unused bits of the last byte zero |
 | codes | the column id, `u32`; four zero bytes; the column's revision, `u64`; one `u16` per row, `0xFFFF` for missing |
 | undo | whether there is something to undo and something to redo, a byte each |

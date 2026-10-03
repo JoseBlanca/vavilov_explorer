@@ -210,11 +210,11 @@ fn a_page_after_a_change_carries_the_revision_and_the_column_s_new_one() {
         .unwrap();
     session
         .dispatch(Request {
-            command: Command::SelectGroup {
+            command: Command::SelectGroups {
                 column: ColumnId::new(2),
-                selected: Some(crate::session::Selected::Group(crate::ids::LevelCode::new(
-                    1,
-                ))),
+                selected: crate::SelectedGroups::one(crate::session::Selected::Group(
+                    crate::ids::LevelCode::new(1),
+                )),
             },
             based_on: Revision::new(2),
             sent_at: None,

@@ -14,7 +14,7 @@ use crate::error::{CommandError, GroupRefusal};
 use crate::filter::Replaced;
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, SentAt};
 use crate::message::{MessageKind, MessageWriter};
-use crate::session::{Active, HistoryStep, OpenProject, Selected, SharedState};
+use crate::session::{Active, HistoryStep, OpenProject, Selected, SelectedGroups, SharedState};
 use crate::table::{
     Categorical, Colour, ColumnValues, Level, MAX_LEVELS, PALETTE, Role, level_code, unused_colour,
 };
@@ -83,7 +83,7 @@ pub(super) fn plan_add_group(
     // Selecting the new group releases + or −.
     let selected = Active {
         column,
-        selected: Some(Selected::Group(code)),
+        selected: SelectedGroups::one(Selected::Group(code)),
         mode: None,
     };
     let inserted = Inserted {
@@ -319,9 +319,9 @@ pub(super) fn plan_set_level(
 }
 
 /// The active classification once the codes of `column` move as `moved`
-/// says, when it is `column` and has a group selected for editing
-/// whose code moves; `None` when it does not change. A group whose
-/// code `moved` takes away is no longer selected, which releases + or −.
+/// says, when it is `column` and has groups selected whose codes move;
+/// `None` when it does not change. A group whose code `moved` takes away
+/// leaves the selection, which releases + or −.
 fn moved_selection(
     open: &OpenProject,
     column: ColumnId,
@@ -330,23 +330,18 @@ fn moved_selection(
     let active = open
         .interaction
         .active
+        .as_ref()
         .filter(|active| active.column == column)?;
-    let Some(Selected::Group(selected)) = active.selected else {
+    let selected = active.selected.moved(moved);
+    if selected == active.selected {
         return None;
-    };
-    let new = match moved(selected) {
-        Some(code) if code == selected => return None,
-        Some(code) => Active {
-            selected: Some(Selected::Group(code)),
-            ..active
-        },
-        None => Active {
-            column,
-            selected: None,
-            mode: None,
-        },
-    };
-    Some(Some(new))
+    }
+    let lost = selected.groups().len() != active.selected.groups().len();
+    Some(Some(Active {
+        column,
+        mode: if lost { None } else { active.mode },
+        selected,
+    }))
 }
 
 /// Plans new levels of a column: the column, its levels when a code may
@@ -394,8 +389,8 @@ fn plan_levels(
         .codes();
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.shape(revision)?;
-    if let Some(active) = active {
-        message.active(active)?;
+    if let Some(active) = &active {
+        message.active(active.as_ref())?;
     }
     message.codes(column, revision, codes)?;
     message.columns(&[(column, revision)])?;

@@ -39,15 +39,18 @@ assigned to.
 - **Group**: one value of the active classification.
 - **Unassigned**: an individual whose value in the active classification
   is missing. It belongs to no group.
-- **Selected group**: the group the user is editing. It is
-  chosen by clicking it in the groups panel, where its row then
-  shows + and −, two buttons that stay pressed: while + is pressed, every
-  individual selected goes into the group, and while − is pressed,
-  every individual selected that is in it becomes unassigned
-  (section 2.1).
+- **Selected groups**: none, one or several groups of the active
+  classification, and its unassigned individuals or not, chosen in the
+  groups panel; none selected is every individual. The groups selected
+  stand out in every view, and the table greys out the rows of the
+  others. With one selected, the user edits it: its row shows + and −,
+  two buttons that stay pressed; while + is pressed, every individual
+  selected goes into the group, and while − is pressed, every
+  individual selected that is in it becomes unassigned. With several,
+  only − is offered, and it acts on all of them (section 2.1).
 - **Selection**: a set of individuals, made by a lasso in a plot, by
   rows in the table, or by bars of a histogram. It is shown in every
-  window. The selection and the selected group are different things
+  window. The selection and the selected groups are different things
   and the interface keeps them apart.
 - **Hover**: the one individual under the pointer, shown in every window.
 
@@ -216,8 +219,25 @@ it.
   plainer word (decided on 3 October 2026); "population" is kept for the
   biology, as in population genetics.
 
-  - The row of the selected group shows + and − after its number, and no
-    other row does, so that the list stays short. Each is a button that
+  - A click on a group selects it alone, and a click on the group
+    selected alone selects none; Cmd-click, Ctrl-click on Windows and
+    Linux, adds a group to those selected or takes it away; Shift-click
+    selects every row from the last one clicked without Shift to it, the
+    unassigned individuals included when they are among them, in the
+    place of what was selected, as in Finder (Shift-click asked for by
+    the owner on 3 October 2026). The table
+    keeps every row and greys out those of the groups not selected, as a
+    plot still draws the points of the other groups (decided by the
+    owner on 3 October 2026; filtering the table to the groups selected
+    was considered and left out, since + could then never reach a row
+    outside them).
+  - With one row selected, its row shows + and − after its number. With
+    several, + is not offered, since it would have no one group to add
+    to, and one − is shown on the last group selected, so that the list
+    does not move; it takes the individuals out of whichever selected
+    group they are in: "Remove selected from Spain and Peru", or "from
+    the 3 selected groups". Edit group and Delete group need one group
+    selected. No other row shows a button, so that the list stays short. Each is a button that
     stays pressed until it is pressed again, and pressing one releases
     the other; + pressed is blue and − pressed is red. Their tooltips
     say what they do, "Add selected to China" and "Remove selected from
@@ -234,8 +254,8 @@ it.
     one undo. The button is one state for every window, kept in the
     backend, so that a lasso in a plot does what a click in the table
     does.
-  - The button is released by pressing it again, by Escape, by selecting
-    another group or none, by choosing another classification, and by
+  - The button is released by pressing it again, by Escape, by any other
+    selection of groups, by choosing another classification, and by
     importing a table. With the unassigned individuals selected, + makes
     the individuals selected unassigned, and − is greyed out with the
     reason "Unassigned individuals are in no group to remove them from".

@@ -110,8 +110,8 @@ for (const engine of Object.keys(ENGINES)) {
     // A lasso made elsewhere, as in another window: p1 to p3 into Spain.
     const selected = await backend.send({
       window: "main",
-      command: "select_group",
-      json: { column: 2, selected: { group: 0 }, basedOn: 3 },
+      command: "select_groups",
+      json: { column: 2, selected: [{ group: 0 }], basedOn: 3 },
     });
     assert.equal(selected.ok, null, JSON.stringify(selected));
     const lasso = await backend.send({

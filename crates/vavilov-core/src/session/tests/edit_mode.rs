@@ -12,7 +12,7 @@ fn press(session: &Session, target: Selected, mode: Option<EditMode>) -> Request
         session,
         Command::SetEditMode {
             column: ORIGIN,
-            target,
+            selected: SelectedGroups::one(target),
             mode,
         },
     )
@@ -47,7 +47,7 @@ fn pressing_plus_with_nothing_selected_changes_the_button_alone() {
     assert_eq!(mode_of(&session), Some(EditMode::Add));
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![2, 0, 0, 0, 0, 0, 1, 1])]
+        [(ACTIVE, vec![2, 0, 0, 0, 1, 0, 1, 0, 0, 0])]
     );
     assert_eq!(
         session.undo_redo(),
@@ -156,7 +156,7 @@ fn with_minus_pressed_only_the_rows_entering_that_are_in_the_group_are_unassigne
     session.dispatch(request).unwrap();
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![2, 0, 0, 0, 0, 0, 1, 2])]
+        [(ACTIVE, vec![2, 0, 0, 0, 2, 0, 1, 0, 0, 0])]
     );
     select_rows(&mut session, &[0, 1, 2]);
     // Spain's row 0 is unassigned; Peru's row 1 and the missing row 2 stay.
@@ -177,9 +177,9 @@ fn plus_on_the_unassigned_individuals_unassigns_the_rows_entering() {
     let (mut session, _recorder) = loaded();
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Unassigned),
+            selected: SelectedGroups::one(Selected::Unassigned),
         },
     );
     let request = press(&session, Selected::Unassigned, Some(EditMode::Add));
@@ -191,36 +191,41 @@ fn plus_on_the_unassigned_individuals_unassigns_the_rows_entering() {
 #[test]
 fn a_button_pressed_on_what_is_not_selected_or_minus_on_the_unassigned_is_refused() {
     let (mut session, _recorder) = loaded();
-    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Add));
-    assert_refused(&mut session, request, CommandError::NoGroupSelected);
-    apply(
-        &mut session,
-        Command::SelectGroup {
+    let nothing = at(
+        &session,
+        Command::SetEditMode {
             column: ORIGIN,
-            selected: Some(Selected::Unassigned),
+            selected: SelectedGroups::none(),
+            mode: Some(EditMode::Add),
         },
     );
-    let request = press(&session, Selected::Unassigned, Some(EditMode::Remove));
-    assert_refused(
+    assert_refused(&mut session, nothing, CommandError::NoGroupSelected);
+    // Made while Spain was selected, which it no longer is.
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Add));
+    assert_refused(&mut session, request, CommandError::NotSelected);
+    apply(
         &mut session,
-        request,
-        CommandError::NotSelected {
-            target: Selected::Unassigned,
+        Command::SelectGroups {
+            column: ORIGIN,
+            selected: SelectedGroups::one(Selected::Unassigned),
         },
     );
     let request = press(&session, Selected::Group(PERU), Some(EditMode::Add));
-    assert_refused(
-        &mut session,
-        request,
-        CommandError::NotSelected {
-            target: Selected::Group(PERU),
-        },
-    );
+    assert_refused(&mut session, request, CommandError::NotSelected);
+    // − on the unassigned individuals, who are in no group, is never
+    // offered by a window.
+    let request = press(&session, Selected::Unassigned, Some(EditMode::Remove));
+    let before = session.state.clone();
+    assert!(matches!(
+        session.dispatch(request),
+        Err(CommandError::Defect { .. })
+    ));
+    assert_eq!(session.state, before);
     let request = at(
         &session,
         Command::SetEditMode {
             column: CLUSTER,
-            target: Selected::Unassigned,
+            selected: SelectedGroups::one(Selected::Unassigned),
             mode: Some(EditMode::Add),
         },
     );
@@ -250,7 +255,7 @@ fn the_button_is_released_by_pressing_it_again_and_by_another_selection_for_edit
     assert_eq!(mode_of(&session), None);
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![2, 0, 0, 0, 0, 0, 1, 0])]
+        [(ACTIVE, vec![2, 0, 0, 0, 0, 0, 1, 0, 0, 0])]
     );
     select_rows(&mut session, &[1]);
     assert_eq!(
@@ -259,13 +264,13 @@ fn the_button_is_released_by_pressing_it_again_and_by_another_selection_for_edit
     );
 
     for release in [
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(PERU)),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
         },
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
         },
         Command::SetActiveClassification {
             column: Some(CLUSTER),
@@ -311,7 +316,7 @@ fn undoing_a_group_added_releases_the_button_pressed_on_it() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -322,9 +327,9 @@ fn a_button_pressed_from_before_the_levels_changed_is_refused() {
     let (mut session, _recorder) = loaded();
     let request = at(
         &session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(SPAIN)),
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
         },
     );
     session.dispatch(request).unwrap();
@@ -334,9 +339,9 @@ fn a_button_pressed_from_before_the_levels_changed_is_refused() {
     apply(&mut session, set_role(ORIGIN, Role::Country));
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(SPAIN)),
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
         },
     );
     assert_refused(

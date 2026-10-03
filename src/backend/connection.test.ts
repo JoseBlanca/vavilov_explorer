@@ -24,7 +24,7 @@ const SNAPSHOT = buffer(
   ...[
     1, 0, 0, 0, 24, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
   ],
-  ...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 255, 255, 0, 0],
+  ...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0],
   ...[3, 0, 0, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[5, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 255, 255, 255, 255],
@@ -124,7 +124,7 @@ describe("connecting", () => {
       { command: "subscribe", args: { onChange: "the channel" }, headers: undefined },
     ]);
     expect(connection.state.revision()).toBe(1);
-    expect(connection.state.active()).toEqual({ column: 2, selected: null, mode: null });
+    expect(connection.state.active()).toEqual({ column: 2, selected: [], mode: null });
     expect([...(connection.state.codes(column(2)) ?? [])]).toEqual([0, 1, 0xffff, 0]);
   });
 
@@ -195,9 +195,13 @@ describe("a command", () => {
     const connection = await connect(transport, failOnDefect);
     deliver(selectionAt(2, 0));
     expect(await connection.setHover(row(3))).toEqual({ ok: true, value: "applied" });
-    await connection.selectGroup(column(2), { kind: "group", code: code(0) });
-    await connection.selectGroup(column(2), { kind: "unassigned" });
-    await connection.selectGroup(column(2), null);
+    await connection.selectGroups(column(2), [{ kind: "group", code: code(0) }]);
+    await connection.selectGroups(column(2), [
+      { kind: "group", code: code(0) },
+      { kind: "group", code: code(3) },
+      { kind: "unassigned" },
+    ]);
+    await connection.selectGroups(column(2), []);
     await connection.setActiveClassification(null);
     await connection.undo();
     await connection.redo();
@@ -208,18 +212,23 @@ describe("a command", () => {
         headers: undefined,
       },
       {
-        command: "select_group",
-        args: { column: 2, selected: { group: 0 }, basedOn: 2, sentAt: 1_727_865_600_000.5 },
+        command: "select_groups",
+        args: { column: 2, selected: [{ group: 0 }], basedOn: 2, sentAt: 1_727_865_600_000.5 },
         headers: undefined,
       },
       {
-        command: "select_group",
-        args: { column: 2, selected: "unassigned", basedOn: 2, sentAt: 1_727_865_600_000.5 },
+        command: "select_groups",
+        args: {
+          column: 2,
+          selected: [{ group: 0 }, { group: 3 }, "unassigned"],
+          basedOn: 2,
+          sentAt: 1_727_865_600_000.5,
+        },
         headers: undefined,
       },
       {
-        command: "select_group",
-        args: { column: 2, selected: null, basedOn: 2, sentAt: 1_727_865_600_000.5 },
+        command: "select_groups",
+        args: { column: 2, selected: [], basedOn: 2, sentAt: 1_727_865_600_000.5 },
         headers: undefined,
       },
       {
@@ -238,7 +247,11 @@ describe("a command", () => {
     const bits = new Uint8Array([0b0110]);
     await connection.assignRows(column(2), { kind: "group", code: code(0) }, bits);
     await connection.assignRows(column(2), { kind: "unassigned" }, bits);
-    await connection.unassignRows(column(2), code(1), bits);
+    await connection.unassignRows(
+      column(2),
+      [{ kind: "group", code: code(1) }, { kind: "group", code: code(4) }, { kind: "unassigned" }],
+      bits,
+    );
     await connection.setSelection(bits);
     expect(calls.slice(1)).toEqual([
       {
@@ -259,7 +272,12 @@ describe("a command", () => {
       {
         command: "unassign_rows",
         args: bits,
-        headers: { column: "2", group: "1", "based-on": "1", "sent-at": "1727865600000.5" },
+        headers: {
+          column: "2",
+          selected: "1,4,unassigned",
+          "based-on": "1",
+          "sent-at": "1727865600000.5",
+        },
       },
       {
         command: "set_selection",
@@ -333,14 +351,14 @@ describe("a command", () => {
   test("pressing + or − sends what is selected and the button as JSON", async () => {
     const { transport, calls } = fakeTransport();
     const connection = await connect(transport, failOnDefect);
-    await connection.setEditMode(column(2), { kind: "group", code: code(1) }, "remove");
-    await connection.setEditMode(column(2), { kind: "unassigned" }, null);
+    await connection.setEditMode(column(2), [{ kind: "group", code: code(1) }], "remove");
+    await connection.setEditMode(column(2), [{ kind: "unassigned" }], null);
     expect(calls.slice(1).map((call) => [call.command, call.args])).toEqual([
       [
         "set_edit_mode",
         {
           column: 2,
-          target: { group: 1 },
+          selected: [{ group: 1 }],
           mode: "remove",
           basedOn: 1,
           sentAt: 1_727_865_600_000.5,
@@ -348,7 +366,13 @@ describe("a command", () => {
       ],
       [
         "set_edit_mode",
-        { column: 2, target: "unassigned", mode: null, basedOn: 1, sentAt: 1_727_865_600_000.5 },
+        {
+          column: 2,
+          selected: ["unassigned"],
+          mode: null,
+          basedOn: 1,
+          sentAt: 1_727_865_600_000.5,
+        },
       ],
     ]);
   });
@@ -370,14 +394,14 @@ describe("a command", () => {
 
   test("refused gives the refusal as a value", async () => {
     const { transport } = fakeTransport({
-      answer: () => refusedWith({ kind: "notSelected", target: { group: 0 } }),
+      answer: () => refusedWith({ kind: "notSelected" }),
     });
     const connection = await connect(transport, failOnDefect);
     expect(
       await connection.assignRows(column(2), { kind: "group", code: code(0) }, new Uint8Array([1])),
     ).toEqual({
       ok: false,
-      error: { kind: "notSelected", target: { group: 0 } },
+      error: { kind: "notSelected" },
     });
   });
 

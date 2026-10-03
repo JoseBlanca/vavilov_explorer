@@ -71,7 +71,7 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::unassign_rows,
             commands::set_hover,
             commands::set_active_classification,
-            commands::select_group,
+            commands::select_groups,
             commands::add_group,
             commands::delete_group,
             commands::edit_group,

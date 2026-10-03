@@ -53,7 +53,9 @@ pub use ids::{
 pub use import::{Imported, MAX_GUESSED_LEVELS, MAX_IMPORT_BYTES, MAX_IMPORT_CELLS, import_table};
 pub use row_set::RowSet;
 pub use rows::RowsRequest;
-pub use session::{Active, EditMode, Selected, SendFailed, Session, Subscriber, UndoRedo};
+pub use session::{
+    Active, EditMode, Selected, SelectedGroups, SendFailed, Session, Subscriber, UndoRedo,
+};
 pub use table::{
     Categorical, Colour, Column, ColumnValues, INDIVIDUAL_ID, LevelValues, MAX_COLUMNS,
     MAX_GROUP_NAME, MAX_LEVELS, MAX_ROWS, NameColumn, NewColumn, Numbers, PALETTE, Role,

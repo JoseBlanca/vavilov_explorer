@@ -11,13 +11,14 @@ export type MessagePart =
   /** A project is open, with its number of rows and the revision of its load. */
   | { readonly kind: "project"; readonly numRows: number; readonly loadedAt: Revision }
   /**
-   * The active classification, what is selected in it, and the button
-   * pressed on that, each `null` for none.
+   * The active classification, `null` for none, what is selected in it, in
+   * the core's order and empty for nothing, and the button pressed, `null`
+   * for none.
    */
   | {
       readonly kind: "active";
       readonly column: ColumnId | null;
-      readonly selected: Selected | null;
+      readonly selected: readonly Selected[];
       readonly mode: EditMode | null;
     }
   /**
@@ -50,8 +51,8 @@ export type MessagePart =
   | { readonly kind: "filter"; readonly filter: Filter; readonly shown: Shown };
 
 /**
- * What is selected for editing in the active classification, as `Selected`
- * in the core: a group, or its unassigned individuals.
+ * One row of the groups panel, as `Selected` in the core: a group of the
+ * active classification, or its unassigned individuals.
  */
 export type Selected =
   { readonly kind: "group"; readonly code: LevelCode } | { readonly kind: "unassigned" };

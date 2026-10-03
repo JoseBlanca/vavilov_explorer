@@ -39,7 +39,7 @@ function plantParts(loadedAt: number): MessagePart[] {
   return [
     { kind: "project", numRows: 4, loadedAt: revision(loadedAt) },
     { kind: "shape", shapeAt: revision(loadedAt) },
-    { kind: "active", column: ORIGIN, selected: null, mode: null },
+    { kind: "active", column: ORIGIN, selected: [], mode: null },
     { kind: "selection", numRows: 4, bits: new Uint8Array([0]) },
     { kind: "undo", canUndo: false, canRedo: false },
     {
@@ -111,7 +111,7 @@ describe("a window's state made from a snapshot", () => {
     const state = createWindowState(snapshot(1));
     expect(state.revision()).toBe(1);
     expect(state.project()).toEqual({ kind: "open", numRows: 4, loadedAt: 1 });
-    expect(state.active()).toEqual({ column: ORIGIN, selected: null, mode: null });
+    expect(state.active()).toEqual({ column: ORIGIN, selected: [], mode: null });
     expect([...(state.codes(CLUSTER) ?? [])]).toEqual([0xffff, 2, 2, 0]);
     expect(state.codes(HEIGHT)).toBeNull();
     expect(state.columnRevision(HEIGHT)).toBe(1);
@@ -175,16 +175,16 @@ describe("applying a change", () => {
       change(2, {
         kind: "active",
         column: CLUSTER,
-        selected: { kind: "group", code: code(1) },
+        selected: [{ kind: "group", code: code(1) }],
         mode: "remove",
       }),
     );
     expect(state.active()).toEqual({
       column: CLUSTER,
-      selected: { kind: "group", code: 1 },
+      selected: [{ kind: "group", code: 1 }],
       mode: "remove",
     });
-    state.apply(change(3, { kind: "active", column: null, selected: null, mode: null }));
+    state.apply(change(3, { kind: "active", column: null, selected: [], mode: null }));
     expect(state.active()).toBeNull();
     expect(called).toEqual(["classification", "classification"]);
   });
@@ -212,7 +212,7 @@ describe("applying a change", () => {
     const called = recordAspects(state);
     const nineRows: MessagePart[] = [
       { kind: "project", numRows: 9, loadedAt: revision(3) },
-      { kind: "active", column: null, selected: null, mode: null },
+      { kind: "active", column: null, selected: [], mode: null },
       { kind: "selection", numRows: 9, bits: new Uint8Array([0, 0]) },
       { kind: "undo", canUndo: false, canRedo: false },
       {
@@ -255,7 +255,7 @@ describe("applying a change", () => {
       );
     }).toThrow(/defect.*1 codes.*4/);
     expect(() => {
-      state.apply(change(2, { kind: "active", column: HEIGHT, selected: null, mode: null }));
+      state.apply(change(2, { kind: "active", column: HEIGHT, selected: [], mode: null }));
     }).toThrow(/defect.*column 1/);
     expect(() => {
       state.apply(hover(1, 2, 4));

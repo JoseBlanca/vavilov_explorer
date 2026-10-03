@@ -92,7 +92,7 @@ fn a_group_added_goes_last_with_the_first_unused_colour_and_is_selected() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Group(CHINA)),
+            selected: SelectedGroups::one(Selected::Group(CHINA)),
             mode: None,
         })
     );
@@ -115,7 +115,7 @@ fn a_group_added_goes_last_with_the_first_unused_colour_and_is_selected() {
         decoded.parts,
         [
             (SHAPE, vec![3, 0, 0, 0, 0, 0, 0, 0]),
-            (ACTIVE, vec![2, 0, 0, 0, 2, 0, 1, 0]),
+            (ACTIVE, vec![2, 0, 0, 0, 0, 0, 1, 0, 2, 0]),
             (
                 CODES,
                 vec![
@@ -149,7 +149,7 @@ fn a_group_is_added_with_no_group_selected_and_rows_selected_alike() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Group(CHINA)),
+            selected: SelectedGroups::one(Selected::Group(CHINA)),
             mode: None,
         })
     );
@@ -463,7 +463,7 @@ fn the_last_group_a_classification_takes_has_the_last_code_and_no_more_is_taken(
         session.active(),
         Some(Active {
             column: GROUP,
-            selected: Some(Selected::Group(LevelCode::new(65_534))),
+            selected: SelectedGroups::one(Selected::Group(LevelCode::new(65_534))),
             mode: None,
         })
     );
@@ -497,7 +497,7 @@ fn undo_removes_the_group_added_and_its_selection_and_redo_adds_it_unselected() 
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -510,7 +510,7 @@ fn undo_removes_the_group_added_and_its_selection_and_redo_adds_it_unselected() 
         decode(&messages[0]).parts,
         [
             (SHAPE, vec![4, 0, 0, 0, 0, 0, 0, 0]),
-            (ACTIVE, vec![2, 0, 0, 0, 255, 255, 0, 0]),
+            (ACTIVE, vec![2, 0, 0, 0, 0, 0, 0, 0]),
             (
                 CODES,
                 vec![
@@ -536,7 +536,7 @@ fn undo_removes_the_group_added_and_its_selection_and_redo_adds_it_unselected() 
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -554,9 +554,9 @@ fn undoing_a_group_added_keeps_another_selected_group() {
     session.dispatch(request).unwrap();
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(PERU)),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
         },
     );
     recorder.take();
@@ -565,7 +565,7 @@ fn undoing_a_group_added_keeps_another_selected_group() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Group(PERU)),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
             mode: None,
         })
     );
@@ -615,9 +615,9 @@ fn a_command_on_a_level_made_before_a_group_added_last_still_applies() {
     session.dispatch(request).unwrap();
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(SPAIN)),
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
         },
     );
     session.dispatch(lasso).unwrap();
@@ -640,15 +640,15 @@ fn a_command_on_a_level_made_before_that_level_was_removed_is_refused() {
         &session,
         Command::UnassignRows {
             column: ORIGIN,
-            group: CHINA,
+            selected: SelectedGroups::one(Selected::Group(CHINA)),
             rows: rows(&session, &[1]),
         },
     );
     let selection = at(
         &session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(CHINA)),
+            selected: SelectedGroups::one(Selected::Group(CHINA)),
         },
     );
     apply(&mut session, Command::Undo);
@@ -663,9 +663,9 @@ fn a_command_on_a_level_made_before_that_level_was_removed_is_refused() {
     assert_refused(&mut session, removal, changed.clone());
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
         },
     );
     assert_refused(&mut session, selection, changed);
@@ -676,9 +676,9 @@ fn a_command_on_a_level_made_before_a_change_of_role_is_refused() {
     let (mut session, _recorder) = loaded();
     let selection = at(
         &session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(SPAIN)),
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
         },
     );
     apply(&mut session, set_role(ORIGIN, Role::Country));
@@ -696,9 +696,9 @@ fn a_command_on_a_level_made_before_a_change_of_role_is_refused() {
     // same.
     let mut request = at(
         &session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Unassigned),
+            selected: SelectedGroups::one(Selected::Unassigned),
         },
     );
     request.based_on = Revision::new(1);
@@ -717,16 +717,16 @@ fn a_command_on_a_group_undone_and_not_added_again_is_refused_as_made_before() {
     // selected; China is then undone at 3, and no group takes code 2.
     let selection = at(
         &session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(CHINA)),
+            selected: SelectedGroups::one(Selected::Group(CHINA)),
         },
     );
     let pressed = at(
         &session,
         Command::SetEditMode {
             column: ORIGIN,
-            target: Selected::Group(CHINA),
+            selected: SelectedGroups::one(Selected::Group(CHINA)),
             mode: Some(crate::session::EditMode::Add),
         },
     );
@@ -735,7 +735,7 @@ fn a_command_on_a_group_undone_and_not_added_again_is_refused_as_made_before() {
         &session,
         Command::UnassignRows {
             column: ORIGIN,
-            group: CHINA,
+            selected: SelectedGroups::one(Selected::Group(CHINA)),
             rows: rows(&session, &[1]),
         },
     );

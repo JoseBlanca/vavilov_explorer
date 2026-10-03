@@ -540,9 +540,9 @@ mod in_the_session {
             let mut session = loaded();
             dispatch(
                 &mut session,
-                Command::SelectGroup {
+                Command::SelectGroups {
                     column: ColumnId::new(2),
-                    selected: Some(Selected::Group(LevelCode::new(0))),
+                    selected: crate::SelectedGroups::one(Selected::Group(LevelCode::new(0))),
                 },
             );
             set(&mut session, searched.clone());

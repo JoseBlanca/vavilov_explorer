@@ -12,8 +12,8 @@ use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
     CellMatch, Colour, ColumnId, Command, CommandError, EditMode, Filter, LevelCode, Outcome,
-    Position, Request, Revision, Role, RowIndex, RowsRequest, Selected, SentAt, Session, Showing,
-    TableDescription,
+    Position, Request, Revision, Role, RowIndex, RowsRequest, Selected, SelectedGroups, SentAt,
+    Session, Showing, TableDescription,
 };
 
 /// The commands `call` takes, every command of the app but `subscribe`.
@@ -25,7 +25,7 @@ pub const COMMANDS: &[&str] = &[
     "unassign_rows",
     "set_hover",
     "set_active_classification",
-    "select_group",
+    "select_groups",
     "add_group",
     "delete_group",
     "edit_group",
@@ -40,7 +40,8 @@ pub const COMMANDS: &[&str] = &[
 /// Applies the call of `command` with its body and headers to the session.
 /// A command with rows takes them as a raw body, one bit per row, with the
 /// headers `based-on`, `sent-at` and, for a lasso, `column` and `target`
-/// (add mode: a code, or `unassigned`) or `group` (remove mode), and
+/// (with +: a code, or `unassigned`) or `selected` (with −: what is
+/// selected, its codes and `unassigned`, if it is, between commas), and
 /// for cells typed in, `column`, `text` and `decimal-mark`, the last two
 /// percent-encoded as `encodeURIComponent` writes them, since a header
 /// holds ASCII alone; the others take JSON arguments in camelCase, and an
@@ -101,14 +102,14 @@ pub fn call(
         }
         "unassign_rows" => {
             let column = ColumnId::new(header(headers, "column")?);
-            let group = LevelCode::new(header(headers, "group")?);
+            let selected = selected_header(headers)?;
             let based_on = Revision::new(header(headers, "based-on")?);
             let sent_at = sent_at_header(headers)?;
             let rows = session.rows_from_window(raw_body(body)?, based_on)?;
             Request {
                 command: Command::UnassignRows {
                     column,
-                    group,
+                    selected,
                     rows,
                 },
                 based_on,
@@ -152,9 +153,9 @@ pub fn call(
                 args.sent_at,
             )?
         }
-        "select_group" => {
-            let args: GroupArgs = json_args(command, body)?;
-            let command = Command::SelectGroup {
+        "select_groups" => {
+            let args: GroupsArgs = json_args(command, body)?;
+            let command = Command::SelectGroups {
                 column: ColumnId::new(args.column),
                 selected: args.selected,
             };
@@ -195,7 +196,7 @@ pub fn call(
             let args: EditModeArgs = json_args(command, body)?;
             let command = Command::SetEditMode {
                 column: ColumnId::new(args.column),
-                target: args.target,
+                selected: args.selected,
                 mode: args.mode,
             };
             request(command, args.based_on, args.sent_at)?
@@ -292,11 +293,13 @@ struct ActiveArgs {
     sent_at: Option<f64>,
 }
 
+/// The arguments of `select_groups`: the active classification and what
+/// to select in it, a list of `{ "group": code }` and `"unassigned"`.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GroupArgs {
+struct GroupsArgs {
     column: u32,
-    selected: Option<Selected>,
+    selected: SelectedGroups,
     based_on: u64,
     sent_at: Option<f64>,
 }
@@ -345,7 +348,7 @@ struct EditGroupArgs {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct EditModeArgs {
     column: u32,
-    target: Selected,
+    selected: SelectedGroups,
     mode: Option<EditMode>,
     based_on: u64,
     sent_at: Option<f64>,
@@ -484,6 +487,30 @@ fn target_header(headers: &HeaderMap) -> Result<Selected, CommandError> {
         .map_err(|_| CommandError::Defect {
             what: format!("a header target of {text:?}"),
         })
+}
+
+/// What is selected, for a lasso with −, the header `selected`: the codes
+/// of the groups and `unassigned`, if it is, between commas, or empty for
+/// nothing.
+fn selected_header(headers: &HeaderMap) -> Result<SelectedGroups, CommandError> {
+    let text: String = header(headers, "selected")?;
+    if text.is_empty() {
+        return Ok(SelectedGroups::none());
+    }
+    let list = text
+        .split(',')
+        .map(|item| {
+            if item == "unassigned" {
+                return Ok(Selected::Unassigned);
+            }
+            item.parse()
+                .map(|code| Selected::Group(LevelCode::new(code)))
+                .map_err(|_| CommandError::Defect {
+                    what: format!("a header selected of {text:?}"),
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    SelectedGroups::from_list(list)
 }
 
 fn sent_at_header(headers: &HeaderMap) -> Result<Option<SentAt>, CommandError> {

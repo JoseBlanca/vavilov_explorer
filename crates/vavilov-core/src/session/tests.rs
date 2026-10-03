@@ -106,9 +106,9 @@ fn editing_spain() -> (Session, Recorder) {
     let (mut session, recorder) = loaded();
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(SPAIN)),
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
         },
     );
     recorder.take();
@@ -196,7 +196,7 @@ fn loading_a_table_takes_a_revision_that_every_column_takes_too() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -444,13 +444,13 @@ fn changing_the_active_classification_clears_the_selected_group() {
         session.active(),
         Some(Active {
             column: CLUSTER,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![3, 0, 0, 0, 255, 255, 0, 0])]
+        [(ACTIVE, vec![3, 0, 0, 0, 0, 0, 0, 0])]
     );
     assert_eq!(
         apply(
@@ -516,9 +516,9 @@ fn a_group_is_selected_in_the_active_classification_only() {
     assert_eq!(
         apply(
             &mut session,
-            Command::SelectGroup {
+            Command::SelectGroups {
                 column: ORIGIN,
-                selected: Some(Selected::Group(PERU))
+                selected: SelectedGroups::one(Selected::Group(PERU))
             }
         ),
         Changed::State(Revision::new(2))
@@ -527,19 +527,19 @@ fn a_group_is_selected_in_the_active_classification_only() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Group(PERU)),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
             mode: None,
         })
     );
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![2, 0, 0, 0, 1, 0, 1, 0])]
+        [(ACTIVE, vec![2, 0, 0, 0, 0, 0, 1, 0, 1, 0])]
     );
     let request = at(
         &session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: CLUSTER,
-            selected: Some(Selected::Group(PERU)),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
         },
     );
     assert_refused(
@@ -549,9 +549,9 @@ fn a_group_is_selected_in_the_active_classification_only() {
     );
     let request = at(
         &session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(LevelCode::new(2))),
+            selected: SelectedGroups::one(Selected::Group(LevelCode::new(2))),
         },
     );
     assert_refused(
@@ -633,7 +633,7 @@ fn a_lasso_in_remove_mode_unassigns_only_the_rows_of_the_selected_group() {
         &session,
         Command::UnassignRows {
             column: ORIGIN,
-            group: SPAIN,
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
             rows: rows(&session, &[0, 1, 2]),
         },
     );
@@ -648,19 +648,13 @@ fn a_lasso_needs_the_active_classification_and_its_selected_group() {
     assert_refused(&mut session, request, CommandError::NoGroupSelected);
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(SPAIN)),
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
         },
     );
     let request = assign(&session, PERU, &[1]);
-    assert_refused(
-        &mut session,
-        request,
-        CommandError::NotSelected {
-            target: Selected::Group(PERU),
-        },
-    );
+    assert_refused(&mut session, request, CommandError::NotSelected);
     let request = at(
         &session,
         Command::AssignRows {
@@ -700,18 +694,12 @@ fn a_lasso_made_before_another_group_was_selected_is_refused() {
     let lasso = assign(&session, SPAIN, &[1, 2]);
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(PERU)),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
         },
     );
-    assert_refused(
-        &mut session,
-        lasso,
-        CommandError::NotSelected {
-            target: Selected::Group(SPAIN),
-        },
-    );
+    assert_refused(&mut session, lasso, CommandError::NotSelected);
     assert_eq!(
         codes_of(&session, ORIGIN),
         [code(0), code(1), None, code(0)]
@@ -1119,7 +1107,7 @@ const SNAPSHOT_AFTER_EDITS: [u8; 416] = [
     1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
     1, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 8, 0, 0, 0, // loaded at 1; shape part
     1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 8, 0, 0, 0, // shape at 1; active part
-    3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none, no button; selection part
+    3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, no button, nothing selected; selection part
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
     13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // filter part: rows shown since 1
@@ -1172,9 +1160,9 @@ fn selecting_the_group_already_selected_changes_nothing() {
     assert_eq!(
         apply(
             &mut session,
-            Command::SelectGroup {
+            Command::SelectGroups {
                 column: ORIGIN,
-                selected: Some(Selected::Group(SPAIN))
+                selected: SelectedGroups::one(Selected::Group(SPAIN))
             }
         ),
         Changed::Nothing
@@ -1224,9 +1212,9 @@ fn the_unassigned_individuals_can_be_selected_like_a_group() {
     assert_eq!(
         apply(
             &mut session,
-            Command::SelectGroup {
+            Command::SelectGroups {
                 column: ORIGIN,
-                selected: Some(Selected::Unassigned)
+                selected: SelectedGroups::one(Selected::Unassigned)
             }
         ),
         Changed::State(Revision::new(2))
@@ -1235,13 +1223,13 @@ fn the_unassigned_individuals_can_be_selected_like_a_group() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Unassigned),
+            selected: SelectedGroups::one(Selected::Unassigned),
             mode: None,
         })
     );
     assert_eq!(
         decode(&recorder.take()[0]).parts,
-        [(ACTIVE, vec![2, 0, 0, 0, 255, 255, 2, 0])]
+        [(ACTIVE, vec![2, 0, 0, 0, 0, 1, 0, 0])]
     );
 }
 
@@ -1250,9 +1238,9 @@ fn a_lasso_with_the_unassigned_selected_unassigns_its_rows_from_every_group() {
     let (mut session, _recorder) = loaded();
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Unassigned),
+            selected: SelectedGroups::one(Selected::Unassigned),
         },
     );
     // origin is Spain, Peru, missing, Spain; the lasso takes rows 0 to 2.
@@ -1287,18 +1275,12 @@ fn a_lasso_whose_target_is_not_what_is_selected_is_refused() {
             rows: rows(&session, &[1]),
         },
     );
-    assert_refused(
-        &mut session,
-        request,
-        CommandError::NotSelected {
-            target: Selected::Unassigned,
-        },
-    );
+    assert_refused(&mut session, request, CommandError::NotSelected);
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Unassigned),
+            selected: SelectedGroups::one(Selected::Unassigned),
         },
     );
     // Remove mode is disabled with the unassigned selected: a window that
@@ -1307,17 +1289,11 @@ fn a_lasso_whose_target_is_not_what_is_selected_is_refused() {
         &session,
         Command::UnassignRows {
             column: ORIGIN,
-            group: SPAIN,
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
             rows: rows(&session, &[0]),
         },
     );
-    assert_refused(
-        &mut session,
-        request,
-        CommandError::NotSelected {
-            target: Selected::Group(SPAIN),
-        },
-    );
+    assert_refused(&mut session, request, CommandError::NotSelected);
 }
 
 const SEEDS: ColumnId = ColumnId::new(4);
@@ -1396,7 +1372,7 @@ fn any_category_can_be_the_active_classification_a_trait_of_yes_or_no_too() {
         session.active(),
         Some(Active {
             column: FERTILE,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -1492,7 +1468,7 @@ fn the_active_classification_made_one_of_countries_stays_active_without_its_grou
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -1538,9 +1514,9 @@ fn a_lasso_on_a_classification_of_countries_assigns_its_rows() {
     // ESP is code 0, PER code 1.
     apply(
         &mut session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected: Some(Selected::Group(PERU)),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
         },
     );
     let request = assign(&session, PERU, &[0, 2]);
@@ -1889,3 +1865,5 @@ mod groups;
 mod edit_mode;
 
 mod delete_and_edit;
+
+mod several_groups;

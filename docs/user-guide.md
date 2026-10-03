@@ -127,10 +127,13 @@ The groups panel, left of the table, lists the groups of one
 category column, the one chosen in its Classification column dropdown at
 the top, each with its number of individuals, and last the unassigned
 individuals, those whose cell in that column is empty. Click a group to
-select it, and click it again to unselect it; one group is selected at a
-time.
+select it, and click it again to unselect it. Cmd-click (Ctrl-click on
+Windows and Linux) selects one more group, or unselects one, and
+Shift-click selects every group from the one you clicked last to the one
+you shift-click. With
+groups selected, the table greys out the rows of the other groups.
 
-The row of the selected group shows two buttons, + and −, which stay
+With one group selected, its row shows two buttons, + and −, which stay
 pressed until you press them again; unpressed, they are outlined, and
 pressed, + is filled in blue and − in red. While + is pressed, every row
 you select in the table goes to the group, out of the group it was in: a
@@ -156,6 +159,11 @@ before it, so to take back only a row moved earlier, double-click its
 cell and type the group it was in, or select it with − pressed to leave
 it unassigned. With Unassigned
 selected, + makes the rows you select unassigned, and − is greyed out.
+
+With several groups selected there is no +, since the rows you select
+would have no one group to go to, and one − appears on the last of them.
+While it is pressed, every row you select that is in one of those groups
+leaves it.
 
 To make a new group, press Add group below the list, type its name and
 press Enter, or Escape to give up. The group starts with no individuals,

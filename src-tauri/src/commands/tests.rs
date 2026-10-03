@@ -131,7 +131,7 @@ fn lasso_headers(group: u16, based_on: u64) -> Vec<(&'static str, String)> {
     vec![
         ("column", ORIGIN.to_string()),
         ("target", group.to_string()),
-        ("group", group.to_string()),
+        ("selected", group.to_string()),
         ("based-on", based_on.to_string()),
     ]
 }
@@ -151,8 +151,8 @@ fn every_command_is_registered_and_finds_the_session() {
             json!({ "column": null, "basedOn": 0 }),
         ),
         (
-            "select_group",
-            json!({ "column": 1, "selected": null, "basedOn": 0 }),
+            "select_groups",
+            json!({ "column": 1, "selected": [], "basedOn": 0 }),
         ),
         (
             "add_group",
@@ -171,7 +171,7 @@ fn every_command_is_registered_and_finds_the_session() {
         ),
         (
             "set_edit_mode",
-            json!({ "column": 1, "target": "unassigned", "mode": "add", "basedOn": 0 }),
+            json!({ "column": 1, "selected": ["unassigned"], "mode": "add", "basedOn": 0 }),
         ),
         (
             "set_role",
@@ -274,8 +274,8 @@ fn a_lasso_and_its_undo_through_the_commands_change_the_codes() {
     subscribe_main(&window);
     json_command(
         &window,
-        "select_group",
-        json!({ "column": ORIGIN, "selected": { "group": 0 }, "basedOn": 1 }),
+        "select_groups",
+        json!({ "column": ORIGIN, "selected": [{ "group": 0 }], "basedOn": 1 }),
     )
     .unwrap();
     // Rows 1 and 2 into Spain, at revision 2.
@@ -328,8 +328,8 @@ fn a_refusal_crosses_as_its_kind_and_its_fields() {
     assert_eq!(
         json_command(
             &window,
-            "select_group",
-            json!({ "column": 9, "selected": { "group": 0 }, "basedOn": 1 })
+            "select_groups",
+            json!({ "column": 9, "selected": [{ "group": 0 }], "basedOn": 1 })
         )
         .unwrap_err(),
         json!({ "kind": "notActiveClassification", "column": 9 })
@@ -464,7 +464,7 @@ fn the_active_classification_reaches_the_session() {
         session_of(&app).active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: None,
+            selected: vavilov_core::SelectedGroups::none(),
             mode: None,
         })
     );
@@ -476,15 +476,17 @@ fn a_lasso_in_remove_mode_and_a_redo_through_the_commands() {
     load(&app);
     json_command(
         &window,
-        "select_group",
-        json!({ "column": ORIGIN, "selected": { "group": 1 }, "basedOn": 1 }),
+        "select_groups",
+        json!({ "column": ORIGIN, "selected": [{ "group": 1 }], "basedOn": 1 }),
     )
     .unwrap();
     assert_eq!(
         session_of(&app).active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: Some(vavilov_core::Selected::Group(LevelCode::new(1))),
+            selected: vavilov_core::SelectedGroups::one(vavilov_core::Selected::Group(
+                LevelCode::new(1)
+            )),
             mode: None,
         })
     );
@@ -558,8 +560,8 @@ fn a_lasso_with_the_unassigned_selected_unassigns_through_the_commands() {
     load(&app);
     json_command(
         &window,
-        "select_group",
-        json!({ "column": ORIGIN, "selected": "unassigned", "basedOn": 1 }),
+        "select_groups",
+        json!({ "column": ORIGIN, "selected": ["unassigned"], "basedOn": 1 }),
     )
     .unwrap();
     let headers = [
@@ -607,7 +609,9 @@ fn a_group_added_through_its_command_is_selected_and_a_refusal_names_why() {
         session.active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: Some(vavilov_core::Selected::Group(LevelCode::new(2))),
+            selected: vavilov_core::SelectedGroups::one(vavilov_core::Selected::Group(
+                LevelCode::new(2)
+            )),
             mode: None,
         })
     );
@@ -707,14 +711,14 @@ fn plus_pressed_through_its_command_assigns_the_rows_that_enter_the_selection() 
     load(&app);
     json_command(
         &window,
-        "select_group",
-        json!({ "column": ORIGIN, "selected": { "group": 0 }, "basedOn": 1 }),
+        "select_groups",
+        json!({ "column": ORIGIN, "selected": [{ "group": 0 }], "basedOn": 1 }),
     )
     .unwrap();
     json_command(
         &window,
         "set_edit_mode",
-        json!({ "column": ORIGIN, "target": { "group": 0 }, "mode": "add", "basedOn": 2 }),
+        json!({ "column": ORIGIN, "selected": [{ "group": 0 }], "mode": "add", "basedOn": 2 }),
     )
     .unwrap();
     // Row 1, Peru, enters the selection and goes to Spain.
@@ -729,7 +733,7 @@ fn plus_pressed_through_its_command_assigns_the_rows_that_enter_the_selection() 
     json_command(
         &window,
         "set_edit_mode",
-        json!({ "column": ORIGIN, "target": { "group": 0 }, "mode": null, "basedOn": 4 }),
+        json!({ "column": ORIGIN, "selected": [{ "group": 0 }], "mode": null, "basedOn": 4 }),
     )
     .unwrap();
     assert_eq!(
@@ -806,7 +810,7 @@ fn a_change_of_role_through_its_command_reaches_the_session() {
         session.active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: None,
+            selected: vavilov_core::SelectedGroups::none(),
             mode: None,
         })
     );

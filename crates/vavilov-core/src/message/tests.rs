@@ -2,7 +2,7 @@ use super::*;
 use crate::fixtures::{code, decode};
 use crate::ids::{ColumnId, LevelCode, RowIndex};
 use crate::row_set::RowSet;
-use crate::session::{Active, EditMode, Selected, UndoRedo};
+use crate::session::{Active, EditMode, Selected, SelectedGroups, UndoRedo};
 
 fn written(write: impl FnOnce(&mut MessageWriter)) -> Vec<u8> {
     let mut message = MessageWriter::new(MessageKind::Change, Revision::new(5), None);
@@ -63,48 +63,72 @@ fn the_project_part_says_whether_one_is_open_and_its_rows_and_load() {
     );
 }
 
+fn active(column: u32, selected: SelectedGroups, mode: Option<EditMode>) -> Active {
+    Active {
+        column: ColumnId::new(column),
+        selected,
+        mode,
+    }
+}
+
 #[test]
-fn the_active_part_has_the_column_and_the_group_or_their_none() {
-    let some = written(|m| {
-        m.active(Some(Active {
-            column: ColumnId::new(2),
-            selected: Some(Selected::Group(LevelCode::new(1))),
-            mode: None,
-        }))
+fn the_active_part_has_the_column_the_button_and_what_is_selected() {
+    let one = written(|m| {
+        m.active(Some(&active(
+            2,
+            SelectedGroups::one(Selected::Group(LevelCode::new(1))),
+            Some(EditMode::Add),
+        )))
         .unwrap();
     });
+    // The column, +, no unassigned, one group, code 1, padded to 8.
     assert_eq!(
-        after_header(&some),
-        [2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0]
+        after_header(&one),
+        [
+            2, 0, 0, 0, 10, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0
+        ]
     );
     let none = written(|m| m.active(None).unwrap());
     assert_eq!(
         after_header(&none),
-        [2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0]
+        [2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0]
     );
-    let no_group = written(|m| {
-        m.active(Some(Active {
-            column: ColumnId::new(3),
-            selected: None,
-            mode: None,
-        }))
-        .unwrap()
+    let nothing = written(|m| {
+        m.active(Some(&active(3, SelectedGroups::none(), None)))
+            .unwrap();
     });
     assert_eq!(
-        after_header(&no_group),
-        [2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0]
+        after_header(&nothing),
+        [2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0]
     );
     let unassigned = written(|m| {
-        m.active(Some(Active {
-            column: ColumnId::new(3),
-            selected: Some(Selected::Unassigned),
-            mode: None,
-        }))
-        .unwrap()
+        m.active(Some(&active(
+            3,
+            SelectedGroups::one(Selected::Unassigned),
+            None,
+        )))
+        .unwrap();
     });
     assert_eq!(
         after_header(&unassigned),
-        [2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 0]
+        [2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 1, 0, 0]
+    );
+    // Groups 3 and 0, given out of order, and the unassigned, with −.
+    let several = SelectedGroups::from_list([
+        Selected::Group(LevelCode::new(3)),
+        Selected::Unassigned,
+        Selected::Group(LevelCode::new(0)),
+    ])
+    .unwrap();
+    let several = written(|m| {
+        m.active(Some(&active(3, several, Some(EditMode::Remove))))
+            .unwrap();
+    });
+    assert_eq!(
+        after_header(&several),
+        [
+            2, 0, 0, 0, 12, 0, 0, 0, 3, 0, 0, 0, 2, 1, 2, 0, 0, 0, 3, 0, 0, 0, 0, 0
+        ]
     );
 }
 
@@ -208,29 +232,32 @@ fn parts_follow_one_another_each_at_a_multiple_of_8() {
         [
             (5, vec![0, 1]),
             (7, vec![1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255]),
-            (2, vec![255, 255, 255, 255, 255, 255, 0, 0]),
+            (2, vec![255, 255, 255, 255, 0, 0, 0, 0]),
         ]
     );
 }
 
 #[test]
-fn a_button_pressed_with_nothing_selected_or_minus_on_the_unassigned_is_not_written() {
+fn a_button_that_cannot_act_on_what_is_selected_is_not_written() {
     let mut message = MessageWriter::new(MessageKind::Change, Revision::new(5), None);
+    let two = SelectedGroups::from_list([
+        Selected::Group(LevelCode::new(0)),
+        Selected::Group(LevelCode::new(1)),
+    ])
+    .unwrap();
     for (selected, mode) in [
-        (None, EditMode::Add),
-        (Some(Selected::Unassigned), EditMode::Remove),
+        (SelectedGroups::none(), EditMode::Add),
+        (SelectedGroups::none(), EditMode::Remove),
+        (SelectedGroups::one(Selected::Unassigned), EditMode::Remove),
+        (two, EditMode::Add),
     ] {
-        let active = Active {
-            column: ColumnId::new(2),
-            selected,
-            mode: Some(mode),
-        };
+        let pressed = active(2, selected, Some(mode));
         assert!(
             matches!(
-                message.active(Some(active)),
+                message.active(Some(&pressed)),
                 Err(CommandError::Defect { .. })
             ),
-            "{active:?}"
+            "{pressed:?}"
         );
     }
 }

@@ -1,12 +1,17 @@
 import { describe, expect, test } from "vitest";
 
 import type { TableDescription } from "./description.ts";
-import { isColumnId, isPosition, isRevision, isRowIndex } from "./ids.ts";
-import type { ColumnId, Position, Revision, RowIndex } from "./ids.ts";
+import { isColumnId, isLevelCode, isPosition, isRevision, isRowIndex } from "./ids.ts";
+import type { ColumnId, LevelCode, Position, Revision, RowIndex } from "./ids.ts";
 import type { RowPage } from "./rowPage.ts";
 import { rangeBits } from "./rowSet.ts";
 import { fetchedColumns, tableColumns, tableRow } from "./tableRows.ts";
+import type { Active } from "./windowState.ts";
 
+function code(value: number): LevelCode {
+  if (!isLevelCode(value)) throw new Error("not a code");
+  return value;
+}
 function column(value: number): ColumnId {
   if (!isColumnId(value)) throw new Error("not a column");
   return value;
@@ -193,10 +198,11 @@ describe("the columns of the table", () => {
 
 describe("a row of the table", () => {
   test("has a cell per column, in the order of the table, with the decimal mark given", () => {
-    expect(tableRow(PLANTS, PAGE, position(2), row(2), codesOf, null, ",")).toEqual({
+    expect(tableRow(PLANTS, PAGE, position(2), row(2), codesOf, null, null, ",")).toEqual({
       position: 2,
       row: 2,
       selected: false,
+      outside: false,
       cells: [
         { kind: "value", text: "p3", align: "start" },
         { kind: "value", text: "2,5", align: "end" },
@@ -209,7 +215,7 @@ describe("a row of the table", () => {
         { kind: "value", text: "40,5", align: "end" },
       ],
     });
-    expect(tableRow(PLANTS, PAGE, position(3), row(3), codesOf, null, ",").cells).toEqual([
+    expect(tableRow(PLANTS, PAGE, position(3), row(3), codesOf, null, null, ",").cells).toEqual([
       { kind: "value", text: "p4", align: "start" },
       { kind: "missing" },
       { kind: "value", text: "Peru", align: "start" },
@@ -224,47 +230,82 @@ describe("a row of the table", () => {
 
   test("is selected when the selection holds it", () => {
     const selection = rangeBits(4, 1, 2);
-    expect(tableRow(PLANTS, PAGE, position(2), row(2), codesOf, selection, ".").selected).toBe(
-      true,
-    );
-    expect(tableRow(PLANTS, PAGE, position(3), row(3), codesOf, selection, ".").selected).toBe(
+    expect(
+      tableRow(PLANTS, PAGE, position(2), row(2), codesOf, selection, null, ".").selected,
+    ).toBe(true);
+    expect(
+      tableRow(PLANTS, PAGE, position(3), row(3), codesOf, selection, null, ".").selected,
+    ).toBe(false);
+  });
+
+  test("is outside when groups are selected and it is in none of them", () => {
+    // origin: Spain, Peru, missing, Peru.
+    const outside = (selected: Active["selected"]): boolean[] =>
+      [0, 1, 2, 3].map(
+        (at) =>
+          tableRow(
+            PLANTS,
+            null,
+            position(at),
+            row(at),
+            codesOf,
+            null,
+            {
+              column: column(2),
+              selected,
+              mode: null,
+            },
+            ".",
+          ).outside,
+      );
+    expect(outside([])).toEqual([false, false, false, false]);
+    expect(outside([{ kind: "group", code: code(1) }])).toEqual([true, false, true, false]);
+    expect(outside([{ kind: "group", code: code(0) }, { kind: "unassigned" }])).toEqual([
       false,
-    );
+      true,
+      false,
+      true,
+    ]);
   });
 
   test("has no cells while its page is being fetched", () => {
-    expect(tableRow(PLANTS, null, position(1), row(1), codesOf, rangeBits(4, 1, 1), ".")).toEqual({
+    expect(
+      tableRow(PLANTS, null, position(1), row(1), codesOf, rangeBits(4, 1, 1), null, "."),
+    ).toEqual({
       position: 1,
       row: 1,
       selected: true,
+      outside: false,
       cells: null,
     });
   });
 
   test("outside its page, or with a column the page lacks, is a defect", () => {
-    expect(() => tableRow(PLANTS, PAGE, position(1), row(1), codesOf, null, ".")).toThrow(
+    expect(() => tableRow(PLANTS, PAGE, position(1), row(1), codesOf, null, null, ".")).toThrow(
       /defect: row 1 at position 1 drawn from a page of 2 rows from position 2/,
     );
     // A page of the rows a filter shows, rows 2 and 3 at positions 0 and 1,
     // drawn at position 0 for another row.
     const filtered = { ...PAGE, first: position(0) };
-    expect(tableRow(PLANTS, filtered, position(1), row(3), codesOf, null, ".").cells?.[0]).toEqual({
+    expect(
+      tableRow(PLANTS, filtered, position(1), row(3), codesOf, null, null, ".").cells?.[0],
+    ).toEqual({
       kind: "value",
       text: "p4",
       align: "start",
     });
-    expect(() => tableRow(PLANTS, filtered, position(0), row(1), codesOf, null, ".")).toThrow(
+    expect(() => tableRow(PLANTS, filtered, position(0), row(1), codesOf, null, null, ".")).toThrow(
       /defect: row 1 at position 0 drawn from a page/,
     );
     const lacking = { ...PAGE, columns: PAGE.columns.slice(1) };
-    expect(() => tableRow(PLANTS, lacking, position(2), row(2), codesOf, null, ".")).toThrow(
+    expect(() => tableRow(PLANTS, lacking, position(2), row(2), codesOf, null, null, ".")).toThrow(
       /defect: a page of rows without the values of column 5/,
     );
   });
 
   test("with a code that has no level is a defect", () => {
     const codes = new Uint16Array([0, 1, 7, 1]);
-    expect(() => tableRow(PLANTS, PAGE, position(2), row(2), () => codes, null, ".")).toThrow(
+    expect(() => tableRow(PLANTS, PAGE, position(2), row(2), () => codes, null, null, ".")).toThrow(
       /defect: a code 7 with no level in column 2/,
     );
   });

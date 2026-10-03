@@ -10,10 +10,14 @@ import type { LevelCode } from "./ids.ts";
 import type { EditMode, Selected } from "./message.ts";
 import { hasRow } from "./rowSet.ts";
 
-/** What + or − is pressed on: a group, with its name, or the unassigned individuals. */
+/**
+ * What + or − is pressed on: a group, with its name, the unassigned
+ * individuals, or several groups, with their names, which only − acts on.
+ */
 export type EditTarget =
   | { readonly kind: "group"; readonly code: LevelCode; readonly name: string }
-  | { readonly kind: "unassigned" };
+  | { readonly kind: "unassigned" }
+  | { readonly kind: "groups"; readonly names: readonly string[] };
 
 /**
  * How many selected individuals + would change: those not in `target`
@@ -28,13 +32,17 @@ export function addedCount(selection: Uint8Array, codes: Uint16Array, target: Se
 }
 
 /**
- * How many selected individuals − would leave unassigned: those in
- * `group`.
+ * How many selected individuals − would leave unassigned: those in one of
+ * `groups`.
  *
  * @throws A defect when the selection and the codes are not of one table.
  */
-export function removedCount(selection: Uint8Array, codes: Uint16Array, group: LevelCode): number {
-  return countSelected(selection, codes, (value) => value === group);
+export function removedCount(
+  selection: Uint8Array,
+  codes: Uint16Array,
+  groups: readonly LevelCode[],
+): number {
+  return countSelected(selection, codes, (value) => groups.some((group) => group === value));
 }
 
 /**
@@ -54,10 +62,15 @@ export function pressedMessage(
     if (target.kind === "unassigned") {
       throw defect("− pressed on the unassigned individuals");
     }
-    const done = count === 0 ? "" : `${moved} removed from ${target.name}. `;
+    const names = targetWords(target, countWords);
+    const inIt = target.kind === "group" ? "if they are in it" : "if they are in one of them";
+    const done = count === 0 ? "" : `${moved} removed from ${names}. `;
     return information(
-      `${done}Rows you select now leave ${target.name}${too}, if they are in it, until you press − again or Escape; ${UNDO_EACH}`,
+      `${done}Rows you select now leave ${names}${too}, ${inIt}, until you press − again or Escape; ${UNDO_EACH}`,
     );
+  }
+  if (target.kind === "groups") {
+    throw defect("+ pressed on several groups");
   }
   if (target.kind === "unassigned") {
     const done = count === 0 ? "" : `${moved} made unassigned. `;
@@ -71,16 +84,42 @@ export function pressedMessage(
   );
 }
 
-/** The informational message after the button `mode` on `target` was released. */
-export function releasedMessage(target: EditTarget, mode: EditMode): BarMessage {
+/**
+ * The informational message after the button `mode` on `target` was
+ * released, with `countWords` writing a number in the user's language.
+ */
+export function releasedMessage(
+  target: EditTarget,
+  mode: EditMode,
+  countWords: (value: number) => string,
+): BarMessage {
   if (target.kind === "unassigned") {
     return information("Rows you select are no longer made unassigned.");
   }
+  const names = targetWords(target, countWords);
   return information(
     mode === "add"
-      ? `Rows you select no longer go to ${target.name}.`
-      : `Rows you select no longer leave ${target.name}.`,
+      ? `Rows you select no longer go to ${names}.`
+      : `Rows you select no longer leave ${names}.`,
   );
+}
+
+/**
+ * The groups of `target` as the bar and the buttons name them: a group by
+ * its name, two as "Spain and Peru", and more as "the 3 selected groups".
+ */
+export function targetWords(
+  target: Exclude<EditTarget, { readonly kind: "unassigned" }>,
+  countWords: (value: number) => string,
+): string {
+  if (target.kind === "group") {
+    return target.name;
+  }
+  const [first, second, ...rest] = target.names;
+  if (first !== undefined && second !== undefined && rest.length === 0) {
+    return `${first} and ${second}`;
+  }
+  return `the ${countWords(target.names.length)} selected groups`;
 }
 
 /**

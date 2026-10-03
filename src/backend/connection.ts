@@ -8,6 +8,7 @@ import { isTableDescription } from "../state/description.ts";
 import type { Role, TableDescription } from "../state/description.ts";
 import type { Filter } from "../state/filter.ts";
 import type { EditMode, Selected } from "../state/message.ts";
+import type { SelectedGroups } from "../state/selectedGroups.ts";
 import { defect } from "../state/defect.ts";
 import type { ColumnId, LevelCode, Position, RowIndex } from "../state/ids.ts";
 import type { Result } from "../state/result.ts";
@@ -40,13 +41,14 @@ export interface Connection {
   /** Sets the active classification, or none. */
   readonly setActiveClassification: (column: ColumnId | null) => Promise<Answer>;
   /**
-   * Selects a group of the active classification, or its unassigned
-   * individuals, for editing, or nothing.
+   * Selects groups of the active classification, and its unassigned
+   * individuals or not; an empty list selects nothing.
    */
-  readonly selectGroup: (column: ColumnId, selected: Selected | null) => Promise<Answer>;
+  readonly selectGroups: (column: ColumnId, selected: SelectedGroups) => Promise<Answer>;
   /**
-   * Assigns the rows of a lasso, one bit per row, to what is selected; with
-   * the unassigned individuals selected, leaves them unassigned.
+   * Assigns the rows of a lasso, one bit per row, to `target`, the one row
+   * selected; with the unassigned individuals selected, leaves them
+   * unassigned.
    */
   readonly assignRows: (column: ColumnId, target: Selected, rows: Uint8Array) => Promise<Answer>;
   /**
@@ -73,16 +75,20 @@ export interface Connection {
     decimalMark: string,
   ) => Promise<Answer>;
   /**
-   * Presses + or − on what is selected for editing in `column`, `target`,
-   * or releases the button pressed, with `null`.
+   * Presses + or − on what is selected in `column`, `selected`, or
+   * releases the button pressed, with `null`.
    */
   readonly setEditMode: (
     column: ColumnId,
-    target: Selected,
+    selected: SelectedGroups,
     mode: EditMode | null,
   ) => Promise<Answer>;
-  /** Leaves unassigned the rows of a lasso that are in the selected group. */
-  readonly unassignRows: (column: ColumnId, group: LevelCode, rows: Uint8Array) => Promise<Answer>;
+  /** Leaves unassigned the rows of a lasso that are in a group of `selected`, what is selected. */
+  readonly unassignRows: (
+    column: ColumnId,
+    selected: SelectedGroups,
+    rows: Uint8Array,
+  ) => Promise<Answer>;
   /**
    * Sets the cells of `rows`, one bit per row, in `column` to the value
    * `text` gives, a decimal number read with `decimalMark`; an empty text
@@ -269,21 +275,17 @@ export async function connect(
     );
   };
 
-  /** A selection as the backend reads one in JSON. */
-  const selectedArg = (selected: Selected | null): unknown =>
-    selected === null
-      ? null
-      : selected.kind === "unassigned"
-        ? "unassigned"
-        : { group: selected.code };
+  /** What is selected, as the backend reads it in JSON: a list of rows. */
+  const selectedArg = (selected: SelectedGroups): unknown =>
+    selected.map((row) => (row.kind === "unassigned" ? "unassigned" : { group: row.code }));
 
   return {
     state: ready,
     setSelection: (rows) => withRows("set_selection", rows, {}),
     setHover: (row) => command("set_hover", { row }),
     setActiveClassification: (column) => command("set_active_classification", { column }),
-    selectGroup: (column, selected) =>
-      command("select_group", { column, selected: selectedArg(selected) }),
+    selectGroups: (column, selected) =>
+      command("select_groups", { column, selected: selectedArg(selected) }),
     assignRows: (column, target, rows) =>
       withRows("assign_rows", rows, {
         column: String(column),
@@ -300,10 +302,16 @@ export async function connect(
     deleteGroup: (column, group) => command("delete_group", { column, group }),
     editGroup: (column, group, name, colour, decimalMark) =>
       command("edit_group", { column, group, name, colour, decimalMark }),
-    setEditMode: (column, target, mode) =>
-      command("set_edit_mode", { column, target: selectedArg(target), mode }),
-    unassignRows: (column, group, rows) =>
-      withRows("unassign_rows", rows, { column: String(column), group: String(group) }),
+    setEditMode: (column, selected, mode) =>
+      command("set_edit_mode", { column, selected: selectedArg(selected), mode }),
+    unassignRows: (column, selected, rows) =>
+      withRows("unassign_rows", rows, {
+        column: String(column),
+        // The codes and `unassigned` between commas, as a header holds ASCII alone.
+        selected: selected
+          .map((row) => (row.kind === "unassigned" ? "unassigned" : String(row.code)))
+          .join(","),
+      }),
     describeTable: async () => {
       let description: unknown;
       try {

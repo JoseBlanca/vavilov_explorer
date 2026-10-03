@@ -16,6 +16,8 @@ import type { RowPage } from "./rowPage.ts";
 import { roleChoices } from "./roles.ts";
 import type { RoleChoice } from "./roles.ts";
 import { hasRow } from "./rowSet.ts";
+import { holdsCode } from "./selectedGroups.ts";
+import type { Active } from "./windowState.ts";
 
 /** A column of the table as its header shows it. */
 export interface TableColumn {
@@ -44,6 +46,11 @@ export interface TableRow {
   readonly row: RowIndex;
   /** Whether the individual is in the selection. */
   readonly selected: boolean;
+  /**
+   * Whether groups are selected in the active classification and the
+   * individual is in none of them, so that the table greys it out.
+   */
+  readonly outside: boolean;
   /** Its cells, one per column, or `null` while its page is being fetched. */
   readonly cells: readonly Cell[] | null;
 }
@@ -97,11 +104,13 @@ export function tableRow(
   row: RowIndex,
   codesOf: (column: ColumnId) => Uint16Array | null,
   selection: Uint8Array | null,
+  active: Active | null,
   decimalMark: string,
 ): TableRow {
   const selected = selection !== null && hasRow(selection, row);
+  const outside = isOutside(active, codesOf, row);
   if (page === null) {
-    return { position, row, selected, cells: null };
+    return { position, row, selected, outside, cells: null };
   }
   const index = position - page.first;
   const name = page.names[index];
@@ -134,7 +143,29 @@ export function tableRow(
       align: isNumeric(column.storage) ? "end" : "start",
     });
   }
-  return { position, row, selected, cells };
+  return { position, row, selected, outside, cells };
+}
+
+/**
+ * Whether groups are selected in `active` and the individual of `row` is in
+ * none of them.
+ *
+ * @throws A defect when the active classification has no code for the row,
+ * which the backend makes impossible.
+ */
+function isOutside(
+  active: Active | null,
+  codesOf: (column: ColumnId) => Uint16Array | null,
+  row: RowIndex,
+): boolean {
+  if (active === null || active.selected.length === 0) {
+    return false;
+  }
+  const code = codesOf(active.column)?.[row];
+  if (code === undefined) {
+    throw defect(`no code of row ${String(row)} in the active classification`);
+  }
+  return !holdsCode(active.selected, code === NO_CODE ? null : code);
 }
 
 /** The cell of a number or a text, from its page. */

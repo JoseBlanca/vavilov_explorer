@@ -23,7 +23,7 @@ use crate::message::{MessageKind, MessageWriter, whole_state};
 use crate::row_set::RowSet;
 use crate::session::{
     Active, EditMode, History, HistoryStep, Interaction, OpenProject, Project, Selected,
-    SendFailed, Session, SharedState, Shown,
+    SelectedGroups, SendFailed, Session, SharedState, Shown,
 };
 use crate::table::{Categorical, Column, ColumnValues, Table};
 
@@ -116,7 +116,7 @@ impl Session {
             Command::LoadTable { .. }
             | Command::SetHover { .. }
             | Command::SetActiveClassification { .. }
-            | Command::SelectGroup { .. }
+            | Command::SelectGroups { .. }
             // A group added holds no row, so no row matches anew.
             | Command::AddGroup { .. } => None,
             // A selection assigns the rows that enter it while + or − is
@@ -187,7 +187,7 @@ impl Session {
                     .rows()
                     .filter(|row| !open.interaction.selection.contains(*row));
                 if let Some((column, changes)) =
-                    pressed_changes(&open.table, open.interaction.active, entering)?
+                    pressed_changes(&open.table, open.interaction.active.as_ref(), entering)?
                     && !changes.is_empty()
                 {
                     let also = Also {
@@ -275,29 +275,31 @@ impl Session {
                 if let Some(column) = column {
                     classification(&open.table, column)?;
                 }
-                if open.interaction.active.map(|active| active.column) == column {
+                if open.interaction.active.as_ref().map(|active| active.column) == column {
                     return Ok(None);
                 }
                 let active = column.map(|column| Active {
                     column,
-                    selected: None,
+                    selected: SelectedGroups::none(),
                     mode: None,
                 });
                 plan_active(state, active, sent_at)
             }
-            Command::SelectGroup { column, selected } => {
+            Command::SelectGroups { column, selected } => {
                 let open = state.project.open()?;
                 let active = active_classification(open, column)?;
-                if let Some(Selected::Group(code)) = selected {
-                    // Made before a level was removed: its code may name
+                if !selected.groups().is_empty() {
+                    // Made before a level was removed: a code may name
                     // another group, or none.
                     check_levels_at(open, column, based_on)?;
-                    check_level(&open.table, column, code)?;
+                    for code in selected.groups() {
+                        check_level(&open.table, column, *code)?;
+                    }
                 }
                 if active.selected == selected {
                     return Ok(None);
                 }
-                // Another group selected, or none, releases + or −.
+                // Another selection releases + or −.
                 let active = Active {
                     column,
                     selected,
@@ -307,33 +309,32 @@ impl Session {
             }
             Command::SetEditMode {
                 column,
-                target,
+                selected,
                 mode,
             } => {
                 let open = state.project.open()?;
                 let active = active_classification(open, column)?;
-                if let Selected::Group(_) = target {
+                if !selected.groups().is_empty() {
                     check_levels_at(open, column, based_on)?;
                 }
-                let selected = active.selected.ok_or(CommandError::NoGroupSelected)?;
-                // − on the unassigned individuals, who are in no group,
-                // is refused as a lasso in remove mode is.
-                if selected != target
-                    || (mode == Some(EditMode::Remove) && target == Selected::Unassigned)
-                {
-                    return Err(CommandError::NotSelected { target });
+                if active.selected != selected {
+                    return Err(CommandError::NotSelected);
                 }
                 if active.mode == mode {
                     return Ok(None);
                 }
+                if mode.is_some() && selected.is_empty() {
+                    return Err(CommandError::NoGroupSelected);
+                }
+                check_button(mode, &selected)?;
                 let pressed = Active {
                     column,
-                    selected: Some(selected),
+                    selected,
                     mode,
                 };
                 if let Some((column, changes)) = pressed_changes(
                     &open.table,
-                    Some(pressed),
+                    Some(&pressed),
                     open.interaction.selection.rows(),
                 )? && !changes.is_empty()
                 {
@@ -363,7 +364,7 @@ impl Session {
                     active_classification(open, column)?;
                     check_levels_at(open, column, based_on)?;
                 }
-                let codes = lasso(open, column, target, &rows)?;
+                let codes = lasso(open, column, &SelectedGroups::one(target), &rows)?;
                 let new = match target {
                     Selected::Group(code) => Some(code),
                     Selected::Unassigned => None,
@@ -383,16 +384,19 @@ impl Session {
             }
             Command::UnassignRows {
                 column,
-                group,
+                selected,
                 rows,
             } => {
                 let open = state.project.open()?;
                 active_classification(open, column)?;
                 check_levels_at(open, column, based_on)?;
-                let codes = lasso(open, column, Selected::Group(group), &rows)?;
+                let codes = lasso(open, column, &selected, &rows)?;
+                check_button(Some(EditMode::Remove), &selected)?;
                 let changes = rows
                     .rows()
-                    .filter(|row| code_of(codes, *row) == Some(group))
+                    .filter(|row| {
+                        code_of(codes, *row).is_some_and(|code| selected.holds(Some(code)))
+                    })
                     .map(|row| (row, None))
                     .collect();
                 plan_edit(
@@ -767,7 +771,7 @@ fn plan_load(
         interaction: Interaction {
             active: active_classification.map(|column| Active {
                 column,
-                selected: None,
+                selected: SelectedGroups::none(),
                 mode: None,
             }),
             selection: RowSet::empty(table.num_rows()),
@@ -808,7 +812,7 @@ fn plan_active(
 ) -> Result<Option<Plan>, CommandError> {
     let revision = state.revision.next()?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
-    message.active(active)?;
+    message.active(active.as_ref())?;
     Ok(Some(Plan {
         revision,
         message: message.finish(),
@@ -902,11 +906,12 @@ fn plan_values(
     let active = open
         .interaction
         .active
+        .as_ref()
         .filter(|active| active.column == column)
         .map(|_| {
             values.role().is_categorical().then_some(Active {
                 column,
-                selected: None,
+                selected: SelectedGroups::none(),
                 mode: None,
             })
         });
@@ -914,8 +919,8 @@ fn plan_values(
     let shown = refiltered(open, Replaced::Values(column, &values), revision)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.shape(revision)?;
-    if let Some(active) = active {
-        message.active(active)?;
+    if let Some(active) = &active {
+        message.active(active.as_ref())?;
     }
     if let Some(shown) = &shown {
         message.filter(&open.interaction.filter, shown, open.table.num_rows())?;
@@ -960,10 +965,12 @@ type CodeChanges = Vec<(RowIndex, Option<LevelCode>)>;
 
 /// The codes that the rows `entering` the selection take while + or − is
 /// pressed on `active`, with the column, or `None` when no button is
-/// pressed. A row already where the button puts it is left out.
+/// pressed. + gives them the one row selected, a group or none; − leaves
+/// unassigned those in a selected group. A row already where the button
+/// puts it is left out.
 fn pressed_changes(
     table: &Table,
-    active: Option<Active>,
+    active: Option<&Active>,
     entering: impl Iterator<Item = RowIndex>,
 ) -> Result<Option<(ColumnId, CodeChanges)>, CommandError> {
     let Some(Active {
@@ -974,32 +981,47 @@ fn pressed_changes(
     else {
         return Ok(None);
     };
-    let target = selected.ok_or_else(|| CommandError::Defect {
-        what: "a button pressed with nothing selected".to_owned(),
-    })?;
-    let codes = classification(table, column)?.codes();
-    let changes = match (mode, target) {
-        (EditMode::Add, target) => {
-            let new = match target {
-                Selected::Group(code) => Some(code),
-                Selected::Unassigned => None,
+    check_button(Some(*mode), selected)?;
+    let codes = classification(table, *column)?.codes();
+    let changes = match mode {
+        EditMode::Add => {
+            let new = match selected.single() {
+                Some(Selected::Group(code)) => Some(code),
+                Some(Selected::Unassigned) => None,
+                None => {
+                    return Err(CommandError::Defect {
+                        what: "+ pressed with other than one row selected".to_owned(),
+                    });
+                }
             };
             entering
                 .filter(|row| code_of(codes, *row) != new)
                 .map(|row| (row, new))
                 .collect()
         }
-        (EditMode::Remove, Selected::Group(group)) => entering
-            .filter(|row| code_of(codes, *row) == Some(group))
+        EditMode::Remove => entering
+            .filter(|row| code_of(codes, *row).is_some_and(|code| selected.holds(Some(code))))
             .map(|row| (row, None))
             .collect(),
-        (EditMode::Remove, Selected::Unassigned) => {
-            return Err(CommandError::Defect {
-                what: "− pressed on the unassigned individuals".to_owned(),
-            });
-        }
     };
-    Ok(Some((column, changes)))
+    Ok(Some((*column, changes)))
+}
+
+/// Refuses as a defect a button that cannot act on `selected`, which a
+/// window does not offer: + with other than one row selected, and − with
+/// no group among them.
+fn check_button(mode: Option<EditMode>, selected: &SelectedGroups) -> Result<(), CommandError> {
+    let offered = match mode {
+        None => true,
+        Some(EditMode::Add) => selected.single().is_some(),
+        Some(EditMode::Remove) => !selected.groups().is_empty(),
+    };
+    if offered {
+        return Ok(());
+    }
+    Err(CommandError::Defect {
+        what: format!("{mode:?} pressed on {:?}", selected.groups()),
+    })
 }
 
 /// Plans new codes of some rows of a category, with what `also` sets of
@@ -1052,8 +1074,8 @@ fn plan_codes(
     let revision = state.revision.next()?;
     let shown = refiltered(open, Replaced::Codes(column, &codes), revision)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
-    if let Some(active) = also.active {
-        message.active(active)?;
+    if let Some(active) = &also.active {
+        message.active(active.as_ref())?;
     }
     if let Some(selection) = &also.selection {
         message.selection(selection)?;
@@ -1096,27 +1118,31 @@ fn refiltered(
     Ok((rows != open.interaction.shown.rows).then_some(Shown { rows, at: revision }))
 }
 
-/// The codes of the active classification, for a lasso on `target` with
-/// `rows`, once the lasso is checked against the session.
+/// The codes of the active classification, for a lasso made with
+/// `expected` selected, with `rows`, once the lasso is checked against the
+/// session.
 fn lasso<'a>(
     open: &'a OpenProject,
     column: ColumnId,
-    target: Selected,
+    expected: &SelectedGroups,
     rows: &RowSet,
 ) -> Result<&'a [Option<LevelCode>], CommandError> {
     let active = active_classification(open, column)?;
-    let selected = active.selected.ok_or(CommandError::NoGroupSelected)?;
-    if selected != target {
-        return Err(CommandError::NotSelected { target });
+    if active.selected.is_empty() {
+        return Err(CommandError::NoGroupSelected);
+    }
+    if active.selected != *expected {
+        return Err(CommandError::NotSelected);
     }
     check_row_set(rows, open.table.num_rows())?;
     Ok(classification(&open.table, column)?.codes())
 }
 
 /// The active classification, when it is `column`.
-fn active_classification(open: &OpenProject, column: ColumnId) -> Result<Active, CommandError> {
+fn active_classification(open: &OpenProject, column: ColumnId) -> Result<&Active, CommandError> {
     open.interaction
         .active
+        .as_ref()
         .filter(|active| active.column == column)
         .ok_or(CommandError::NotActiveClassification { column })
 }

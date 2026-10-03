@@ -12,7 +12,6 @@ pub use group::GroupRefusal;
 use serde::Serialize;
 
 use crate::ids::{ColumnId, LevelCode, Position, Revision, RowIndex, WindowLabel};
-use crate::session::Selected;
 use crate::table::{Role, StorageType};
 
 /// Why a command was refused, or a table could not be built.
@@ -117,14 +116,10 @@ pub enum CommandError {
     #[error("no group is selected")]
     NoGroupSelected,
 
-    /// The command names a target that is not what is selected: it was
-    /// made before something else was selected, or it removes from the
-    /// unassigned individuals, which are in no group.
-    #[error("{target:?} is not what is selected")]
-    NotSelected {
-        /// What the command named.
-        target: Selected,
-    },
+    /// The command names a selection of groups that is not the one
+    /// selected: it was made before something else was selected.
+    #[error("the command names another selection than the one selected")]
+    NotSelected,
 
     /// A set of rows has as many bytes as a table of another number of
     /// rows would.

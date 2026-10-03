@@ -87,36 +87,57 @@ describe("the parts", () => {
     ).toEqual([{ kind: "project", numRows: 4, loadedAt: 3 }]);
   });
 
-  test("the active part gives the column, the group and the button pressed, or null for none", () => {
-    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0])).toEqual([
-      { kind: "active", column: 2, selected: { kind: "group", code: 1 }, mode: null },
+  // The bytes of the core's test of the active part
+  // (crates/vavilov-core/src/message/tests.rs).
+  test("the active part gives the column, the button pressed and what is selected", () => {
+    expect(
+      parts(...[2, 0, 0, 0, 10, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0]),
+    ).toEqual([{ kind: "active", column: 2, selected: [{ kind: "group", code: 1 }], mode: "add" }]);
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0])).toEqual([
+      { kind: "active", column: null, selected: [], mode: null },
     ]);
-    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 1])).toEqual([
-      { kind: "active", column: 2, selected: { kind: "group", code: 1 }, mode: "add" },
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0])).toEqual([
+      { kind: "active", column: 3, selected: [], mode: null },
     ]);
-    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 2])).toEqual([
-      { kind: "active", column: 2, selected: { kind: "group", code: 1 }, mode: "remove" },
+    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 1, 0, 0])).toEqual([
+      { kind: "active", column: 3, selected: [{ kind: "unassigned" }], mode: null },
     ]);
-    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 1])).toEqual([
-      { kind: "active", column: 3, selected: { kind: "unassigned" }, mode: "add" },
-    ]);
-    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0])).toEqual([
-      { kind: "active", column: null, selected: null, mode: null },
-    ]);
-    expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0])).toEqual([
-      { kind: "active", column: 3, selected: null, mode: null },
+    expect(
+      parts(...[2, 0, 0, 0, 12, 0, 0, 0, 3, 0, 0, 0, 2, 1, 2, 0, 0, 0, 3, 0, 0, 0, 0, 0]),
+    ).toEqual([
+      {
+        kind: "active",
+        column: 3,
+        selected: [{ kind: "group", code: 0 }, { kind: "group", code: 3 }, { kind: "unassigned" }],
+        mode: "remove",
+      },
     ]);
   });
 
-  test("a button pressed on nothing, − on the unassigned, or a button of no kind is a defect", () => {
-    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 1])).toThrow(
-      /defect: a button pressed with nothing selected/,
+  test("a button that cannot act on what is selected, or an active part that does not fit, is a defect", () => {
+    // + on two groups.
+    expect(() =>
+      parts(...[2, 0, 0, 0, 12, 0, 0, 0, 3, 0, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0]),
+    ).toThrow(/defect: a button pressed of kind 1 on 2 rows/);
+    // − on the unassigned individuals alone, and a button on nothing.
+    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 2, 1, 0, 0])).toThrow(
+      /defect: a button pressed of kind 2 on 1 rows/,
     );
-    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 2])).toThrow(
-      /defect: − pressed on the unassigned individuals/,
+    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 0])).toThrow(
+      /defect: a button pressed of kind 1 on 0 rows/,
     );
-    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 3])).toThrow(
-      /defect: a button pressed of kind 3/,
+    expect(() =>
+      parts(...[2, 0, 0, 0, 10, 0, 0, 0, 2, 0, 0, 0, 3, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0]),
+    ).toThrow(/defect: a button pressed of kind 3/);
+    // Codes out of order, a count the length does not hold, an unassigned byte of 2.
+    expect(() =>
+      parts(...[2, 0, 0, 0, 12, 0, 0, 0, 3, 0, 0, 0, 0, 0, 2, 0, 2, 0, 1, 0, 0, 0, 0, 0]),
+    ).toThrow(/defect: an active part whose codes are not in ascending order/);
+    expect(() =>
+      parts(...[2, 0, 0, 0, 10, 0, 0, 0, 3, 0, 0, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0]),
+    ).toThrow(/defect/);
+    expect(() => parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 2, 0, 0])).toThrow(
+      /defect: an active part whose unassigned byte is 2/,
     );
   });
 
@@ -177,12 +198,12 @@ describe("the parts", () => {
       parts(
         ...[5, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
         ...[7, 0, 0, 0, 12, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0],
-        ...[2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0],
+        ...[2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0],
       ),
     ).toEqual([
       { kind: "undo", canUndo: false, canRedo: true },
       { kind: "hover", seq: 1, row: null },
-      { kind: "active", column: null, selected: null, mode: null },
+      { kind: "active", column: null, selected: [], mode: null },
     ]);
   });
 
@@ -273,7 +294,7 @@ describe("the snapshot after edits that the core's tests write", () => {
     1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, // open, 4 rows
     1, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 8, 0, 0, 0, // loaded at 1; shape part
     1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 8, 0, 0, 0, // shape at 1; active part
-    3, 0, 0, 0, 255, 255, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, none; selection part
+    3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0, // cluster, no button, nothing selected; selection part
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
     13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // filter part: rows shown since 1
@@ -330,7 +351,7 @@ describe("the snapshot after edits that the core's tests write", () => {
     expect(summary).toEqual([
       { kind: "project", numRows: 4, loadedAt: 1 },
       { kind: "shape", shapeAt: 1 },
-      { kind: "active", column: 3, selected: null, mode: null },
+      { kind: "active", column: 3, selected: [], mode: null },
       { kind: "selection", numRows: 4, bits: [0] },
       { kind: "undo", canUndo: true, canRedo: false },
       {

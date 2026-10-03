@@ -100,7 +100,7 @@ pub(crate) fn whole_state(
     message.project(project.map(|open| (open.table.num_rows(), loaded_at)))?;
     if let Some(open) = project {
         message.shape(open.shape_at)?;
-        message.active(open.interaction.active)?;
+        message.active(open.interaction.active.as_ref())?;
         message.selection(&open.interaction.selection)?;
         message.undo(open.history.undo_redo())?;
         message.filter(

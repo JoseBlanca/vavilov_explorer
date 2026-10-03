@@ -141,6 +141,13 @@
   box-shadow: inset var(--selected-mark) 0 0 var(--color-accent);
 }
 
+/* A row outside the groups selected in the panel, greyed out as the
+   points of the other groups are in a plot (docs/design.md, section 2.1). */
+.row[data-outside="true"] .cell,
+.row[data-outside="true"] .nameCell {
+  color: var(--color-text-muted);
+}
+
 .start {
   text-align: start;
 }

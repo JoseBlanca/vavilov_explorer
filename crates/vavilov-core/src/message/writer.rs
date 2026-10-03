@@ -5,7 +5,7 @@ use crate::filter::{CellMatch, Filter, Showing};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Position, Revision, RowIndex, SentAt};
 use crate::message::{MessageKind, NO_CODE, NO_COLUMN, NO_ROW, PartKind};
 use crate::row_set::RowSet;
-use crate::session::{Active, EditMode, Selected, Shown, UndoRedo};
+use crate::session::{Active, EditMode, SelectedGroups, Shown, UndoRedo};
 
 /// Every payload, and so every message, is padded to a multiple of this.
 const ALIGNMENT: usize = 8;
@@ -66,40 +66,37 @@ impl MessageWriter {
         })
     }
 
-    /// The active classification and the selected group.
-    pub(crate) fn active(&mut self, active: Option<Active>) -> Result<(), CommandError> {
+    /// The active classification, what is selected in it, and the button
+    /// pressed.
+    pub(crate) fn active(&mut self, active: Option<&Active>) -> Result<(), CommandError> {
         self.part(PartKind::Active, |payload| {
             let column = active.map_or(NO_COLUMN, |active| active.column.get());
-            // The kind of the selection, 0 nothing, 1 a group, 2 the
-            // unassigned individuals; the code only for a group.
-            let (kind, code) = match active.and_then(|active| active.selected) {
-                None => (0_u8, NO_CODE),
-                Some(Selected::Group(code)) => (1, code.get()),
-                Some(Selected::Unassigned) => (2, NO_CODE),
-            };
+            let none = SelectedGroups::none();
+            let selected = active.map_or(&none, |active| &active.selected);
             // The button pressed, 0 none, 1 +, 2 −; a window refuses one
-            // with nothing selected, or − on the unassigned individuals, as
-            // a defect, so it is refused here first.
-            let selected = active.and_then(|active| active.selected);
-            let mode = match (active.and_then(|active| active.mode), selected) {
-                (None, _) => 0_u8,
-                (Some(_), None) => {
+            // that cannot act on what is selected as a defect, so it is
+            // refused here first.
+            let mode = match active.and_then(|active| active.mode) {
+                None => 0_u8,
+                Some(EditMode::Add) if selected.single().is_some() => 1,
+                Some(EditMode::Remove) if !selected.groups().is_empty() => 2,
+                Some(mode) => {
                     return Err(CommandError::Defect {
-                        what: "a button pressed with nothing selected".to_owned(),
+                        what: format!("{mode:?} pressed on {:?}", selected.groups()),
                     });
                 }
-                (Some(EditMode::Remove), Some(Selected::Unassigned)) => {
-                    return Err(CommandError::Defect {
-                        what: "− pressed on the unassigned individuals".to_owned(),
-                    });
-                }
-                (Some(EditMode::Add), Some(_)) => 1,
-                (Some(EditMode::Remove), Some(Selected::Group(_))) => 2,
             };
+            let num_groups =
+                u16::try_from(selected.groups().len()).map_err(|_| CommandError::Defect {
+                    what: format!("{} groups selected", selected.groups().len()),
+                })?;
             payload.extend_from_slice(&column.to_le_bytes());
-            payload.extend_from_slice(&code.to_le_bytes());
-            payload.push(kind);
             payload.push(mode);
+            payload.push(u8::from(selected.unassigned()));
+            payload.extend_from_slice(&num_groups.to_le_bytes());
+            for code in selected.groups() {
+                payload.extend_from_slice(&code.get().to_le_bytes());
+            }
             Ok(())
         })
     }

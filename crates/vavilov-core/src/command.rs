@@ -4,7 +4,7 @@
 use crate::filter::Filter;
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, SentAt};
 use crate::row_set::RowSet;
-use crate::session::{EditMode, Selected};
+use crate::session::{EditMode, Selected, SelectedGroups};
 use crate::table::{Colour, Role, Table};
 
 /// A change to the document or the interaction. Each names what it acts
@@ -48,32 +48,35 @@ pub enum Command {
         /// A category, of countries or not, or `None` for none.
         column: Option<ColumnId>,
     },
-    /// Selects a group of the active classification, or its
-    /// unassigned individuals, for editing, or nothing.
-    SelectGroup {
+    /// Selects groups of the active classification, and its unassigned
+    /// individuals or not; nothing selected is every individual. A change
+    /// releases + or −.
+    SelectGroups {
         /// The active classification.
         column: ColumnId,
-        /// What to select, or `None`.
-        selected: Option<Selected>,
+        /// What to select.
+        selected: SelectedGroups,
     },
-    /// Presses the button + or − on what is selected for editing, or
-    /// releases the one pressed. Pressing one gives the rows selected now
-    /// what it gives every row that enters the selection after, in the same
-    /// command (`docs/design.md`, section 2.1).
+    /// Presses the button + or − on what is selected, or releases the one
+    /// pressed: + with exactly one row selected, − with a group among
+    /// them. Pressing one gives the rows selected now what it gives every
+    /// row that enters the selection after, in the same command
+    /// (`docs/design.md`, section 2.1).
     SetEditMode {
         /// The active classification.
         column: ColumnId,
         /// What is selected.
-        target: Selected,
+        selected: SelectedGroups,
         /// The button pressed, or `None` to release it.
         mode: Option<EditMode>,
     },
-    /// Assigns the rows to what is selected: a lasso in add mode, which
-    /// with the unassigned individuals selected leaves the rows unassigned.
+    /// Assigns the rows to the one row selected: a lasso with + pressed,
+    /// which with the unassigned individuals selected leaves the rows
+    /// unassigned.
     AssignRows {
         /// The active classification.
         column: ColumnId,
-        /// What is selected.
+        /// The one row selected.
         target: Selected,
         /// The rows inside the lasso.
         rows: RowSet,
@@ -119,13 +122,13 @@ pub enum Command {
         /// system's region's: one to three characters.
         decimal_mark: String,
     },
-    /// Leaves unassigned the rows of the selected group that are in
-    /// `rows`, and leaves the others as they are: a lasso in remove mode.
+    /// Leaves unassigned the rows in `rows` that are in a selected group,
+    /// and leaves the others as they are: a lasso with − pressed.
     UnassignRows {
         /// The active classification.
         column: ColumnId,
-        /// The selected group.
-        group: LevelCode,
+        /// What is selected, with a group among them.
+        selected: SelectedGroups,
         /// The rows inside the lasso.
         rows: RowSet,
     },

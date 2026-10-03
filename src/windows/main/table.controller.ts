@@ -553,6 +553,7 @@ export function createTable(
         rowAt(rowAtPosition, position),
         state.codes,
         state.selection(),
+        state.active(),
         decimalMark,
       ),
     );
@@ -669,8 +670,9 @@ export function createTable(
 
   const resized = new ResizeObserver(schedule);
   resized.observe(element);
-  const unsubscribes = (["table", "codes", "selection", "filter"] as const).map((aspect) =>
-    state.subscribe(aspect, draw),
+  // The classification too, whose groups selected grey out the others.
+  const unsubscribes = (["table", "codes", "selection", "filter", "classification"] as const).map(
+    (aspect) => state.subscribe(aspect, draw),
   );
   draw();
   return {

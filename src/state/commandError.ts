@@ -3,9 +3,6 @@
 // (crates/vavilov-core/src/error.rs). The table below is the one list of
 // them on this side, and the type is made from it (tagged.ts).
 
-import { isLevelCode } from "./ids.ts";
-import type { LevelCode } from "./ids.ts";
-import type { Selected } from "./message.ts";
 import { isRole, isStorageType } from "./description.ts";
 import { isCellRefusal } from "./cellRefusal.ts";
 import { isExportRefusal, isImportRefusal } from "./fileRefusal.ts";
@@ -23,17 +20,10 @@ import {
 } from "./tagged.ts";
 import type { Tagged } from "./tagged.ts";
 
-/** A selection as the backend serialises one, `{ "group": code }` or `"unassigned"`. */
-export type SelectedOnWire = { readonly group: LevelCode } | "unassigned";
-
 /** What the file system refused, as `IoFailure` in the core. */
 export type IoFailure = "notFound" | "permissionDenied" | "other";
 
 const isIoFailure = oneOf<IoFailure>(["notFound", "permissionDenied", "other"]);
-
-function isSelectedOnWire(value: unknown): value is SelectedOnWire {
-  return selectedOf(value) !== null;
-}
 
 /** The fields of each kind of refusal, and the check of each. */
 const FIELDS = {
@@ -48,7 +38,7 @@ const FIELDS = {
   notActiveClassification: { column: isColumnIdField },
   unknownLevel: { column: isColumnIdField, code: isLevelCodeField, numLevels: isCount },
   noGroupSelected: {},
-  notSelected: { target: isSelectedOnWire },
+  notSelected: {},
   rowSetLength: { numRows: isCount, numBytes: isCount },
   rowSetUnusedBits: { numRows: isCount },
   rowOutOfRange: { row: isRowIndexField, numRows: isCount },
@@ -100,24 +90,6 @@ export type Refusal = Exclude<
   CommandError,
   { readonly kind: "defect" | "madeBeforeLoad" | "levelsChanged" }
 >;
-
-/**
- * The selection a window works with, from one as the backend serialises
- * it, or `null` when `value` is not one.
- */
-export function selectedOf(value: unknown): Selected | null {
-  if (value === "unassigned") {
-    return { kind: "unassigned" };
-  }
-  if (typeof value === "object" && value !== null && "group" in value) {
-    const entries = Object.keys(value);
-    const { group } = value;
-    if (entries.length === 1 && typeof group === "number" && isLevelCode(group)) {
-      return { kind: "group", code: group };
-    }
-  }
-  return null;
-}
 
 /**
  * Whether `value` is a refusal of the backend: an object with a known kind

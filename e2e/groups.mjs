@@ -173,6 +173,58 @@ for (const engine of Object.keys(ENGINES)) {
     await rowsAre(panel, ["Spain 3", "Perú 1", "Chile 0", "Unassigned 1"]);
     assert.equal(await page.getByRole("alert").filter({ hasText: /\S/ }).count(), 0);
 
+    // Several groups: Cmd-click (Ctrl-click) adds one to what is selected.
+    // + is not offered, − is on the last group selected, Edit and Delete
+    // group are not offered, and the table greys out the other rows.
+    await panel.getByRole("button", { name: /^Spain/ }).click();
+    await waitPressed(panel, "Spain");
+    await panel.getByRole("button", { name: /^Perú/ }).click({ modifiers: ["ControlOrMeta"] });
+    await waitPressed(panel, "Perú");
+    await rowsAre(panel, ["Spain 3", "Perú 1 −", "Chile 0", "Unassigned 1"]);
+    assert.equal(await panel.getByRole("button", { name: /^(Edit|Delete) group/ }).count(), 0);
+    assert.deepEqual(await outsideRows(grid), ["p3"]);
+    const removeFromBoth = panel.getByRole("button", {
+      name: "Remove selected from Spain and Perú",
+      exact: true,
+    });
+    await shoot(page, engine, "groups-several");
+    await removeFromBoth.click();
+    await says(
+      page,
+      "Rows you select now leave Spain and Perú, if they are in one of them, until you press − again or Escape; Edit > Undo takes back each change.",
+    );
+    // p2, of Perú, clicked: it leaves Perú, and is greyed out now.
+    await rowNamed(grid, "p2").click();
+    await rowsAre(panel, ["Spain 3", "Perú 0 −", "Chile 0", "Unassigned 2"]);
+    assert.deepEqual(await outsideRows(grid), ["p2", "p3"]);
+    // Cmd-click on Perú takes it away, which releases −.
+    await panel.getByRole("button", { name: /^Perú/ }).click({ modifiers: ["ControlOrMeta"] });
+    await says(page, "Rows you select no longer leave Spain and Perú.");
+    await rowsAre(panel, ["Spain 3 + −", "Perú 0", "Chile 0", "Unassigned 2"]);
+    // A plain click selects one group alone, and a click on it again none.
+    await panel.getByRole("button", { name: /^Chile/ }).click();
+    await rowsAre(panel, ["Spain 3", "Perú 0", "Chile 0 + −", "Unassigned 2"]);
+    await panel.getByRole("button", { name: /^Chile/ }).click();
+    await rowsAre(panel, ["Spain 3", "Perú 0", "Chile 0", "Unassigned 2"]);
+    assert.deepEqual(await outsideRows(grid), []);
+
+    // Shift-click selects every row from the last one clicked, the
+    // unassigned included, either way.
+    await panel.getByRole("button", { name: /^Perú/ }).click();
+    await panel.getByRole("button", { name: /^Unassigned/ }).click({ modifiers: ["Shift"] });
+    await rowsAre(panel, ["Spain 3", "Perú 0", "Chile 0 −", "Unassigned 2"]);
+    await waitPressed(panel, "Unassigned");
+    await panel.getByRole("button", { name: /^Spain/ }).click({ modifiers: ["Shift"] });
+    await rowsAre(panel, ["Spain 3", "Perú 0 −", "Chile 0", "Unassigned 2"]);
+    assert.equal(
+      await panel.locator('li button[aria-pressed="true"]').count(),
+      2,
+      "Spain and Perú selected",
+    );
+    await panel.getByRole("button", { name: /^Spain/ }).click();
+    await panel.getByRole("button", { name: /^Spain/ }).click();
+    await rowsAre(panel, ["Spain 3", "Perú 0", "Chile 0", "Unassigned 2"]);
+
     assert.deepEqual(errors, [], "no page errors");
     console.log(`e2e groups, ${engine}: passed`);
   } finally {
@@ -217,6 +269,24 @@ async function originOf(grid, plant) {
     .getByRole("row")
     .filter({ has: grid.page().getByRole("gridcell", { name: plant, exact: true }) });
   return row.getByRole("gridcell").nth(2).textContent().then(trimmed);
+}
+
+/** The names of the rows of the table greyed out, outside the groups selected. */
+async function outsideRows(grid) {
+  return grid
+    .page()
+    .evaluate(() =>
+      [...globalThis.document.querySelectorAll('[role="row"][data-outside="true"]')].map((row) =>
+        row.querySelector('[role="gridcell"]')?.textContent?.trim(),
+      ),
+    );
+}
+
+/** The row of the grid whose first cell is `name`. */
+function rowNamed(grid, name) {
+  return grid
+    .getByRole("row")
+    .filter({ has: grid.page().getByRole("gridcell", { name, exact: true }) });
 }
 
 /** Waits until the information bar tells `text`. */

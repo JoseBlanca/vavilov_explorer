@@ -5,9 +5,10 @@
 // a copy.
 
 import { defect } from "../state/defect.ts";
-import { MAX_ROWS, NO_CODE, NO_COLUMN, NO_ROW } from "../state/ids.ts";
+import { MAX_ROWS, NO_COLUMN, NO_ROW } from "../state/ids.ts";
 import type { ColumnRevision, EditMode, Message, MessagePart, Selected } from "../state/message.ts";
 import { countRows } from "../state/rowSet.ts";
+import { removableGroups, singleOf } from "../state/selectedGroups.ts";
 import {
   booleanAt,
   columnId,
@@ -70,18 +71,8 @@ function decodePart(
   switch (partKind) {
     case PROJECT:
       return projectPart(view, start, length);
-    case ACTIVE: {
-      expectLength("active", length, 8);
-      const column = view.getUint32(start, true);
-      const code = view.getUint16(start + 4, true);
-      const selected = selectedOf(view.getUint8(start + 6), code);
-      return {
-        kind: "active",
-        column: column === NO_COLUMN ? null : columnId(column),
-        selected,
-        mode: modeOf(view.getUint8(start + 7), selected),
-      };
-    }
+    case ACTIVE:
+      return activePart(view, start, length);
     case SELECTION:
       return selectionPart(bytes, view, start, length);
     case CODES: {
@@ -249,46 +240,62 @@ function columnsPart(view: DataView, start: number, length: number): MessagePart
 }
 
 /**
- * What is selected, from the kind byte of the active part, 0 nothing, 1 a
- * group, 2 the unassigned individuals, and the code, `NO_CODE` but
- * for a group.
+ * The active part: the column, `u32`, `NO_COLUMN` for none; the button
+ * pressed, a byte, 0 none, 1 +, 2 −; whether the unassigned individuals
+ * are selected, a byte, 0 or 1; the number of groups selected, `u16`; and
+ * their codes, `u16` each, in ascending order.
  */
-function selectedOf(kind: number, code: number): Selected | null {
-  if (kind === 1) {
-    return { kind: "group", code: levelCode(code) };
+function activePart(view: DataView, start: number, length: number): MessagePart {
+  if (length < 8) {
+    throw defect(`an active part of ${String(length)} bytes`);
   }
-  if (code !== NO_CODE) {
-    throw defect(
-      `a code ${String(code)} in an active part whose selection is of kind ${String(kind)}`,
-    );
+  const column = view.getUint32(start, true);
+  const modeByte = view.getUint8(start + 4);
+  const unassignedByte = view.getUint8(start + 5);
+  const numGroups = view.getUint16(start + 6, true);
+  expectLength("active", length, 8 + 2 * numGroups);
+  if (unassignedByte !== 0 && unassignedByte !== 1) {
+    throw defect(`an active part whose unassigned byte is ${String(unassignedByte)}`);
   }
-  if (kind === 0) {
-    return null;
+  const selected: Selected[] = [];
+  let previous = -1;
+  for (let index = 0; index < numGroups; index += 1) {
+    const code = view.getUint16(start + 8 + 2 * index, true);
+    if (code <= previous) {
+      throw defect(`an active part whose codes are not in ascending order: ${String(code)}`);
+    }
+    previous = code;
+    selected.push({ kind: "group", code: levelCode(code) });
   }
-  if (kind === 2) {
-    return { kind: "unassigned" };
+  if (unassignedByte === 1) {
+    selected.push({ kind: "unassigned" });
   }
-  throw defect(`a kind of selection ${String(kind)}`);
+  if (column === NO_COLUMN && selected.length > 0) {
+    throw defect("an active part with groups selected and no classification");
+  }
+  return {
+    kind: "active",
+    column: column === NO_COLUMN ? null : columnId(column),
+    selected,
+    mode: modeOf(modeByte, selected),
+  };
 }
 
 /**
- * The button pressed, from the last byte of the active part, 0 none, 1 +,
- * 2 −, which needs something selected, and a group for −.
+ * The button pressed, 0 none, 1 +, 2 −: + needs exactly one row selected,
+ * and − a group among them.
  */
-function modeOf(kind: number, selected: Selected | null): EditMode | null {
+function modeOf(kind: number, selected: readonly Selected[]): EditMode | null {
   if (kind === 0) {
     return null;
   }
-  if (kind !== 1 && kind !== 2) {
-    throw defect(`a button pressed of kind ${String(kind)}`);
+  if (kind === 1 && singleOf(selected) !== null) {
+    return "add";
   }
-  if (selected === null) {
-    throw defect("a button pressed with nothing selected");
+  if (kind === 2 && removableGroups(selected).length > 0) {
+    return "remove";
   }
-  if (kind === 2 && selected.kind === "unassigned") {
-    throw defect("− pressed on the unassigned individuals");
-  }
-  return kind === 1 ? "add" : "remove";
+  throw defect(`a button pressed of kind ${String(kind)} on ${String(selected.length)} rows`);
 }
 
 /** Checks what a message of each kind must hold. */

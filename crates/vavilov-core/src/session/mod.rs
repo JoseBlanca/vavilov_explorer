@@ -6,7 +6,7 @@ mod interaction;
 mod subscribers;
 
 pub use history::UndoRedo;
-pub use interaction::{Active, EditMode, Selected};
+pub use interaction::{Active, EditMode, Selected, SelectedGroups};
 pub use subscribers::{SendFailed, Subscriber};
 
 pub(crate) use history::{History, HistoryStep};
@@ -164,7 +164,7 @@ impl Session {
         self.state
             .project
             .as_open()
-            .and_then(|open| open.interaction.active)
+            .and_then(|open| open.interaction.active.clone())
     }
 
     /// The selection, when a project is open.

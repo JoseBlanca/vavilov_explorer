@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-select-groups"
+description = "Enables the select_groups command without any pre-configured scope."
+commands.allow = ["select_groups"]
+
+[[permission]]
+identifier = "deny-select-groups"
+description = "Denies the select_groups command without any pre-configured scope."
+commands.deny = ["select_groups"]

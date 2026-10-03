@@ -42,9 +42,9 @@ describe("the individuals + changes", () => {
 
 describe("the individuals − leaves unassigned", () => {
   test("are the selected ones in the group, and no other", () => {
-    expect(removedCount(SELECTION, CODES, code(0))).toBe(2);
-    expect(removedCount(SELECTION, CODES, code(1))).toBe(2);
-    expect(removedCount(SELECTION, CODES, code(2))).toBe(0);
+    expect(removedCount(SELECTION, CODES, [code(0)])).toBe(2);
+    expect(removedCount(SELECTION, CODES, [code(1)])).toBe(2);
+    expect(removedCount(SELECTION, CODES, [code(2)])).toBe(0);
   });
 });
 
@@ -91,15 +91,15 @@ describe("the message after + or − is pressed", () => {
 describe("the message after the button is released", () => {
   test("says the rows selected no longer move", () => {
     const china = { kind: "group", code: code(2), name: "China" } as const;
-    expect(releasedMessage(china, "add")).toEqual({
+    expect(releasedMessage(china, "add", String)).toEqual({
       kind: "information",
       text: "Rows you select no longer go to China.",
     });
-    expect(releasedMessage({ kind: "unassigned" }, "add")).toEqual({
+    expect(releasedMessage({ kind: "unassigned" }, "add", String)).toEqual({
       kind: "information",
       text: "Rows you select are no longer made unassigned.",
     });
-    expect(releasedMessage(china, "remove")).toEqual({
+    expect(releasedMessage(china, "remove", String)).toEqual({
       kind: "information",
       text: "Rows you select no longer leave China.",
     });

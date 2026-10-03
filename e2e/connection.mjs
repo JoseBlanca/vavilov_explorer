@@ -127,13 +127,13 @@ for (const engine of Object.keys(ENGINES)) {
       ok: false,
       error: { kind: "rowsOutOfRange", first: 3, count: 2, numShown: 4 },
     });
-    assert.deepEqual(await send("selectGroup", 1, peru), applied);
-    assert.deepEqual((await stateAt(2)).active, { column: 1, selected: peru, mode: null });
+    assert.deepEqual(await send("selectGroups", 1, [peru]), applied);
+    assert.deepEqual((await stateAt(2)).active, { column: 1, selected: [peru], mode: null });
     // Rows 2 and 3 into Peru.
     assert.deepEqual(await send("assignRows", 1, peru, rows(0b1100)), applied);
     assert.deepEqual((await stateAt(3)).codes, [0, 1, 1, 1]);
     // Rows 0 to 2 out of Peru: rows 1 and 2 are in it, row 0 is in Spain.
-    assert.deepEqual(await send("unassignRows", 1, 1, rows(0b0111)), applied);
+    assert.deepEqual(await send("unassignRows", 1, [peru], rows(0b0111)), applied);
     assert.deepEqual((await stateAt(4)).codes, [0, 0xffff, 0xffff, 1]);
     assert.deepEqual(await send("undo"), applied);
     assert.deepEqual((await stateAt(5)).codes, [0, 1, 1, 1]);
@@ -142,12 +142,12 @@ for (const engine of Object.keys(ENGINES)) {
     // A lasso for Spain while Peru is selected is refused, as a value.
     assert.deepEqual(await send("assignRows", 1, { kind: "group", code: 0 }, rows(0b0001)), {
       ok: false,
-      error: { kind: "notSelected", target: { group: 0 } },
+      error: { kind: "notSelected" },
     });
     assert.deepEqual(await send("setSelection", rows(0b0110)), applied);
     assert.deepEqual((await stateAt(7)).selection, [0b0110]);
     // The unassigned individuals selected, a lasso of row 3 unassigns it.
-    assert.deepEqual(await send("selectGroup", 1, { kind: "unassigned" }), applied);
+    assert.deepEqual(await send("selectGroups", 1, [{ kind: "unassigned" }]), applied);
     assert.deepEqual(await send("assignRows", 1, { kind: "unassigned" }, rows(0b1000)), applied);
     assert.deepEqual((await stateAt(9)).codes, [0, 0xffff, 0xffff, 0xffff]);
     assert.deepEqual(await send("setActiveClassification", null), applied);

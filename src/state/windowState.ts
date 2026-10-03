@@ -5,7 +5,8 @@
 import { defect } from "./defect.ts";
 import type { Filter, Shown } from "./filter.ts";
 import type { ColumnId, HoverSeq, Revision, RowIndex } from "./ids.ts";
-import type { EditMode, Message, MessagePart, Selected, UndoRedo } from "./message.ts";
+import type { EditMode, Message, MessagePart, UndoRedo } from "./message.ts";
+import type { SelectedGroups } from "./selectedGroups.ts";
 
 /** What changes together, so that a component redraws only for what it shows. */
 export type Aspect =
@@ -16,12 +17,12 @@ export type ProjectState =
   | { readonly kind: "noProject" }
   | { readonly kind: "open"; readonly numRows: number; readonly loadedAt: Revision };
 
-/** The active classification and its selected group, as `Active` in the core. */
+/** The active classification and what is selected in it, as `Active` in the core. */
 export interface Active {
   /** The column of the active classification. */
   readonly column: ColumnId;
-  /** What is selected for editing, or `null`. */
-  readonly selected: Selected | null;
+  /** What is selected, in the core's order; empty for nothing, which is every individual. */
+  readonly selected: SelectedGroups;
   /** The button pressed on what is selected, or `null`. */
   readonly mode: EditMode | null;
 }

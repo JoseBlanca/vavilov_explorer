@@ -51,20 +51,10 @@ fn revisions_rows_and_labels_cross_as_plain_values() {
 }
 
 #[test]
-fn a_target_crosses_as_its_group_or_as_unassigned() {
+fn a_command_made_from_another_selection_crosses_as_its_kind_alone() {
     assert_eq!(
-        serde_json::to_value(CommandError::NotSelected {
-            target: Selected::Group(LevelCode::new(2))
-        })
-        .unwrap(),
-        json!({ "kind": "notSelected", "target": { "group": 2 } })
-    );
-    assert_eq!(
-        serde_json::to_value(CommandError::NotSelected {
-            target: Selected::Unassigned
-        })
-        .unwrap(),
-        json!({ "kind": "notSelected", "target": "unassigned" })
+        serde_json::to_value(CommandError::NotSelected).unwrap(),
+        json!({ "kind": "notSelected" })
     );
 }
 

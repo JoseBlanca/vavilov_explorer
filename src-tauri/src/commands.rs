@@ -147,9 +147,10 @@ pub fn assign_rows<R: Runtime>(
     run(&app, &session, "assign_rows", &request)
 }
 
-/// Leaves unassigned the rows of a lasso that are in the selected
-/// group: the body is one bit per row, with the headers `column`,
-/// `group`, `based-on` and `sent-at`.
+/// Leaves unassigned the rows of a lasso that are in a selected group:
+/// the body is one bit per row, with the headers `column`, `selected`,
+/// what is selected as codes and `unassigned` between commas, `based-on`
+/// and `sent-at`.
 ///
 /// # Errors
 ///
@@ -191,21 +192,21 @@ pub fn set_active_classification<R: Runtime>(
     run(&app, &session, "set_active_classification", &request)
 }
 
-/// Selects a group of the active classification, or its unassigned
-/// individuals, for editing, or nothing: `{ column, selected, basedOn,
-/// sentAt }`, `selected` being `{ group: code }`, `"unassigned"` or
-/// `null`.
+/// Selects groups of the active classification, and its unassigned
+/// individuals or not: `{ column, selected, basedOn, sentAt }`,
+/// `selected` being a list of `{ group: code }` and `"unassigned"`, empty
+/// for nothing.
 ///
 /// # Errors
 ///
 /// The refusals of [`calls::call`].
 #[tauri::command]
-pub fn select_group<R: Runtime>(
+pub fn select_groups<R: Runtime>(
     app: AppHandle<R>,
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    run(&app, &session, "select_group", &request)
+    run(&app, &session, "select_groups", &request)
 }
 
 /// Adds a group with no individuals to the active classification, and

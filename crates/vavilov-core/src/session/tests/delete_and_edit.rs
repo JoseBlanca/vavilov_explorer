@@ -72,9 +72,9 @@ fn texts(levels: &[&str]) -> LevelValues {
 fn select(session: &mut Session, selected: Option<Selected>) {
     apply(
         session,
-        Command::SelectGroup {
+        Command::SelectGroups {
             column: ORIGIN,
-            selected,
+            selected: selected.map_or_else(SelectedGroups::none, SelectedGroups::one),
         },
     );
 }
@@ -129,7 +129,7 @@ fn a_group_deleted_leaves_its_individuals_unassigned_and_the_codes_after_it_move
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -150,7 +150,7 @@ fn a_group_deleted_leaves_its_individuals_unassigned_and_the_codes_after_it_move
         decode(&messages[0]).parts,
         [
             (SHAPE, vec![3, 0, 0, 0, 0, 0, 0, 0]),
-            (ACTIVE, vec![2, 0, 0, 0, 255, 255, 0, 0]),
+            (ACTIVE, vec![2, 0, 0, 0, 0, 0, 0, 0]),
             (
                 CODES,
                 vec![
@@ -188,7 +188,7 @@ fn undo_gives_a_deleted_group_back_in_its_place_with_its_individuals_and_redo_de
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -213,7 +213,7 @@ fn deleting_the_selected_group_releases_the_button_pressed() {
         &mut session,
         Command::SetEditMode {
             column: ORIGIN,
-            target: Selected::Group(SPAIN),
+            selected: SelectedGroups::one(Selected::Group(SPAIN)),
             mode: Some(EditMode::Add),
         },
     );
@@ -223,7 +223,7 @@ fn deleting_the_selected_group_releases_the_button_pressed() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: None,
+            selected: SelectedGroups::none(),
             mode: None,
         })
     );
@@ -237,7 +237,7 @@ fn a_group_selected_after_the_one_deleted_stays_selected_at_its_new_code() {
         &mut session,
         Command::SetEditMode {
             column: ORIGIN,
-            target: Selected::Group(PERU),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
             mode: Some(EditMode::Remove),
         },
     );
@@ -246,20 +246,20 @@ fn a_group_selected_after_the_one_deleted_stays_selected_at_its_new_code() {
     session.dispatch(request).unwrap();
     let peru_first = Active {
         column: ORIGIN,
-        selected: Some(Selected::Group(SPAIN)),
+        selected: SelectedGroups::one(Selected::Group(SPAIN)),
         mode: Some(EditMode::Remove),
     };
-    assert_eq!(session.active(), Some(peru_first));
+    assert_eq!(session.active(), Some(peru_first.clone()));
     assert_eq!(
         decode(&recorder.take()[0]).parts[1],
-        (ACTIVE, vec![2, 0, 0, 0, 0, 0, 1, 2])
+        (ACTIVE, vec![2, 0, 0, 0, 2, 0, 1, 0, 0, 0])
     );
     // Undone, Spain comes back before it, and Peru is code 1 again.
     apply(&mut session, Command::Undo);
     assert_eq!(
         session.active(),
         Some(Active {
-            selected: Some(Selected::Group(PERU)),
+            selected: SelectedGroups::one(Selected::Group(PERU)),
             ..peru_first
         })
     );
@@ -274,7 +274,7 @@ fn a_group_before_the_one_deleted_stays_selected_with_no_active_part() {
     session.dispatch(request).unwrap();
     assert_eq!(
         session.active().unwrap().selected,
-        Some(Selected::Group(SPAIN))
+        SelectedGroups::one(Selected::Group(SPAIN))
     );
     assert_eq!(
         part_kinds(&recorder.take()[0]),
@@ -367,7 +367,7 @@ fn a_group_given_another_name_and_colour_keeps_its_code_and_its_individuals() {
     assert_eq!(origin.codes(), before.codes());
     assert_eq!(
         session.active().unwrap().selected,
-        Some(Selected::Group(SPAIN))
+        SelectedGroups::one(Selected::Group(SPAIN))
     );
     // Every code keeps its meaning.
     assert_eq!(levels_at(&session), 1);

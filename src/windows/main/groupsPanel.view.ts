@@ -7,7 +7,9 @@ import { styleMap } from "lit-html/directives/style-map.js";
 import { defect } from "../../state/defect.ts";
 import type { ColumnId, LevelCode } from "../../state/ids.ts";
 import type { EditMode, Selected } from "../../state/message.ts";
-import { colourChoices } from "../../state/groups.ts";
+import { targetWords } from "../../state/groupEdit.ts";
+import { colourChoices, editTargetOf } from "../../state/groups.ts";
+import { singleOf } from "../../state/selectedGroups.ts";
 import type { GroupRow, GroupsModel } from "../../state/groups.ts";
 import { classOf } from "../shared/classOf.ts";
 import styles from "./groupsPanel.module.css";
@@ -36,6 +38,12 @@ export type GroupForm =
       readonly colour: string;
     };
 
+/**
+ * How a group's row was clicked: alone, with Cmd or Ctrl to add it or take
+ * it away, or with Shift to select the range from the last row clicked.
+ */
+export type GroupClick = "alone" | "toggle" | "range";
+
 /** What the groups panel shows, and what the user can do there. */
 export interface GroupsPanelProps {
   /** The classifications, the active one, and its rows. */
@@ -45,9 +53,9 @@ export interface GroupsPanelProps {
   /** The user chose an active classification, or none. */
   readonly onChooseClassification: (column: ColumnId | null) => void;
   /** The user pressed a row. */
-  readonly onPress: (row: GroupRow) => void;
+  readonly onPress: (row: GroupRow, click: GroupClick) => void;
   /** The user pressed + or − on the selected row, to press it or to release it. */
-  readonly onToggle: (row: GroupRow, mode: EditMode) => void;
+  readonly onToggle: (mode: EditMode) => void;
   /** The user pressed Add group. */
   readonly onOpenAdd: () => void;
   /** The user pressed Edit group on the selected group's `row`. */
@@ -86,16 +94,25 @@ function addAction(row: GroupRow, mode: EditMode | null): Action {
   return { label, reason: null, pressed: mode === "add" };
 }
 
-/** What − on `row` does, pressed or not while `mode` is pressed, and why it does nothing on the unassigned. */
-function removeAction(row: GroupRow, mode: EditMode | null): Action {
-  if (row.name === null) {
+/**
+ * What − does, pressed or not, on what `model` has selected: the one group,
+ * or every group of several; and why it does nothing on the unassigned
+ * individuals alone.
+ */
+function removeAction(model: GroupsModel): Action {
+  const target = editTargetOf(model);
+  if (target === null) {
+    throw defect("− drawn with nothing selected");
+  }
+  if (target.kind === "unassigned") {
     return {
       label: "Remove selected",
       reason: "Unassigned individuals are in no group to remove them from.",
       pressed: false,
     };
   }
-  return { label: `Remove selected from ${row.name}`, reason: null, pressed: mode === "remove" };
+  const names = targetWords(target, (value) => COUNT.format(value));
+  return { label: `Remove selected from ${names}`, reason: null, pressed: model.mode === "remove" };
 }
 
 /** The tooltip of `action`: what it does, why it does nothing, or how to release it. */
@@ -147,8 +164,18 @@ function rowView(props: GroupsPanelProps, row: GroupRow): TemplateResult {
       type="button"
       class=${classOf(styles, "row")}
       aria-pressed=${row.isSelected ? "true" : "false"}
-      @click=${() => {
-        props.onPress(row);
+      @mousedown=${(event: MouseEvent) => {
+        // A Shift-click selects a range, and must not select the text of
+        // the rows between.
+        if (event.shiftKey) {
+          event.preventDefault();
+        }
+      }}
+      @click=${(event: MouseEvent) => {
+        props.onPress(
+          row,
+          event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "alone",
+        );
       }}
     >
       <span
@@ -160,24 +187,28 @@ function rowView(props: GroupsPanelProps, row: GroupRow): TemplateResult {
       <span class=${classOf(styles, "count")}>${COUNT.format(row.count)}</span>
     </button>
     ${
-      row.isSelected
-        ? html`${actionButton(
+      row.showsPlus
+        ? actionButton(
             addAction(row, props.model.mode),
             ["edit", "add"],
             "+",
             () => {
-              props.onToggle(row, "add");
+              props.onToggle("add");
             },
             null,
-          )}${actionButton(
-            removeAction(row, props.model.mode),
+          )
+        : nothing
+    }${
+      row.showsMinus
+        ? actionButton(
+            removeAction(props.model),
             ["edit", "remove"],
             "−",
             () => {
-              props.onToggle(row, "remove");
+              props.onToggle("remove");
             },
             null,
-          )}`
+          )
         : nothing
     }
   </li>`;
@@ -277,7 +308,12 @@ function groupActionsView(props: GroupsPanelProps): TemplateResult {
       ? null
       : `“${model.activeName}” has both TRUE and FALSE, and takes no other group.`,
   };
-  const selected = model.rows.find((row) => row.isSelected && row.selected.kind === "group");
+  // Edit group and Delete group act on one group alone.
+  const single = singleOf(model.selected);
+  const selected =
+    single?.kind === "group"
+      ? model.rows.find((row) => row.selected.kind === "group" && row.selected.code === single.code)
+      : undefined;
   const name = selected?.name ?? null;
   return html`<div class=${classOf(styles, "buttons")} data-group-actions>
     ${actionButton(add, ["action"], "Add group", props.onOpenAdd, "add")}

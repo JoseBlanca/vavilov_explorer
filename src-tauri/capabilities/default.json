@@ -13,7 +13,7 @@
     "allow-unassign-rows",
     "allow-set-hover",
     "allow-set-active-classification",
-    "allow-select-group",
+    "allow-select-groups",
     "allow-add-group",
     "allow-delete-group",
     "allow-edit-group",

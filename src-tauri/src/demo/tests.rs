@@ -158,7 +158,7 @@ fn loading_it_opens_the_table_with_the_country_active() {
         session.active(),
         Some(Active {
             column: COUNTRY,
-            selected: None,
+            selected: vavilov_core::SelectedGroups::none(),
             mode: None,
         })
     );

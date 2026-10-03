@@ -4,7 +4,7 @@ import type { TableDescription } from "./description.ts";
 import { isColumnId, isLevelCode, isRevision } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision } from "./ids.ts";
 import { isCategoricalColumn } from "./description.ts";
-import { colourChoices, groupsModel, sameSelected } from "./groups.ts";
+import { colourChoices, editTargetOf, groupsModel } from "./groups.ts";
 import type { GroupRow } from "./groups.ts";
 
 function column(value: number): ColumnId {
@@ -115,7 +115,7 @@ describe("the groups panel's model", () => {
   test("gives each group its colour and count, an empty one too, and the unassigned last", () => {
     const model = groupsModel(
       DESCRIPTION,
-      { column: ORIGIN, selected: null, mode: null },
+      { column: ORIGIN, selected: [], mode: null },
       codesOf,
       ",",
     );
@@ -130,6 +130,8 @@ describe("the groups panel's model", () => {
         colour: "#e69f00",
         count: 3,
         isSelected: false,
+        showsPlus: false,
+        showsMinus: false,
       },
       {
         selected: { kind: "group", code: 1 },
@@ -137,6 +139,8 @@ describe("the groups panel's model", () => {
         colour: "#56b4e9",
         count: 1,
         isSelected: false,
+        showsPlus: false,
+        showsMinus: false,
       },
       {
         selected: { kind: "group", code: 2 },
@@ -144,33 +148,95 @@ describe("the groups panel's model", () => {
         colour: "#009e73",
         count: 0,
         isSelected: false,
+        showsPlus: false,
+        showsMinus: false,
       },
-      { selected: { kind: "unassigned" }, name: null, colour: null, count: 2, isSelected: false },
+      {
+        selected: { kind: "unassigned" },
+        name: null,
+        colour: null,
+        count: 2,
+        isSelected: false,
+        showsPlus: false,
+        showsMinus: false,
+      },
     ]);
   });
 
-  test("marks the selected row, a group or the unassigned", () => {
+  test("marks the row selected, a group or the unassigned, with its + and −", () => {
     const peru = groupsModel(
       DESCRIPTION,
-      { column: ORIGIN, selected: { kind: "group", code: code(1) }, mode: "remove" },
+      { column: ORIGIN, selected: [{ kind: "group", code: code(1) }], mode: "remove" },
       codesOf,
       ",",
     );
-    expect(peru.rows.map((row) => row.isSelected)).toEqual([false, true, false, false]);
+    expect(peru.rows.map((row) => [row.isSelected, row.showsPlus, row.showsMinus])).toEqual([
+      [false, false, false],
+      [true, true, true],
+      [false, false, false],
+      [false, false, false],
+    ]);
     expect(peru.mode).toBe("remove");
+    expect(editTargetOf(peru)).toEqual({ kind: "group", code: 1, name: "Peru" });
     const unassigned = groupsModel(
       DESCRIPTION,
-      { column: ORIGIN, selected: { kind: "unassigned" }, mode: null },
+      { column: ORIGIN, selected: [{ kind: "unassigned" }], mode: null },
       codesOf,
       ",",
     );
-    expect(unassigned.rows.map((row) => row.isSelected)).toEqual([false, false, false, true]);
+    expect(unassigned.rows.map((row) => [row.isSelected, row.showsPlus, row.showsMinus])).toEqual([
+      [false, false, false],
+      [false, false, false],
+      [false, false, false],
+      [true, true, true],
+    ]);
+    expect(editTargetOf(unassigned)).toEqual({ kind: "unassigned" });
+  });
+
+  test("with several rows selected shows no + and one − on the last group selected", () => {
+    const several = groupsModel(
+      DESCRIPTION,
+      {
+        column: ORIGIN,
+        selected: [
+          { kind: "group", code: code(0) },
+          { kind: "group", code: code(1) },
+          { kind: "unassigned" },
+        ],
+        mode: null,
+      },
+      codesOf,
+      ",",
+    );
+    expect(several.rows.map((row) => [row.isSelected, row.showsPlus, row.showsMinus])).toEqual([
+      [true, false, false],
+      [true, false, true],
+      [false, false, false],
+      [true, false, false],
+    ]);
+    expect(editTargetOf(several)).toEqual({ kind: "groups", names: ["Spain", "Peru"] });
+    // One group and the unassigned: − acts on the group alone.
+    const one = groupsModel(
+      DESCRIPTION,
+      {
+        column: ORIGIN,
+        selected: [{ kind: "group", code: code(2) }, { kind: "unassigned" }],
+        mode: null,
+      },
+      codesOf,
+      ",",
+    );
+    expect(one.rows.map((row) => row.showsMinus)).toEqual([false, false, true, false]);
+    expect(editTargetOf(one)).toEqual({ kind: "group", code: 2, name: "Chile" });
+    expect(
+      editTargetOf({ ...one, rows: one.rows.map((row) => ({ ...row, isSelected: false })) }),
+    ).toBeNull();
   });
 
   test("of a classification of TRUE and FALSE takes a new group only while it lacks one", () => {
     const model = groupsModel(
       DESCRIPTION,
-      { column: FERTILE, selected: null, mode: null },
+      { column: FERTILE, selected: [], mode: null },
       codesOf,
       ",",
     );
@@ -191,14 +257,14 @@ describe("the groups panel's model", () => {
     };
     const lacking = groupsModel(
       onlyTrue,
-      { column: FERTILE, selected: null, mode: null },
+      { column: FERTILE, selected: [], mode: null },
       () => new Uint16Array([0, 0, 0, 0xffff, 0, 0]),
       ",",
     );
     expect(lacking.takesNewGroups).toBe(true);
     const cluster = groupsModel(
       DESCRIPTION,
-      { column: CLUSTER, selected: null, mode: null },
+      { column: CLUSTER, selected: [], mode: null },
       codesOf,
       ",",
     );
@@ -209,7 +275,7 @@ describe("the groups panel's model", () => {
   test("counts the active classification, not another, its levels of numbers as text", () => {
     const model = groupsModel(
       DESCRIPTION,
-      { column: CLUSTER, selected: null, mode: null },
+      { column: CLUSTER, selected: [], mode: null },
       codesOf,
       ",",
     );
@@ -223,34 +289,19 @@ describe("the groups panel's model", () => {
   test("codes that do not fit the levels or the table are a defect", () => {
     const tooHigh = (): Uint16Array => new Uint16Array([0, 3, 0, 0, 0, 0]);
     expect(() =>
-      groupsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, tooHigh, ","),
+      groupsModel(DESCRIPTION, { column: ORIGIN, selected: [], mode: null }, tooHigh, ","),
     ).toThrow(/defect.*code 3.*3 levels/);
     const short = (): Uint16Array => new Uint16Array([0, 1]);
     expect(() =>
-      groupsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, short, ","),
+      groupsModel(DESCRIPTION, { column: ORIGIN, selected: [], mode: null }, short, ","),
     ).toThrow(/defect.*2 codes.*6 rows/);
     const none = (): null => null;
     expect(() =>
-      groupsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, none, ","),
+      groupsModel(DESCRIPTION, { column: ORIGIN, selected: [], mode: null }, none, ","),
     ).toThrow(/defect.*no codes/);
     expect(() =>
-      groupsModel(DESCRIPTION, { column: column(1), selected: null, mode: null }, codesOf, ","),
+      groupsModel(DESCRIPTION, { column: column(1), selected: [], mode: null }, codesOf, ","),
     ).toThrow(/defect.*column 1.*not a category/);
-  });
-});
-
-describe("two selections", () => {
-  test("are the same when they select the same thing", () => {
-    expect(sameSelected(null, null)).toBe(true);
-    expect(sameSelected({ kind: "unassigned" }, { kind: "unassigned" })).toBe(true);
-    expect(sameSelected({ kind: "group", code: code(1) }, { kind: "group", code: code(1) })).toBe(
-      true,
-    );
-    expect(sameSelected({ kind: "group", code: code(1) }, { kind: "group", code: code(2) })).toBe(
-      false,
-    );
-    expect(sameSelected({ kind: "group", code: code(1) }, { kind: "unassigned" })).toBe(false);
-    expect(sameSelected(null, { kind: "unassigned" })).toBe(false);
   });
 });
 
@@ -263,6 +314,8 @@ describe("the colours a group edited can take", () => {
       colour,
       count: 0,
       isSelected: false,
+      showsPlus: false,
+      showsMinus: false,
     };
   }
   const rows: readonly GroupRow[] = [
@@ -270,7 +323,15 @@ describe("the colours a group edited can take", () => {
     row(1, "Peru", "#56b4e9"),
     row(2, "Chile", "#56b4e9"),
     row(3, "Japan", "#009e73"),
-    { selected: { kind: "unassigned" }, name: null, colour: null, count: 3, isSelected: false },
+    {
+      selected: { kind: "unassigned" },
+      name: null,
+      colour: null,
+      count: 3,
+      isSelected: false,
+      showsPlus: false,
+      showsMinus: false,
+    },
   ];
 
   test("are the whole list, each named with the other groups that have it", () => {
