@@ -68,7 +68,7 @@ impl Session {
     ///
     /// The refusal, with what the window needs to say why: no project
     /// open, a command made before the current table was loaded, a column,
-    /// a level, a population or a row that the table does not have, a set
+    /// a level, a group or a row that the table does not have, a set
     /// of rows of the wrong length, nothing to undo or redo; or a `Defect`.
     pub fn dispatch(&mut self, request: Request) -> Result<Outcome, CommandError> {
         self.keep_number_texts(&request.command)?;
@@ -116,17 +116,17 @@ impl Session {
             Command::LoadTable { .. }
             | Command::SetHover { .. }
             | Command::SetActiveClassification { .. }
-            | Command::SelectPopulation { .. }
-            // A population added holds no row, so no row matches anew.
-            | Command::AddPopulation { .. } => None,
+            | Command::SelectGroup { .. }
+            // A group added holds no row, so no row matches anew.
+            | Command::AddGroup { .. } => None,
             // A selection assigns the rows that enter it while + or − is
             // pressed.
             Command::SetSelection { .. }
             | Command::SetEditMode { .. }
             | Command::AssignRows { .. }
             | Command::UnassignRows { .. }
-            | Command::DeletePopulation { .. }
-            | Command::EditPopulation { .. }
+            | Command::DeleteGroup { .. }
+            | Command::EditGroup { .. }
             | Command::SetRole { .. }
             | Command::SetCells { .. }
             | Command::Undo
@@ -285,19 +285,19 @@ impl Session {
                 });
                 plan_active(state, active, sent_at)
             }
-            Command::SelectPopulation { column, selected } => {
+            Command::SelectGroup { column, selected } => {
                 let open = state.project.open()?;
                 let active = active_classification(open, column)?;
-                if let Some(Selected::Population(code)) = selected {
+                if let Some(Selected::Group(code)) = selected {
                     // Made before a level was removed: its code may name
-                    // another population, or none.
+                    // another group, or none.
                     check_levels_at(open, column, based_on)?;
                     check_level(&open.table, column, code)?;
                 }
                 if active.selected == selected {
                     return Ok(None);
                 }
-                // Another population selected, or none, releases + or −.
+                // Another group selected, or none, releases + or −.
                 let active = Active {
                     column,
                     selected,
@@ -312,11 +312,11 @@ impl Session {
             } => {
                 let open = state.project.open()?;
                 let active = active_classification(open, column)?;
-                if let Selected::Population(_) = target {
+                if let Selected::Group(_) = target {
                     check_levels_at(open, column, based_on)?;
                 }
-                let selected = active.selected.ok_or(CommandError::NoPopulationSelected)?;
-                // − on the unassigned individuals, who are in no population,
+                let selected = active.selected.ok_or(CommandError::NoGroupSelected)?;
+                // − on the unassigned individuals, who are in no group,
                 // is refused as a lasso in remove mode is.
                 if selected != target
                     || (mode == Some(EditMode::Remove) && target == Selected::Unassigned)
@@ -359,13 +359,13 @@ impl Session {
                 rows,
             } => {
                 let open = state.project.open()?;
-                if let Selected::Population(_) = target {
+                if let Selected::Group(_) = target {
                     active_classification(open, column)?;
                     check_levels_at(open, column, based_on)?;
                 }
                 let codes = lasso(open, column, target, &rows)?;
                 let new = match target {
-                    Selected::Population(code) => Some(code),
+                    Selected::Group(code) => Some(code),
                     Selected::Unassigned => None,
                 };
                 let changes = rows
@@ -383,16 +383,16 @@ impl Session {
             }
             Command::UnassignRows {
                 column,
-                population,
+                group,
                 rows,
             } => {
                 let open = state.project.open()?;
                 active_classification(open, column)?;
                 check_levels_at(open, column, based_on)?;
-                let codes = lasso(open, column, Selected::Population(population), &rows)?;
+                let codes = lasso(open, column, Selected::Group(group), &rows)?;
                 let changes = rows
                     .rows()
-                    .filter(|row| code_of(codes, *row) == Some(population))
+                    .filter(|row| code_of(codes, *row) == Some(group))
                     .map(|row| (row, None))
                     .collect();
                 plan_edit(
@@ -403,23 +403,21 @@ impl Session {
                     sent_at,
                 )
             }
-            Command::AddPopulation {
+            Command::AddGroup {
                 column,
                 name,
                 decimal_mark,
             } => {
                 let open = state.project.open()?;
-                levels::plan_add_population(state, open, column, &name, &decimal_mark, sent_at)
-                    .map(Some)
+                levels::plan_add_group(state, open, column, &name, &decimal_mark, sent_at).map(Some)
             }
-            Command::DeletePopulation { column, population } => {
+            Command::DeleteGroup { column, group } => {
                 let open = state.project.open()?;
-                levels::plan_delete_population(state, open, column, population, based_on, sent_at)
-                    .map(Some)
+                levels::plan_delete_group(state, open, column, group, based_on, sent_at).map(Some)
             }
-            Command::EditPopulation {
+            Command::EditGroup {
                 column,
-                population,
+                group,
                 name,
                 colour,
                 decimal_mark,
@@ -427,12 +425,12 @@ impl Session {
                 let open = state.project.open()?;
                 let edited = levels::Edited {
                     column,
-                    population,
+                    group,
                     name: &name,
                     colour,
                     decimal_mark: &decimal_mark,
                 };
-                levels::plan_edit_population(state, open, &edited, based_on, sent_at)
+                levels::plan_edit_group(state, open, &edited, based_on, sent_at)
             }
             Command::SetRole { column, role } => {
                 let open = state.project.open()?;
@@ -732,7 +730,7 @@ enum Change {
     },
     /// New levels of a category, and its codes, as values of its role,
     /// with the revision its levels take when a code may now mean another
-    /// population, the active classification when the change sets it, and
+    /// group, the active classification when the change sets it, and
     /// the rows shown when they change.
     Levels {
         column: ColumnId,
@@ -877,7 +875,7 @@ fn step_of(kind: StepKind, reverse: Edit) -> HistoryStep {
 /// Plans new values of a column, a change of role or its reverse: the
 /// column and the shape of the table take the new revision; an active
 /// classification made a number or text stops being active, and one that
-/// stays a category loses its selected population.
+/// stays a category loses its selected group.
 fn plan_values(
     state: &SharedState,
     open: &OpenProject,
@@ -900,7 +898,7 @@ fn plan_values(
     // The active classification stays active while it is a category, of
     // countries or not,
     // but its levels may have been built again, so its codes may mean other
-    // populations: what was selected for editing is cleared.
+    // groups: what was selected for editing is cleared.
     let active = open
         .interaction
         .active
@@ -983,7 +981,7 @@ fn pressed_changes(
     let changes = match (mode, target) {
         (EditMode::Add, target) => {
             let new = match target {
-                Selected::Population(code) => Some(code),
+                Selected::Group(code) => Some(code),
                 Selected::Unassigned => None,
             };
             entering
@@ -991,8 +989,8 @@ fn pressed_changes(
                 .map(|row| (row, new))
                 .collect()
         }
-        (EditMode::Remove, Selected::Population(population)) => entering
-            .filter(|row| code_of(codes, *row) == Some(population))
+        (EditMode::Remove, Selected::Group(group)) => entering
+            .filter(|row| code_of(codes, *row) == Some(group))
             .map(|row| (row, None))
             .collect(),
         (EditMode::Remove, Selected::Unassigned) => {
@@ -1107,7 +1105,7 @@ fn lasso<'a>(
     rows: &RowSet,
 ) -> Result<&'a [Option<LevelCode>], CommandError> {
     let active = active_classification(open, column)?;
-    let selected = active.selected.ok_or(CommandError::NoPopulationSelected)?;
+    let selected = active.selected.ok_or(CommandError::NoGroupSelected)?;
     if selected != target {
         return Err(CommandError::NotSelected { target });
     }
@@ -1150,7 +1148,7 @@ fn check_level(table: &Table, column: ColumnId, code: LevelCode) -> Result<(), C
 
 /// Refuses a command that names a level of `column` and was made, at
 /// `based_on`, before the column's levels last changed other than by one
-/// added last, since its code may now mean another population
+/// added last, since its code may now mean another group
 /// (`docs/core.md`, section 4).
 fn check_levels_at(
     open: &OpenProject,

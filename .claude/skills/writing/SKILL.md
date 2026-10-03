@@ -111,7 +111,7 @@ inside it. The reader lacks four kinds of names:
 - Names from the code. That a type is called `Session` does not make it a
   word the reader has. Say what it is, then use the name.
 - Ordinary words that mean something narrower here: a classification, a
-  population, the selection, the hover (`docs/design.md`, section 1).
+  group, the selection, the hover (`docs/design.md`, section 1).
 - Notation and abbreviations, a label in a table included.
 
 One name for each thing, and the name `docs/design.md` gives it. Before a

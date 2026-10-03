@@ -1,22 +1,22 @@
 import { describe, expect, test } from "vitest";
 
 import { isCommandError } from "./commandError.ts";
-import { populationRefusalMessage } from "./populationMessages.ts";
-import type { PopulationRefused } from "./populationMessages.ts";
-// The refusals of populations the core's test serialises and compares with
+import { groupRefusalMessage } from "./groupMessages.ts";
+import type { GroupRefused } from "./groupMessages.ts";
+// The refusals of groups the core's test serialises and compares with
 // the same file (crates/vavilov-core/src/error/tests.rs), so that a field
 // renamed on either side fails a test.
-import POPULATION_ERRORS from "../../crates/vavilov-core/src/error/population-errors.json?raw";
+import GROUP_ERRORS from "../../crates/vavilov-core/src/error/group-errors.json?raw";
 
 /** The refusals of the shared file, each checked as a window checks one. */
-function populationErrors(): readonly PopulationRefused[] {
-  const parsed: unknown = JSON.parse(POPULATION_ERRORS);
+function groupErrors(): readonly GroupRefused[] {
+  const parsed: unknown = JSON.parse(GROUP_ERRORS);
   if (!Array.isArray(parsed)) {
     throw new Error("the file of refusals is not an array");
   }
   return parsed.map((value: unknown) => {
-    if (!isCommandError(value) || value.kind !== "populationRefused") {
-      throw new Error(`not a refusal of a population: ${JSON.stringify(value)}`);
+    if (!isCommandError(value) || value.kind !== "groupRefused") {
+      throw new Error(`not a refusal of a group: ${JSON.stringify(value)}`);
     }
     return value;
   });
@@ -31,8 +31,8 @@ const GROUPS = ["ESP", "PER"];
 describe("the words of a group's name that was refused", () => {
   test("say what was typed, in which column, and what to type instead", () => {
     expect(
-      populationErrors().map((error) =>
-        populationRefusalMessage(
+      groupErrors().map((error) =>
+        groupRefusalMessage(
           error,
           (code) => GROUPS[code] ?? null,
           (value) => value.toLocaleString("en"),
@@ -55,12 +55,12 @@ describe("the words of a group's name that was refused", () => {
   });
 
   test("of a name taken by a group the window does not have yet say so without its name", () => {
-    const [, taken] = populationErrors();
+    const [, taken] = groupErrors();
     if (taken === undefined) {
       throw new Error("no refusal of a name taken");
     }
     expect(
-      populationRefusalMessage(
+      groupRefusalMessage(
         taken,
         () => null,
         (value) => String(value),
@@ -73,10 +73,10 @@ describe("the words of a group's name that was refused", () => {
   });
 
   test("of a group edited say which group kept its name, and what to type instead", () => {
-    const editing = populationErrors().filter((error) => error.refusal.kind !== "tooMany");
+    const editing = groupErrors().filter((error) => error.refusal.kind !== "tooMany");
     expect(
       editing.map((error) =>
-        populationRefusalMessage(
+        groupRefusalMessage(
           error,
           (code) => GROUPS[code] ?? null,
           (value) => value.toLocaleString("en"),
@@ -98,19 +98,19 @@ describe("the words of a group's name that was refused", () => {
   });
 
   test("of a group edited, with too many groups, is a defect", () => {
-    const tooMany = populationErrors().find((error) => error.refusal.kind === "tooMany");
+    const tooMany = groupErrors().find((error) => error.refusal.kind === "tooMany");
     if (tooMany === undefined) {
       throw new Error("no refusal of too many groups");
     }
     expect(() =>
-      populationRefusalMessage(tooMany, () => null, String, { kind: "edit", name: "PER" }),
+      groupRefusalMessage(tooMany, () => null, String, { kind: "edit", name: "PER" }),
     ).toThrow(/defect/);
   });
 
-  test("of a refusal that is not of a population fail to decode", () => {
+  test("of a refusal that is not of a group fail to decode", () => {
     expect(
       isCommandError({
-        kind: "populationRefused",
+        kind: "groupRefused",
         columnName: "origin",
         text: "x",
         refusal: { kind: "taken" },
@@ -118,7 +118,7 @@ describe("the words of a group's name that was refused", () => {
     ).toBe(false);
     expect(
       isCommandError({
-        kind: "populationRefused",
+        kind: "groupRefused",
         columnName: "origin",
         text: "x",
         refusal: { kind: "taken", code: 65535 },

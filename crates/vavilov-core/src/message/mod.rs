@@ -15,7 +15,7 @@ use crate::session::OpenProject;
 
 /// The column id that means no column, in the active part.
 pub(crate) const NO_COLUMN: u32 = u32::MAX;
-/// The code that means a missing value, or no selected population.
+/// The code that means a missing value, or no selected group.
 pub(crate) const NO_CODE: u16 = u16::MAX;
 /// The row that means no row, in the hover part.
 pub(crate) const NO_ROW: u32 = u32::MAX;

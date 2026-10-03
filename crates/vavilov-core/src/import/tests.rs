@@ -42,7 +42,7 @@ fn every_text_of_the_file_is_kept_in_the_composed_form() {
     let table = &imported.table;
     assert_eq!(table.names().names(), ["Jos\u{e9}", "p2"]);
     assert_eq!(table.columns()[0].name(), "N\u{fa}mero");
-    // The two spellings of Perú are one population.
+    // The two spellings of Perú are one group.
     let origin = table.columns()[1].categorical().unwrap();
     assert_eq!(
         origin.levels(),

@@ -66,7 +66,7 @@ The layout, from `docs/design.md`, sections 3 and 9:
 | layer | where | holds | may use | must not use |
 |---|---|---|---|---|
 | core | `crates/vavilov-core/` | the table, the session, the commands, undo, the project file, the import and export through `table_io` | std, `table_io`, small pure crates the owner took | Tauri, any GUI, the clock or the file system except in the module that reads and writes files |
-| app | `src-tauri/` | the Tauri commands, each a thin wrapper of the core's dispatcher; the channels; the windows; the menu | the core, Tauri and its plugins | any rule about the data: an `if` about a column or a population there is in the wrong crate |
+| app | `src-tauri/` | the Tauri commands, each a thin wrapper of the core's dispatcher; the channels; the windows; the menu | the core, Tauri and its plugins | any rule about the data: an `if` about a column or a group there is in the wrong crate |
 | backend client | `src/backend/` | the only TypeScript that calls Tauri: commands, channels, the decoding of binary messages | `@tauri-apps/api`, `src/state` types | the DOM, lit-html, D3, Three.js |
 | state | `src/state/` | the window's copy of the backend's state and what is derived from it, pure functions | nothing of ours but other `src/state` files | the DOM, Tauri, lit-html, D3, Three.js |
 | plots | `src/plots/` | D3 plots and the Three.js point views, each a function of an element and data that returns a handle | D3, Three.js, `src/state` types | `src/backend`, `src/windows`, lit-html |
@@ -94,13 +94,13 @@ folders exist, so that a wrong import fails the lint.
 The owner's rule (`CLAUDE.md`) is read this way here:
 
 - **A component** is one piece of a window that the user sees as one
-  thing: the populations panel, the table, the column-type dropdown, a
+  thing: the groups panel, the table, the column-type dropdown, a
   histogram plot.
 - **Its view** is a pure function from the state it shows to a lit-html
-  template, in a file of its own, `populationsPanel.view.ts`. It holds no
+  template, in a file of its own, `groupsPanel.view.ts`. It holds no
   state, calls no command and reads nothing but its arguments; the
   callbacks for the user's actions come in as arguments.
-- **Its controller**, `populationsPanel.controller.ts`, holds what the
+- **Its controller**, `groupsPanel.controller.ts`, holds what the
   component keeps of its own (a field being typed, a menu open),
   subscribes to the part of the state it shows, turns the user's actions
   into commands of the backend, and renders the view into its element.

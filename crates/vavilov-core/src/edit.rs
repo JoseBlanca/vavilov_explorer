@@ -8,7 +8,7 @@ use crate::table::{Colour, ColumnValues, Level};
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Edit {
     /// Sets the code of some rows of a categorical column: an assignment to
-    /// a population, a removal from one, or the reverse of either. Only the
+    /// a group, a removal from one, or the reverse of either. Only the
     /// rows whose code changes are listed, in the order of the rows.
     SetCodes {
         column: ColumnId,
@@ -35,7 +35,7 @@ pub(crate) enum Edit {
     },
     /// Inserts a level, with its colour, into a category at `code`, the
     /// levels from there on taking the code after their own, and gives it
-    /// `rows`, which hold none: a new population, last and with no rows, or
+    /// `rows`, which hold none: a new group, last and with no rows, or
     /// the reverse of deleting one.
     InsertLevel {
         column: ColumnId,
@@ -46,9 +46,9 @@ pub(crate) enum Edit {
     },
     /// Deletes the level of `code` from a category, leaving its rows with
     /// none and the levels after it taking the code before their own: a
-    /// population deleted, or the reverse of adding one.
+    /// group deleted, or the reverse of adding one.
     DeleteLevel { column: ColumnId, code: LevelCode },
-    /// Sets the value and the colour of the level of `code`: a population
+    /// Sets the value and the colour of the level of `code`: a group
     /// renamed or given another colour, or the reverse. No code changes.
     SetLevel {
         column: ColumnId,

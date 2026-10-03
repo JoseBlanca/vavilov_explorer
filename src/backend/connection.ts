@@ -24,7 +24,7 @@ import type { CommandName, Transport } from "./transport.ts";
 /**
  * A command's answer: applied, or dropped as stale because it was made before
  * the current table was loaded (which the window does not show, as the owner
- * decided) or before the populations it names changed, or the backend's
+ * decided) or before the groups it names changed, or the backend's
  * refusal.
  */
 export type Answer = Result<"applied" | "stale", Refusal>;
@@ -40,34 +40,34 @@ export interface Connection {
   /** Sets the active classification, or none. */
   readonly setActiveClassification: (column: ColumnId | null) => Promise<Answer>;
   /**
-   * Selects a population of the active classification, or its unassigned
+   * Selects a group of the active classification, or its unassigned
    * individuals, for editing, or nothing.
    */
-  readonly selectPopulation: (column: ColumnId, selected: Selected | null) => Promise<Answer>;
+  readonly selectGroup: (column: ColumnId, selected: Selected | null) => Promise<Answer>;
   /**
    * Assigns the rows of a lasso, one bit per row, to what is selected; with
    * the unassigned individuals selected, leaves them unassigned.
    */
   readonly assignRows: (column: ColumnId, target: Selected, rows: Uint8Array) => Promise<Answer>;
   /**
-   * Adds a population with no individuals to the active classification, and
+   * Adds a group with no individuals to the active classification, and
    * selects it: `name` is read as a value of the column, a decimal number
    * with `decimalMark`.
    */
-  readonly addPopulation: (column: ColumnId, name: string, decimalMark: string) => Promise<Answer>;
+  readonly addGroup: (column: ColumnId, name: string, decimalMark: string) => Promise<Answer>;
   /**
-   * Deletes a population of the active classification, whose individuals
+   * Deletes a group of the active classification, whose individuals
    * become unassigned.
    */
-  readonly deletePopulation: (column: ColumnId, population: LevelCode) => Promise<Answer>;
+  readonly deleteGroup: (column: ColumnId, group: LevelCode) => Promise<Answer>;
   /**
-   * Gives a population of the active classification the name `name`, read
-   * as for {@link Connection.addPopulation}, and the colour `colour`, one of
+   * Gives a group of the active classification the name `name`, read
+   * as for {@link Connection.addGroup}, and the colour `colour`, one of
    * the list as CSS writes it, `#rrggbb`.
    */
-  readonly editPopulation: (
+  readonly editGroup: (
     column: ColumnId,
-    population: LevelCode,
+    group: LevelCode,
     name: string,
     colour: string,
     decimalMark: string,
@@ -81,12 +81,8 @@ export interface Connection {
     target: Selected,
     mode: EditMode | null,
   ) => Promise<Answer>;
-  /** Leaves unassigned the rows of a lasso that are in the selected population. */
-  readonly unassignRows: (
-    column: ColumnId,
-    population: LevelCode,
-    rows: Uint8Array,
-  ) => Promise<Answer>;
+  /** Leaves unassigned the rows of a lasso that are in the selected group. */
+  readonly unassignRows: (column: ColumnId, group: LevelCode, rows: Uint8Array) => Promise<Answer>;
   /**
    * Sets the cells of `rows`, one bit per row, in `column` to the value
    * `text` gives, a decimal number read with `decimalMark`; an empty text
@@ -158,7 +154,7 @@ export interface Connection {
  * every later message, or swallow the error. The connection then ignores the
  * channel, and every command it would send is a defect instead: the window's
  * copy can no longer be trusted, and a change made from it could land on
- * rows or populations the user does not see. The window shows the defect;
+ * rows or groups the user does not see. The window shows the defect;
  * a reload subscribes it again.
  *
  * @throws A defect when the backend refuses the subscribe or sends a snapshot
@@ -279,15 +275,15 @@ export async function connect(
       ? null
       : selected.kind === "unassigned"
         ? "unassigned"
-        : { population: selected.code };
+        : { group: selected.code };
 
   return {
     state: ready,
     setSelection: (rows) => withRows("set_selection", rows, {}),
     setHover: (row) => command("set_hover", { row }),
     setActiveClassification: (column) => command("set_active_classification", { column }),
-    selectPopulation: (column, selected) =>
-      command("select_population", { column, selected: selectedArg(selected) }),
+    selectGroup: (column, selected) =>
+      command("select_group", { column, selected: selectedArg(selected) }),
     assignRows: (column, target, rows) =>
       withRows("assign_rows", rows, {
         column: String(column),
@@ -300,15 +296,14 @@ export async function connect(
         text: encodeURIComponent(text),
         "decimal-mark": encodeURIComponent(decimalMark),
       }),
-    addPopulation: (column, name, decimalMark) =>
-      command("add_population", { column, name, decimalMark }),
-    deletePopulation: (column, population) => command("delete_population", { column, population }),
-    editPopulation: (column, population, name, colour, decimalMark) =>
-      command("edit_population", { column, population, name, colour, decimalMark }),
+    addGroup: (column, name, decimalMark) => command("add_group", { column, name, decimalMark }),
+    deleteGroup: (column, group) => command("delete_group", { column, group }),
+    editGroup: (column, group, name, colour, decimalMark) =>
+      command("edit_group", { column, group, name, colour, decimalMark }),
     setEditMode: (column, target, mode) =>
       command("set_edit_mode", { column, target: selectedArg(target), mode }),
-    unassignRows: (column, population, rows) =>
-      withRows("unassign_rows", rows, { column: String(column), population: String(population) }),
+    unassignRows: (column, group, rows) =>
+      withRows("unassign_rows", rows, { column: String(column), group: String(group) }),
     describeTable: async () => {
       let description: unknown;
       try {
@@ -455,7 +450,7 @@ function refusal(name: CommandName, error: unknown): Result<"stale", Refusal> {
   }
   if (error.kind === "levelsChanged") {
     console.warn(
-      `Vavilov Explorer: the command ${name}, made at revision ${String(error.basedOn)}, came after the populations of column ${String(error.column)} changed at ${String(error.levelsAt)}, and was not applied`,
+      `Vavilov Explorer: the command ${name}, made at revision ${String(error.basedOn)}, came after the groups of column ${String(error.column)} changed at ${String(error.levelsAt)}, and was not applied`,
     );
     return { ok: true, value: "stale" };
   }

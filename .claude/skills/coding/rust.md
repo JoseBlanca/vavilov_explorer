@@ -10,7 +10,7 @@ to the commands, the channels and the windows.
 
 The release build is compiled with `panic = "abort"` (the root `Cargo.toml`):
 a panic anywhere in the backend ends the app at once, with every window
-and every unsaved edit of the user's populations. And an integer that
+and every unsaved edit of the user's groups. And an integer that
 wraps in silence, a length read from a file, an index computed from a
 selection, gives a wrong window, which nobody notices. So the backend does
 not panic and does no arithmetic that can be silently wrong.
@@ -103,7 +103,7 @@ overflow; in a debug build they panic; `/` and `%` by zero panic in both;
 - A name says what the value is: `num_rows`, `active_classification`,
   `revision`, never `n`, `data`, `tmp`, `val`. The things of the app have
   the names of `docs/design.md`, section 1: a classification, a
-  population, the selection, the hover, a project, an import.
+  group, the selection, the hover, a project, an import.
 - The same thing has the same name in Rust and in TypeScript, in
   `snake_case` and `camelCase`.
 - Two values of the same primitive that meet in one signature, a row and
@@ -132,7 +132,7 @@ overflow; in a debug build they panic; `/` and `%` by zero panic in both;
 
 - **The session is the one owner of the shared state**
   (`docs/design.md`, section 3). Nothing else in the backend keeps a copy
-  of the table, the populations or the selection; the Tauri layer holds
+  of the table, the groups or the selection; the Tauri layer holds
   the session behind one lock and calls the dispatcher.
 - **A command is applied whole or not at all.** The dispatcher checks
   everything a command needs before it changes anything, and a command
@@ -227,4 +227,4 @@ with a failure code.
   test fail.
 - A reader gets the malformed inputs as cases of their own.
 - The name of a test says the behaviour and the outcome:
-  `a_lasso_on_an_unassigned_individual_adds_it_to_the_selected_population`.
+  `a_lasso_on_an_unassigned_individual_adds_it_to_the_selected_group`.

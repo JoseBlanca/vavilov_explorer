@@ -12,19 +12,19 @@ import {
   pressedMessage,
   releasedMessage,
   removedCount,
-} from "../../state/populationEdit.ts";
-import type { EditTarget } from "../../state/populationEdit.ts";
-import { populationRefusalMessage } from "../../state/populationMessages.ts";
-import type { TypedFor } from "../../state/populationMessages.ts";
-import { populationsModel } from "../../state/populations.ts";
-import type { PopulationRow, PopulationsModel } from "../../state/populations.ts";
+} from "../../state/groupEdit.ts";
+import type { EditTarget } from "../../state/groupEdit.ts";
+import { groupRefusalMessage } from "../../state/groupMessages.ts";
+import type { TypedFor } from "../../state/groupMessages.ts";
+import { groupsModel } from "../../state/groups.ts";
+import type { GroupRow, GroupsModel } from "../../state/groups.ts";
 import { answered } from "../shared/answered.ts";
 import { countText } from "../shared/numbers.ts";
-import { populationsPanelView } from "./populationsPanel.view.ts";
-import type { GroupForm } from "./populationsPanel.view.ts";
+import { groupsPanelView } from "./groupsPanel.view.ts";
+import type { GroupForm } from "./groupsPanel.view.ts";
 
-/** The populations panel in its element. */
-export interface PopulationsPanel {
+/** The groups panel in its element. */
+export interface GroupsPanel {
   /** Draws the panel again, when the description of the table has changed. */
   readonly redraw: () => void;
   /** Unsubscribes and empties the element. */
@@ -50,9 +50,9 @@ interface Pressed {
 }
 
 /**
- * The populations panel: it shows the classifications and the populations of
+ * The groups panel: it shows the classifications and the groups of
  * the active one, and turns the user's choices into commands. + and − on
- * the selected population stay pressed until pressed again or Escape, and
+ * the selected group stay pressed until pressed again or Escape, and
  * the backend assigns the individuals that enter the selection meanwhile;
  * the information bar, through `tell`, says what pressing one did and when
  * it is released, however it was. Add group opens a field for the new
@@ -61,19 +61,19 @@ interface Pressed {
  * refused. Delete group deletes the selected group at once, and the bar
  * says how to undo it (docs/design.md, section 2.1).
  */
-export function createPopulationsPanel(
+export function createGroupsPanel(
   element: HTMLElement,
   connection: Connection,
   description: () => DescriptionNow,
   mark: string,
   tell: (message: BarMessage) => void,
   report: (error: unknown) => void,
-): PopulationsPanel {
+): GroupsPanel {
   const { state } = connection;
   let form: GroupForm = { kind: "closed" };
   let focusNext: FocusNext = null;
   /** The model last drawn, which names the groups of a refusal and of a release. */
-  let drawn: PopulationsModel | null = null;
+  let drawn: GroupsModel | null = null;
   let pressed: Pressed | null = null;
   /** Whether `destroy` ran, after which an answer that comes back draws nothing. */
   let destroyed = false;
@@ -82,14 +82,14 @@ export function createPopulationsPanel(
     form = { kind: "closed" };
   };
 
-  const press = (row: PopulationRow): void => {
+  const press = (row: GroupRow): void => {
     const active = state.active();
     if (active === null) {
       return;
     }
     connection
-      .selectPopulation(active.column, row.isSelected ? null : row.selected)
-      .then(answered("selecting a population", draw), report);
+      .selectGroup(active.column, row.isSelected ? null : row.selected)
+      .then(answered("selecting a group", draw), report);
   };
 
   /** The active classification, the selection and its codes, or `null` with none active. */
@@ -113,7 +113,7 @@ export function createPopulationsPanel(
    * individuals selected that pressing it changes are counted from the copy,
    * which the command is made from.
    */
-  const toggle = (row: PopulationRow, mode: EditMode): void => {
+  const toggle = (row: GroupRow, mode: EditMode): void => {
     const now = edited();
     if (now === null) {
       return;
@@ -129,7 +129,7 @@ export function createPopulationsPanel(
     let count: number;
     if (next === "add") {
       count = addedCount(now.selection, now.codes, row.selected);
-    } else if (row.selected.kind === "population") {
+    } else if (row.selected.kind === "group") {
       count = removedCount(now.selection, now.codes, row.selected.code);
     } else {
       throw defect("− pressed on the unassigned individuals");
@@ -151,7 +151,7 @@ export function createPopulationsPanel(
    * bar starts afresh. It runs on every draw from a current description, so
    * that a window that starts, or reloads, with a button pressed knows it.
    */
-  const follow = (model: PopulationsModel): void => {
+  const follow = (model: GroupsModel): void => {
     const project = state.project();
     const selectedRow = model.rows.find((row) => row.isSelected) ?? null;
     if (project.kind !== "open" || model.mode === null || selectedRow === null) {
@@ -188,8 +188,8 @@ export function createPopulationsPanel(
 
   /** The name of the group of `code` as the panel shows it, or `null` when the copy has none. */
   const groupName = (code: LevelCode): string | null =>
-    drawn?.rows.find((row) => row.selected.kind === "population" && row.selected.code === code)
-      ?.name ?? null;
+    drawn?.rows.find((row) => row.selected.kind === "group" && row.selected.code === code)?.name ??
+    null;
 
   /**
    * Sends what the form holds, once: a second Enter while it is on its way
@@ -207,17 +207,11 @@ export function createPopulationsPanel(
     let typedFor: TypedFor;
     let focus: FocusNext;
     if (sending.kind === "adding") {
-      sent = connection.addPopulation(sending.column, sending.text, mark);
+      sent = connection.addGroup(sending.column, sending.text, mark);
       typedFor = { kind: "add" };
       focus = "addGroup";
     } else {
-      sent = connection.editPopulation(
-        sending.column,
-        sending.code,
-        sending.text,
-        sending.colour,
-        mark,
-      );
+      sent = connection.editGroup(sending.column, sending.code, sending.text, sending.colour, mark);
       typedFor = { kind: "edit", name: sending.name };
       focus = "editGroup";
     }
@@ -234,8 +228,8 @@ export function createPopulationsPanel(
       if (still) {
         form = { ...sending, sending: false };
       }
-      if (answer.error.kind === "populationRefused") {
-        tell(populationRefusalMessage(answer.error, groupName, countText, typedFor));
+      if (answer.error.kind === "groupRefused") {
+        tell(groupRefusalMessage(answer.error, groupName, countText, typedFor));
         return;
       }
       answered(typedFor.kind === "add" ? "adding a group" : "editing a group", draw)(answer);
@@ -247,9 +241,9 @@ export function createPopulationsPanel(
    * counted from the copy, are unassigned now, and puts the focus on Add
    * group.
    */
-  const deleteGroup = (row: PopulationRow): void => {
+  const deleteGroup = (row: GroupRow): void => {
     const active = state.active();
-    if (active === null || row.selected.kind !== "population" || row.name === null) {
+    if (active === null || row.selected.kind !== "group" || row.name === null) {
       throw defect("Delete group on a row that is not a group of the active classification");
     }
     const { name, count } = row;
@@ -258,7 +252,7 @@ export function createPopulationsPanel(
     // the change reaches the panel first. A refusal changes nothing, and
     // the next draw sees the button still pressed.
     pressed = null;
-    connection.deletePopulation(active.column, row.selected.code).then((answer) => {
+    connection.deleteGroup(active.column, row.selected.code).then((answer) => {
       if (answer.ok && answer.value === "applied") {
         tell(deletedMessage(name, count, countText));
         // Delete group is gone with the group: the focus goes to Add group.
@@ -271,7 +265,7 @@ export function createPopulationsPanel(
   };
 
   /** Whether the form is on what the panel shows: its classification, and the group it edits selected. */
-  const formFits = (model: PopulationsModel): boolean => {
+  const formFits = (model: GroupsModel): boolean => {
     switch (form.kind) {
       case "closed":
         return true;
@@ -282,8 +276,7 @@ export function createPopulationsPanel(
         return (
           model.active === form.column &&
           model.rows.some(
-            (row) =>
-              row.isSelected && row.selected.kind === "population" && row.selected.code === code,
+            (row) => row.isSelected && row.selected.kind === "group" && row.selected.code === code,
           )
         );
       }
@@ -306,7 +299,7 @@ export function createPopulationsPanel(
       // The description of the copy's shape is on its way, and draws again.
       return;
     }
-    const model = populationsModel(now.description, state.active(), state.codes, mark);
+    const model = groupsModel(now.description, state.active(), state.codes, mark);
     if (!formFits(model)) {
       closeForm();
     }
@@ -315,7 +308,7 @@ export function createPopulationsPanel(
     const document = element.ownerDocument;
     const hadFocus = element.contains(document.activeElement);
     render(
-      populationsPanelView({
+      groupsPanelView({
         model,
         form,
         onChooseClassification: (column) => {
@@ -334,7 +327,7 @@ export function createPopulationsPanel(
           draw();
         },
         onOpenEdit: (row) => {
-          if (model.active === null || row.selected.kind !== "population") {
+          if (model.active === null || row.selected.kind !== "group") {
             return;
           }
           if (row.name === null || row.colour === null) {
@@ -407,7 +400,7 @@ export function createPopulationsPanel(
 
   const view = element.ownerDocument.defaultView;
   if (view === null) {
-    throw defect("the populations panel in a document with no window");
+    throw defect("the groups panel in a document with no window");
   }
   view.addEventListener("keydown", onKeyDown);
   const unsubscribes = (["classification", "codes", "table"] as const).map((aspect) =>
@@ -430,17 +423,17 @@ export function createPopulationsPanel(
 /**
  * What `row` is as the bar names it.
  *
- * @throws A defect for the row of a population with no name, which only the
+ * @throws A defect for the row of a group with no name, which only the
  * unassigned individuals' has.
  */
-function targetOfRow(row: PopulationRow): EditTarget {
+function targetOfRow(row: GroupRow): EditTarget {
   if (row.selected.kind === "unassigned") {
     return { kind: "unassigned" };
   }
   if (row.name === null) {
-    throw defect(`a row of the population ${String(row.selected.code)} with no name`);
+    throw defect(`a row of the group ${String(row.selected.code)} with no name`);
   }
-  return { kind: "population", code: row.selected.code, name: row.name };
+  return { kind: "group", code: row.selected.code, name: row.name };
 }
 
 /** The types of `<input>` the user types text into, where Escape belongs to the field. */

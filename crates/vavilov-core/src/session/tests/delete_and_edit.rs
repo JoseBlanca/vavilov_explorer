@@ -1,42 +1,42 @@
-//! A population of the active classification deleted, or given another
+//! A group of the active classification deleted, or given another
 //! name or colour, with undo and redo, the filter, and the refusal of a
 //! command made before the levels changed (`docs/design.md`, section 2.1;
 //! `docs/core.md`, section 4).
 
 use super::*;
-use crate::error::PopulationRefusal;
+use crate::error::GroupRefusal;
 use crate::filter::Filter;
 use crate::fixtures::{BLUE, VERMILLION};
 use crate::table::{Categorical, Colour, PALETTE};
 
 const FERTILE: ColumnId = ColumnId::new(5);
 
-fn delete(session: &Session, population: LevelCode) -> Request {
+fn delete(session: &Session, group: LevelCode) -> Request {
     at(
         session,
-        Command::DeletePopulation {
+        Command::DeleteGroup {
             column: ORIGIN,
-            population,
+            group,
         },
     )
 }
 
-fn edit(session: &Session, population: LevelCode, name: &str, colour: Colour) -> Request {
-    edit_in(session, ORIGIN, population, name, colour)
+fn edit(session: &Session, group: LevelCode, name: &str, colour: Colour) -> Request {
+    edit_in(session, ORIGIN, group, name, colour)
 }
 
 fn edit_in(
     session: &Session,
     column: ColumnId,
-    population: LevelCode,
+    group: LevelCode,
     name: &str,
     colour: Colour,
 ) -> Request {
     at(
         session,
-        Command::EditPopulation {
+        Command::EditGroup {
             column,
-            population,
+            group,
             name: name.to_owned(),
             colour,
             decimal_mark: ".".to_owned(),
@@ -72,7 +72,7 @@ fn texts(levels: &[&str]) -> LevelValues {
 fn select(session: &mut Session, selected: Option<Selected>) {
     apply(
         session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
             selected,
         },
@@ -104,8 +104,8 @@ fn shown(session: &Session) -> Vec<u32> {
         .collect()
 }
 
-fn refused(column_name: &str, text: &str, refusal: PopulationRefusal) -> CommandError {
-    CommandError::PopulationRefused {
+fn refused(column_name: &str, text: &str, refusal: GroupRefusal) -> CommandError {
+    CommandError::GroupRefused {
         column_name: column_name.to_owned(),
         text: text.to_owned(),
         refusal,
@@ -113,7 +113,7 @@ fn refused(column_name: &str, text: &str, refusal: PopulationRefusal) -> Command
 }
 
 #[test]
-fn a_population_deleted_leaves_its_individuals_unassigned_and_the_codes_after_it_move_down() {
+fn a_group_deleted_leaves_its_individuals_unassigned_and_the_codes_after_it_move_down() {
     let (mut session, recorder) = editing_spain();
     let request = delete(&session, SPAIN);
     assert_eq!(
@@ -170,8 +170,7 @@ fn a_population_deleted_leaves_its_individuals_unassigned_and_the_codes_after_it
 }
 
 #[test]
-fn undo_gives_a_deleted_population_back_in_its_place_with_its_individuals_and_redo_deletes_it_again()
- {
+fn undo_gives_a_deleted_group_back_in_its_place_with_its_individuals_and_redo_deletes_it_again() {
     let (mut session, recorder) = editing_spain();
     let before = categorical_of(&session, ORIGIN);
     let request = delete(&session, SPAIN);
@@ -184,7 +183,7 @@ fn undo_gives_a_deleted_population_back_in_its_place_with_its_individuals_and_re
         Changed::State(Revision::new(4))
     );
     assert_eq!(categorical_of(&session, ORIGIN), before);
-    // It comes back unselected, as a population added comes back on redo.
+    // It comes back unselected, as a group added comes back on redo.
     assert_eq!(
         session.active(),
         Some(Active {
@@ -208,13 +207,13 @@ fn undo_gives_a_deleted_population_back_in_its_place_with_its_individuals_and_re
 }
 
 #[test]
-fn deleting_the_selected_population_releases_the_button_pressed() {
+fn deleting_the_selected_group_releases_the_button_pressed() {
     let (mut session, _recorder) = editing_spain();
     apply(
         &mut session,
         Command::SetEditMode {
             column: ORIGIN,
-            target: Selected::Population(SPAIN),
+            target: Selected::Group(SPAIN),
             mode: Some(EditMode::Add),
         },
     );
@@ -231,14 +230,14 @@ fn deleting_the_selected_population_releases_the_button_pressed() {
 }
 
 #[test]
-fn a_population_selected_after_the_one_deleted_stays_selected_at_its_new_code() {
+fn a_group_selected_after_the_one_deleted_stays_selected_at_its_new_code() {
     let (mut session, recorder) = loaded();
-    select(&mut session, Some(Selected::Population(PERU)));
+    select(&mut session, Some(Selected::Group(PERU)));
     apply(
         &mut session,
         Command::SetEditMode {
             column: ORIGIN,
-            target: Selected::Population(PERU),
+            target: Selected::Group(PERU),
             mode: Some(EditMode::Remove),
         },
     );
@@ -247,7 +246,7 @@ fn a_population_selected_after_the_one_deleted_stays_selected_at_its_new_code() 
     session.dispatch(request).unwrap();
     let peru_first = Active {
         column: ORIGIN,
-        selected: Some(Selected::Population(SPAIN)),
+        selected: Some(Selected::Group(SPAIN)),
         mode: Some(EditMode::Remove),
     };
     assert_eq!(session.active(), Some(peru_first));
@@ -260,22 +259,22 @@ fn a_population_selected_after_the_one_deleted_stays_selected_at_its_new_code() 
     assert_eq!(
         session.active(),
         Some(Active {
-            selected: Some(Selected::Population(PERU)),
+            selected: Some(Selected::Group(PERU)),
             ..peru_first
         })
     );
 }
 
 #[test]
-fn a_population_before_the_one_deleted_stays_selected_with_no_active_part() {
+fn a_group_before_the_one_deleted_stays_selected_with_no_active_part() {
     let (mut session, recorder) = loaded();
-    select(&mut session, Some(Selected::Population(SPAIN)));
+    select(&mut session, Some(Selected::Group(SPAIN)));
     recorder.take();
     let request = delete(&session, PERU);
     session.dispatch(request).unwrap();
     assert_eq!(
         session.active().unwrap().selected,
-        Some(Selected::Population(SPAIN))
+        Some(Selected::Group(SPAIN))
     );
     assert_eq!(
         part_kinds(&recorder.take()[0]),
@@ -284,9 +283,9 @@ fn a_population_before_the_one_deleted_stays_selected_with_no_active_part() {
 }
 
 #[test]
-fn a_command_made_before_a_population_was_deleted_is_refused() {
+fn a_command_made_before_a_group_was_deleted_is_refused() {
     let (mut session, _recorder) = loaded();
-    select(&mut session, Some(Selected::Population(PERU)));
+    select(&mut session, Some(Selected::Group(PERU)));
     // A window makes these at revision 2, while Peru is code 1; then
     // Spain is deleted, at 3, and Peru becomes code 0.
     let lasso = assign(&session, PERU, &[0]);
@@ -305,13 +304,13 @@ fn a_command_made_before_a_population_was_deleted_is_refused() {
 }
 
 #[test]
-fn a_population_is_deleted_or_edited_in_the_active_classification_only_and_if_it_is_there() {
+fn a_group_is_deleted_or_edited_in_the_active_classification_only_and_if_it_is_there() {
     let (mut session, _recorder) = loaded();
     let request = at(
         &session,
-        Command::DeletePopulation {
+        Command::DeleteGroup {
             column: CLUSTER,
-            population: SPAIN,
+            group: SPAIN,
         },
     );
     assert_refused(
@@ -337,7 +336,7 @@ fn a_population_is_deleted_or_edited_in_the_active_classification_only_and_if_it
 }
 
 #[test]
-fn deleting_a_population_changes_the_rows_the_filter_shows_and_undo_gives_them_back() {
+fn deleting_a_group_changes_the_rows_the_filter_shows_and_undo_gives_them_back() {
     let (mut session, recorder) = loaded();
     filter(&mut session, "Spain");
     assert_eq!(shown(&session), [0, 3]);
@@ -354,7 +353,7 @@ fn deleting_a_population_changes_the_rows_the_filter_shows_and_undo_gives_them_b
 }
 
 #[test]
-fn a_population_given_another_name_and_colour_keeps_its_code_and_its_individuals() {
+fn a_group_given_another_name_and_colour_keeps_its_code_and_its_individuals() {
     let (mut session, recorder) = editing_spain();
     let before = categorical_of(&session, ORIGIN);
     let request = edit(&session, SPAIN, " España ", PALETTE[9]);
@@ -368,7 +367,7 @@ fn a_population_given_another_name_and_colour_keeps_its_code_and_its_individuals
     assert_eq!(origin.codes(), before.codes());
     assert_eq!(
         session.active().unwrap().selected,
-        Some(Selected::Population(SPAIN))
+        Some(Selected::Group(SPAIN))
     );
     // Every code keeps its meaning.
     assert_eq!(levels_at(&session), 1);
@@ -386,7 +385,7 @@ fn a_population_given_another_name_and_colour_keeps_its_code_and_its_individuals
 }
 
 #[test]
-fn a_population_keeps_its_name_with_another_colour_and_the_same_of_both_changes_nothing() {
+fn a_group_keeps_its_name_with_another_colour_and_the_same_of_both_changes_nothing() {
     let (mut session, recorder) = editing_spain();
     let request = edit(&session, SPAIN, "Spain", PALETTE[2]);
     session.dispatch(request).unwrap();
@@ -401,26 +400,26 @@ fn a_population_keeps_its_name_with_another_colour_and_the_same_of_both_changes_
 }
 
 #[test]
-fn a_name_that_is_another_populations_empty_or_too_long_is_refused() {
+fn a_name_that_is_another_groups_empty_or_too_long_is_refused() {
     let (mut session, _recorder) = editing_spain();
     let request = edit(&session, SPAIN, "Peru", VERMILLION);
     assert_refused(
         &mut session,
         request,
-        refused("origin", "Peru", PopulationRefusal::Taken { code: PERU }),
+        refused("origin", "Peru", GroupRefusal::Taken { code: PERU }),
     );
     let request = edit(&session, SPAIN, "  ", VERMILLION);
     assert_refused(
         &mut session,
         request,
-        refused("origin", "  ", PopulationRefusal::EmptyName),
+        refused("origin", "  ", GroupRefusal::EmptyName),
     );
     let long = "Kingdom of the Netherlands, the";
     let request = edit(&session, SPAIN, long, VERMILLION);
     assert_refused(
         &mut session,
         request,
-        refused("origin", long, PopulationRefusal::TooLong { max_chars: 30 }),
+        refused("origin", long, GroupRefusal::TooLong { max_chars: 30 }),
     );
 }
 
@@ -441,7 +440,7 @@ fn a_classification_of_yes_or_no_takes_only_the_one_of_true_or_false_it_lacks() 
         refused(
             "fertile",
             "true",
-            PopulationRefusal::Taken {
+            GroupRefusal::Taken {
                 code: LevelCode::new(1),
             },
         ),
@@ -450,12 +449,12 @@ fn a_classification_of_yes_or_no_takes_only_the_one_of_true_or_false_it_lacks() 
     assert_refused(
         &mut session,
         request,
-        refused("fertile", "maybe", PopulationRefusal::NotYesOrNo),
+        refused("fertile", "maybe", GroupRefusal::NotYesOrNo),
     );
 }
 
 #[test]
-fn a_population_of_countries_renamed_by_any_name_of_a_country_keeps_its_code() {
+fn a_group_of_countries_renamed_by_any_name_of_a_country_keeps_its_code() {
     let (mut session, _recorder) = loaded();
     apply(&mut session, set_role(ORIGIN, Role::Country));
     let request = edit(&session, SPAIN, "Chile", PALETTE[0]);
@@ -468,7 +467,7 @@ fn a_population_of_countries_renamed_by_any_name_of_a_country_keeps_its_code() {
     assert_refused(
         &mut session,
         request,
-        refused("origin", "Atlantis", PopulationRefusal::NotACountry),
+        refused("origin", "Atlantis", GroupRefusal::NotACountry),
     );
 }
 
@@ -494,7 +493,7 @@ fn a_colour_not_in_the_list_is_a_defect() {
 }
 
 #[test]
-fn renaming_a_population_changes_the_rows_the_filter_shows() {
+fn renaming_a_group_changes_the_rows_the_filter_shows() {
     let (mut session, recorder) = loaded();
     filter(&mut session, "Spain");
     recorder.take();

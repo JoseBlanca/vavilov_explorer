@@ -1,6 +1,6 @@
-// What the populations panel shows, derived from the window's copy and the
+// What the groups panel shows, derived from the window's copy and the
 // description of the table: the classifications to choose from, and the
-// rows of the active one, each population with its colour and number of
+// rows of the active one, each group with its colour and number of
 // individuals, and the unassigned individuals last (docs/design.md,
 // section 2.1).
 
@@ -15,11 +15,11 @@ import { PALETTE } from "./palette.ts";
 import type { Active } from "./windowState.ts";
 
 /**
- * The most characters the name of a population of text may have, as
- * `MAX_POPULATION_NAME` in the core: 30, decided by the owner on
+ * The most characters the name of a group of text may have, as
+ * `MAX_GROUP_NAME` in the core: 30, decided by the owner on
  * 3 October 2026.
  */
-export const MAX_POPULATION_NAME = 30;
+export const MAX_GROUP_NAME = 30;
 
 /** A category the user can make the active classification. */
 export interface Classification {
@@ -29,13 +29,13 @@ export interface Classification {
   readonly name: string;
 }
 
-/** A row of the panel: a population, or the unassigned individuals. */
-export interface PopulationRow {
+/** A row of the panel: a group, or the unassigned individuals. */
+export interface GroupRow {
   /** What selecting the row selects. */
   readonly selected: Selected;
-  /** The population's value as text, or `null` for the unassigned individuals. */
+  /** The group's value as text, or `null` for the unassigned individuals. */
   readonly name: string | null;
-  /** The population's colour, `#rrggbb`, or `null` for the unassigned. */
+  /** The group's colour, `#rrggbb`, or `null` for the unassigned. */
   readonly colour: string | null;
   /** How many individuals it holds. */
   readonly count: number;
@@ -44,22 +44,22 @@ export interface PopulationRow {
 }
 
 /** What the panel shows. */
-export interface PopulationsModel {
+export interface GroupsModel {
   /** Every category, of countries or not, in the order of the table. */
   readonly classifications: readonly Classification[];
   /** The active classification, or `null`. */
   readonly active: ColumnId | null;
   /** The name of the active classification, or `null` with none. */
   readonly activeName: string | null;
-  /** Its populations in the order of their codes, then the unassigned; empty with none active. */
-  readonly rows: readonly PopulationRow[];
+  /** Its groups in the order of their codes, then the unassigned; empty with none active. */
+  readonly rows: readonly GroupRow[];
   /**
-   * Whether a population can be added to it: to a category of TRUE and
+   * Whether a group can be added to it: to a category of TRUE and
    * FALSE only while it lacks one of them, and not with none active.
    */
-  readonly takesNewPopulations: boolean;
+  readonly takesNewGroups: boolean;
   /**
-   * The most characters the name typed for a new population may have, for
+   * The most characters the name typed for a new group may have, for
    * a category of text; `null` for one of countries, which keeps the code
    * of a long name, or of numbers or of TRUE and FALSE.
    */
@@ -74,12 +74,12 @@ export interface PopulationsModel {
  * @throws A defect when the codes of the active classification do not fit
  * its levels or the table, which the backend makes impossible.
  */
-export function populationsModel(
+export function groupsModel(
   description: TableDescription,
   active: Active | null,
   codesOf: (column: ColumnId) => Uint16Array | null,
   decimalMark: string,
-): PopulationsModel {
+): GroupsModel {
   const classifications = description.columns.flatMap((column) =>
     isCategoricalColumn(column) ? [{ column: column.id, name: column.name }] : [],
   );
@@ -89,7 +89,7 @@ export function populationsModel(
       active: null,
       activeName: null,
       rows: [],
-      takesNewPopulations: false,
+      takesNewGroups: false,
       nameLimit: null,
       mode: null,
     };
@@ -122,8 +122,8 @@ export function populationsModel(
       counts[value] = count + 1;
     }
   }
-  const rows: PopulationRow[] = column.levels.map((level, index) => {
-    const selected: Selected = { kind: "population", code: levelCode(index) };
+  const rows: GroupRow[] = column.levels.map((level, index) => {
+    const selected: Selected = { kind: "group", code: levelCode(index) };
     const count = counts[index];
     if (count === undefined) {
       throw defect(`no count for level ${String(index)}`);
@@ -148,8 +148,8 @@ export function populationsModel(
     active: active.column,
     activeName: column.name,
     rows,
-    takesNewPopulations: column.storage !== "boolean" || column.levels.length < 2,
-    nameLimit: column.storage === "text" && column.role === "category" ? MAX_POPULATION_NAME : null,
+    takesNewGroups: column.storage !== "boolean" || column.levels.length < 2,
+    nameLimit: column.storage === "text" && column.role === "category" ? MAX_GROUP_NAME : null,
     mode: active.mode,
   };
 }
@@ -189,15 +189,14 @@ export interface ColourChoice {
  * unassigned individuals' row lacks, and it has no colour either.
  */
 export function colourChoices(
-  rows: readonly PopulationRow[],
+  rows: readonly GroupRow[],
   edited: LevelCode,
   countWords: (value: number) => string,
 ): readonly ColourChoice[] {
   return PALETTE.map(({ colour, name }) => {
     const users = rows.filter(
       (row) =>
-        row.colour === colour &&
-        !(row.selected.kind === "population" && row.selected.code === edited),
+        row.colour === colour && !(row.selected.kind === "group" && row.selected.code === edited),
     );
     const [first] = users;
     if (first === undefined) {

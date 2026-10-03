@@ -1,4 +1,4 @@
-// Edit group and Delete group in the populations panel, against the real
+// Edit group and Delete group in the groups panel, against the real
 // core, in each engine: the buttons shown only with a group selected, a
 // group renamed and given another colour, a name refused, Escape, undo and
 // redo, a group deleted with its individuals left unassigned, what the
@@ -38,7 +38,7 @@ for (const engine of Object.keys(ENGINES)) {
       const sent = await backend.send({ command: "e2e:action", action });
       assert.equal(sent.ok, null, JSON.stringify(sent));
     };
-    const panel = page.getByRole("region", { name: "Populations" });
+    const panel = page.getByRole("region", { name: "Groups" });
     const grid = page.getByRole("grid", { name: "Individuals" });
     const addGroup = panel.getByRole("button", { name: "Add group", exact: true });
     const editGroup = (name) => panel.getByRole("button", { name: `Edit group ${name}` });
@@ -186,7 +186,7 @@ async function rowsAre(panel, expected) {
   try {
     await panel.page().waitForFunction((wanted) => {
       const items = [
-        ...globalThis.document.querySelectorAll('[aria-labelledby="populations-heading"] li'),
+        ...globalThis.document.querySelectorAll('[aria-labelledby="groups-heading"] li'),
       ];
       const got = items.map((item) => item.textContent.replace(/\s+/g, " ").trim());
       return JSON.stringify(got) === wanted;

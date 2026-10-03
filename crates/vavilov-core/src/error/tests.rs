@@ -51,13 +51,13 @@ fn revisions_rows_and_labels_cross_as_plain_values() {
 }
 
 #[test]
-fn a_target_crosses_as_its_population_or_as_unassigned() {
+fn a_target_crosses_as_its_group_or_as_unassigned() {
     assert_eq!(
         serde_json::to_value(CommandError::NotSelected {
-            target: Selected::Population(LevelCode::new(2))
+            target: Selected::Group(LevelCode::new(2))
         })
         .unwrap(),
-        json!({ "kind": "notSelected", "target": { "population": 2 } })
+        json!({ "kind": "notSelected", "target": { "group": 2 } })
     );
     assert_eq!(
         serde_json::to_value(CommandError::NotSelected {
@@ -365,57 +365,56 @@ fn every_refusal_of_a_cell_crosses_as_the_shared_file_of_literals_says() {
     }
 }
 
-/// One refusal of a population's name of each kind, in the order of
-/// `population-errors.json`.
-fn population_errors() -> Vec<CommandError> {
-    let refused = |column_name: &str, text: &str, refusal: PopulationRefusal| {
-        CommandError::PopulationRefused {
+/// One refusal of a group's name of each kind, in the order of
+/// `group-errors.json`.
+fn group_errors() -> Vec<CommandError> {
+    let refused =
+        |column_name: &str, text: &str, refusal: GroupRefusal| CommandError::GroupRefused {
             column_name: column_name.to_owned(),
             text: text.to_owned(),
             refusal,
-        }
-    };
+        };
     vec![
-        refused("origin", " ", PopulationRefusal::EmptyName),
+        refused("origin", " ", GroupRefusal::EmptyName),
         refused(
             "origin",
             "Kingdom of Spain",
-            PopulationRefusal::Taken {
+            GroupRefusal::Taken {
                 code: LevelCode::new(0),
             },
         ),
-        refused("seeds", "1,5", PopulationRefusal::NotWholeNumber),
+        refused("seeds", "1,5", GroupRefusal::NotWholeNumber),
         refused(
             "height",
             "2.5",
-            PopulationRefusal::NotDecimalNumber {
+            GroupRefusal::NotDecimalNumber {
                 decimal_mark: ",".to_owned(),
             },
         ),
-        refused("origin", "Atlantis", PopulationRefusal::NotACountry),
-        refused("fertile", "maybe", PopulationRefusal::NotYesOrNo),
+        refused("origin", "Atlantis", GroupRefusal::NotACountry),
+        refused("fertile", "maybe", GroupRefusal::NotYesOrNo),
         refused(
             "group",
             "one more",
-            PopulationRefusal::TooMany { max_levels: 65_535 },
+            GroupRefusal::TooMany { max_levels: 65_535 },
         ),
         refused(
             "origin",
             "Kingdom of the Netherlands, the",
-            PopulationRefusal::TooLong { max_chars: 30 },
+            GroupRefusal::TooLong { max_chars: 30 },
         ),
-        refused("origin", "Peru\nChile", PopulationRefusal::ControlCharacter),
+        refused("origin", "Peru\nChile", GroupRefusal::ControlCharacter),
     ]
 }
 
-/// Every case of `population_errors`, as the window's tests of the same
-/// file read them (`src/state/populationMessages.test.ts`), so that a field
+/// Every case of `group_errors`, as the window's tests of the same
+/// file read them (`src/state/groupMessages.test.ts`), so that a field
 /// renamed on one side fails a test.
 #[test]
-fn every_refusal_of_a_population_crosses_as_the_shared_file_of_literals_says() {
+fn every_refusal_of_a_group_crosses_as_the_shared_file_of_literals_says() {
     let expected: Vec<serde_json::Value> =
-        serde_json::from_str(include_str!("population-errors.json")).unwrap();
-    let errors = population_errors();
+        serde_json::from_str(include_str!("group-errors.json")).unwrap();
+    let errors = group_errors();
     assert_eq!(errors.len(), expected.len());
     for (error, expected) in errors.iter().zip(expected) {
         assert_eq!(serde_json::to_value(error).unwrap(), expected);

@@ -1,7 +1,7 @@
 // The check of a value the backend serialised as an object with a `kind`,
 // the name of a case of a Rust enum, and the fields of that case
 // (crates/vavilov-core/src/error.rs), shared by the refusals of a command,
-// of a file, of a cell and of a population's name. Each is described by a
+// of a file, of a cell and of a group's name. Each is described by a
 // table of its kinds, each kind with the check of each of its fields; the
 // decoder and the TypeScript type are both made from that table, so that
 // the table is the one list of the kinds on this side.

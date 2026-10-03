@@ -30,7 +30,7 @@ pub enum CellRefusal {
     NotYesOrNo,
     /// A category of countries, and the text names no country of ISO 3166.
     NotACountry,
-    /// A category, and the text is none of its values: a new population is
+    /// A category, and the text is none of its values: a new group is
     /// made another way, not by typing it in a cell (decided by the owner on
     /// 3 October 2026).
     NotALevel,

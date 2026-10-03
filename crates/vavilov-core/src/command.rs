@@ -43,14 +43,14 @@ pub enum Command {
         row: Option<RowIndex>,
     },
     /// Sets the active classification, which clears the selected
-    /// population.
+    /// group.
     SetActiveClassification {
         /// A category, of countries or not, or `None` for none.
         column: Option<ColumnId>,
     },
-    /// Selects a population of the active classification, or its
+    /// Selects a group of the active classification, or its
     /// unassigned individuals, for editing, or nothing.
-    SelectPopulation {
+    SelectGroup {
         /// The active classification.
         column: ColumnId,
         /// What to select, or `None`.
@@ -78,13 +78,13 @@ pub enum Command {
         /// The rows inside the lasso.
         rows: RowSet,
     },
-    /// Adds a population with no individuals to the active classification,
+    /// Adds a group with no individuals to the active classification,
     /// last, with the first colour of [`crate::PALETTE`] that none of its
-    /// populations has, and selects it for editing. `name` is read as a
+    /// groups has, and selects it for editing. `name` is read as a
     /// value of the column's storage type, a decimal number with
     /// `decimal_mark` and a country by any of its ISO names or codes;
     /// spaces around it are ignored.
-    AddPopulation {
+    AddGroup {
         /// The active classification.
         column: ColumnId,
         /// The name typed.
@@ -93,24 +93,24 @@ pub enum Command {
         /// system's region's: one to three characters.
         decimal_mark: String,
     },
-    /// Deletes a population of the active classification: its individuals
-    /// become unassigned, and each population after it takes the code
+    /// Deletes a group of the active classification: its individuals
+    /// become unassigned, and each group after it takes the code
     /// before its own. Undo gives it back, in its place, with its
     /// individuals (`docs/design.md`, section 2.1).
-    DeletePopulation {
+    DeleteGroup {
         /// The active classification.
         column: ColumnId,
-        /// The population.
-        population: LevelCode,
+        /// The group.
+        group: LevelCode,
     },
-    /// Gives a population of the active classification another name, or
+    /// Gives a group of the active classification another name, or
     /// another colour of [`crate::PALETTE`], or both; its code and its
-    /// individuals stay. `name` is read as for [`Command::AddPopulation`].
-    EditPopulation {
+    /// individuals stay. `name` is read as for [`Command::AddGroup`].
+    EditGroup {
         /// The active classification.
         column: ColumnId,
-        /// The population.
-        population: LevelCode,
+        /// The group.
+        group: LevelCode,
         /// The name typed, which may be the one it has.
         name: String,
         /// Its colour, one of [`crate::PALETTE`].
@@ -119,13 +119,13 @@ pub enum Command {
         /// system's region's: one to three characters.
         decimal_mark: String,
     },
-    /// Leaves unassigned the rows of the selected population that are in
+    /// Leaves unassigned the rows of the selected group that are in
     /// `rows`, and leaves the others as they are: a lasso in remove mode.
     UnassignRows {
         /// The active classification.
         column: ColumnId,
-        /// The selected population.
-        population: LevelCode,
+        /// The selected group.
+        group: LevelCode,
         /// The rows inside the lasso.
         rows: RowSet,
     },

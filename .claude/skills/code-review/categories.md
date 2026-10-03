@@ -21,7 +21,7 @@ Does the code do what was agreed? There is no spec: what was agreed is
   it true and the test that would fail if it stopped being true. A
   decision with no code, or with code and no test, is a finding.
 - Run the cases: the ordinary one, and two or three at the edges: an
-  empty table, one row, a column of missing values, a population of one,
+  empty table, one row, a column of missing values, a group of one,
   a window opened in the middle of an edit, a window reloaded.
 - Look for what the code does that nothing agreed: a default, a clamp, a
   skipped row, an early return, a choice the owner would see. Each is a
@@ -46,7 +46,7 @@ made reasonably.
   finds an element by a CSS class where a role and a name exist, or that
   runs in one engine where the harness has two.
 - Fixtures that hide a defect: all columns of one type, nothing missing,
-  all populations of one size, a change that happens not to change the
+  all groups of one size, a change that happens not to change the
   result.
 - Every number a comment, a test or a commit message gives about the
   change is computed again, not read again.
@@ -178,7 +178,7 @@ first".
 - Names and roles: every control has a name that says what it does; the
   table has its headers; a selected row says so in `aria-selected`.
 - Contrast, computed from the tokens, in both appearances; colour as the
-  only sign of a population, a state or an error.
+  only sign of a group, a state or an error.
 - The point views and plots: a way for the keyboard to do what a drag
   does, where one is needed; their data reachable in the main window's
   table.

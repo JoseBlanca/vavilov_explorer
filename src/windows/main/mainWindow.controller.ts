@@ -11,7 +11,7 @@ import { createCsvDialog } from "./csvDialog.controller.ts";
 import { createFindBar } from "./findBar.controller.ts";
 import { createInfoBar } from "./infoBar.controller.ts";
 import { mainWindowView } from "./mainWindow.view.ts";
-import { createPopulationsPanel } from "./populationsPanel.controller.ts";
+import { createGroupsPanel } from "./groupsPanel.controller.ts";
 import { createTable } from "./table.controller.ts";
 import { createMenuActions } from "./menuActions.controller.ts";
 
@@ -25,7 +25,7 @@ function slot(root: HTMLElement, name: string): HTMLElement {
 
 /**
  * Starts the main window in `root`: the frame, the bar of a defect, the
- * connection to the backend, the populations panel and the table, with the description
+ * connection to the backend, the groups panel and the table, with the description
  * of the table asked again whenever another table is loaded.
  */
 export async function startMainWindow(root: HTMLElement): Promise<void> {
@@ -66,7 +66,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
     const infoBar = createInfoBar(slot(root, "info"), state, () => {
       table.focus();
     });
-    const panel = createPopulationsPanel(
+    const panel = createGroupsPanel(
       slot(root, "panel"),
       connection,
       describedNow,

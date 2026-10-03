@@ -79,7 +79,7 @@ for (const engine of Object.keys(ENGINES)) {
     const rows = (bits) => ({ bytes: [bits] });
 
     assert.equal((await stateAt(1)).revision, 1);
-    const peru = { kind: "population", code: 1 };
+    const peru = { kind: "group", code: 1 };
     const description = await page.evaluate(() => globalThis.__connection.describeTable());
     assert.deepEqual(
       description.value.columns.map((column) => [column.name, column.storage, column.role]),
@@ -127,7 +127,7 @@ for (const engine of Object.keys(ENGINES)) {
       ok: false,
       error: { kind: "rowsOutOfRange", first: 3, count: 2, numShown: 4 },
     });
-    assert.deepEqual(await send("selectPopulation", 1, peru), applied);
+    assert.deepEqual(await send("selectGroup", 1, peru), applied);
     assert.deepEqual((await stateAt(2)).active, { column: 1, selected: peru, mode: null });
     // Rows 2 and 3 into Peru.
     assert.deepEqual(await send("assignRows", 1, peru, rows(0b1100)), applied);
@@ -140,14 +140,14 @@ for (const engine of Object.keys(ENGINES)) {
     assert.deepEqual(await send("redo"), applied);
     assert.deepEqual((await stateAt(6)).undoRedo, { canUndo: true, canRedo: false });
     // A lasso for Spain while Peru is selected is refused, as a value.
-    assert.deepEqual(await send("assignRows", 1, { kind: "population", code: 0 }, rows(0b0001)), {
+    assert.deepEqual(await send("assignRows", 1, { kind: "group", code: 0 }, rows(0b0001)), {
       ok: false,
-      error: { kind: "notSelected", target: { population: 0 } },
+      error: { kind: "notSelected", target: { group: 0 } },
     });
     assert.deepEqual(await send("setSelection", rows(0b0110)), applied);
     assert.deepEqual((await stateAt(7)).selection, [0b0110]);
     // The unassigned individuals selected, a lasso of row 3 unassigns it.
-    assert.deepEqual(await send("selectPopulation", 1, { kind: "unassigned" }), applied);
+    assert.deepEqual(await send("selectGroup", 1, { kind: "unassigned" }), applied);
     assert.deepEqual(await send("assignRows", 1, { kind: "unassigned" }, rows(0b1000)), applied);
     assert.deepEqual((await stateAt(9)).codes, [0, 0xffff, 0xffff, 0xffff]);
     assert.deepEqual(await send("setActiveClassification", null), applied);

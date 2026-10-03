@@ -8,7 +8,7 @@ import {
   pressedMessage,
   releasedMessage,
   removedCount,
-} from "./populationEdit.ts";
+} from "./groupEdit.ts";
 
 function code(value: number): LevelCode {
   if (!isLevelCode(value)) {
@@ -25,13 +25,13 @@ const SELECTION = new Uint8Array([0b0001_0111, 0b10]);
 const words = (value: number): string => value.toLocaleString("en");
 
 describe("the individuals + changes", () => {
-  test("are the selected ones not in the population already", () => {
-    expect(addedCount(SELECTION, CODES, { kind: "population", code: code(0) })).toBe(3);
-    expect(addedCount(SELECTION, CODES, { kind: "population", code: code(1) })).toBe(3);
-    expect(addedCount(SELECTION, CODES, { kind: "population", code: code(2) })).toBe(5);
+  test("are the selected ones not in the group already", () => {
+    expect(addedCount(SELECTION, CODES, { kind: "group", code: code(0) })).toBe(3);
+    expect(addedCount(SELECTION, CODES, { kind: "group", code: code(1) })).toBe(3);
+    expect(addedCount(SELECTION, CODES, { kind: "group", code: code(2) })).toBe(5);
   });
 
-  test("with the unassigned selected are the selected ones in any population", () => {
+  test("with the unassigned selected are the selected ones in any group", () => {
     expect(addedCount(SELECTION, CODES, { kind: "unassigned" })).toBe(4);
   });
 
@@ -41,7 +41,7 @@ describe("the individuals + changes", () => {
 });
 
 describe("the individuals − leaves unassigned", () => {
-  test("are the selected ones in the population, and no other", () => {
+  test("are the selected ones in the group, and no other", () => {
     expect(removedCount(SELECTION, CODES, code(0))).toBe(2);
     expect(removedCount(SELECTION, CODES, code(1))).toBe(2);
     expect(removedCount(SELECTION, CODES, code(2))).toBe(0);
@@ -49,7 +49,7 @@ describe("the individuals − leaves unassigned", () => {
 });
 
 describe("the message after + or − is pressed", () => {
-  const china = { kind: "population", code: code(2), name: "China" } as const;
+  const china = { kind: "group", code: code(2), name: "China" } as const;
   const unassigned = { kind: "unassigned" } as const;
 
   test("says how many selected individuals moved, how to stop, and how to undo", () => {
@@ -90,7 +90,7 @@ describe("the message after + or − is pressed", () => {
 
 describe("the message after the button is released", () => {
   test("says the rows selected no longer move", () => {
-    const china = { kind: "population", code: code(2), name: "China" } as const;
+    const china = { kind: "group", code: code(2), name: "China" } as const;
     expect(releasedMessage(china, "add")).toEqual({
       kind: "information",
       text: "Rows you select no longer go to China.",

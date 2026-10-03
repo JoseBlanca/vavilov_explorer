@@ -66,15 +66,15 @@ impl MessageWriter {
         })
     }
 
-    /// The active classification and the selected population.
+    /// The active classification and the selected group.
     pub(crate) fn active(&mut self, active: Option<Active>) -> Result<(), CommandError> {
         self.part(PartKind::Active, |payload| {
             let column = active.map_or(NO_COLUMN, |active| active.column.get());
-            // The kind of the selection, 0 nothing, 1 a population, 2 the
-            // unassigned individuals; the code only for a population.
+            // The kind of the selection, 0 nothing, 1 a group, 2 the
+            // unassigned individuals; the code only for a group.
             let (kind, code) = match active.and_then(|active| active.selected) {
                 None => (0_u8, NO_CODE),
-                Some(Selected::Population(code)) => (1, code.get()),
+                Some(Selected::Group(code)) => (1, code.get()),
                 Some(Selected::Unassigned) => (2, NO_CODE),
             };
             // The button pressed, 0 none, 1 +, 2 −; a window refuses one
@@ -94,7 +94,7 @@ impl MessageWriter {
                     });
                 }
                 (Some(EditMode::Add), Some(_)) => 1,
-                (Some(EditMode::Remove), Some(Selected::Population(_))) => 2,
+                (Some(EditMode::Remove), Some(Selected::Group(_))) => 2,
             };
             payload.extend_from_slice(&column.to_le_bytes());
             payload.extend_from_slice(&code.to_le_bytes());

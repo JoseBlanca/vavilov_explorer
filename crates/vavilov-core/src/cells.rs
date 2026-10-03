@@ -3,16 +3,16 @@
 //! which never changes, that passes the check of its role, or a value of
 //! a category; an empty text is a missing value. The first column, the
 //! names of the individuals, is read by [`name_of`], and the name of a new
-//! population by [`new_level`].
+//! group by [`new_level`].
 
 use crate::convert::usize_from;
 use crate::countries::country_code;
 use crate::edit::CellValue;
-use crate::error::{CellRefusal, PopulationRefusal};
+use crate::error::{CellRefusal, GroupRefusal};
 use crate::ids::LevelCode;
 use crate::table::{
-    Categorical, ColumnValues, LATITUDE, LONGITUDE, Level, LevelValues, MAX_POPULATION_NAME,
-    Numbers, Role,
+    Categorical, ColumnValues, LATITUDE, LONGITUDE, Level, LevelValues, MAX_GROUP_NAME, Numbers,
+    Role,
 };
 
 /// What a text typed gives for a column other than the first.
@@ -90,7 +90,7 @@ pub(crate) fn name_of(names: &[String], row: usize, text: &str) -> Result<String
     Ok(text.to_owned())
 }
 
-/// The level `text` names for a new population of `categorical`, of the
+/// The level `text` names for a new group of `categorical`, of the
 /// role `role`, a decimal number read with `decimal_mark`: spaces around
 /// it are ignored, a country is its code, `TRUE` or `FALSE` in any case is
 /// yes or no, and −0 is 0. Whether the category has that level already is
@@ -100,40 +100,40 @@ pub(crate) fn name_of(names: &[String], row: usize, text: &str) -> Result<String
 ///
 /// The refusal of a name that is empty, has a control character, is not of
 /// the column's storage type, or, in a category of countries, is no
-/// country; and of a name of text longer than [`MAX_POPULATION_NAME`]
+/// country; and of a name of text longer than [`MAX_GROUP_NAME`]
 /// characters.
 pub(crate) fn new_level(
     categorical: &Categorical,
     role: Role,
     text: &str,
     decimal_mark: &str,
-) -> Result<Level, PopulationRefusal> {
+) -> Result<Level, GroupRefusal> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
-        return Err(PopulationRefusal::EmptyName);
+        return Err(GroupRefusal::EmptyName);
     }
     if trimmed.chars().any(is_control) {
-        return Err(PopulationRefusal::ControlCharacter);
+        return Err(GroupRefusal::ControlCharacter);
     }
     match categorical.levels() {
         LevelValues::Boolean(_) => yes_or_no(trimmed)
             .map(Level::Boolean)
-            .ok_or(PopulationRefusal::NotYesOrNo),
+            .ok_or(GroupRefusal::NotYesOrNo),
         LevelValues::Integer(_) => whole_number(trimmed)
             .map(Level::Integer)
-            .map_err(|_| PopulationRefusal::NotWholeNumber),
+            .map_err(|_| GroupRefusal::NotWholeNumber),
         LevelValues::Float(_) => decimal_number(trimmed, decimal_mark)
             .map(|value| Level::Float(if value == 0.0 { 0.0 } else { value }))
-            .map_err(|_| PopulationRefusal::NotDecimalNumber {
+            .map_err(|_| GroupRefusal::NotDecimalNumber {
                 decimal_mark: decimal_mark.to_owned(),
             }),
         LevelValues::Text(_) if role == Role::Country => country_code(trimmed)
             .map(|code| Level::Text(code.to_owned()))
-            .ok_or(PopulationRefusal::NotACountry),
+            .ok_or(GroupRefusal::NotACountry),
         LevelValues::Text(_) => {
-            if trimmed.chars().count() > usize_from(MAX_POPULATION_NAME) {
-                return Err(PopulationRefusal::TooLong {
-                    max_chars: MAX_POPULATION_NAME,
+            if trimmed.chars().count() > usize_from(MAX_GROUP_NAME) {
+                return Err(GroupRefusal::TooLong {
+                    max_chars: MAX_GROUP_NAME,
                 });
             }
             Ok(Level::Text(trimmed.to_owned()))

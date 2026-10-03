@@ -31,7 +31,7 @@ export function booleanText(value: boolean): string {
 }
 
 /**
- * The text of a level, as the table and the populations panel show it, by
+ * The text of a level, as the table and the groups panel show it, by
  * the storage type of its column: a whole number is given as text already,
  * every digit of it.
  *

@@ -1,54 +1,54 @@
 [
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "origin",
     "text": " ",
     "refusal": { "kind": "emptyName" }
   },
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "origin",
     "text": "Kingdom of Spain",
     "refusal": { "kind": "taken", "code": 0 }
   },
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "seeds",
     "text": "1,5",
     "refusal": { "kind": "notWholeNumber" }
   },
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "height",
     "text": "2.5",
     "refusal": { "kind": "notDecimalNumber", "decimalMark": "," }
   },
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "origin",
     "text": "Atlantis",
     "refusal": { "kind": "notACountry" }
   },
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "fertile",
     "text": "maybe",
     "refusal": { "kind": "notYesOrNo" }
   },
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "group",
     "text": "one more",
     "refusal": { "kind": "tooMany", "maxLevels": 65535 }
   },
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "origin",
     "text": "Kingdom of the Netherlands, the",
     "refusal": { "kind": "tooLong", "maxChars": 30 }
   },
   {
-    "kind": "populationRefused",
+    "kind": "groupRefused",
     "columnName": "origin",
     "text": "Peru\nChile",
     "refusal": { "kind": "controlCharacter" }

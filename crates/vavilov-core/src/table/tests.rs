@@ -270,7 +270,7 @@ fn two_levels_of_one_name_are_refused() {
 }
 
 fn levels(count: u32) -> LevelValues {
-    LevelValues::Text((0..count).map(|i| format!("population {i}")).collect())
+    LevelValues::Text((0..count).map(|i| format!("group {i}")).collect())
 }
 
 fn colours(count: u32) -> Vec<Colour> {

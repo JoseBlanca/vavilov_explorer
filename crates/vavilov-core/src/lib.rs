@@ -39,9 +39,7 @@ pub use description::{
     ColumnDescription, LevelDescription, LevelValue, NamesDescription, TableDescription,
 };
 pub use dispatch::{Changed, Dropped, Outcome};
-pub use error::{
-    CellRefusal, CommandError, ExportRefusal, ImportRefusal, IoFailure, PopulationRefusal,
-};
+pub use error::{CellRefusal, CommandError, ExportRefusal, GroupRefusal, ImportRefusal, IoFailure};
 pub use export::export_table;
 pub use files::{file_name, read_for_import, write_export};
 pub use filter::{CellMatch, Filter, MAX_FILTER_TEXT, Showing};
@@ -57,7 +55,7 @@ pub use row_set::RowSet;
 pub use rows::RowsRequest;
 pub use session::{Active, EditMode, Selected, SendFailed, Session, Subscriber, UndoRedo};
 pub use table::{
-    Categorical, Colour, Column, ColumnValues, INDIVIDUAL_ID, LevelValues, MAX_COLUMNS, MAX_LEVELS,
-    MAX_POPULATION_NAME, MAX_ROWS, NameColumn, NewColumn, Numbers, PALETTE, Role, StorageType,
-    Stored, Table, is_individual_id, palette,
+    Categorical, Colour, Column, ColumnValues, INDIVIDUAL_ID, LevelValues, MAX_COLUMNS,
+    MAX_GROUP_NAME, MAX_LEVELS, MAX_ROWS, NameColumn, NewColumn, Numbers, PALETTE, Role,
+    StorageType, Stored, Table, is_individual_id, palette,
 };

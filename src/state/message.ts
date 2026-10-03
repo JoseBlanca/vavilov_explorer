@@ -51,10 +51,10 @@ export type MessagePart =
 
 /**
  * What is selected for editing in the active classification, as `Selected`
- * in the core: a population, or its unassigned individuals.
+ * in the core: a group, or its unassigned individuals.
  */
 export type Selected =
-  { readonly kind: "population"; readonly code: LevelCode } | { readonly kind: "unassigned" };
+  { readonly kind: "group"; readonly code: LevelCode } | { readonly kind: "unassigned" };
 
 /**
  * The button pressed on what is selected for editing, as `EditMode` in the

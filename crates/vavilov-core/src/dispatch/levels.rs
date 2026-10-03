@@ -1,4 +1,4 @@
-//! The plans of the changes to the levels of a category: a population of
+//! The plans of the changes to the levels of a category: a group of
 //! the active classification added, deleted, renamed or given another
 //! colour (`docs/design.md`, section 2.1), and the edits that insert,
 //! delete and set a level for undo and redo.
@@ -10,7 +10,7 @@ use super::{
 use crate::cells::new_level;
 use crate::convert::usize_from;
 use crate::edit::Edit;
-use crate::error::{CommandError, PopulationRefusal};
+use crate::error::{CommandError, GroupRefusal};
 use crate::filter::Replaced;
 use crate::ids::{ColumnId, LevelCode, Revision, RowIndex, SentAt};
 use crate::message::{MessageKind, MessageWriter};
@@ -20,13 +20,13 @@ use crate::table::{
 };
 use crate::text::nfc;
 
-/// Whether a change of levels can make a code mean another population, so
+/// Whether a change of levels can make a code mean another group, so
 /// that a command made before it that names a level is refused.
 #[derive(Clone, Copy)]
 enum Meaning {
     /// Every code means what it meant: a level added after the last.
     Kept,
-    /// A code may mean another population: a level removed.
+    /// A code may mean another group: a level removed.
     MayChange,
 }
 
@@ -40,10 +40,10 @@ struct NewLevels {
     step: HistoryStep,
 }
 
-/// Plans a population named `name` added last to the active
+/// Plans a group named `name` added last to the active
 /// classification `column`, with the first colour of the list none of its
-/// populations has, and selected for editing.
-pub(super) fn plan_add_population(
+/// groups has, and selected for editing.
+pub(super) fn plan_add_group(
     state: &SharedState,
     open: &OpenProject,
     column: ColumnId,
@@ -51,7 +51,7 @@ pub(super) fn plan_add_population(
     decimal_mark: &str,
     sent_at: Option<SentAt>,
 ) -> Result<Plan, CommandError> {
-    check_decimal_mark(decimal_mark, "a population's name")?;
+    check_decimal_mark(decimal_mark, "a group's name")?;
     active_classification(open, column)?;
     let found = open
         .table
@@ -60,7 +60,7 @@ pub(super) fn plan_add_population(
     let categorical = found
         .categorical()
         .ok_or(CommandError::NotCategory { column })?;
-    let refused = |refusal| CommandError::PopulationRefused {
+    let refused = |refusal| CommandError::GroupRefused {
         column_name: found.name().to_owned(),
         text: name.to_owned(),
         refusal,
@@ -70,20 +70,20 @@ pub(super) fn plan_add_population(
         new_level(categorical, found.values().role(), &nfc(name), decimal_mark).map_err(refused)?;
     if let Some(index) = categorical.levels().position(&level) {
         let code = level_code(index)?;
-        return Err(refused(PopulationRefusal::Taken { code }));
+        return Err(refused(GroupRefusal::Taken { code }));
     }
     let num_levels = categorical.num_levels()?;
     if num_levels >= MAX_LEVELS {
-        return Err(refused(PopulationRefusal::TooMany {
+        return Err(refused(GroupRefusal::TooMany {
             max_levels: MAX_LEVELS,
         }));
     }
     let code = level_code(usize_from(num_levels))?;
     let colour = unused_colour(categorical.colours())?;
-    // Selecting the new population releases + or −.
+    // Selecting the new group releases + or −.
     let selected = Active {
         column,
-        selected: Some(Selected::Population(code)),
+        selected: Some(Selected::Group(code)),
         mode: None,
     };
     let inserted = Inserted {
@@ -103,36 +103,36 @@ pub(super) fn plan_add_population(
     )
 }
 
-/// Plans the population `population` of the active classification
+/// Plans the group `group` of the active classification
 /// `column` deleted, its individuals left unassigned, by a command made at
 /// `based_on`.
-pub(super) fn plan_delete_population(
+pub(super) fn plan_delete_group(
     state: &SharedState,
     open: &OpenProject,
     column: ColumnId,
-    population: LevelCode,
+    group: LevelCode,
     based_on: Revision,
     sent_at: Option<SentAt>,
 ) -> Result<Plan, CommandError> {
     active_classification(open, column)?;
     check_levels_at(open, column, based_on)?;
-    check_level(&open.table, column, population)?;
-    plan_delete_level(state, open, column, population, StepKind::Record, sent_at)
+    check_level(&open.table, column, group)?;
+    plan_delete_level(state, open, column, group, StepKind::Record, sent_at)
 }
 
-/// What [`Command::EditPopulation`](crate::Command::EditPopulation) asks
-/// of a population.
+/// What [`Command::EditGroup`](crate::Command::EditGroup) asks
+/// of a group.
 pub(super) struct Edited<'a> {
     pub(super) column: ColumnId,
-    pub(super) population: LevelCode,
+    pub(super) group: LevelCode,
     pub(super) name: &'a str,
     pub(super) colour: Colour,
     pub(super) decimal_mark: &'a str,
 }
 
-/// Plans the population of `edited` given the name and colour it asks for,
+/// Plans the group of `edited` given the name and colour it asks for,
 /// by a command made at `based_on`; `None` when it has them already.
-pub(super) fn plan_edit_population(
+pub(super) fn plan_edit_group(
     state: &SharedState,
     open: &OpenProject,
     edited: &Edited<'_>,
@@ -141,18 +141,18 @@ pub(super) fn plan_edit_population(
 ) -> Result<Option<Plan>, CommandError> {
     let Edited {
         column,
-        population,
+        group,
         name,
         colour,
         decimal_mark,
     } = *edited;
-    check_decimal_mark(decimal_mark, "a population's name")?;
+    check_decimal_mark(decimal_mark, "a group's name")?;
     active_classification(open, column)?;
     check_levels_at(open, column, based_on)?;
-    check_level(&open.table, column, population)?;
+    check_level(&open.table, column, group)?;
     if !PALETTE.contains(&colour) {
         return Err(CommandError::Defect {
-            what: format!("a population given the colour {colour:?}, which is not in the list"),
+            what: format!("a group given the colour {colour:?}, which is not in the list"),
         });
     }
     let found = open
@@ -162,18 +162,18 @@ pub(super) fn plan_edit_population(
     let categorical = found
         .categorical()
         .ok_or(CommandError::NotCategory { column })?;
-    let refused = |refusal| CommandError::PopulationRefused {
+    let refused = |refusal| CommandError::GroupRefused {
         column_name: found.name().to_owned(),
         text: name.to_owned(),
         refusal,
     };
     let level =
         new_level(categorical, found.values().role(), &nfc(name), decimal_mark).map_err(refused)?;
-    let index = usize::from(population.get());
+    let index = usize::from(group.get());
     match categorical.levels().position(&level) {
         Some(other) if other != index => {
             let code = level_code(other)?;
-            return Err(refused(PopulationRefusal::Taken { code }));
+            return Err(refused(GroupRefusal::Taken { code }));
         }
         Some(_) if categorical.colours().get(index) == Some(&colour) => return Ok(None),
         Some(_) | None => {}
@@ -182,7 +182,7 @@ pub(super) fn plan_edit_population(
         state,
         open,
         column,
-        (population, level, colour),
+        (group, level, colour),
         StepKind::Record,
         sent_at,
     )
@@ -198,9 +198,9 @@ pub(super) struct Inserted {
     pub(super) rows: Vec<RowIndex>,
 }
 
-/// Plans `inserted` into `column`: a new population, last, which `select`
+/// Plans `inserted` into `column`: a new group, last, which `select`
 /// then selects for editing, or the redo of one, or the undo of one
-/// deleted. A population selected for editing at its code or after keeps
+/// deleted. A group selected for editing at its code or after keeps
 /// being selected, at its new code.
 pub(super) fn plan_insert_level(
     state: &SharedState,
@@ -246,8 +246,8 @@ pub(super) fn plan_insert_level(
 }
 
 /// Plans the level of `code` deleted from `column`, its rows left with
-/// none: a population deleted, the undo of one added, or the redo of one
-/// deleted. A population selected for editing that was that level is no
+/// none: a group deleted, the undo of one added, or the redo of one
+/// deleted. A group selected for editing that was that level is no
 /// longer selected, and one after it keeps being selected, at its new code.
 pub(super) fn plan_delete_level(
     state: &SharedState,
@@ -287,7 +287,7 @@ pub(super) fn plan_delete_level(
 }
 
 /// Plans the level of `code` in `column` made `level`, of `colour`, given
-/// as `(code, level, colour)`: a population edited, or the undo or redo of
+/// as `(code, level, colour)`: a group edited, or the undo or redo of
 /// it. Every code keeps its meaning.
 pub(super) fn plan_set_level(
     state: &SharedState,
@@ -319,8 +319,8 @@ pub(super) fn plan_set_level(
 }
 
 /// The active classification once the codes of `column` move as `moved`
-/// says, when it is `column` and has a population selected for editing
-/// whose code moves; `None` when it does not change. A population whose
+/// says, when it is `column` and has a group selected for editing
+/// whose code moves; `None` when it does not change. A group whose
 /// code `moved` takes away is no longer selected, which releases + or −.
 fn moved_selection(
     open: &OpenProject,
@@ -331,13 +331,13 @@ fn moved_selection(
         .interaction
         .active
         .filter(|active| active.column == column)?;
-    let Some(Selected::Population(selected)) = active.selected else {
+    let Some(Selected::Group(selected)) = active.selected else {
         return None;
     };
     let new = match moved(selected) {
         Some(code) if code == selected => return None,
         Some(code) => Active {
-            selected: Some(Selected::Population(code)),
+            selected: Some(Selected::Group(code)),
             ..active
         },
         None => Active {
@@ -350,7 +350,7 @@ fn moved_selection(
 }
 
 /// Plans new levels of a column: the column, its levels when a code may
-/// mean another population, and the shape of the table take the new
+/// mean another group, and the shape of the table take the new
 /// revision, and the message carries the codes beside the column's
 /// revision, as a window expects of a category, and the rows the filter
 /// shows when they change.

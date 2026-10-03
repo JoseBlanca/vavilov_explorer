@@ -9,7 +9,7 @@ import type { Selected } from "./message.ts";
 import { isRole, isStorageType } from "./description.ts";
 import { isCellRefusal } from "./cellRefusal.ts";
 import { isExportRefusal, isImportRefusal } from "./fileRefusal.ts";
-import { isPopulationRefusal } from "./populationRefusal.ts";
+import { isGroupRefusal } from "./groupRefusal.ts";
 import {
   isColumnIdField,
   isCount,
@@ -23,8 +23,8 @@ import {
 } from "./tagged.ts";
 import type { Tagged } from "./tagged.ts";
 
-/** A selection as the backend serialises one, `{ "population": code }` or `"unassigned"`. */
-export type SelectedOnWire = { readonly population: LevelCode } | "unassigned";
+/** A selection as the backend serialises one, `{ "group": code }` or `"unassigned"`. */
+export type SelectedOnWire = { readonly group: LevelCode } | "unassigned";
 
 /** What the file system refused, as `IoFailure` in the core. */
 export type IoFailure = "notFound" | "permissionDenied" | "other";
@@ -47,7 +47,7 @@ const FIELDS = {
   valueNotFor: { column: isColumnIdField, role: isRole, row: isRowIndexField },
   notActiveClassification: { column: isColumnIdField },
   unknownLevel: { column: isColumnIdField, code: isLevelCodeField, numLevels: isCount },
-  noPopulationSelected: {},
+  noGroupSelected: {},
   notSelected: { target: isSelectedOnWire },
   rowSetLength: { numRows: isCount, numBytes: isCount },
   rowSetUnusedBits: { numRows: isCount },
@@ -83,7 +83,7 @@ const FIELDS = {
   exportRefused: { refusal: isExportRefusal },
   fileNotWritten: { fileName: isText, io: isIoFailure, message: isText },
   cellRefused: { columnName: isText, text: isText, refusal: isCellRefusal },
-  populationRefused: { columnName: isText, text: isText, refusal: isPopulationRefusal },
+  groupRefused: { columnName: isText, text: isText, refusal: isGroupRefusal },
   defect: { what: isText },
 };
 
@@ -93,7 +93,7 @@ export type CommandError = Tagged<typeof FIELDS>;
 /**
  * A refusal a window receives as a value: every kind but a defect, which is
  * thrown, and a command made before the current table was loaded or before
- * the populations it names changed, which the window does not show
+ * the groups it names changed, which the window does not show
  * (`docs/core.md`, section 4).
  */
 export type Refusal = Exclude<
@@ -109,11 +109,11 @@ export function selectedOf(value: unknown): Selected | null {
   if (value === "unassigned") {
     return { kind: "unassigned" };
   }
-  if (typeof value === "object" && value !== null && "population" in value) {
+  if (typeof value === "object" && value !== null && "group" in value) {
     const entries = Object.keys(value);
-    const { population } = value;
-    if (entries.length === 1 && typeof population === "number" && isLevelCode(population)) {
-      return { kind: "population", code: population };
+    const { group } = value;
+    if (entries.length === 1 && typeof group === "number" && isLevelCode(group)) {
+      return { kind: "group", code: group };
     }
   }
   return null;

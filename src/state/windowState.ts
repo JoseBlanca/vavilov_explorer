@@ -16,7 +16,7 @@ export type ProjectState =
   | { readonly kind: "noProject" }
   | { readonly kind: "open"; readonly numRows: number; readonly loadedAt: Revision };
 
-/** The active classification and its selected population, as `Active` in the core. */
+/** The active classification and its selected group, as `Active` in the core. */
 export interface Active {
   /** The column of the active classification. */
   readonly column: ColumnId;

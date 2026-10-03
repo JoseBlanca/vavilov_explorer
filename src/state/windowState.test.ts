@@ -168,20 +168,20 @@ describe("applying a change", () => {
     expect(called).toEqual(["table", "codes", "undoRedo"]);
   });
 
-  test("a new active classification and population", () => {
+  test("a new active classification and group", () => {
     const state = createWindowState(snapshot(1));
     const called = recordAspects(state);
     state.apply(
       change(2, {
         kind: "active",
         column: CLUSTER,
-        selected: { kind: "population", code: code(1) },
+        selected: { kind: "group", code: code(1) },
         mode: "remove",
       }),
     );
     expect(state.active()).toEqual({
       column: CLUSTER,
-      selected: { kind: "population", code: 1 },
+      selected: { kind: "group", code: 1 },
       mode: "remove",
     });
     state.apply(change(3, { kind: "active", column: null, selected: null, mode: null }));

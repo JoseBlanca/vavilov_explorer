@@ -148,8 +148,8 @@ pub fn assign_rows<R: Runtime>(
 }
 
 /// Leaves unassigned the rows of a lasso that are in the selected
-/// population: the body is one bit per row, with the headers `column`,
-/// `population`, `based-on` and `sent-at`.
+/// group: the body is one bit per row, with the headers `column`,
+/// `group`, `based-on` and `sent-at`.
 ///
 /// # Errors
 ///
@@ -191,24 +191,24 @@ pub fn set_active_classification<R: Runtime>(
     run(&app, &session, "set_active_classification", &request)
 }
 
-/// Selects a population of the active classification, or its unassigned
+/// Selects a group of the active classification, or its unassigned
 /// individuals, for editing, or nothing: `{ column, selected, basedOn,
-/// sentAt }`, `selected` being `{ population: code }`, `"unassigned"` or
+/// sentAt }`, `selected` being `{ group: code }`, `"unassigned"` or
 /// `null`.
 ///
 /// # Errors
 ///
 /// The refusals of [`calls::call`].
 #[tauri::command]
-pub fn select_population<R: Runtime>(
+pub fn select_group<R: Runtime>(
     app: AppHandle<R>,
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    run(&app, &session, "select_population", &request)
+    run(&app, &session, "select_group", &request)
 }
 
-/// Adds a population with no individuals to the active classification, and
+/// Adds a group with no individuals to the active classification, and
 /// selects it: `{ column, name, decimalMark, basedOn, sentAt }`, `name`
 /// being the text typed and `decimalMark` the one the window writes
 /// numbers with.
@@ -217,33 +217,33 @@ pub fn select_population<R: Runtime>(
 ///
 /// The refusals of [`calls::call`].
 #[tauri::command]
-pub fn add_population<R: Runtime>(
+pub fn add_group<R: Runtime>(
     app: AppHandle<R>,
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    run(&app, &session, "add_population", &request)
+    run(&app, &session, "add_group", &request)
 }
 
-/// Deletes a population of the active classification, leaving its
-/// individuals unassigned: `{ column, population, basedOn, sentAt }`,
-/// `population` being its code.
+/// Deletes a group of the active classification, leaving its
+/// individuals unassigned: `{ column, group, basedOn, sentAt }`,
+/// `group` being its code.
 ///
 /// # Errors
 ///
 /// The refusals of [`calls::call`].
 #[tauri::command]
-pub fn delete_population<R: Runtime>(
+pub fn delete_group<R: Runtime>(
     app: AppHandle<R>,
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    run(&app, &session, "delete_population", &request)
+    run(&app, &session, "delete_group", &request)
 }
 
-/// Gives a population of the active classification another name or
-/// colour: `{ column, population, name, colour, decimalMark, basedOn,
-/// sentAt }`, `population` being its code, `name` the text typed, `colour`
+/// Gives a group of the active classification another name or
+/// colour: `{ column, group, name, colour, decimalMark, basedOn,
+/// sentAt }`, `group` being its code, `name` the text typed, `colour`
 /// one of the list as CSS writes it, `#rrggbb`, and `decimalMark` the one
 /// the window writes numbers with.
 ///
@@ -251,16 +251,16 @@ pub fn delete_population<R: Runtime>(
 ///
 /// The refusals of [`calls::call`].
 #[tauri::command]
-pub fn edit_population<R: Runtime>(
+pub fn edit_group<R: Runtime>(
     app: AppHandle<R>,
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
 ) -> Result<(), CommandError> {
-    run(&app, &session, "edit_population", &request)
+    run(&app, &session, "edit_group", &request)
 }
 
 /// Presses + or − on what is selected for editing, or releases it: `{
-/// column, target, mode, basedOn, sentAt }`, `target` being `{ population:
+/// column, target, mode, basedOn, sentAt }`, `target` being `{ group:
 /// code }` or `"unassigned"`, and `mode` `"add"`, `"remove"` or `null`.
 ///
 /// # Errors

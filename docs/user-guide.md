@@ -56,7 +56,7 @@ its values fit; a column of `TRUE` and `FALSE` is a category; a column
 of text is a category when it has from 1 to 20 different values, not
 counting missing ones, and text when it has more. A column with no
 values, every cell missing, is text. The leftmost category becomes the
-Classification column of the populations panel, so its populations show
+Classification column of the groups panel, so its groups show
 at once; a table with no category starts with None there.
 
 ## Exporting it
@@ -123,7 +123,7 @@ time, and two individuals cannot have the same.
 
 ## Moving individuals between groups
 
-The populations panel, left of the table, lists the groups of one
+The groups panel, left of the table, lists the groups of one
 category column, the one chosen in its Classification column dropdown at
 the top, each with its number of individuals, and last the unassigned
 individuals, those whose cell in that column is empty. Click a group to
@@ -202,8 +202,8 @@ in the dropdown at the top of the column:
 - **Category**: values that divide the individuals into groups, such as
   the colour of the flower, the country of origin or a genetic
   clustering. A category is drawn in bar plots, and you can choose any
-  category in the populations panel to work with its groups as
-  populations: to colour the plots by them, and to move individuals
+  category in the groups panel to work with its groups: to colour the
+  plots by them, and to move individuals
   from one to another with + and − (see "Moving individuals between
   groups"). Moving individuals changes the column in the app, never the
   file you imported; you choose which category to edit, so take care
@@ -216,7 +216,7 @@ place each individual, and **Country**, a category whose values are
 countries. The dropdown lists only the roles a column can take, and you
 can change a column's role at any time, and its values are kept.
 
-The column chosen as the Classification column, in the populations
+The column chosen as the Classification column, in the groups
 panel, must be a category. When you would make it a number or text, the
 app asks first, with a button that keeps the column's role and one that
 changes it; Escape keeps it too. After the change, the Classification
@@ -253,7 +253,7 @@ Case and spaces at either end do not matter; accents do, so write
 `Côte d'Ivoire`, not `Cote d'Ivoire`. Names in other languages, such as
 `España`, are not accepted. Once the column is a country column, every
 value is shown as its three-letter code, so `ES` and `Spain` become one
-population, `ESP`.
+group, `ESP`.
 
 Countries that no longer exist, such as the USSR or Yugoslavia, are
 accepted as ISO 3166 lists them:

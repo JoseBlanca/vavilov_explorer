@@ -1,4 +1,4 @@
-// The table and the populations panel when answers and messages arrive in
+// The table and the groups panel when answers and messages arrive in
 // an order the ordinary run does not give, against the real core, in each
 // engine: a page of rows still on its way when another table loads; a page
 // answered after a change of role whose message has not yet arrived; rows
@@ -114,7 +114,7 @@ for (const engine of Object.keys(ENGINES)) {
 
     // 5. A refused choice of the classification column: the panel's dropdown
     // shows the one still active.
-    const panel = page.getByRole("region", { name: "Populations" });
+    const panel = page.getByRole("region", { name: "Groups" });
     const classification = panel.getByRole("combobox", { name: "Classification column" });
     await page.evaluate(() =>
       globalThis.__e2eRefuse.set("set_active_classification", { kind: "notCategory", column: 3 }),

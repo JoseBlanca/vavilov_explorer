@@ -54,7 +54,7 @@ export function isStorageType(value: unknown): value is StorageType {
  */
 export type LevelValue = string | number | boolean;
 
-/** A level of a category: in the active classification, a population. */
+/** A level of a category: in the active classification, a group. */
 export interface LevelDescription {
   /** Its value, of the column's storage type. */
   readonly value: LevelValue;

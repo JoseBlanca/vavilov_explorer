@@ -16,7 +16,7 @@ introduced in section 7.
 Vavilov Explorer is used by biologists. They come with one table, usually
 a CSV or an Excel file, with one row per individual (an accession, a
 plant, an animal) and one column per variable: names, coordinates,
-traits, principal components, the populations each individual is
+traits, principal components, the groups each individual is
 assigned to.
 
 - **Project**: the one file the app opens and saves, with the extension
@@ -29,34 +29,34 @@ assigned to.
   names. An imported file is never written to. This is how GIMP treats its
   own format and the formats it imports.
 - **Classification**: a column of the table with the role of a category
-  (section 6), seen as the populations it divides the individuals into.
+  (section 6), seen as the groups it divides the individuals into.
   Any category can be one: country of origin, a genetic clustering, or
   a trait such as the colour of the flower; which the user edits is
   their decision.
 - **Active classification**: the classification that colours every view.
-  The user chooses it in the populations panel of the main window.
+  The user chooses it in the groups panel of the main window.
   Changing it recolours every window.
-- **Population**: one value of the active classification.
+- **Group**: one value of the active classification.
 - **Unassigned**: an individual whose value in the active classification
-  is missing. It belongs to no population.
-- **Selected population**: the population the user is editing. It is
-  chosen by clicking it in the populations panel, where its row then
+  is missing. It belongs to no group.
+- **Selected group**: the group the user is editing. It is
+  chosen by clicking it in the groups panel, where its row then
   shows + and −, two buttons that stay pressed: while + is pressed, every
-  individual selected goes into the population, and while − is pressed,
+  individual selected goes into the group, and while − is pressed,
   every individual selected that is in it becomes unassigned
   (section 2.1).
 - **Selection**: a set of individuals, made by a lasso in a plot, by
   rows in the table, or by bars of a histogram. It is shown in every
-  window. The selection and the selected population are different things
+  window. The selection and the selected group are different things
   and the interface keeps them apart.
 - **Hover**: the one individual under the pointer, shown in every window.
 
 The user edits the cells of the active classification with + and − in
-the populations panel, which act on the individuals as they are
+the groups panel, which act on the individuals as they are
 selected, in any window, and any cell in the table (section 2.1). The
 other edits are to
 the shape of the table: adding and removing columns, renaming them,
-adding, renaming and removing populations, and changing the type of a
+adding, renaming and removing groups, and changing the type of a
 column. Every edit can be undone. An earlier version of this design let
 the user edit only the active classification, so that a trait would not
 be changed by mistake; the owner opened every column to editing on
@@ -75,7 +75,7 @@ of its own.
 
 ### 2.1 The main window
 
-The main window is a view of the table, with the populations panel beside
+The main window is a view of the table, with the groups panel beside
 it.
 
 - The table draws only the rows on screen, fetched from the backend a page
@@ -83,7 +83,7 @@ it.
   of a hundred.
 - The table is linked like every other view. Selected rows are
   highlighted, clicking and shift-clicking rows selects individuals, and a
-  filter shows all rows, only the selection, or only one population.
+  filter shows all rows, only the selection, or only one group.
 - A missing value is shown as an empty cell, which a screen reader
   announces as "missing". A number is shown in the shortest form that
   gives back the same value, with the decimal mark of the system's
@@ -132,7 +132,7 @@ it.
   - A category suggests its values as the user types; the list closes
     once the one value that fits is the text typed (decided by the
     owner on 3 October 2026). A name that is none of them is refused: a
-    new population is made another way, not by typing it in a cell.
+    new group is made another way, not by typing it in a cell.
   - A click on a row of a selection of several waits 500 ms, Windows'
     default double-click time, before it selects that row alone: the
     first click of a double-click would otherwise leave that row the only
@@ -147,8 +147,8 @@ it.
   text is part of any of its ISO names or equals one of its codes; a
   missing cell never matches. The filter hides rows of the table only,
   not of the other windows, and the backend holds it and finds the
-  rows. The filter by the selection or by one population planned here
-  before is left out: a population is a search of its column, whole
+  rows. The filter by the selection or by one group planned here
+  before is left out: a group is a search of its column, whole
   cell. Decided by the owner on 2 October 2026. A button "Select shown
   rows" makes the rows the table shows the selection, in place of the
   one there was (decided by the owner the same day). It sits in the
@@ -204,17 +204,17 @@ it.
   page sees the key before the menu and takes it, and a click on Edit >
   Undo reaches the main window as an action, which undoes the field's
   typing when a field has the focus (section 10).
-- The populations panel lists the populations of the active
+- The groups panel lists the groups of the active
   classification, each with its colour, name and number of individuals. A
   dropdown above it chooses the active classification. It is where a
-  population is selected and edited. It sits left of the table, as a
+  group is selected and edited. It sits left of the table, as a
   sidebar. Its last row is the unassigned individuals, with their number,
-  and it can be selected like any population. Decided by the owner on
-  2 October 2026. How a population is edited there was decided by the
-  owner on 3 October 2026. The words of what was added then say "group"
-  where the rest of the app says "population": the owner prefers the
-  plainer word, and the rename of the whole app is a change of its own,
-  made after this one.
+  and it can be selected like any group. Decided by the owner on
+  2 October 2026. How a group is edited there was decided by the
+  owner on 3 October 2026. The app, its documents and its code say
+  "group" where they said "population", since the owner prefers the
+  plainer word (decided on 3 October 2026); "population" is kept for the
+  biology, as in population genetics.
 
   - The row of the selected group shows + and − after its number, and no
     other row does, so that the list stays short. Each is a button that
@@ -380,10 +380,10 @@ and asks the backend to change it.
 The state is in three tiers:
 
 - **The document**: the table, with its columns, their types, the
-  populations and their colours. It is saved in the project and every
+  groups and their colours. It is saved in the project and every
   edit to it can be undone.
 - **The interaction**: the active classification, the selected
-  population, the selection and the hover. It is shared by every window
+  group, the selection and the hover. It is shared by every window
   and lives in the backend, but is not undone. The active classification
   is also saved in the project, so that it opens the way it was left.
 - **The window's own**: the camera of a 3D view, a lasso outline being
@@ -391,7 +391,7 @@ The state is in three tiers:
   backend never sees it.
 
 Every change to the document or the interaction is a command, a call from
-a window to the backend, such as "assign these rows to population A",
+a window to the backend, such as "assign these rows to group A",
 "set the selection to these rows" or "add a column". The backend checks
 it, applies it, increases a revision number and sends the change to every
 window. It refuses a command it cannot apply, with a reason the window
@@ -411,7 +411,7 @@ the project has unsaved changes. The flag drives the edited mark in the
 title of the main window and the question on quit.
 
 What a window computes from the state, such as the colour and size of
-each point from the populations and the selection, is computed in each
+each point from the groups and the selection, is computed in each
 window by one TypeScript function shared by all of them. The state has
 one place and the computation has one implementation.
 
@@ -514,24 +514,24 @@ Each column but the first has a storage type and a role (section 6).
 A column whose role is a category holds, for each
 row, a code that points into an ordered list of levels, the values of the
 categories, plus a missing value of its own. Its levels can include ones
-that no row uses yet, which is how a new, empty population exists. Each
+that no row uses yet, which is how a new, empty group exists. Each
 level has a colour.
 
 The levels are ordered when they are built, by the import or by a
 change of role: text in the order of the names below, numbers as
 numbers, and FALSE before TRUE. The colours come from a fixed list, given
 to the levels in that order. From then on each level
-keeps its colour: a population added later takes the first colour of the
-list no other level of the column uses, and renaming a population does
+keeps its colour: a group added later takes the first colour of the
+list no other level of the column uses, and renaming a group does
 not change its colour. The list has 21 colours (below); a column of more
 levels starts the list again, so that two levels share a colour, which
-the owner accepted on 2 October 2026 until there are more populations
+the owner accepted on 2 October 2026 until there are more groups
 and more views to judge it by. The order of text is
 with case ignored, ties broken by the exact text, and numbers inside a
 name are compared as text, not as numbers. The list is Okabe and Ito's
 without its black, seven colours from orange, then the same mixed with
 40 % white, then with 40 % black (decided by the owner on 2 October 2026,
-`core.md`, section 10). The user can give a population another colour of
+`core.md`, section 10). The user can give a group another colour of
 the list with Edit group (section 2.1), and no colour outside it
 (decided by the owner on 3 October 2026). Colours are part of the
 document, saved in the project and undone like any other edit.
@@ -553,9 +553,9 @@ Every column but the first has two types, decided by the owner on
   - **number**: drawn on an axis, in a histogram, or as coordinates on
     the map;
   - **category**: values that divide the individuals into groups, a
-    trait such as the colour of the flower or populations such as a
+    trait such as the colour of the flower or groups such as a
     genetic clustering; drawn in a bar plot, and any category can be the
-    active classification, which + and − in the populations panel
+    active classification, which + and − in the groups panel
     edit;
   - **text**: notes and identifiers, shown in the table alone.
 
@@ -603,7 +603,7 @@ and what the views can do with it.
   no current country uses (`SUN`). Each value is shown as its country's
   three-letter code, whatever the file wrote, so that `ES` and `Spain`
   are one level, `ESP`; a former country whose three-letter code a
-  current one uses is shown by its four-letter code. A new population of
+  current one uses is shown by its four-letter code. A new group of
   a country category being edited must be a country.
 
 The dropdown offers, of number, latitude, longitude, category, country
@@ -621,14 +621,14 @@ levels, and a category of decimal numbers holds −0 and 0 as one level,
 so that a column of numbers made a category and then a number again
 gives 0 where it had −0. The app shows both as 0; the owner accepted it
 on 2 October 2026. The
-levels of a category keep the storage type, so that population codes 1,
+levels of a category keep the storage type, so that group codes 1,
 2 and 10 are ordered as numbers, and an export writes them back as
 numbers. A change of role is a command and can be undone, and undoing a
 change to country gives back the file's spellings. Any category, of
 countries or not, can be the active classification; one whose role is
 changed to a number or text stops being active, and one whose levels are
 built again, between category and country, loses its selected
-population. A change that would stop the active classification asks
+group. A change that would stop the active classification asks
 first, since one key pressed on the dropdown is enough to make it, and
 the interaction is not undone: "Make “origin” text?", with what follows
 from it and how to choose the column again, and the buttons "Keep it a
@@ -651,7 +651,7 @@ values, and text for the rest. A column with no value is text, whatever
 its header: a category of no levels would be offered as a classification
 with every individual unassigned (decided by the owner on 2 October
 2026). After an import the first category, of countries or not, is the
-active classification, so that its populations show at once, and none is
+active classification, so that its groups show at once, and none is
 when the table has no category (decided the same day).
 
 ## 7. table_io
@@ -722,7 +722,7 @@ A `.vav` file is a zip archive, as an xlsx is, with two files in it:
   tables that stores each column's type, its missing values and exact
   floats, and that R, pandas and polars read. A category or a
   classification is stored in its storage type, so a reader in another
-  program sees the values of the populations, not their codes. CSV was considered and not taken: it has
+  program sees the values of the groups, not their codes. CSV was considered and not taken: it has
   no types, and in CSV a text value "NA" and a missing value cannot be
   told apart without an escaping of our own.
 - `project.json`: what Parquet cannot hold, which is a version of the
@@ -772,18 +772,18 @@ What each part of the interface is drawn with:
   prototype, sent every point again on each edit (`prototype-lessons.md`).
 - **The table**: rows of a fixed height, of which only those on screen
   are in the DOM, written for the app.
-- **Everything else drawn as HTML**: the populations panel, the
+- **Everything else drawn as HTML**: the groups panel, the
   dropdowns of the column types, the dialogs, the empty state, the
   messages. These are rendered with lit-html, a library of about 3 kB
   (version 3.3) that updates the DOM from a template and does nothing
   else. A view is a function from the state to a template, and its
   controller calls it whenever the state changes, so a list whose
-  populations are added, renamed or removed cannot be left with stale
+  groups are added, renamed or removed cannot be left with stale
   rows, listeners or focus.
 
 Native HTML elements are used where they exist: `<select>` for the types
 and for the active classification, `<dialog>` for the dialogs, and radio
-buttons, drawn as swatches, for the colour of a population, which comes
+buttons, drawn as swatches, for the colour of a group, which comes
 from the list of section 5 alone. They bring the keyboard handling and
 the accessibility that would otherwise come from a library of components.
 
@@ -937,11 +937,11 @@ Open decisions:
 
 - Whether the column that colours the views is the active
   classification, the one being edited, or a column of its own. The
-  owner noted on 2 October 2026 that the selected population may be
+  owner noted on 2 October 2026 that the selected group may be
   shown by size, and the colour may follow another column; separating
   the two is the guard against editing a trait by mistake that the
   merge of category and classification left (section 6).
-- A compact key of the populations, with a line saying which population
+- A compact key of the groups, with a line saying which group
   is being edited, in each plot window. Deferred by the owner until the
   first views exist.
 - How a window tells the user that the backend refused a command, which
@@ -966,11 +966,11 @@ Raised on 2 October 2026 while the skills of the project were written
   after a reset, is shown as a short message over that view: "The 3D view
   was lost by the graphics card and is being restored.", which goes away
   once the view is drawn again.
-- The population of one individual is changed from the table by typing
-  the population's name in the cell of the active classification, with
-  the names of its populations suggested as the user types. A name that
-  is not yet a population is refused: a new population is made with Add
-  group in the populations panel (decided by the owner on 3 October 2026,
+- The group of one individual is changed from the table by typing
+  the group's name in the cell of the active classification, with
+  the names of its groups suggested as the user types. A name that
+  is not yet a group is refused: a new group is made with Add
+  group in the groups panel (decided by the owner on 3 October 2026,
   section 2.1).
 
 - The oldest platforms supported: macOS 14, Windows 10 and 11, and Linux
@@ -988,7 +988,7 @@ Raised on 2 October 2026 while the skills of the project were written
   mode for Vavilov Explorer other than the system's. The setting belongs
   to the app, not to a project, and every window follows it. Where it is
   set in the interface is decided when it is built.
-- The colours of the populations start from Okabe and Ito's list, which
+- The colours of the groups start from Okabe and Ito's list, which
   people with the common kinds of colour blindness can tell apart.
 - The fonts are the system's.
 - Accessibility follows WCAG 2.2 at level AA, as popnei_web does.

@@ -25,10 +25,10 @@ pub const COMMANDS: &[&str] = &[
     "unassign_rows",
     "set_hover",
     "set_active_classification",
-    "select_population",
-    "add_population",
-    "delete_population",
-    "edit_population",
+    "select_group",
+    "add_group",
+    "delete_group",
+    "edit_group",
     "set_edit_mode",
     "set_role",
     "set_filter",
@@ -40,7 +40,7 @@ pub const COMMANDS: &[&str] = &[
 /// Applies the call of `command` with its body and headers to the session.
 /// A command with rows takes them as a raw body, one bit per row, with the
 /// headers `based-on`, `sent-at` and, for a lasso, `column` and `target`
-/// (add mode: a code, or `unassigned`) or `population` (remove mode), and
+/// (add mode: a code, or `unassigned`) or `group` (remove mode), and
 /// for cells typed in, `column`, `text` and `decimal-mark`, the last two
 /// percent-encoded as `encodeURIComponent` writes them, since a header
 /// holds ASCII alone; the others take JSON arguments in camelCase, and an
@@ -101,14 +101,14 @@ pub fn call(
         }
         "unassign_rows" => {
             let column = ColumnId::new(header(headers, "column")?);
-            let population = LevelCode::new(header(headers, "population")?);
+            let group = LevelCode::new(header(headers, "group")?);
             let based_on = Revision::new(header(headers, "based-on")?);
             let sent_at = sent_at_header(headers)?;
             let rows = session.rows_from_window(raw_body(body)?, based_on)?;
             Request {
                 command: Command::UnassignRows {
                     column,
-                    population,
+                    group,
                     rows,
                 },
                 based_on,
@@ -152,39 +152,39 @@ pub fn call(
                 args.sent_at,
             )?
         }
-        "select_population" => {
-            let args: PopulationArgs = json_args(command, body)?;
-            let command = Command::SelectPopulation {
+        "select_group" => {
+            let args: GroupArgs = json_args(command, body)?;
+            let command = Command::SelectGroup {
                 column: ColumnId::new(args.column),
                 selected: args.selected,
             };
             request(command, args.based_on, args.sent_at)?
         }
-        "add_population" => {
-            let args: AddPopulationArgs = json_args(command, body)?;
-            let command = Command::AddPopulation {
+        "add_group" => {
+            let args: AddGroupArgs = json_args(command, body)?;
+            let command = Command::AddGroup {
                 column: ColumnId::new(args.column),
                 name: args.name,
                 decimal_mark: args.decimal_mark,
             };
             request(command, args.based_on, args.sent_at)?
         }
-        "delete_population" => {
-            let args: DeletePopulationArgs = json_args(command, body)?;
-            let command = Command::DeletePopulation {
+        "delete_group" => {
+            let args: DeleteGroupArgs = json_args(command, body)?;
+            let command = Command::DeleteGroup {
                 column: ColumnId::new(args.column),
-                population: LevelCode::new(args.population),
+                group: LevelCode::new(args.group),
             };
             request(command, args.based_on, args.sent_at)?
         }
-        "edit_population" => {
-            let args: EditPopulationArgs = json_args(command, body)?;
+        "edit_group" => {
+            let args: EditGroupArgs = json_args(command, body)?;
             let colour = Colour::from_css(&args.colour).ok_or_else(|| CommandError::Defect {
-                what: format!("a population given the colour {:?}", args.colour),
+                what: format!("a group given the colour {:?}", args.colour),
             })?;
-            let command = Command::EditPopulation {
+            let command = Command::EditGroup {
                 column: ColumnId::new(args.column),
-                population: LevelCode::new(args.population),
+                group: LevelCode::new(args.group),
                 name: args.name,
                 colour,
                 decimal_mark: args.decimal_mark,
@@ -294,18 +294,18 @@ struct ActiveArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct PopulationArgs {
+struct GroupArgs {
     column: u32,
     selected: Option<Selected>,
     based_on: u64,
     sent_at: Option<f64>,
 }
 
-/// The arguments of `add_population`: the active classification, the
+/// The arguments of `add_group`: the active classification, the
 /// name typed, and the decimal mark the window writes numbers with.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct AddPopulationArgs {
+struct AddGroupArgs {
     column: u32,
     name: String,
     decimal_mark: String,
@@ -313,25 +313,25 @@ struct AddPopulationArgs {
     sent_at: Option<f64>,
 }
 
-/// The arguments of `delete_population`: the active classification and
-/// the code of the population.
+/// The arguments of `delete_group`: the active classification and
+/// the code of the group.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct DeletePopulationArgs {
+struct DeleteGroupArgs {
     column: u32,
-    population: u16,
+    group: u16,
     based_on: u64,
     sent_at: Option<f64>,
 }
 
-/// The arguments of `edit_population`: the active classification, the
-/// code of the population, the name typed, its colour as CSS writes one,
+/// The arguments of `edit_group`: the active classification, the
+/// code of the group, the name typed, its colour as CSS writes one,
 /// `#rrggbb`, and the decimal mark the window writes numbers with.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct EditPopulationArgs {
+struct EditGroupArgs {
     column: u32,
-    population: u16,
+    group: u16,
     name: String,
     colour: String,
     decimal_mark: String,
@@ -473,14 +473,14 @@ fn optional_header<T: FromStr>(headers: &HeaderMap, name: &str) -> Result<Option
 }
 
 /// The target of a lasso in add mode, the header `target`: the code of a
-/// population, or `unassigned`.
+/// group, or `unassigned`.
 fn target_header(headers: &HeaderMap) -> Result<Selected, CommandError> {
     let text: String = header(headers, "target")?;
     if text == "unassigned" {
         return Ok(Selected::Unassigned);
     }
     text.parse()
-        .map(|code| Selected::Population(LevelCode::new(code)))
+        .map(|code| Selected::Group(LevelCode::new(code)))
         .map_err(|_| CommandError::Defect {
             what: format!("a header target of {text:?}"),
         })

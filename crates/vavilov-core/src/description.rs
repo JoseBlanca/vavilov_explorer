@@ -62,7 +62,7 @@ pub struct ColumnDescription {
 }
 
 /// A level of a category: in a classification, a
-/// population.
+/// group.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LevelDescription {

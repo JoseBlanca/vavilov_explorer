@@ -16,9 +16,9 @@ needs from `table_io` is in `table_io-needs.md`.
 
 The words of the app are those of `design.md`, section 1: the **active
 classification** is the categorical column that colours every view, a
-**population** is one of its values, the **selected population** is the
+**group** is one of its values, the **selected group** is the
 one the user is editing, and a **lasso** is the outline the user draws
-around points in a plot to add them to the selected population or to
+around points in a plot to add them to the selected group or to
 remove them from it. A **widget** is a window with one plot, a 3D
 scatter, a map, a histogram or a bar plot. `table_io` is the owner's
 library that reads and writes CSV and xlsx files, being built in its own
@@ -149,7 +149,7 @@ table is loaded.
   name, unique within the column and not empty, and a colour. Codes on
   the wire are 16 bits with `0xFFFF` for missing (section 5), so a column
   has at most 65,535 levels. Levels that no row uses are allowed, which
-  is how a new, empty population exists.
+  is how a new, empty group exists.
 - **A colour** is three bytes of sRGB. Every categorical column has a
   colour per level, since any of them can become the active
   classification.
@@ -192,12 +192,12 @@ it and whether it is undone. `OpenProject` holds the first two:
   colours, and the undo and redo history of edits to it. It is what the
   project file saves, the history apart.
 - **The interaction**: the active classification, the selected
-  population, the button + or − pressed on it, the selection, the hover,
+  group, the button + or − pressed on it, the selection, the hover,
   and later the open widgets. The active classification, the selected
-  population and the button are one value, `Option<Active { column,
+  group and the button are one value, `Option<Active { column,
   selected: Option<Selected>, mode: Option<EditMode> }>`, so that a
-  selected population cannot exist without the classification it belongs
-  to; a selected population is a value of the active classification
+  selected group cannot exist without the classification it belongs
+  to; a selected group is a value of the active classification
   (`design.md`, section 1), so changing the active classification clears
   it. The button is `None` whenever nothing is selected, and never − on
   the unassigned individuals; the type allows both, and the dispatcher
@@ -275,12 +275,12 @@ purpose to change one field before it refuses.
 A command that changes something takes the next revision, `r + 1`, and
 sends one message to every window. One command is one revision and one
 message, even when it changes several things: undoing an assignment to a
-population changes the codes and what can be undone and redone, and both
+group changes the codes and what can be undone and redone, and both
 travel in the same message (section 5). A window then never shows half
 of a command.
 
 A command that changes nothing, a selection set to the one there is, a
-lasso over individuals already in the population, takes no revision,
+lasso over individuals already in the group, takes no revision,
 sends nothing and records nothing to undo, so that Undo always undoes a
 change the user can see. The owner decided so on 2 October 2026.
 
@@ -311,29 +311,29 @@ the command was about (decided by the owner on 2 October 2026).
 
 A command also names what it acts on rather than leaning on the
 session's current value. Assigning rows names the column and the code of
-the population, and is refused unless they are still the active
-classification and the selected population: otherwise a lasso drawn
-while population A was selected would land in population B, which
+the group, and is refused unless they are still the active
+classification and the selected group: otherwise a lasso drawn
+while group A was selected would land in group B, which
 another window selected a moment before. Removing rows from the selected
-population leaves unassigned those of its rows that are inside the
+group leaves unassigned those of its rows that are inside the
 lasso, and leaves the others as they are.
 
 Within one table, a column id is never given twice and rows do not
-change. A level can be removed, by deleting a population or undoing one
+change. A level can be removed, by deleting a group or undoing one
 added, inserted before others, by undoing a deletion, and the levels can
 be built again, by a change of role, so a code can come to mean another
-population: China, added as code 2 and then undone, and Japan, added
+group: China, added as code 2 and then undone, and Japan, added
 after it, are both code 2; Peru, code 1, is code 0 once Spain, code 0,
 is deleted. Each column therefore keeps a second revision, that of its
 levels, `levels_at`: the load, a change of role, a level removed or a
 level inserted before the last sets it, and a level added after the last
 level, or one renamed or given another colour, does not, since every
 code keeps its meaning. A command that names a level, selecting a
-population, assigning rows to one or removing rows from one, pressing +
+group, assigning rows to one or removing rows from one, pressing +
 or − on one, deleting or editing one, is refused as `LevelsChanged` when the
 column's levels changed after the request's revision. The age of the
 levels is checked before anything else the command names, so that a
-command on a population undone and not added again is refused so too,
+command on a group undone and not added again is refused so too,
 and not as a level that does not exist. A window treats it as it treats
 `MadeBeforeLoad`: it shows nothing and writes it to the app's log, since
 the change of the levels has reached its copy already. It is a revision
@@ -345,7 +345,7 @@ levels, does not make a lasso in another window stale.
 Each command on the document is turned into an `Edit`, and applying an
 edit returns the edit that reverses it, which goes on the undo history.
 Undo applies the reverse and puts its own reverse on the redo history; a
-new edit clears the redo history. Assigning rows to a population becomes
+new edit clears the redo history. Assigning rows to a group becomes
 `SetCodes { column, changes }`, with the rows whose code changes and
 their new codes, and its reverse is the same edit with the codes they
 had. Only rows that change are stored, 8 bytes each in memory, a
@@ -373,52 +373,52 @@ stores only the cells that change, and its reverse is the same edit with
 the values they had. None changes the shape of the table, and a value
 every row has already changes nothing.
 
-A population added in the populations panel (`design.md`, section 2.1)
-is the command `AddPopulation { column, name, decimal_mark }`, on the
+A group added in the groups panel (`design.md`, section 2.1)
+is the command `AddGroup { column, name, decimal_mark }`, on the
 active classification alone. The name is put in Unicode's composed form
 (`text.rs`) and read in `cells.rs` as a level of the column's storage
 type, with spaces around it ignored, a decimal number with the window's
 decimal mark, −0 as 0, `TRUE` or `FALSE` in any case, and a country as
-its three-letter code. It is refused as `PopulationRefused`, with the
-column's name, the text, and a `PopulationRefusal` that says why: an
+its three-letter code. It is refused as `GroupRefused`, with the
+column's name, the text, and a `GroupRefusal` that says why: an
 empty name, one with a control character or a mark of the direction of
-the text, one a population has already (`Taken`, with that population's
+the text, one a group has already (`Taken`, with that group's
 code, so that the window names it as it shows it), not a whole or a
 decimal number, no country, neither `TRUE` nor `FALSE`, a name of text
-of more than `MAX_POPULATION_NAME`, 30, characters, or a column of
+of more than `MAX_GROUP_NAME`, 30, characters, or a column of
 65,535 levels already.
 
 Every text that enters the core is in Unicode's composed form, NFC
 (`text.rs`, `design.md`, section 12): the import composes the IDs, the
 column names and the texts of the file, and refuses as
 `IndividualWrittenTwoWays` or `ColumnWrittenTwoWays` two IDs or two names
-that become one; a text typed in a cell, a population's name and the
+that become one; a text typed in a cell, a group's name and the
 text of the find bar are composed before they are read. The level is
 added after the last level, with the first colour of the list of
 `design.md`, section 5, that no level of the column has; when the levels
 have all 21, it takes the colour a level at its place takes on import,
 so that the list starts again. The codes do not change, and the
-new population is selected for editing in the same command.
+new group is selected for editing in the same command.
 
-A population deleted is the command `DeletePopulation { column,
-population }`, on the active classification alone: the rows that held
-it are left unassigned, each population after it takes the code before
-its own, and a population selected for editing keeps being selected at
+A group deleted is the command `DeleteGroup { column,
+group }`, on the active classification alone: the rows that held
+it are left unassigned, each group after it takes the code before
+its own, and a group selected for editing keeps being selected at
 its new code, or, when it is the one deleted, nothing is selected and
-the button pressed is released. A population edited is
-`EditPopulation { column, population, name, colour, decimal_mark }`: the
-name is read as for `AddPopulation`, and refused for the same reasons
-but `TooMany`, a name the population has already being its own; the
+the button pressed is released. A group edited is
+`EditGroup { column, group, name, colour, decimal_mark }`: the
+name is read as for `AddGroup`, and refused for the same reasons
+but `TooMany`, a name the group has already being its own; the
 colour is one of the list, and another is a defect, since the window
 offers no other. The same name and colour change nothing.
 
 Three edits change the levels. `InsertLevel { column, code, level,
 colour, rows }` inserts a level at `code`, the levels from there on
 taking the code after their own, and gives it `rows`, which hold no
-level: a population added, last and with no rows, or a deletion undone.
+level: a group added, last and with no rows, or a deletion undone.
 Its reverse is `DeleteLevel { column, code }`, which deletes the level,
 leaves its rows with none and gives back the `InsertLevel` with those
-rows: a population deleted, or an addition undone. `SetLevel { column,
+rows: a group deleted, or an addition undone. `SetLevel { column,
 code, level, colour }` gives a level another value and colour, and its
 reverse is the same edit with those it had. Each sends the shape, the
 codes and the column's revision, the active classification when the
@@ -434,15 +434,15 @@ on the unassigned individuals as `NotSelected`. Pressing one gives the
 rows selected now what it gives the rows that enter the selection after,
 in the same command. `SetSelection`, while a button is pressed, assigns
 the rows that enter the selection, those in the new selection and not in
-the old: + gives them the population, or none for the unassigned
-individuals, and − leaves unassigned those in the population. A row
+the old: + gives them the group, or none for the unassigned
+individuals, and − leaves unassigned those in the group. A row
 already where the button puts it, or one that leaves the selection, is
 not changed. Either command is then one edit, `SetCodes`, whose message
 carries the selection or the active classification beside the codes, and
 one undo; undoing it gives the codes back and leaves the selection and
-the button as they are. A command that selects another population, or
-none, another classification, a population added, a load, and a change
-of role or an undo that clears the selected population, releases the
+the button as they are. A command that selects another group, or
+none, another classification, a group added, a load, and a change
+of role or an undo that clears the selected group, releases the
 button in the same command.
 
 - **Undo restores the data, not the revisions.** An undo is a command
@@ -450,7 +450,7 @@ button in the same command.
   revision too, so that a window that cached a column fetches it again.
 - **The interaction is not undone.** It is kept valid after every edit
   instead: when a later edit can remove a column or a level, the
-  dispatcher clears an active classification or a selected population
+  dispatcher clears an active classification or a selected group
   that no longer exists, in the same command.
 - **A test for every edit** applies it and its reverse to a small table
   and compares the table with the one it started from, field by field,
@@ -538,7 +538,7 @@ parts of the first slice:
 | part | payload |
 |---|---|
 | project | whether a project is open, a byte, and seven zero bytes; when one is, the number of rows, `u32`, four zero bytes, and the revision at which its table was loaded, `u64` |
-| active | the active classification's column id, `u32::MAX` for none; the selected population's code, `0xFFFF` for none; what is selected, a byte, 0 nothing, 1 a population, 2 the unassigned individuals; the button pressed, a byte, 0 none, 1 +, 2 − |
+| active | the active classification's column id, `u32::MAX` for none; the selected group's code, `0xFFFF` for none; what is selected, a byte, 0 nothing, 1 a group, 2 the unassigned individuals; the button pressed, a byte, 0 none, 1 +, 2 − |
 | selection | the number of rows, `u32`; four zero bytes; one bit per row, row `i` in bit `i % 8` of byte `i / 8`, the unused bits of the last byte zero |
 | codes | the column id, `u32`; four zero bytes; the column's revision, `u64`; one `u16` per row, `0xFFFF` for missing |
 | undo | whether there is something to undo and something to redo, a byte each |
@@ -788,7 +788,7 @@ text, and a poisoned lock is a `Defect`.
   that no message shows the folders of the user's disk.
 - The cases of the first slice: no project open; an unknown column; a
   column that is not categorical; a column that is not the active
-  classification; an unknown level; no population selected; a population
+  classification; an unknown level; no group selected; a group
   that is not the selected one; a row set or a row index that does not
   fit the table; nothing to undo or to redo; a command made before the
   current table was loaded; a label the session does not know; the
@@ -902,8 +902,8 @@ The first slice is the core without files, with tests:
 - the session with no project and with one, and a command that loads a
   table into it, which the project file and the import will both use;
 - the commands: set the selection, set the hover, set the active
-  classification, select a population, assign rows to the selected
-  population or remove them from it, undo and redo;
+  classification, select a group, assign rows to the selected
+  group or remove them from it, undo and redo;
 - subscribe and unsubscribe, the snapshot, the broadcast, and a
   subscriber that fails;
 - the encoder of the messages of section 5, each part tested against
@@ -917,7 +917,7 @@ Its tests include:
   the edited one;
 - after a load there is nothing to undo, and a command made before the
   load is refused;
-- a lasso is refused when another population was selected after it was
+- a lasso is refused when another group was selected after it was
   made;
 - a subscriber that subscribed at `r` receives `r + 1` and then every
   revision with no gap, with hovers in between that take none. The
@@ -937,7 +937,7 @@ Later, each in its own slice:
   the order of their levels and their colours;
 - the commands on the shape of the table: adding, removing and renaming
   columns, changing a type (`design.md`, section 6), renaming and
-  removing populations, changing a colour (a population is added since
+  removing groups, changing a colour (a group is added since
   3 October 2026, section 4);
 - the description of the table as JSON and the fetching of columns, with
   their layouts;
@@ -954,7 +954,7 @@ Decided by the owner on 2 October 2026, and written above where each
 applies:
 
 - A command that changes nothing, such as a lasso over individuals
-  already in the selected population, leaves nothing to undo
+  already in the selected group, leaves nothing to undo
   (section 4).
 - The core keeps no queue of hovers; one is added to the app only if
   hovers are seen to lag on Windows or Linux (section 5). `design.md`,
@@ -976,9 +976,9 @@ applies:
   again mixed with 40 % white, then with 40 % black, 21 colours in all.
   The owner saw them in the app on 2 October 2026; a column of more than
   21 levels starts the list again, accepted for now and reviewed when
-  there are more populations and views.
+  there are more groups and views.
 
 Decided by the owner on 3 October 2026: the mode is the button + or −
-pressed on the selected population, kept in the interaction, one for all
+pressed on the selected group, kept in the interaction, one for all
 windows (section 3), so that a lasso in a plot does what a click in the
 table does (`design.md`, section 2.1).

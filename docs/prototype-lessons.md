@@ -2,7 +2,7 @@
 
 Vavilov Explorer starts from scratch, but an earlier prototype
 (`~/devel/popnei_native`, October 2026) tried the idea: a CSV of
-individuals shown as a 3D scatter and a map, with populations edited by
+individuals shown as a 3D scatter and a map, with groups edited by
 lasso. This file keeps what it taught. Nothing here is binding; each point
 is a starting position to confirm when the feature is built.
 
@@ -13,8 +13,8 @@ is a starting position to confirm when the feature is built.
   is a function call, not IPC. Separate windows (for a second monitor)
   can come later as a view that mirrors the shared state over Tauri
   events, as long as no view owns the state.
-- **One source of truth for the state.** The dataset, the population
-  memberships, the selected population and the current selection belong
+- **One source of truth for the state.** The dataset, the group
+  memberships, the selected group and the current selection belong
   to the controller, not to a view. Views receive positions and a
   per-point style and report user actions back.
 - **A shared base for point views.** The 3D plot and the map differed only
@@ -62,7 +62,7 @@ is a starting position to confirm when the feature is built.
 
 ## Interaction (decided with the user)
 
-- **Editing is driven from the legend.** Clicking a population selects it:
+- **Editing is driven from the legend.** Clicking a group selects it:
   it grows (1.5×), the others shrink (0.4×), and ↻ / + / − appear below
   the legend, starting in ↻. Clicking it again deselects.
 - **A lasso waits for Enter** (Esc cancels), as in `any_scatter3d`. The

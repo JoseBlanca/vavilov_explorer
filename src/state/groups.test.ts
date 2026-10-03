@@ -4,8 +4,8 @@ import type { TableDescription } from "./description.ts";
 import { isColumnId, isLevelCode, isRevision } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision } from "./ids.ts";
 import { isCategoricalColumn } from "./description.ts";
-import { colourChoices, populationsModel, sameSelected } from "./populations.ts";
-import type { PopulationRow } from "./populations.ts";
+import { colourChoices, groupsModel, sameSelected } from "./groups.ts";
+import type { GroupRow } from "./groups.ts";
 
 function column(value: number): ColumnId {
   if (!isColumnId(value)) throw new Error("not a column");
@@ -99,9 +99,9 @@ const CODES = new Map<number, Uint16Array>([
 ]);
 const codesOf = (id: ColumnId): Uint16Array | null => CODES.get(id) ?? null;
 
-describe("the populations panel's model", () => {
+describe("the groups panel's model", () => {
   test("lists every category to choose as the classification", () => {
-    const model = populationsModel(DESCRIPTION, null, codesOf, ",");
+    const model = groupsModel(DESCRIPTION, null, codesOf, ",");
     expect(model.classifications).toEqual([
       { column: 2, name: "origin" },
       { column: 4, name: "cluster" },
@@ -109,11 +109,11 @@ describe("the populations panel's model", () => {
     ]);
     expect(model.active).toBeNull();
     expect(model.rows).toEqual([]);
-    expect(model.takesNewPopulations).toBe(false);
+    expect(model.takesNewGroups).toBe(false);
   });
 
-  test("gives each population its colour and count, an empty one too, and the unassigned last", () => {
-    const model = populationsModel(
+  test("gives each group its colour and count, an empty one too, and the unassigned last", () => {
+    const model = groupsModel(
       DESCRIPTION,
       { column: ORIGIN, selected: null, mode: null },
       codesOf,
@@ -122,24 +122,24 @@ describe("the populations panel's model", () => {
     expect(model.active).toBe(2);
     expect(model.activeName).toBe("origin");
     expect(model.nameLimit).toBe(30);
-    expect(model.takesNewPopulations).toBe(true);
+    expect(model.takesNewGroups).toBe(true);
     expect(model.rows).toEqual([
       {
-        selected: { kind: "population", code: 0 },
+        selected: { kind: "group", code: 0 },
         name: "Spain",
         colour: "#e69f00",
         count: 3,
         isSelected: false,
       },
       {
-        selected: { kind: "population", code: 1 },
+        selected: { kind: "group", code: 1 },
         name: "Peru",
         colour: "#56b4e9",
         count: 1,
         isSelected: false,
       },
       {
-        selected: { kind: "population", code: 2 },
+        selected: { kind: "group", code: 2 },
         name: "Chile",
         colour: "#009e73",
         count: 0,
@@ -149,16 +149,16 @@ describe("the populations panel's model", () => {
     ]);
   });
 
-  test("marks the selected row, a population or the unassigned", () => {
-    const peru = populationsModel(
+  test("marks the selected row, a group or the unassigned", () => {
+    const peru = groupsModel(
       DESCRIPTION,
-      { column: ORIGIN, selected: { kind: "population", code: code(1) }, mode: "remove" },
+      { column: ORIGIN, selected: { kind: "group", code: code(1) }, mode: "remove" },
       codesOf,
       ",",
     );
     expect(peru.rows.map((row) => row.isSelected)).toEqual([false, true, false, false]);
     expect(peru.mode).toBe("remove");
-    const unassigned = populationsModel(
+    const unassigned = groupsModel(
       DESCRIPTION,
       { column: ORIGIN, selected: { kind: "unassigned" }, mode: null },
       codesOf,
@@ -167,8 +167,8 @@ describe("the populations panel's model", () => {
     expect(unassigned.rows.map((row) => row.isSelected)).toEqual([false, false, false, true]);
   });
 
-  test("of a classification of TRUE and FALSE takes a new population only while it lacks one", () => {
-    const model = populationsModel(
+  test("of a classification of TRUE and FALSE takes a new group only while it lacks one", () => {
+    const model = groupsModel(
       DESCRIPTION,
       { column: FERTILE, selected: null, mode: null },
       codesOf,
@@ -179,7 +179,7 @@ describe("the populations panel's model", () => {
       ["TRUE", 3],
       [null, 1],
     ]);
-    expect(model.takesNewPopulations).toBe(false);
+    expect(model.takesNewGroups).toBe(false);
     expect(model.nameLimit).toBeNull();
     const onlyTrue: TableDescription = {
       ...DESCRIPTION,
@@ -189,25 +189,25 @@ describe("the populations panel's model", () => {
           : column,
       ),
     };
-    const lacking = populationsModel(
+    const lacking = groupsModel(
       onlyTrue,
       { column: FERTILE, selected: null, mode: null },
       () => new Uint16Array([0, 0, 0, 0xffff, 0, 0]),
       ",",
     );
-    expect(lacking.takesNewPopulations).toBe(true);
-    const cluster = populationsModel(
+    expect(lacking.takesNewGroups).toBe(true);
+    const cluster = groupsModel(
       DESCRIPTION,
       { column: CLUSTER, selected: null, mode: null },
       codesOf,
       ",",
     );
-    expect(cluster.takesNewPopulations).toBe(true);
+    expect(cluster.takesNewGroups).toBe(true);
     expect(cluster.nameLimit).toBeNull();
   });
 
   test("counts the active classification, not another, its levels of numbers as text", () => {
-    const model = populationsModel(
+    const model = groupsModel(
       DESCRIPTION,
       { column: CLUSTER, selected: null, mode: null },
       codesOf,
@@ -223,23 +223,18 @@ describe("the populations panel's model", () => {
   test("codes that do not fit the levels or the table are a defect", () => {
     const tooHigh = (): Uint16Array => new Uint16Array([0, 3, 0, 0, 0, 0]);
     expect(() =>
-      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, tooHigh, ","),
+      groupsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, tooHigh, ","),
     ).toThrow(/defect.*code 3.*3 levels/);
     const short = (): Uint16Array => new Uint16Array([0, 1]);
     expect(() =>
-      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, short, ","),
+      groupsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, short, ","),
     ).toThrow(/defect.*2 codes.*6 rows/);
     const none = (): null => null;
     expect(() =>
-      populationsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, none, ","),
+      groupsModel(DESCRIPTION, { column: ORIGIN, selected: null, mode: null }, none, ","),
     ).toThrow(/defect.*no codes/);
     expect(() =>
-      populationsModel(
-        DESCRIPTION,
-        { column: column(1), selected: null, mode: null },
-        codesOf,
-        ",",
-      ),
+      groupsModel(DESCRIPTION, { column: column(1), selected: null, mode: null }, codesOf, ","),
     ).toThrow(/defect.*column 1.*not a category/);
   });
 });
@@ -248,29 +243,29 @@ describe("two selections", () => {
   test("are the same when they select the same thing", () => {
     expect(sameSelected(null, null)).toBe(true);
     expect(sameSelected({ kind: "unassigned" }, { kind: "unassigned" })).toBe(true);
-    expect(
-      sameSelected({ kind: "population", code: code(1) }, { kind: "population", code: code(1) }),
-    ).toBe(true);
-    expect(
-      sameSelected({ kind: "population", code: code(1) }, { kind: "population", code: code(2) }),
-    ).toBe(false);
-    expect(sameSelected({ kind: "population", code: code(1) }, { kind: "unassigned" })).toBe(false);
+    expect(sameSelected({ kind: "group", code: code(1) }, { kind: "group", code: code(1) })).toBe(
+      true,
+    );
+    expect(sameSelected({ kind: "group", code: code(1) }, { kind: "group", code: code(2) })).toBe(
+      false,
+    );
+    expect(sameSelected({ kind: "group", code: code(1) }, { kind: "unassigned" })).toBe(false);
     expect(sameSelected(null, { kind: "unassigned" })).toBe(false);
   });
 });
 
 describe("the colours a group edited can take", () => {
   /** A row of a group of `colour`, not selected and empty. */
-  function row(at: number, name: string, colour: string): PopulationRow {
+  function row(at: number, name: string, colour: string): GroupRow {
     return {
-      selected: { kind: "population", code: code(at) },
+      selected: { kind: "group", code: code(at) },
       name,
       colour,
       count: 0,
       isSelected: false,
     };
   }
-  const rows: readonly PopulationRow[] = [
+  const rows: readonly GroupRow[] = [
     row(0, "Spain", "#e69f00"),
     row(1, "Peru", "#56b4e9"),
     row(2, "Chile", "#56b4e9"),

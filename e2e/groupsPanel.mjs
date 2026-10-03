@@ -1,4 +1,4 @@
-// The populations panel of the main window against the real core, in each
+// The groups panel of the main window against the real core, in each
 // engine: a table loaded while the window is open, choosing the
 // classification, selecting a group, + and − pressed and released, the rows
 // selected in the table while one is pressed, what the information bar says,
@@ -56,7 +56,7 @@ for (const engine of Object.keys(ENGINES)) {
       assert.equal(sent.ok, null, JSON.stringify(sent));
     };
 
-    const panel = page.getByRole("region", { name: "Populations" });
+    const panel = page.getByRole("region", { name: "Groups" });
     await panel.waitFor();
     const grid = page.getByRole("grid", { name: "Individuals" });
     const classification = panel.getByRole("combobox", {
@@ -75,7 +75,7 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal(await panel.getByRole("button", { name: /^Add selected/ }).count(), 0);
     const addGroup = panel.getByRole("button", { name: "Add group", exact: true });
     await addGroup.waitFor();
-    await shoot(page, engine, "populations-none-selected");
+    await shoot(page, engine, "groups-none-selected");
 
     // Selecting Peru shows its + and −, neither pressed.
     await panel.getByRole("button", { name: /^Peru/ }).click();
@@ -105,7 +105,7 @@ for (const engine of Object.keys(ENGINES)) {
       await addToPeru.getAttribute("title"),
       "Add selected to Peru: on. Press + again, or Escape, to stop.",
     );
-    await shoot(page, engine, "populations-plus-pressed");
+    await shoot(page, engine, "groups-plus-pressed");
 
     // While + is pressed, a row clicked goes to Peru, one undo each.
     await rowNamed(grid, "p4").click();
@@ -124,7 +124,7 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal(await addToPeru.getAttribute("aria-pressed"), "false");
     await rowNamed(grid, "p1").click();
     await rowsAre(panel, ["Spain 2", "Peru 2 + −", "Chile 0", "Unassigned 1"]);
-    await shoot(page, engine, "populations-minus-pressed");
+    await shoot(page, engine, "groups-minus-pressed");
 
     // Escape releases it, and a row clicked then stays as it is.
     await page.keyboard.press("Escape");
@@ -169,7 +169,7 @@ for (const engine of Object.keys(ENGINES)) {
       `1 individual made unassigned. Rows you select are now made unassigned too, until you press + again or Escape; ${UNDO_EACH}`,
     );
     await rowsAre(panel, ["Spain 2", "Peru 1", "Chile 0", "Unassigned 2 + −"]);
-    await shoot(page, engine, "populations-unassigned-pressed");
+    await shoot(page, engine, "groups-unassigned-pressed");
     await makeUnassigned.click();
     await says(page, "Rows you select are no longer made unassigned.");
 
@@ -190,7 +190,7 @@ for (const engine of Object.keys(ENGINES)) {
       /Error:\s*“Peru” was not added to “origin”, which has the group Peru already\./,
     );
     assert.equal(await name.inputValue(), "Peru");
-    await shoot(page, engine, "populations-name-refused");
+    await shoot(page, engine, "groups-name-refused");
     await refused.getByRole("button", { name: "Dismiss" }).click();
     await name.fill(" China");
     await name.press("Enter");
@@ -198,7 +198,7 @@ for (const engine of Object.keys(ENGINES)) {
     await waitPressed(panel, "China", "true");
     await rowsAre(panel, ["Spain 2", "Peru 1", "Chile 0", "China 0 + −", "Unassigned 2"]);
     assert.equal(await isFocused(addGroup), true);
-    await shoot(page, engine, "populations-group-added");
+    await shoot(page, engine, "groups-group-added");
 
     // The new group takes the selected row like any other.
     const addToChina = panel.getByRole("button", { name: "Add selected to China", exact: true });
@@ -306,7 +306,7 @@ for (const engine of Object.keys(ENGINES)) {
     );
     await addGroup.click({ force: true });
     assert.equal(await name.count(), 0);
-    await shoot(page, engine, "populations-yes-or-no");
+    await shoot(page, engine, "groups-yes-or-no");
 
     // A column of TRUE alone takes FALSE as a new group.
     await classification.selectOption({ label: "flowering" });
@@ -325,7 +325,7 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal(await panel.getByRole("listitem").count(), 0);
 
     assert.deepEqual(errors, [], "no page errors");
-    console.log(`e2e populations panel, ${engine}: passed`);
+    console.log(`e2e groups panel, ${engine}: passed`);
   } finally {
     await app.close();
   }
@@ -337,7 +337,7 @@ async function rowsAre(panel, expected) {
   try {
     await panel.page().waitForFunction((wanted) => {
       const items = [
-        ...globalThis.document.querySelectorAll('[aria-labelledby="populations-heading"] li'),
+        ...globalThis.document.querySelectorAll('[aria-labelledby="groups-heading"] li'),
       ];
       const got = items.map((item) => item.textContent.replace(/\s+/g, " ").trim());
       return JSON.stringify(got) === wanted;

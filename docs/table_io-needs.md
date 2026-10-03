@@ -122,7 +122,7 @@ and do not hold for Vavilov Explorer:
 
   A column with no value, every cell missing, is categorical. A
   categorical column gives its levels in alphabetical order and, for each
-  row, the level it holds or missing. A classification of 20 populations
+  row, the level it holds or missing. A classification of 20 groups
   or more is guessed text, and the user changes its type to categorical.
   These rules are the owner's. Not boolean: `yes`/`no`, `1`/`0`, and the
   words of Excel in other languages, such as `VERDADERO` and `FALSO`,
@@ -133,7 +133,7 @@ and do not hold for Vavilov Explorer:
   `case` and `control` make a categorical column.
 - **The warning for a column of few whole numbers**, popnei_web's
   `fewWholeLevels`, which says the values may be codes such as numbered
-  populations, would be useful in Vavilov Explorer too, where such a
+  groups, would be useful in Vavilov Explorer too, where such a
   column is guessed integer and the user would change it to categorical.
   popnei_web gives it to a column of at most 20 distinct whole numbers.
 - **The limits.** popnei_web refuses a file of more than 20 MB and a sheet

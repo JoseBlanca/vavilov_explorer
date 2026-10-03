@@ -117,7 +117,7 @@ TypeScript 6.0. The options, in `tsconfig.json`, beyond the template's:
 - **A lint is silenced on one line**, `// eslint-disable-next-line <rule>
   -- <reason>`, never for a file, and never `@ts-ignore`; a
   `@ts-expect-error` with a reason where the compiler is wrong.
-- **Text from the user's files is never HTML.** A population can be named
+- **Text from the user's files is never HTML.** A group can be named
   `<img onerror=…>`. lit-html escapes what it is given in a binding, and
   `unsafeHTML` is never used; D3 sets it with `.text()`, the DOM with
   `textContent`, never `innerHTML`.

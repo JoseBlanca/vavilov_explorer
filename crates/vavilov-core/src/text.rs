@@ -2,7 +2,7 @@
 //! that a letter with an accent is one character however it was typed or
 //! written in a file. A Mac often writes `é` as `e` and a combining accent,
 //! two characters, where typing gives one; compared as written, `Perú` from
-//! a file and `Perú` typed would be two populations. Every text that enters
+//! a file and `Perú` typed would be two groups. Every text that enters
 //! the core, from an imported file or typed by the user, goes through
 //! [`nfc`] (decided by the owner on 3 October 2026).
 

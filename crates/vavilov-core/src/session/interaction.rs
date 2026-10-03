@@ -7,38 +7,38 @@ use crate::ids::{ColumnId, LevelCode, Revision, RowIndex};
 use crate::row_set::RowSet;
 
 /// What is selected for editing in the active classification: one of its
-/// populations, or its unassigned individuals, which the populations panel
+/// groups, or its unassigned individuals, which the groups panel
 /// lists as one more row (`docs/design.md`, section 2.1).
 ///
-/// It crosses to a window as `{"population": 2}` or `"unassigned"`.
+/// It crosses to a window as `{"group": 2}` or `"unassigned"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Selected {
-    /// The population of this code.
-    Population(LevelCode),
-    /// The individuals of no population.
+    /// The group of this code.
+    Group(LevelCode),
+    /// The individuals of no group.
     Unassigned,
 }
 
 /// What happens to the individuals that enter the selection while a
-/// population is selected for editing: the button + or − of the populations
+/// group is selected for editing: the button + or − of the groups
 /// panel, pressed (`docs/design.md`, section 2.1).
 ///
 /// It crosses to a window as `"add"` or `"remove"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EditMode {
-    /// They go into what is selected: the population, or none for the
+    /// They go into what is selected: the group, or none for the
     /// unassigned individuals.
     Add,
-    /// Those in the selected population become unassigned.
+    /// Those in the selected group become unassigned.
     Remove,
 }
 
 /// The active classification, the categorical column that colours every
-/// view, the population selected in it for editing, if any, and the button
-/// pressed on that population, if any. They are one value, so that a
-/// selected population cannot exist without the classification it belongs
+/// view, the group selected in it for editing, if any, and the button
+/// pressed on that group, if any. They are one value, so that a
+/// selected group cannot exist without the classification it belongs
 /// to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Active {

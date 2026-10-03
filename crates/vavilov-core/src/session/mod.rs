@@ -158,7 +158,7 @@ impl Session {
         self.state.project.as_open().map(|open| &open.table)
     }
 
-    /// The active classification and the selected population.
+    /// The active classification and the selected group.
     #[must_use]
     pub fn active(&self) -> Option<Active> {
         self.state

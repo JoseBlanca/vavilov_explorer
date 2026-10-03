@@ -261,7 +261,7 @@ pub(crate) enum Level {
 /// The values of a category: its ordered levels,
 /// each with a colour, and for each row the code of its level or `None`,
 /// which in a classification is an unassigned individual. A level no row
-/// uses is allowed: it is how a new, empty population exists.
+/// uses is allowed: it is how a new, empty group exists.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Categorical {
     pub(crate) levels: LevelValues,
@@ -361,7 +361,7 @@ impl Categorical {
 
     /// The category with `level`, of `colour`, inserted at `code`, so that
     /// each level from `code` on takes the code after its own, and with
-    /// `rows`, which held no level, given it: a new population, last and
+    /// `rows`, which held no level, given it: a new group, last and
     /// with no rows, or one deleted given back.
     ///
     /// # Errors
@@ -928,7 +928,7 @@ pub struct Column {
     /// The revision at which its levels last changed other than by one
     /// added after the last: the load, a change of role, or a level
     /// removed. A command that names a level and was made before it is
-    /// refused, since the code may now mean another population.
+    /// refused, since the code may now mean another group.
     pub(crate) levels_at: Revision,
     pub(crate) values: ColumnValues,
 }

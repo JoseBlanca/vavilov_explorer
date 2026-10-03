@@ -12,7 +12,7 @@ export interface MainWindowProps {
 
 /**
  * The frame of the main window: the bar of a defect across the top, then
- * the populations panel beside the table, with the find bar above the
+ * the groups panel beside the table, with the find bar above the
  * table and the information bar below it, or, with no project open, the
  * title in the place of the empty state still to be built, above the
  * information bar, which shows there the messages of an import; and last

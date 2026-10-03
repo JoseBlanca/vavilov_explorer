@@ -2,7 +2,7 @@
 // columns and the cells of the first rows, the roles each column offers, a
 // scroll to rows of a page not yet fetched, a click and a shift-click that
 // select rows, a lasso made elsewhere showing in a cell, and a change of
-// role that the populations panel follows. Screenshots, light and dark, land in
+// role that the groups panel follows. Screenshots, light and dark, land in
 // e2e/output/.
 //
 // Run with `npm run test:e2e`.
@@ -110,8 +110,8 @@ for (const engine of Object.keys(ENGINES)) {
     // A lasso made elsewhere, as in another window: p1 to p3 into Spain.
     const selected = await backend.send({
       window: "main",
-      command: "select_population",
-      json: { column: 2, selected: { population: 0 }, basedOn: 3 },
+      command: "select_group",
+      json: { column: 2, selected: { group: 0 }, basedOn: 3 },
     });
     assert.equal(selected.ok, null, JSON.stringify(selected));
     const lasso = await backend.send({
@@ -124,7 +124,7 @@ for (const engine of Object.keys(ENGINES)) {
     await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).waitFor();
 
     // Every category can be chosen in the panel, fertile as well as origin.
-    const panel = page.getByRole("region", { name: "Populations" });
+    const panel = page.getByRole("region", { name: "Groups" });
     const classification = panel.getByRole("combobox", { name: "Classification column" });
     assert.deepEqual(await classification.locator("option").allTextContents().then(trim), [
       "None",

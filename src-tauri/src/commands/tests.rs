@@ -127,11 +127,11 @@ fn codes(app: &App<MockRuntime>) -> Vec<Option<u16>> {
         .collect()
 }
 
-fn lasso_headers(population: u16, based_on: u64) -> Vec<(&'static str, String)> {
+fn lasso_headers(group: u16, based_on: u64) -> Vec<(&'static str, String)> {
     vec![
         ("column", ORIGIN.to_string()),
-        ("target", population.to_string()),
-        ("population", population.to_string()),
+        ("target", group.to_string()),
+        ("group", group.to_string()),
         ("based-on", based_on.to_string()),
     ]
 }
@@ -151,21 +151,21 @@ fn every_command_is_registered_and_finds_the_session() {
             json!({ "column": null, "basedOn": 0 }),
         ),
         (
-            "select_population",
+            "select_group",
             json!({ "column": 1, "selected": null, "basedOn": 0 }),
         ),
         (
-            "add_population",
+            "add_group",
             json!({ "column": 1, "name": "China", "decimalMark": ",", "basedOn": 0 }),
         ),
         (
-            "delete_population",
-            json!({ "column": 1, "population": 0, "basedOn": 0 }),
+            "delete_group",
+            json!({ "column": 1, "group": 0, "basedOn": 0 }),
         ),
         (
-            "edit_population",
+            "edit_group",
             json!({
-                "column": 1, "population": 0, "name": "China", "colour": "#e69f00",
+                "column": 1, "group": 0, "name": "China", "colour": "#e69f00",
                 "decimalMark": ",", "basedOn": 0
             }),
         ),
@@ -274,8 +274,8 @@ fn a_lasso_and_its_undo_through_the_commands_change_the_codes() {
     subscribe_main(&window);
     json_command(
         &window,
-        "select_population",
-        json!({ "column": ORIGIN, "selected": { "population": 0 }, "basedOn": 1 }),
+        "select_group",
+        json!({ "column": ORIGIN, "selected": { "group": 0 }, "basedOn": 1 }),
     )
     .unwrap();
     // Rows 1 and 2 into Spain, at revision 2.
@@ -328,8 +328,8 @@ fn a_refusal_crosses_as_its_kind_and_its_fields() {
     assert_eq!(
         json_command(
             &window,
-            "select_population",
-            json!({ "column": 9, "selected": { "population": 0 }, "basedOn": 1 })
+            "select_group",
+            json!({ "column": 9, "selected": { "group": 0 }, "basedOn": 1 })
         )
         .unwrap_err(),
         json!({ "kind": "notActiveClassification", "column": 9 })
@@ -476,15 +476,15 @@ fn a_lasso_in_remove_mode_and_a_redo_through_the_commands() {
     load(&app);
     json_command(
         &window,
-        "select_population",
-        json!({ "column": ORIGIN, "selected": { "population": 1 }, "basedOn": 1 }),
+        "select_group",
+        json!({ "column": ORIGIN, "selected": { "group": 1 }, "basedOn": 1 }),
     )
     .unwrap();
     assert_eq!(
         session_of(&app).active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: Some(vavilov_core::Selected::Population(LevelCode::new(1))),
+            selected: Some(vavilov_core::Selected::Group(LevelCode::new(1))),
             mode: None,
         })
     );
@@ -558,7 +558,7 @@ fn a_lasso_with_the_unassigned_selected_unassigns_through_the_commands() {
     load(&app);
     json_command(
         &window,
-        "select_population",
+        "select_group",
         json!({ "column": ORIGIN, "selected": "unassigned", "basedOn": 1 }),
     )
     .unwrap();
@@ -578,12 +578,12 @@ fn a_lasso_with_the_unassigned_selected_unassigns_through_the_commands() {
 }
 
 #[test]
-fn a_population_added_through_its_command_is_selected_and_a_refusal_names_why() {
+fn a_group_added_through_its_command_is_selected_and_a_refusal_names_why() {
     let (app, window) = app();
     load(&app);
     json_command(
         &window,
-        "add_population",
+        "add_group",
         json!({ "column": ORIGIN, "name": " China", "decimalMark": ",", "basedOn": 1, "sentAt": 1.5 }),
     )
     .unwrap();
@@ -607,7 +607,7 @@ fn a_population_added_through_its_command_is_selected_and_a_refusal_names_why() 
         session.active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(ORIGIN),
-            selected: Some(vavilov_core::Selected::Population(LevelCode::new(2))),
+            selected: Some(vavilov_core::Selected::Group(LevelCode::new(2))),
             mode: None,
         })
     );
@@ -615,12 +615,12 @@ fn a_population_added_through_its_command_is_selected_and_a_refusal_names_why() 
     assert_eq!(
         json_command(
             &window,
-            "add_population",
+            "add_group",
             json!({ "column": ORIGIN, "name": "Peru", "decimalMark": ",", "basedOn": 2 }),
         )
         .unwrap_err(),
         json!({
-            "kind": "populationRefused", "columnName": "origin", "text": "Peru",
+            "kind": "groupRefused", "columnName": "origin", "text": "Peru",
             "refusal": { "kind": "taken", "code": 1 }
         })
     );
@@ -640,14 +640,14 @@ fn origin_levels(app: &tauri::App<tauri::test::MockRuntime>) -> vavilov_core::Le
 }
 
 #[test]
-fn a_population_is_edited_and_deleted_through_their_commands() {
+fn a_group_is_edited_and_deleted_through_their_commands() {
     let (app, window) = app();
     load(&app);
     json_command(
         &window,
-        "edit_population",
+        "edit_group",
         json!({
-            "column": ORIGIN, "population": 1, "name": "Chile", "colour": "#E69F00",
+            "column": ORIGIN, "group": 1, "name": "Chile", "colour": "#E69F00",
             "decimalMark": ",", "basedOn": 1, "sentAt": 1.5
         }),
     )
@@ -659,22 +659,22 @@ fn a_population_is_edited_and_deleted_through_their_commands() {
     assert_eq!(
         json_command(
             &window,
-            "edit_population",
+            "edit_group",
             json!({
-                "column": ORIGIN, "population": 1, "name": "Spain", "colour": "#e69f00",
+                "column": ORIGIN, "group": 1, "name": "Spain", "colour": "#e69f00",
                 "decimalMark": ",", "basedOn": 2
             }),
         )
         .unwrap_err(),
         json!({
-            "kind": "populationRefused", "columnName": "origin", "text": "Spain",
+            "kind": "groupRefused", "columnName": "origin", "text": "Spain",
             "refusal": { "kind": "taken", "code": 0 }
         })
     );
     json_command(
         &window,
-        "delete_population",
-        json!({ "column": ORIGIN, "population": 0, "basedOn": 2, "sentAt": 2.5 }),
+        "delete_group",
+        json!({ "column": ORIGIN, "group": 0, "basedOn": 2, "sentAt": 2.5 }),
     )
     .unwrap();
     assert_eq!(
@@ -690,9 +690,9 @@ fn a_colour_not_written_as_css_writes_one_is_a_defect() {
     for colour in ["e69f00", "#e69f0", "#e69f0g", "orange"] {
         let refused = json_command(
             &window,
-            "edit_population",
+            "edit_group",
             json!({
-                "column": ORIGIN, "population": 1, "name": "Peru", "colour": colour,
+                "column": ORIGIN, "group": 1, "name": "Peru", "colour": colour,
                 "decimalMark": ",", "basedOn": 1
             }),
         )
@@ -707,14 +707,14 @@ fn plus_pressed_through_its_command_assigns_the_rows_that_enter_the_selection() 
     load(&app);
     json_command(
         &window,
-        "select_population",
-        json!({ "column": ORIGIN, "selected": { "population": 0 }, "basedOn": 1 }),
+        "select_group",
+        json!({ "column": ORIGIN, "selected": { "group": 0 }, "basedOn": 1 }),
     )
     .unwrap();
     json_command(
         &window,
         "set_edit_mode",
-        json!({ "column": ORIGIN, "target": { "population": 0 }, "mode": "add", "basedOn": 2 }),
+        json!({ "column": ORIGIN, "target": { "group": 0 }, "mode": "add", "basedOn": 2 }),
     )
     .unwrap();
     // Row 1, Peru, enters the selection and goes to Spain.
@@ -729,7 +729,7 @@ fn plus_pressed_through_its_command_assigns_the_rows_that_enter_the_selection() 
     json_command(
         &window,
         "set_edit_mode",
-        json!({ "column": ORIGIN, "target": { "population": 0 }, "mode": null, "basedOn": 4 }),
+        json!({ "column": ORIGIN, "target": { "group": 0 }, "mode": null, "basedOn": 4 }),
     )
     .unwrap();
     assert_eq!(

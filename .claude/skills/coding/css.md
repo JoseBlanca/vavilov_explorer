@@ -42,9 +42,9 @@ change there.
 
 - **Colours are named by their role**, `--color-text-muted`,
   `--color-surface`, `--color-accent`, not by their hue, `--grey-600`.
-  The colour of a population is not a token: it is part of the document,
+  The colour of a group is not a token: it is part of the document,
   saved in the project, and the user can change it (`docs/design.md`,
-  section 5). The fixed list a new population takes its colour from is a
+  section 5). The fixed list a new group takes its colour from is a
   constant of the core, which assigns it.
 - **Lengths are in `rem`**, and `px` only for borders and the focus ring.
 - **No magic numbers.** A length in a component is a token, a `calc()` of
@@ -90,8 +90,8 @@ same theme.
 ## CSS Modules
 
 Each component has its styles in a module of the same name,
-`populationsPanel.module.css` beside its view, imported as
-`import styles from "./populationsPanel.module.css"`. Vite renames every
+`groupsPanel.module.css` beside its view, imported as
+`import styles from "./groupsPanel.module.css"`. Vite renames every
 class to a name of its own, so a class of one component cannot reach
 another.
 
@@ -155,11 +155,11 @@ At WCAG 2.2 level AA, as the owner decided, in both themes:
 - A Vitest test computes the ratios of the pairs of tokens used together,
   with the formula of WCAG, in both themes, and fails below the limit. A
   pair is added when a component starts to use it.
-- **Colour is never the only sign.** The populations differ in colour and
+- **Colour is never the only sign.** The groups differ in colour and
   in shape (`prototype-lessons.md`, the five shapes of the point views),
   and the legend names them; an error has its words; a selected row has
   its state in `aria-selected` and a mark, not only a colour.
-- The list of colours of the populations starts from Okabe and Ito's,
+- The list of colours of the groups starts from Okabe and Ito's,
   which the common kinds of colour blindness can tell apart, as the owner
   decided; past its end it repeats in a lighter or darker shade
   (`docs/design.md`, section 5). The exact shades are chosen when the list

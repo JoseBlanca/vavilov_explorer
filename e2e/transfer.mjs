@@ -179,8 +179,8 @@ try {
       await quiet(page);
       await focusOn(page, "grid");
       // origin, the first category, is the active classification, and the
-      // panel shows its populations.
-      const panel = page.getByRole("region", { name: "Populations" });
+      // panel shows its groups.
+      const panel = page.getByRole("region", { name: "Groups" });
       assert.equal(
         await panel
           .getByRole("combobox", { name: "Classification column", exact: true })
@@ -309,7 +309,7 @@ try {
       await choose("importTable", { path: PLANTS });
       await rowNamed(grid, "p1").waitFor();
       await page
-        .getByRole("region", { name: "Populations" })
+        .getByRole("region", { name: "Groups" })
         .getByRole("combobox", { name: "Classification column", exact: true })
         .selectOption({ label: "origin" });
       await roleOf(grid, "origin").selectOption("text");

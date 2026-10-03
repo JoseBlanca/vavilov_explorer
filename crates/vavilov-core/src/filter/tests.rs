@@ -540,9 +540,9 @@ mod in_the_session {
             let mut session = loaded();
             dispatch(
                 &mut session,
-                Command::SelectPopulation {
+                Command::SelectGroup {
                     column: ColumnId::new(2),
-                    selected: Some(Selected::Population(LevelCode::new(0))),
+                    selected: Some(Selected::Group(LevelCode::new(0))),
                 },
             );
             set(&mut session, searched.clone());
@@ -552,7 +552,7 @@ mod in_the_session {
                 &mut session,
                 Command::AssignRows {
                     column: ColumnId::new(2),
-                    target: Selected::Population(LevelCode::new(0)),
+                    target: Selected::Group(LevelCode::new(0)),
                     rows: crate::row_set::RowSet::from_rows(4, [RowIndex::new(2)]).unwrap(),
                 },
             );

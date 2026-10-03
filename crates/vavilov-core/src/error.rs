@@ -3,11 +3,11 @@
 
 mod cell;
 mod file;
-mod population;
+mod group;
 
 pub use cell::CellRefusal;
 pub use file::{ExportRefusal, ImportRefusal, IoFailure};
-pub use population::PopulationRefusal;
+pub use group::GroupRefusal;
 
 use serde::Serialize;
 
@@ -44,10 +44,10 @@ pub enum CommandError {
         loaded_at: Revision,
     },
 
-    /// The command names a population of a column whose populations
+    /// The command names a group of a column whose groups
     /// changed after the window made it, other than by one added last: a
-    /// population removed, or the column's role changed. Its code may now
-    /// mean another population.
+    /// group removed, or the column's role changed. Its code may now
+    /// mean another group.
     #[error(
         "the command was made at revision {based_on}, before the levels of column {column} changed at {levels_at}"
     )]
@@ -113,13 +113,13 @@ pub enum CommandError {
         num_levels: u32,
     },
 
-    /// The command acts on the selected population and none is selected.
-    #[error("no population is selected")]
-    NoPopulationSelected,
+    /// The command acts on the selected group and none is selected.
+    #[error("no group is selected")]
+    NoGroupSelected,
 
     /// The command names a target that is not what is selected: it was
     /// made before something else was selected, or it removes from the
-    /// unassigned individuals, which are in no population.
+    /// unassigned individuals, which are in no group.
     #[error("{target:?} is not what is selected")]
     NotSelected {
         /// What the command named.
@@ -414,16 +414,16 @@ pub enum CommandError {
         refusal: CellRefusal,
     },
 
-    /// The name typed for a new population of the active classification
+    /// The name typed for a new group of the active classification
     /// does not fit it, and nothing was added.
     #[error("{text:?} was not added to column {column_name:?}: {refusal:?}")]
-    PopulationRefused {
+    GroupRefused {
         /// The name of the column.
         column_name: String,
         /// The name typed.
         text: String,
         /// Why.
-        refusal: PopulationRefusal,
+        refusal: GroupRefusal,
     },
 
     /// A defect of the app: a state the code is meant to make impossible.

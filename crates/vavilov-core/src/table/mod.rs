@@ -32,10 +32,10 @@ pub const MAX_COLUMNS: u32 = 16_777_216;
 /// bits, and `0xFFFF` means missing in the messages.
 pub const MAX_LEVELS: u32 = 65_535;
 
-/// The most characters the name of a population of text may have, once
+/// The most characters the name of a group of text may have, once
 /// the spaces around it are taken away: 30, decided by the owner on
-/// 3 October 2026, so that a name fits the populations panel and a key.
-pub const MAX_POPULATION_NAME: u32 = 30;
+/// 3 October 2026, so that a name fits the groups panel and a key.
+pub const MAX_GROUP_NAME: u32 = 30;
 
 /// [`MAX_LEVELS`] as a count of values.
 pub(crate) const MAX_LEVELS_USIZE: usize = MAX_LEVELS as usize;

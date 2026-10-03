@@ -1,5 +1,5 @@
-//! The buttons + and − of the populations panel, pressed on the selected
-//! population: what they do to the rows selected when pressed and to those
+//! The buttons + and − of the groups panel, pressed on the selected
+//! group: what they do to the rows selected when pressed and to those
 //! that enter the selection after, their undo, and what releases them
 //! (`docs/design.md`, section 2.1).
 
@@ -30,7 +30,7 @@ fn mode_of(session: &Session) -> Option<EditMode> {
 /// `editing_spain`, with + pressed and nothing selected, at revision 3.
 fn adding_to_spain() -> (Session, Recorder) {
     let (mut session, recorder) = editing_spain();
-    let request = press(&session, Selected::Population(SPAIN), Some(EditMode::Add));
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Add));
     session.dispatch(request).unwrap();
     recorder.take();
     (session, recorder)
@@ -39,7 +39,7 @@ fn adding_to_spain() -> (Session, Recorder) {
 #[test]
 fn pressing_plus_with_nothing_selected_changes_the_button_alone() {
     let (mut session, recorder) = editing_spain();
-    let request = press(&session, Selected::Population(SPAIN), Some(EditMode::Add));
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Add));
     assert_eq!(
         session.dispatch(request).unwrap().changed,
         Changed::State(Revision::new(3))
@@ -57,7 +57,7 @@ fn pressing_plus_with_nothing_selected_changes_the_button_alone() {
         }
     );
     // Pressed again as it is, nothing changes.
-    let request = press(&session, Selected::Population(SPAIN), Some(EditMode::Add));
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Add));
     assert_eq!(session.dispatch(request).unwrap().changed, Changed::Nothing);
 }
 
@@ -67,7 +67,7 @@ fn pressing_plus_assigns_the_rows_selected_in_the_same_command() {
     // origin is Spain, Peru, missing, Spain; rows 1 and 2 are selected.
     select_rows(&mut session, &[1, 2]);
     recorder.take();
-    let request = press(&session, Selected::Population(SPAIN), Some(EditMode::Add));
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Add));
     assert_eq!(
         session.dispatch(request).unwrap().changed,
         Changed::State(Revision::new(4))
@@ -150,13 +150,9 @@ fn a_row_that_stays_selected_is_not_assigned_again() {
 }
 
 #[test]
-fn with_minus_pressed_only_the_rows_entering_that_are_in_the_population_are_unassigned() {
+fn with_minus_pressed_only_the_rows_entering_that_are_in_the_group_are_unassigned() {
     let (mut session, recorder) = editing_spain();
-    let request = press(
-        &session,
-        Selected::Population(SPAIN),
-        Some(EditMode::Remove),
-    );
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Remove));
     session.dispatch(request).unwrap();
     assert_eq!(
         decode(&recorder.take()[0]).parts,
@@ -168,14 +164,10 @@ fn with_minus_pressed_only_the_rows_entering_that_are_in_the_population_are_unas
 }
 
 #[test]
-fn pressing_minus_unassigns_the_rows_selected_that_are_in_the_population() {
+fn pressing_minus_unassigns_the_rows_selected_that_are_in_the_group() {
     let (mut session, _recorder) = editing_spain();
     select_rows(&mut session, &[1, 3]);
-    let request = press(
-        &session,
-        Selected::Population(SPAIN),
-        Some(EditMode::Remove),
-    );
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Remove));
     session.dispatch(request).unwrap();
     assert_eq!(codes_of(&session, ORIGIN), [code(0), code(1), None, None]);
 }
@@ -185,7 +177,7 @@ fn plus_on_the_unassigned_individuals_unassigns_the_rows_entering() {
     let (mut session, _recorder) = loaded();
     apply(
         &mut session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
             selected: Some(Selected::Unassigned),
         },
@@ -199,11 +191,11 @@ fn plus_on_the_unassigned_individuals_unassigns_the_rows_entering() {
 #[test]
 fn a_button_pressed_on_what_is_not_selected_or_minus_on_the_unassigned_is_refused() {
     let (mut session, _recorder) = loaded();
-    let request = press(&session, Selected::Population(SPAIN), Some(EditMode::Add));
-    assert_refused(&mut session, request, CommandError::NoPopulationSelected);
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Add));
+    assert_refused(&mut session, request, CommandError::NoGroupSelected);
     apply(
         &mut session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
             selected: Some(Selected::Unassigned),
         },
@@ -216,12 +208,12 @@ fn a_button_pressed_on_what_is_not_selected_or_minus_on_the_unassigned_is_refuse
             target: Selected::Unassigned,
         },
     );
-    let request = press(&session, Selected::Population(PERU), Some(EditMode::Add));
+    let request = press(&session, Selected::Group(PERU), Some(EditMode::Add));
     assert_refused(
         &mut session,
         request,
         CommandError::NotSelected {
-            target: Selected::Population(PERU),
+            target: Selected::Group(PERU),
         },
     );
     let request = at(
@@ -243,11 +235,7 @@ fn a_button_pressed_on_what_is_not_selected_or_minus_on_the_unassigned_is_refuse
 fn pressing_the_other_button_releases_the_first_and_acts_on_the_selection() {
     let (mut session, _recorder) = adding_to_spain();
     select_rows(&mut session, &[1]);
-    let request = press(
-        &session,
-        Selected::Population(SPAIN),
-        Some(EditMode::Remove),
-    );
+    let request = press(&session, Selected::Group(SPAIN), Some(EditMode::Remove));
     session.dispatch(request).unwrap();
     assert_eq!(mode_of(&session), Some(EditMode::Remove));
     // Row 1, put in Spain by +, is taken out by −.
@@ -257,7 +245,7 @@ fn pressing_the_other_button_releases_the_first_and_acts_on_the_selection() {
 #[test]
 fn the_button_is_released_by_pressing_it_again_and_by_another_selection_for_editing() {
     let (mut session, recorder) = adding_to_spain();
-    let request = press(&session, Selected::Population(SPAIN), None);
+    let request = press(&session, Selected::Group(SPAIN), None);
     session.dispatch(request).unwrap();
     assert_eq!(mode_of(&session), None);
     assert_eq!(
@@ -271,18 +259,18 @@ fn the_button_is_released_by_pressing_it_again_and_by_another_selection_for_edit
     );
 
     for release in [
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
-            selected: Some(Selected::Population(PERU)),
+            selected: Some(Selected::Group(PERU)),
         },
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
             selected: None,
         },
         Command::SetActiveClassification {
             column: Some(CLUSTER),
         },
-        Command::AddPopulation {
+        Command::AddGroup {
             column: ORIGIN,
             name: "China".to_owned(),
             decimal_mark: ".".to_owned(),
@@ -301,11 +289,11 @@ fn the_button_is_released_by_pressing_it_again_and_by_another_selection_for_edit
 }
 
 #[test]
-fn undoing_a_population_added_releases_the_button_pressed_on_it() {
+fn undoing_a_group_added_releases_the_button_pressed_on_it() {
     let (mut session, _recorder) = loaded();
     let request = at(
         &session,
-        Command::AddPopulation {
+        Command::AddGroup {
             column: ORIGIN,
             name: "China".to_owned(),
             decimal_mark: ".".to_owned(),
@@ -314,7 +302,7 @@ fn undoing_a_population_added_releases_the_button_pressed_on_it() {
     session.dispatch(request).unwrap();
     let request = press(
         &session,
-        Selected::Population(LevelCode::new(2)),
+        Selected::Group(LevelCode::new(2)),
         Some(EditMode::Add),
     );
     session.dispatch(request).unwrap();
@@ -334,21 +322,21 @@ fn a_button_pressed_from_before_the_levels_changed_is_refused() {
     let (mut session, _recorder) = loaded();
     let request = at(
         &session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
-            selected: Some(Selected::Population(SPAIN)),
+            selected: Some(Selected::Group(SPAIN)),
         },
     );
     session.dispatch(request).unwrap();
     // Made at 2, before the role changed at 3 and Spain was selected again
     // at 4, now as ESP.
-    let stale = press(&session, Selected::Population(SPAIN), Some(EditMode::Add));
+    let stale = press(&session, Selected::Group(SPAIN), Some(EditMode::Add));
     apply(&mut session, set_role(ORIGIN, Role::Country));
     apply(
         &mut session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
-            selected: Some(Selected::Population(SPAIN)),
+            selected: Some(Selected::Group(SPAIN)),
         },
     );
     assert_refused(

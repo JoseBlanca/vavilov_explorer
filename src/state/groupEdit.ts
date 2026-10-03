@@ -1,4 +1,4 @@
-// What + and − pressed on the selected population of the panel do to the
+// What + and − pressed on the selected group of the panel do to the
 // individuals selected, counted from the window's copy so that the
 // information bar can say it, and the words it says when a button is
 // pressed and released (docs/design.md, section 2.1).
@@ -10,9 +10,9 @@ import type { LevelCode } from "./ids.ts";
 import type { EditMode, Selected } from "./message.ts";
 import { hasRow } from "./rowSet.ts";
 
-/** What + or − is pressed on: a population, with its name, or the unassigned individuals. */
+/** What + or − is pressed on: a group, with its name, or the unassigned individuals. */
 export type EditTarget =
-  | { readonly kind: "population"; readonly code: LevelCode; readonly name: string }
+  | { readonly kind: "group"; readonly code: LevelCode; readonly name: string }
   | { readonly kind: "unassigned" };
 
 /**
@@ -29,16 +29,12 @@ export function addedCount(selection: Uint8Array, codes: Uint16Array, target: Se
 
 /**
  * How many selected individuals − would leave unassigned: those in
- * `population`.
+ * `group`.
  *
  * @throws A defect when the selection and the codes are not of one table.
  */
-export function removedCount(
-  selection: Uint8Array,
-  codes: Uint16Array,
-  population: LevelCode,
-): number {
-  return countSelected(selection, codes, (value) => value === population);
+export function removedCount(selection: Uint8Array, codes: Uint16Array, group: LevelCode): number {
+  return countSelected(selection, codes, (value) => value === group);
 }
 
 /**

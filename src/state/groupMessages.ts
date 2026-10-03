@@ -2,9 +2,7 @@
 // group edited, is refused,
 // written from the kind and the data of the backend's refusal
 // (.claude/skills/writing/SKILL.md, "The text of the app";
-// docs/design.md, section 2.1). Nothing was added. The words say "group",
-// as the owner decided on 3 October 2026, ahead of a rename of population
-// to group across the app.
+// docs/design.md, section 2.1). Nothing was added or changed.
 
 import type { BarMessage } from "./barMessages.ts";
 import { defect } from "./defect.ts";
@@ -14,8 +12,8 @@ import type { LevelCode } from "./ids.ts";
 /** What a group's name was typed for: a new group, or the group `name` edited. */
 export type TypedFor = { readonly kind: "add" } | { readonly kind: "edit"; readonly name: string };
 
-/** A refusal of a new population's name, as the backend gives it. */
-export type PopulationRefused = Extract<CommandError, { readonly kind: "populationRefused" }>;
+/** A refusal of a new group's name, as the backend gives it. */
+export type GroupRefused = Extract<CommandError, { readonly kind: "groupRefused" }>;
 
 /**
  * The error the information bar shows for a group's name that was refused,
@@ -23,8 +21,8 @@ export type PopulationRefused = Extract<CommandError, { readonly kind: "populati
  * panel shows it, or `null` when the window's copy does not have it yet,
  * and `countWords` a number in the user's language.
  */
-export function populationRefusalMessage(
-  error: PopulationRefused,
+export function groupRefusalMessage(
+  error: GroupRefused,
   groupName: (code: LevelCode) => string | null,
   countWords: (value: number) => string,
   typedFor: TypedFor,
@@ -37,7 +35,7 @@ export function populationRefusalMessage(
 }
 
 function refusalText(
-  error: PopulationRefused,
+  error: GroupRefused,
   groupName: (code: LevelCode) => string | null,
   countWords: (value: number) => string,
 ): string {
@@ -77,7 +75,7 @@ function refusalText(
  * added can meet.
  */
 function editRefusalText(
-  error: PopulationRefused,
+  error: GroupRefused,
   name: string,
   groupName: (code: LevelCode) => string | null,
   countWords: (value: number) => string,

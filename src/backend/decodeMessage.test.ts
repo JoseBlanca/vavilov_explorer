@@ -87,15 +87,15 @@ describe("the parts", () => {
     ).toEqual([{ kind: "project", numRows: 4, loadedAt: 3 }]);
   });
 
-  test("the active part gives the column, the population and the button pressed, or null for none", () => {
+  test("the active part gives the column, the group and the button pressed, or null for none", () => {
     expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 0])).toEqual([
-      { kind: "active", column: 2, selected: { kind: "population", code: 1 }, mode: null },
+      { kind: "active", column: 2, selected: { kind: "group", code: 1 }, mode: null },
     ]);
     expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 1])).toEqual([
-      { kind: "active", column: 2, selected: { kind: "population", code: 1 }, mode: "add" },
+      { kind: "active", column: 2, selected: { kind: "group", code: 1 }, mode: "add" },
     ]);
     expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 2, 0, 0, 0, 1, 0, 1, 2])).toEqual([
-      { kind: "active", column: 2, selected: { kind: "population", code: 1 }, mode: "remove" },
+      { kind: "active", column: 2, selected: { kind: "group", code: 1 }, mode: "remove" },
     ]);
     expect(parts(...[2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 2, 1])).toEqual([
       { kind: "active", column: 3, selected: { kind: "unassigned" }, mode: "add" },

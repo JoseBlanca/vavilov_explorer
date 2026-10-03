@@ -250,12 +250,12 @@ function columnsPart(view: DataView, start: number, length: number): MessagePart
 
 /**
  * What is selected, from the kind byte of the active part, 0 nothing, 1 a
- * population, 2 the unassigned individuals, and the code, `NO_CODE` but
- * for a population.
+ * group, 2 the unassigned individuals, and the code, `NO_CODE` but
+ * for a group.
  */
 function selectedOf(kind: number, code: number): Selected | null {
   if (kind === 1) {
-    return { kind: "population", code: levelCode(code) };
+    return { kind: "group", code: levelCode(code) };
   }
   if (code !== NO_CODE) {
     throw defect(
@@ -273,7 +273,7 @@ function selectedOf(kind: number, code: number): Selected | null {
 
 /**
  * The button pressed, from the last byte of the active part, 0 none, 1 +,
- * 2 −, which needs something selected, and a population for −.
+ * 2 −, which needs something selected, and a group for −.
  */
 function modeOf(kind: number, selected: Selected | null): EditMode | null {
   if (kind === 0) {

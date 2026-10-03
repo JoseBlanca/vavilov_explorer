@@ -96,7 +96,7 @@ impl fmt::Display for Position {
 
 /// The code of a level of a categorical column: its place in the
 /// column's ordered list of levels, from 0. In a classification, a level
-/// is a population.
+/// is a group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct LevelCode(u16);

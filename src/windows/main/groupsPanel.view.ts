@@ -7,10 +7,10 @@ import { styleMap } from "lit-html/directives/style-map.js";
 import { defect } from "../../state/defect.ts";
 import type { ColumnId, LevelCode } from "../../state/ids.ts";
 import type { EditMode, Selected } from "../../state/message.ts";
-import { colourChoices } from "../../state/populations.ts";
-import type { PopulationRow, PopulationsModel } from "../../state/populations.ts";
+import { colourChoices } from "../../state/groups.ts";
+import type { GroupRow, GroupsModel } from "../../state/groups.ts";
 import { classOf } from "../shared/classOf.ts";
-import styles from "./populationsPanel.module.css";
+import styles from "./groupsPanel.module.css";
 
 /**
  * The form below the groups: closed, or adding a group to a
@@ -36,24 +36,24 @@ export type GroupForm =
       readonly colour: string;
     };
 
-/** What the populations panel shows, and what the user can do there. */
-export interface PopulationsPanelProps {
+/** What the groups panel shows, and what the user can do there. */
+export interface GroupsPanelProps {
   /** The classifications, the active one, and its rows. */
-  readonly model: PopulationsModel;
+  readonly model: GroupsModel;
   /** The form of a group added or edited. */
   readonly form: GroupForm;
   /** The user chose an active classification, or none. */
   readonly onChooseClassification: (column: ColumnId | null) => void;
   /** The user pressed a row. */
-  readonly onPress: (row: PopulationRow) => void;
+  readonly onPress: (row: GroupRow) => void;
   /** The user pressed + or − on the selected row, to press it or to release it. */
-  readonly onToggle: (row: PopulationRow, mode: EditMode) => void;
+  readonly onToggle: (row: GroupRow, mode: EditMode) => void;
   /** The user pressed Add group. */
   readonly onOpenAdd: () => void;
   /** The user pressed Edit group on the selected group's `row`. */
-  readonly onOpenEdit: (row: PopulationRow) => void;
+  readonly onOpenEdit: (row: GroupRow) => void;
   /** The user pressed Delete group on the selected group's `row`. */
-  readonly onDelete: (row: PopulationRow) => void;
+  readonly onDelete: (row: GroupRow) => void;
   /** The user typed in the field of the group's name. */
   readonly onTypeName: (text: string) => void;
   /** The user chose a colour for the group edited, as CSS writes it. */
@@ -81,13 +81,13 @@ function keyOf(selected: Selected): string {
 }
 
 /** What + on `row` does, pressed or not while `mode` is pressed. */
-function addAction(row: PopulationRow, mode: EditMode | null): Action {
+function addAction(row: GroupRow, mode: EditMode | null): Action {
   const label = row.name === null ? "Make selected unassigned" : `Add selected to ${row.name}`;
   return { label, reason: null, pressed: mode === "add" };
 }
 
 /** What − on `row` does, pressed or not while `mode` is pressed, and why it does nothing on the unassigned. */
-function removeAction(row: PopulationRow, mode: EditMode | null): Action {
+function removeAction(row: GroupRow, mode: EditMode | null): Action {
   if (row.name === null) {
     return {
       label: "Remove selected",
@@ -141,7 +141,7 @@ function actionButton(
   </button>`;
 }
 
-function rowView(props: PopulationsPanelProps, row: PopulationRow): TemplateResult {
+function rowView(props: GroupsPanelProps, row: GroupRow): TemplateResult {
   return html`<li class=${classOf(styles, "item")}>
     <button
       type="button"
@@ -184,7 +184,7 @@ function rowView(props: PopulationsPanelProps, row: PopulationRow): TemplateResu
 }
 
 /** The field of a group's name, labelled `label`, with what was typed. */
-function nameInput(props: PopulationsPanelProps, label: string, text: string): TemplateResult {
+function nameInput(props: GroupsPanelProps, label: string, text: string): TemplateResult {
   return html`<label class=${classOf(styles, "field")}>
     <span>${label}</span>
     <input
@@ -205,7 +205,7 @@ function nameInput(props: PopulationsPanelProps, label: string, text: string): T
 
 /** A form of the panel, with its fields and its buttons, which Escape gives up. */
 function formView(
-  props: PopulationsPanelProps,
+  props: GroupsPanelProps,
   label: string,
   fields: TemplateResult,
   submit: string,
@@ -235,11 +235,7 @@ function formView(
 }
 
 /** The colours the group edited can take, one chosen, as radio buttons. */
-function colourField(
-  props: PopulationsPanelProps,
-  code: LevelCode,
-  chosen: string,
-): TemplateResult {
+function colourField(props: GroupsPanelProps, code: LevelCode, chosen: string): TemplateResult {
   return html`<fieldset class=${classOf(styles, "colours")}>
     <legend class=${classOf(styles, "legend")}>Colour</legend>
     <div class=${classOf(styles, "colourGrid")}>
@@ -269,7 +265,7 @@ function colourField(
 }
 
 /** Add group, and Edit group and Delete group when a group is selected. */
-function groupActionsView(props: PopulationsPanelProps): TemplateResult {
+function groupActionsView(props: GroupsPanelProps): TemplateResult {
   const { model } = props;
   if (model.activeName === null) {
     throw defect("Add group drawn with no active classification");
@@ -277,11 +273,11 @@ function groupActionsView(props: PopulationsPanelProps): TemplateResult {
   const add: Action = {
     pressed: null,
     label: "Add group",
-    reason: model.takesNewPopulations
+    reason: model.takesNewGroups
       ? null
       : `“${model.activeName}” has both TRUE and FALSE, and takes no other group.`,
   };
-  const selected = model.rows.find((row) => row.isSelected && row.selected.kind === "population");
+  const selected = model.rows.find((row) => row.isSelected && row.selected.kind === "group");
   const name = selected?.name ?? null;
   return html`<div class=${classOf(styles, "buttons")} data-group-actions>
     ${actionButton(add, ["action"], "Add group", props.onOpenAdd, "add")}
@@ -310,7 +306,7 @@ function groupActionsView(props: PopulationsPanelProps): TemplateResult {
 }
 
 /** The form open below the groups, or the buttons that open one. */
-function belowGroupsView(props: PopulationsPanelProps): TemplateResult {
+function belowGroupsView(props: GroupsPanelProps): TemplateResult {
   const { form } = props;
   switch (form.kind) {
     case "closed":
@@ -336,11 +332,11 @@ function belowGroupsView(props: PopulationsPanelProps): TemplateResult {
   }
 }
 
-/** The populations panel of the main window (docs/design.md, section 2.1). */
-export function populationsPanelView(props: PopulationsPanelProps): TemplateResult {
+/** The groups panel of the main window (docs/design.md, section 2.1). */
+export function groupsPanelView(props: GroupsPanelProps): TemplateResult {
   const { model } = props;
-  return html`<section class=${classOf(styles, "panel")} aria-labelledby="populations-heading">
-    <h2 id="populations-heading" class=${classOf(styles, "heading")}>Populations</h2>
+  return html`<section class=${classOf(styles, "panel")} aria-labelledby="groups-heading">
+    <h2 id="groups-heading" class=${classOf(styles, "heading")}>Groups</h2>
     <label class=${classOf(styles, "field")}>
       <span>Classification column</span>
       <select
@@ -372,7 +368,7 @@ export function populationsPanelView(props: PopulationsPanelProps): TemplateResu
         : html`<ul class=${classOf(styles, "list")}>
             ${repeat(
               model.rows,
-              // Of the classification too, so that a population of another
+              // Of the classification too, so that a group of another
               // with the same code is a new row, not the old one relabelled.
               (row) => `${String(model.active)}:${keyOf(row.selected)}:${row.name ?? ""}`,
               (row) => rowView(props, row),

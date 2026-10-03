@@ -64,11 +64,11 @@ fn the_project_part_says_whether_one_is_open_and_its_rows_and_load() {
 }
 
 #[test]
-fn the_active_part_has_the_column_and_the_population_or_their_none() {
+fn the_active_part_has_the_column_and_the_group_or_their_none() {
     let some = written(|m| {
         m.active(Some(Active {
             column: ColumnId::new(2),
-            selected: Some(Selected::Population(LevelCode::new(1))),
+            selected: Some(Selected::Group(LevelCode::new(1))),
             mode: None,
         }))
         .unwrap();
@@ -82,7 +82,7 @@ fn the_active_part_has_the_column_and_the_population_or_their_none() {
         after_header(&none),
         [2, 0, 0, 0, 8, 0, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0]
     );
-    let no_population = written(|m| {
+    let no_group = written(|m| {
         m.active(Some(Active {
             column: ColumnId::new(3),
             selected: None,
@@ -91,7 +91,7 @@ fn the_active_part_has_the_column_and_the_population_or_their_none() {
         .unwrap()
     });
     assert_eq!(
-        after_header(&no_population),
+        after_header(&no_group),
         [2, 0, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 255, 255, 0, 0]
     );
     let unassigned = written(|m| {

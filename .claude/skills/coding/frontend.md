@@ -34,7 +34,7 @@ would not give it back.
 
 `src/state/` holds, for one window, the copy of the backend's state the
 window needs, and the pure functions that derive what is drawn from it:
-the colour and size of each point from the populations and the
+the colour and size of each point from the groups and the
 selection, the counts of a histogram's bins. It is the window's one source
 of truth: no controller, view or plot keeps its own copy of a part of it.
 
@@ -44,7 +44,7 @@ of truth: no controller, view or plot keeps its own copy of a part of it.
   unsubscribes.
 - **Aspects** are what changes together: `table` (the project and the
   revisions of the columns), `classification` (the active classification
-  and the selected population), `codes`, `selection`, `hover` and `undo`
+  and the selected group), `codes`, `selection`, `hover` and `undo`
   (`src/state/windowState.ts`), and later the layout. A change of
   several aspects calls each listener once, after the whole message is
   applied; a message whose part does not fit leaves the copy as it was.
@@ -70,26 +70,26 @@ component keeps of its own, subscribes, renders, and turns the user's
 actions into commands.
 
 ```ts
-// populationsPanel.view.ts
-export interface PopulationsPanelProps {
-  readonly populations: readonly PopulationRow[];
-  readonly selected: PopulationId | null;
-  readonly onSelect: (population: PopulationId) => void;
+// groupsPanel.view.ts
+export interface GroupsPanelProps {
+  readonly groups: readonly GroupRow[];
+  readonly selected: GroupId | null;
+  readonly onSelect: (group: GroupId) => void;
 }
-export function populationsPanelView(props: PopulationsPanelProps): TemplateResult {
+export function groupsPanelView(props: GroupsPanelProps): TemplateResult {
   return html`<ul class=${classOf(styles, "list")}>
-    ${repeat(props.populations, (p) => p.id, (p) => html`
+    ${repeat(props.groups, (p) => p.id, (p) => html`
       <li><button aria-pressed=${p.id === props.selected} @click=${() => { props.onSelect(p.id); }}>
         ${p.name} <span>${p.count}</span>
       </button></li>`)}
   </ul>`;
 }
 
-// populationsPanel.controller.ts
-export function createPopulationsPanel(element: HTMLElement, state: WindowState, backend: Backend): Component {
+// groupsPanel.controller.ts
+export function createGroupsPanel(element: HTMLElement, state: WindowState, backend: Backend): Component {
   const draw = (): void => {
-    render(populationsPanelView({ populations: rowsOf(state), selected: state.selectedPopulation(),
-      onSelect: (id) => { backend.selectPopulation(id).then(reportIfFailed, reportDefect); } }), element);
+    render(groupsPanelView({ groups: rowsOf(state), selected: state.selectedGroup(),
+      onSelect: (id) => { backend.selectGroup(id).then(reportIfFailed, reportDefect); } }), element);
   };
   const unsubscribe = state.subscribe("classification", draw);
   draw();
@@ -110,7 +110,7 @@ The rules of lit-html (version 3.3, `lit-html` alone, no `LitElement`):
   escapes what it is given; `unsafeHTML` is never used (`typescript.md`).
 - **A list whose items can be added, removed or reordered** is drawn with
   the `repeat` directive and a key that is the item's identity, a
-  population's id and never its index, so that removing a population does
+  group's id and never its index, so that removing a group does
   not relabel the next one and keeps the focus on the right row.
 - **A field the user types into** binds its value with the `live`
   directive, `.value=${live(v)}`, so that a render does not overwrite what
@@ -137,7 +137,7 @@ the accessibility with it: a `<button>` for every action, never a `<div>`
 with a click handler; `<select>` for the column types and the active
 classification; `<dialog>` with `showModal()` for the dialogs, which takes
 the focus and gives it back; radio buttons, drawn as swatches, for a
-population's colour, which comes from the list alone (`docs/design.md`,
+group's colour, which comes from the list alone (`docs/design.md`,
 section 5). A control of our own is
 written only where HTML has none, and it then needs its keyboard, its
 role and its name, which a `<button>` would have given.
@@ -161,11 +161,11 @@ The table draws only the rows on screen (`docs/design.md`, section 2.1):
   click or a shift-click on rows is a command that sets the selection.
 - Its header holds, on every column but the first, the `<select>` of the
   column's type (`docs/design.md`, section 6). In a cell of the active
-  classification the user types a population's name, with the names of
-  the classification's populations suggested as they type, as the owner
+  classification the user types a group's name, with the names of
+  the classification's groups suggested as they type, as the owner
   decided (`docs/design.md`, section 12); `<input list>` with a
   `<datalist>` of the names is the native element for it, and a name that
-  is not yet a population is refused (`docs/design.md`, section 2.1).
+  is not yet a group is refused (`docs/design.md`, section 2.1).
 - Only the rows on screen exist in the page, so the cell the keyboard is
   on is not focused itself: the grid keeps the focus and names the cell
   with `aria-activedescendant`, and the controller scrolls the cell into

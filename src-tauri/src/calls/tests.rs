@@ -51,15 +51,15 @@ fn a_json_call_reaches_the_session() {
     let mut session = loaded();
     json_call(
         &mut session,
-        "select_population",
-        json!({ "column": 1, "selected": { "population": 1 }, "basedOn": 1 }),
+        "select_group",
+        json!({ "column": 1, "selected": { "group": 1 }, "basedOn": 1 }),
     )
     .unwrap();
     assert_eq!(
         session.active(),
         Some(vavilov_core::Active {
             column: ColumnId::new(1),
-            selected: Some(Selected::Population(LevelCode::new(1))),
+            selected: Some(Selected::Group(LevelCode::new(1))),
             mode: None,
         })
     );

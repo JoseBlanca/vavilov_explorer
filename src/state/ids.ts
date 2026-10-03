@@ -6,7 +6,7 @@
 export type ColumnId = number & { readonly __brand: "ColumnId" };
 /** A row of the table, from 0, one per individual. */
 export type RowIndex = number & { readonly __brand: "RowIndex" };
-/** The code of a level of a categorical column; in a classification, a population. */
+/** The code of a level of a categorical column; in a classification, a group. */
 export type LevelCode = number & { readonly __brand: "LevelCode" };
 /** The revision of the session, which only grows. */
 export type Revision = number & { readonly __brand: "Revision" };
@@ -23,7 +23,7 @@ export type Position = number & { readonly __brand: "Position" };
 export const NO_COLUMN = 0xffff_ffff;
 /** The `u32` that means no row in the hover. */
 export const NO_ROW = 0xffff_ffff;
-/** The `u16` that means a missing code, or no selected population. */
+/** The `u16` that means a missing code, or no selected group. */
 export const NO_CODE = 0xffff;
 
 function isWhole(value: number, below: number): boolean {

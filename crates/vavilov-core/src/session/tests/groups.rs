@@ -1,9 +1,9 @@
-//! A population added to the active classification, its undo and redo,
+//! A group added to the active classification, its undo and redo,
 //! and the refusal of a command that names a level made before the levels
 //! changed (`docs/design.md`, section 2.1; `docs/core.md`, section 4).
 
 use super::*;
-use crate::error::PopulationRefusal;
+use crate::error::GroupRefusal;
 use crate::fixtures::{BLUE, VERMILLION, column as new_column, names};
 use crate::table::{Categorical, Colour, MAX_LEVELS, PALETTE};
 
@@ -21,7 +21,7 @@ const ORANGE: Colour = Colour {
 fn add(session: &Session, column: ColumnId, name: &str, decimal_mark: &str) -> Request {
     at(
         session,
-        Command::AddPopulation {
+        Command::AddGroup {
             column,
             name: name.to_owned(),
             decimal_mark: decimal_mark.to_owned(),
@@ -54,8 +54,8 @@ fn texts(levels: &[&str]) -> LevelValues {
     LevelValues::Text(levels.iter().map(|level| (*level).to_owned()).collect())
 }
 
-fn refused(column_name: &str, text: &str, refusal: PopulationRefusal) -> CommandError {
-    CommandError::PopulationRefused {
+fn refused(column_name: &str, text: &str, refusal: GroupRefusal) -> CommandError {
+    CommandError::GroupRefused {
         column_name: column_name.to_owned(),
         text: text.to_owned(),
         refusal,
@@ -77,7 +77,7 @@ fn numbers_active(column: ColumnId) -> Session {
 }
 
 #[test]
-fn a_population_added_goes_last_with_the_first_unused_colour_and_is_selected() {
+fn a_group_added_goes_last_with_the_first_unused_colour_and_is_selected() {
     let (mut session, recorder) = editing_spain();
     let request = add(&session, ORIGIN, "  China ", ".");
     assert_eq!(
@@ -92,13 +92,13 @@ fn a_population_added_goes_last_with_the_first_unused_colour_and_is_selected() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Population(CHINA)),
+            selected: Some(Selected::Group(CHINA)),
             mode: None,
         })
     );
     assert_eq!(revision_of(&session, ORIGIN), 3);
     assert_eq!(session.state.project.open().unwrap().shape_at.get(), 3);
-    // A population added last changes the meaning of no code.
+    // A group added last changes the meaning of no code.
     assert_eq!(levels_at(&session, ORIGIN), 1);
     assert_eq!(
         session.undo_redo(),
@@ -134,7 +134,7 @@ fn a_population_added_goes_last_with_the_first_unused_colour_and_is_selected() {
 }
 
 #[test]
-fn a_population_is_added_with_no_population_selected_and_rows_selected_alike() {
+fn a_group_is_added_with_no_group_selected_and_rows_selected_alike() {
     let (mut session, _recorder) = loaded();
     let selection = rows(&session, &[1, 2]);
     apply(&mut session, Command::SetSelection { rows: selection });
@@ -149,26 +149,26 @@ fn a_population_is_added_with_no_population_selected_and_rows_selected_alike() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Population(CHINA)),
+            selected: Some(Selected::Group(CHINA)),
             mode: None,
         })
     );
 }
 
 #[test]
-fn a_name_that_is_empty_or_another_populations_is_refused() {
+fn a_name_that_is_empty_or_another_groups_is_refused() {
     let (mut session, _recorder) = editing_spain();
     let request = add(&session, ORIGIN, "  ", ".");
     assert_refused(
         &mut session,
         request,
-        refused("origin", "  ", PopulationRefusal::EmptyName),
+        refused("origin", "  ", GroupRefusal::EmptyName),
     );
     let request = add(&session, ORIGIN, " Peru", ".");
     assert_refused(
         &mut session,
         request,
-        refused("origin", " Peru", PopulationRefusal::Taken { code: PERU }),
+        refused("origin", " Peru", GroupRefusal::Taken { code: PERU }),
     );
     // A text is compared as typed, case and all: "spain" is another.
     let request = add(&session, ORIGIN, "spain", ".");
@@ -180,7 +180,7 @@ fn a_name_that_is_empty_or_another_populations_is_refused() {
 }
 
 #[test]
-fn a_population_is_added_to_the_active_classification_only() {
+fn a_group_is_added_to_the_active_classification_only() {
     let (mut session, _recorder) = loaded();
     let request = add(&session, CLUSTER, "D", ".");
     assert_refused(
@@ -208,7 +208,7 @@ fn a_decimal_mark_no_region_has_is_a_defect() {
         &mut session,
         request,
         CommandError::Defect {
-            what: "a population's name with the decimal mark \"\"".to_owned(),
+            what: "a group's name with the decimal mark \"\"".to_owned(),
         },
     );
 }
@@ -221,7 +221,7 @@ fn a_classification_of_whole_numbers_takes_a_whole_number_compared_by_its_value(
     assert_refused(
         &mut session,
         request,
-        refused("seeds", "1,5", PopulationRefusal::NotWholeNumber),
+        refused("seeds", "1,5", GroupRefusal::NotWholeNumber),
     );
     let request = add(&session, SEEDS, "010", ",");
     assert_refused(
@@ -230,7 +230,7 @@ fn a_classification_of_whole_numbers_takes_a_whole_number_compared_by_its_value(
         refused(
             "seeds",
             "010",
-            PopulationRefusal::Taken {
+            GroupRefusal::Taken {
                 code: LevelCode::new(1),
             },
         ),
@@ -254,7 +254,7 @@ fn a_classification_of_decimal_numbers_reads_the_name_with_the_regions_mark() {
         refused(
             "height",
             "2.5",
-            PopulationRefusal::NotDecimalNumber {
+            GroupRefusal::NotDecimalNumber {
                 decimal_mark: ",".to_owned(),
             },
         ),
@@ -263,7 +263,7 @@ fn a_classification_of_decimal_numbers_reads_the_name_with_the_regions_mark() {
     assert_refused(
         &mut session,
         request,
-        refused("height", "1,50", PopulationRefusal::Taken { code: SPAIN }),
+        refused("height", "1,50", GroupRefusal::Taken { code: SPAIN }),
     );
     let request = add(&session, HEIGHT, "-0", ",");
     session.dispatch(request).unwrap();
@@ -285,7 +285,7 @@ fn a_classification_of_decimal_numbers_reads_the_name_with_the_regions_mark() {
         refused(
             "height",
             "0",
-            PopulationRefusal::Taken {
+            GroupRefusal::Taken {
                 code: LevelCode::new(3),
             },
         ),
@@ -309,7 +309,7 @@ fn a_classification_of_yes_or_no_takes_the_one_of_true_or_false_it_lacks() {
         refused(
             "fertile",
             "true",
-            PopulationRefusal::Taken {
+            GroupRefusal::Taken {
                 code: LevelCode::new(1),
             },
         ),
@@ -318,13 +318,13 @@ fn a_classification_of_yes_or_no_takes_the_one_of_true_or_false_it_lacks() {
     assert_refused(
         &mut session,
         request,
-        refused("fertile", "maybe", PopulationRefusal::NotYesOrNo),
+        refused("fertile", "maybe", GroupRefusal::NotYesOrNo),
     );
     let request = add(&session, FERTILE, "", ".");
     assert_refused(
         &mut session,
         request,
-        refused("fertile", "", PopulationRefusal::EmptyName),
+        refused("fertile", "", GroupRefusal::EmptyName),
     );
 
     // A column of TRUE alone takes FALSE.
@@ -365,7 +365,7 @@ fn a_name_of_text_has_at_most_30_characters_and_no_control_character() {
         refused(
             "origin",
             "Kingdom of the Netherlands, the",
-            PopulationRefusal::TooLong { max_chars: 30 },
+            GroupRefusal::TooLong { max_chars: 30 },
         ),
     );
     // Characters, not bytes: thirty letters with accents fit.
@@ -380,7 +380,7 @@ fn a_name_of_text_has_at_most_30_characters_and_no_control_character() {
         assert_refused(
             &mut session,
             request,
-            refused("origin", name, PopulationRefusal::ControlCharacter),
+            refused("origin", name, GroupRefusal::ControlCharacter),
         );
     }
     let request = add(&session, ORIGIN, &accented, ".");
@@ -413,14 +413,14 @@ fn a_classification_of_countries_takes_a_country_by_any_name_as_its_code() {
         refused(
             "origin",
             "Kingdom of Spain",
-            PopulationRefusal::Taken { code: SPAIN },
+            GroupRefusal::Taken { code: SPAIN },
         ),
     );
     let request = add(&session, ORIGIN, "Atlantis", ".");
     assert_refused(
         &mut session,
         request,
-        refused("origin", "Atlantis", PopulationRefusal::NotACountry),
+        refused("origin", "Atlantis", GroupRefusal::NotACountry),
     );
     let request = add(&session, ORIGIN, " china", ".");
     session.dispatch(request).unwrap();
@@ -431,7 +431,7 @@ fn a_classification_of_countries_takes_a_country_by_any_name_as_its_code() {
 }
 
 #[test]
-fn the_last_population_a_classification_takes_has_the_last_code_and_no_more_is_taken() {
+fn the_last_group_a_classification_takes_has_the_last_code_and_no_more_is_taken() {
     const GROUP: ColumnId = ColumnId::new(1);
     // One fewer than the most, so that the last one is added here.
     let levels: Vec<String> = (1..MAX_LEVELS).map(|level| format!("g{level}")).collect();
@@ -463,7 +463,7 @@ fn the_last_population_a_classification_takes_has_the_last_code_and_no_more_is_t
         session.active(),
         Some(Active {
             column: GROUP,
-            selected: Some(Selected::Population(LevelCode::new(65_534))),
+            selected: Some(Selected::Group(LevelCode::new(65_534))),
             mode: None,
         })
     );
@@ -474,13 +474,13 @@ fn the_last_population_a_classification_takes_has_the_last_code_and_no_more_is_t
         refused(
             "group",
             "one more",
-            PopulationRefusal::TooMany { max_levels: 65_535 },
+            GroupRefusal::TooMany { max_levels: 65_535 },
         ),
     );
 }
 
 #[test]
-fn undo_removes_the_population_added_and_its_selection_and_redo_adds_it_unselected() {
+fn undo_removes_the_group_added_and_its_selection_and_redo_adds_it_unselected() {
     let (mut session, recorder) = editing_spain();
     let before = categorical_of(&session, ORIGIN);
     let request = add(&session, ORIGIN, "China", ".");
@@ -501,7 +501,7 @@ fn undo_removes_the_population_added_and_its_selection_and_redo_adds_it_unselect
             mode: None,
         })
     );
-    // A code may now mean another population: the levels take the undo's
+    // A code may now mean another group: the levels take the undo's
     // revision.
     assert_eq!(levels_at(&session, ORIGIN), 4);
     assert_eq!(revision_of(&session, ORIGIN), 4);
@@ -548,15 +548,15 @@ fn undo_removes_the_population_added_and_its_selection_and_redo_adds_it_unselect
 }
 
 #[test]
-fn undoing_a_population_added_keeps_another_selected_population() {
+fn undoing_a_group_added_keeps_another_selected_group() {
     let (mut session, recorder) = loaded();
     let request = add(&session, ORIGIN, "China", ".");
     session.dispatch(request).unwrap();
     apply(
         &mut session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
-            selected: Some(Selected::Population(PERU)),
+            selected: Some(Selected::Group(PERU)),
         },
     );
     recorder.take();
@@ -565,7 +565,7 @@ fn undoing_a_population_added_keeps_another_selected_population() {
         session.active(),
         Some(Active {
             column: ORIGIN,
-            selected: Some(Selected::Population(PERU)),
+            selected: Some(Selected::Group(PERU)),
             mode: None,
         })
     );
@@ -576,7 +576,7 @@ fn undoing_a_population_added_keeps_another_selected_population() {
 }
 
 #[test]
-fn undoing_an_assignment_to_a_population_added_and_then_the_population_gives_the_table_back() {
+fn undoing_an_assignment_to_a_group_added_and_then_the_group_gives_the_table_back() {
     let (mut session, _recorder) = loaded();
     let before = categorical_of(&session, ORIGIN);
     let request = add(&session, ORIGIN, "China", ".");
@@ -606,7 +606,7 @@ fn undoing_an_assignment_to_a_population_added_and_then_the_population_gives_the
 }
 
 #[test]
-fn a_command_on_a_level_made_before_a_population_added_last_still_applies() {
+fn a_command_on_a_level_made_before_a_group_added_last_still_applies() {
     let (mut session, _recorder) = editing_spain();
     // A window adds Spain's rows before another adds China and selects
     // Spain again.
@@ -615,9 +615,9 @@ fn a_command_on_a_level_made_before_a_population_added_last_still_applies() {
     session.dispatch(request).unwrap();
     apply(
         &mut session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
-            selected: Some(Selected::Population(SPAIN)),
+            selected: Some(Selected::Group(SPAIN)),
         },
     );
     session.dispatch(lasso).unwrap();
@@ -640,15 +640,15 @@ fn a_command_on_a_level_made_before_that_level_was_removed_is_refused() {
         &session,
         Command::UnassignRows {
             column: ORIGIN,
-            population: CHINA,
+            group: CHINA,
             rows: rows(&session, &[1]),
         },
     );
     let selection = at(
         &session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
-            selected: Some(Selected::Population(CHINA)),
+            selected: Some(Selected::Group(CHINA)),
         },
     );
     apply(&mut session, Command::Undo);
@@ -663,7 +663,7 @@ fn a_command_on_a_level_made_before_that_level_was_removed_is_refused() {
     assert_refused(&mut session, removal, changed.clone());
     apply(
         &mut session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
             selected: None,
         },
@@ -676,9 +676,9 @@ fn a_command_on_a_level_made_before_a_change_of_role_is_refused() {
     let (mut session, _recorder) = loaded();
     let selection = at(
         &session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
-            selected: Some(Selected::Population(SPAIN)),
+            selected: Some(Selected::Group(SPAIN)),
         },
     );
     apply(&mut session, set_role(ORIGIN, Role::Country));
@@ -696,7 +696,7 @@ fn a_command_on_a_level_made_before_a_change_of_role_is_refused() {
     // same.
     let mut request = at(
         &session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
             selected: Some(Selected::Unassigned),
         },
@@ -709,24 +709,24 @@ fn a_command_on_a_level_made_before_a_change_of_role_is_refused() {
 }
 
 #[test]
-fn a_command_on_a_population_undone_and_not_added_again_is_refused_as_made_before() {
+fn a_command_on_a_group_undone_and_not_added_again_is_refused_as_made_before() {
     let (mut session, _recorder) = loaded();
     let request = add(&session, ORIGIN, "China", ".");
     session.dispatch(request).unwrap();
     // A window makes these at revision 2, while China is code 2 and
-    // selected; China is then undone at 3, and no population takes code 2.
+    // selected; China is then undone at 3, and no group takes code 2.
     let selection = at(
         &session,
-        Command::SelectPopulation {
+        Command::SelectGroup {
             column: ORIGIN,
-            selected: Some(Selected::Population(CHINA)),
+            selected: Some(Selected::Group(CHINA)),
         },
     );
     let pressed = at(
         &session,
         Command::SetEditMode {
             column: ORIGIN,
-            target: Selected::Population(CHINA),
+            target: Selected::Group(CHINA),
             mode: Some(crate::session::EditMode::Add),
         },
     );
@@ -735,7 +735,7 @@ fn a_command_on_a_population_undone_and_not_added_again_is_refused_as_made_befor
         &session,
         Command::UnassignRows {
             column: ORIGIN,
-            population: CHINA,
+            group: CHINA,
             rows: rows(&session, &[1]),
         },
     );
@@ -763,11 +763,7 @@ fn a_name_typed_with_an_accent_written_apart_is_kept_composed() {
     assert_refused(
         &mut session,
         request,
-        refused(
-            "origin",
-            "Per\u{fa}",
-            PopulationRefusal::Taken { code: CHINA },
-        ),
+        refused("origin", "Per\u{fa}", GroupRefusal::Taken { code: CHINA }),
     );
 }
 

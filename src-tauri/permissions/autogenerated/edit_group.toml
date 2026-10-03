@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-edit-group"
+description = "Enables the edit_group command without any pre-configured scope."
+commands.allow = ["edit_group"]
+
+[[permission]]
+identifier = "deny-edit-group"
+description = "Denies the edit_group command without any pre-configured scope."
+commands.deny = ["edit_group"]
