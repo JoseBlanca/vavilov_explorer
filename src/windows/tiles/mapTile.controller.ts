@@ -1,17 +1,12 @@
-import { nothing, render } from "lit-html";
-
 import { at } from "../../state/at.ts";
 import { defect } from "../../state/defect.ts";
 import { copyName } from "../../state/tileCopy.ts";
 import type { Widget } from "../../state/widget.ts";
 import { NO_WEBGL_WORDS } from "../../state/widgetMessages.ts";
 import { createMap } from "../../plots/map.ts";
-import { createInfoBar } from "../shared/infoBar.controller.ts";
-import { createPointView, titlesOf } from "../shared/pointView.controller.ts";
 import type { PointPlot, PointViewKind } from "../shared/pointView.controller.ts";
-import { slot } from "../shared/slot.ts";
 import { canDrawWebGl } from "../shared/webgl.ts";
-import { plotTileView } from "./plotTile.view.ts";
+import { createPointViewTile } from "./pointViewTile.controller.ts";
 import type { PlotTile, TileContext } from "./tile.ts";
 
 /**
@@ -63,97 +58,12 @@ export function createMapTile(
       };
     },
   };
-  let name = "";
-  const cannotDraw = canDrawWebGl() ? null : NO_WEBGL_WORDS;
-  const drawTile = (): void => {
-    render(
-      plotTileView({
-        titleId: `tile-${String(id)}`,
-        name,
-        onClose,
-        legend: false,
-        cannotDraw,
-      }),
-      element,
-    );
-  };
-  drawTile();
-  if (cannotDraw !== null) {
-    return cannotDrawTile(element, (description) => {
-      name = kind.title(titlesOf(description, kind.columns));
-      drawTile();
-    });
-  }
-  // The view first: the count asks it for its count as soon as it is made,
-  // and the view tells the count only once its columns have arrived.
-  const view = createPointView(slot(element, "plot"), kind, {
-    connection: context.connection,
-    table: context.table,
-    decimalMark: context.decimalMark,
-    hoverLabel: context.hoverLabel,
-    hover: context.hover,
-    report: context.report,
-    tokens: context.tokens,
-    onLassoWaiting: () => {
-      context.onLassoWaiting(id);
-    },
-    onDrawn: () => {
-      count.recount();
-    },
-  });
-  const count = createInfoBar(
-    slot(element, "count"),
-    context.connection.state,
-    { aspects: [], text: () => view.count() },
-    () => {
-      view.focus();
-    },
+  return createPointViewTile(
+    element,
+    id,
+    kind,
+    context,
+    onClose,
+    canDrawWebGl() ? null : NO_WEBGL_WORDS,
   );
-  return {
-    described: (description) => {
-      name = kind.title(titlesOf(description, kind.columns));
-      drawTile();
-      view.described();
-    },
-    focus: view.focus,
-    // The label of the individual under the pointer is the window's, and
-    // Escape leaves it to the point view, which hides it as the pointer
-    // leaves the point.
-    forgetPointer: () => undefined,
-    lassoWaiting: view.lassoWaiting,
-    applyLasso: view.applyLasso,
-    dropLasso: view.dropLasso,
-    plot: view.plot,
-    destroy: () => {
-      view.destroy();
-      count.destroy();
-      render(nothing, element);
-    },
-  };
-}
-
-/**
- * A tile whose plot cannot be drawn: it takes the description for its name
- * alone, gives the focus to its button, the one control it has, and has no
- * lasso and no plot.
- */
-export function cannotDrawTile(element: HTMLElement, described: PlotTile["described"]): PlotTile {
-  return {
-    described,
-    focus: () => {
-      const close = element.querySelector("button");
-      if (close === null) {
-        throw defect("a tile with no button to close it");
-      }
-      close.focus();
-    },
-    forgetPointer: () => undefined,
-    lassoWaiting: () => false,
-    applyLasso: () => undefined,
-    dropLasso: () => undefined,
-    plot: undefined,
-    destroy: () => {
-      render(nothing, element);
-    },
-  };
 }

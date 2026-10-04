@@ -11,6 +11,7 @@ import { at } from "../state/at.ts";
 import { createPointView } from "./pointView.ts";
 import type { PointViewEvents } from "./pointerInput.ts";
 import type { PointViewBase } from "./pointView.ts";
+import { KEY_PAN, KEY_ZOOM } from "./viewKeys.ts";
 import { theWorld } from "./world.ts";
 import type { Box } from "./worldShapes.ts";
 import "./plots.css";
@@ -58,10 +59,6 @@ const MIN_SPAN = 0.05;
 /** How far the map can be zoomed out and in, against the world filling the view's height. */
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 5000;
-/** How far an arrow key moves the map, as a share of the view. */
-const KEY_PAN = 0.1;
-/** How many times nearer + brings the map, and − takes it further. */
-const KEY_ZOOM = 1.25;
 /** How much of its speed the map keeps after a drag, as the 3D scatter. */
 const DAMPING = 0.12;
 

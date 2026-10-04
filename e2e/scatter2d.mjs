@@ -40,6 +40,20 @@ const PLANTS = {
   activeClassification: 1,
 };
 
+/**
+ * Two plants with no value on both PC1 and PC2: p1 lacks PC2 and p2 lacks
+ * PC1, so a 2D scatter of them draws nothing until a value is given.
+ */
+const APART = {
+  header: "IndividualID",
+  names: ["p1", "p2"],
+  columns: [
+    { name: "PC1", numeric: [1200, null] },
+    { name: "PC2", numeric: [null, 35] },
+  ],
+  activeClassification: null,
+};
+
 /** Two plants with no column of numbers. */
 const NO_NUMBERS = {
   header: "IndividualID",
@@ -109,8 +123,22 @@ for (const engine of Object.keys(ENGINES)) {
     await assertDrawnAt(plots, p1, SPAIN, "p1");
     await assertDrawnAt(plots, p2, PERU, "p2");
     // The axes are named after the columns, and a light grid lies behind.
-    await scatterTile.getByText("PC1", { exact: true }).waitFor();
-    await scatterTile.getByText("PC2", { exact: true }).waitFor();
+    const [xTitle, yTitle] = await plot.evaluate((svg) =>
+      ["PC1", "PC2"].map((name) => {
+        const title = [...svg.querySelectorAll(".plot-scatter2d-title")].find(
+          (text) => text.textContent === name,
+        );
+        const box = title?.getBoundingClientRect();
+        return box === undefined ? null : { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      }),
+    );
+    assert.ok(xTitle.y > p1.y && xTitle.x > p1.x, "PC1 is not named under its axis");
+    assert.ok(yTitle.x < p1.x && yTitle.y < p1.y, "PC2 is not named beside its axis");
+    // The plot keeps a touch for itself, which a web view would take as a scroll.
+    assert.equal(
+      await plot.evaluate((svg) => globalThis.getComputedStyle(svg).touchAction),
+      "none",
+    );
     assert.ok((await scatterTile.locator(".plot-scatter2d-grid line").count()) >= 4);
     await shoot(plots, engine, "scatter2d-points");
 
@@ -119,6 +147,13 @@ for (const engine of Object.keys(ENGINES)) {
     const pointLabel = plots.locator('[aria-hidden="true"]').filter({ hasText: "p3" });
     await pointLabel.waitFor();
     assert.match(await pointLabel.textContent(), /p3\s*origin\s*Spain/);
+    // The hover is drawn larger than the rest, 16 pixels across, over all.
+    await plots.waitForFunction(() => {
+      const top = globalThis.document.querySelectorAll(".plot-scatter2d-layer")[2];
+      return (
+        top?.children.length === 1 && top.firstElementChild.getAttribute("d").startsWith("M8,")
+      );
+    });
     await shoot(plots, engine, "scatter2d-label");
 
     // A click selects an individual alone; Cmd-click or Ctrl-click adds
@@ -139,6 +174,34 @@ for (const engine of Object.keys(ENGINES)) {
     const panned = await steadyPlace(plots, 2);
     assert.ok(panned.x < p3.x - 20, `ArrowRight did not pan: ${p3.x} to ${panned.x}`);
     assert.ok(Math.abs(panned.y - p3.y) < 1, "ArrowRight moved the points up or down");
+    await assertDrawnAt(plots, panned, SPAIN, "p3 after ArrowRight");
+    // p1, gone out of the axes, is not drawn, nor picked.
+    assert.equal(await plots.evaluate(() => globalThis.__vavilovPlotOf?.(1)?.placeOf(0)), null);
+    await plots.keyboard.press("ArrowLeft");
+    await samePlace(plots, 2, p3, "ArrowLeft did not pan back");
+    await plots.keyboard.press("ArrowUp");
+    const up = await steadyPlace(plots, 2);
+    assert.ok(up.y > p3.y + 20 && Math.abs(up.x - p3.x) < 1, `ArrowUp moved p3 to ${up.y}`);
+    await plots.keyboard.press("ArrowDown");
+    await samePlace(plots, 2, p3, "ArrowDown did not pan back");
+    for (const key of ["-", "−"]) {
+      // Playwright has no key for the minus sign, which some layouts type.
+      if (key === "−") {
+        await plot.evaluate((svg, typed) => {
+          svg.dispatchEvent(new globalThis.KeyboardEvent("keydown", { key: typed, bubbles: true }));
+        }, key);
+      } else {
+        await plots.keyboard.press(key);
+      }
+      const far3 = await steadyPlace(plots, 2);
+      const far4 = await steadyPlace(plots, 3);
+      assert.ok(
+        Math.hypot(far4.x - far3.x, far4.y - far3.y) < Math.hypot(p4.x - p3.x, p4.y - p3.y) - 5,
+        `${key} did not zoom out`,
+      );
+      await plots.keyboard.press("Home");
+      await samePlace(plots, 0, p1, "Home did not frame every point");
+    }
     await plots.keyboard.press("Home");
     await samePlace(plots, 0, p1, "Home did not frame every point");
     await plots.keyboard.press("+");
@@ -166,6 +229,42 @@ for (const engine of Object.keys(ENGINES)) {
     assert.ok(Math.abs(dragged3.y - (p3.y + 30)) < 2, `the drag moved p3 to ${dragged3.y}`);
     assert.ok(Math.abs(dragged4.x - dragged3.x - (p4.x - p3.x)) < 1, "the drag turned the plot");
     assert.ok(Math.abs(dragged4.y - dragged3.y - (p4.y - p3.y)) < 1, "the drag turned the plot");
+    await assertDrawnAt(plots, dragged3, SPAIN, "p3 after the drag");
+
+    // A capture the plot lost, with no release, ends the pan: a drag that
+    // comes back does not move the view.
+    await plots.mouse.move(empty.x - 60, empty.y + 30);
+    await plots.mouse.down();
+    await plot.evaluate((svg) => {
+      svg.parentElement.dispatchEvent(
+        new globalThis.PointerEvent("lostpointercapture", { pointerId: 1 }),
+      );
+    });
+    await plots.mouse.move(empty.x - 120, empty.y + 60, { steps: 4 });
+    await plots.mouse.up();
+    await samePlace(plots, 2, dragged3, "a drag panned after the capture was lost");
+
+    // A second finger neither pans nor throws.
+    await plot.evaluate((svg) => {
+      const frame = svg.parentElement;
+      const box = frame.getBoundingClientRect();
+      const at = { clientX: box.left + 200, clientY: box.top + 200, pointerId: 7 };
+      const touch = { ...at, isPrimary: false, pointerType: "touch", bubbles: true };
+      svg.dispatchEvent(
+        new globalThis.PointerEvent("pointerdown", { ...touch, button: 0, buttons: 1 }),
+      );
+      svg.dispatchEvent(
+        new globalThis.PointerEvent("pointermove", {
+          ...touch,
+          clientX: at.clientX + 80,
+          buttons: 1,
+        }),
+      );
+      svg.dispatchEvent(
+        new globalThis.PointerEvent("pointerup", { ...touch, button: 0, buttons: 0 }),
+      );
+    });
+    await samePlace(plots, 2, dragged3, "a second finger panned");
     // The wheel zooms where the pointer is: the point under it stays.
     await plots.mouse.move(dragged3.x, dragged3.y);
     await plots.mouse.wheel(0, -200);
@@ -189,7 +288,30 @@ for (const engine of Object.keys(ENGINES)) {
       .getByRole("button", { name: "Add selected to Spain", pressed: true })
       .waitFor();
     await plots.locator(".plot-lasso-armed").first().waitFor();
-    await lassoAround(plots, p4);
+    // The bar's message took height from the plot, and moved the points.
+    const armed4 = await steadyPlace(plots, 3);
+    await plots.mouse.move(armed4.x - 20, armed4.y - 20);
+    await plots.mouse.down();
+    await plots.mouse.move(armed4.x + 20, armed4.y - 20, { steps: 5 });
+    await samePlace(plots, 3, armed4, "the lasso panned the plot");
+    for (const [toX, toY] of [
+      [armed4.x + 20, armed4.y + 20],
+      [armed4.x - 20, armed4.y + 20],
+      [armed4.x - 20, armed4.y - 20],
+    ]) {
+      await plots.mouse.move(toX, toY, { steps: 5 });
+    }
+    await plots.mouse.up();
+    await plots.locator('.plot-scatter2d-point[data-mark="2"]').waitFor();
+    // A lasso that waits goes when the plot changes size, since it no longer
+    // fits the points.
+    await plots.setViewportSize({ width: 1000, height: 600 });
+    await plots.waitForFunction(
+      () => globalThis.document.querySelector('.plot-scatter2d-point[data-mark="2"]') === null,
+    );
+    await plots.setViewportSize({ width: 1000, height: 640 });
+    const again4 = await steadyPlace(plots, 3);
+    await lassoAround(plots, again4);
     await shoot(plots, engine, "scatter2d-lasso");
     await plots.keyboard.press("Enter");
     await originSays(grid, "p4", "Spain");
@@ -198,7 +320,7 @@ for (const engine of Object.keys(ENGINES)) {
       .getByRole("button", { name: "Add selected to Spain", pressed: false })
       .waitFor();
     // p4 is in Spain's colour now.
-    await waitForColourNear(plots, p4, SPAIN, "p4 in Spain");
+    await waitForColourNear(plots, again4, SPAIN, "p4 in Spain");
 
     // A histogram goes into the same window, beside it.
     await choose("histogram");
@@ -218,6 +340,35 @@ for (const engine of Object.keys(ENGINES)) {
       () => globalThis.document.querySelectorAll("[data-tile]").length === 1,
     );
     await tile(plots, "Histogram of PC1").waitFor();
+
+    // A tile opened with no individual to draw frames the first that comes.
+    assert.equal((await backend.send({ command: "e2e:load", table: APART })).ok, null);
+    await grid.getByRole("combobox", { name: "Role of PC2", exact: true }).waitFor();
+    await choose("scatter2d");
+    await page
+      .getByRole("dialog", { name: "2D scatter" })
+      .getByRole("button", { name: "Open" })
+      .click();
+    const plotsAgain = await app.window("plots-2");
+    await plotsAgain.setViewportSize({ width: 1000, height: 640 });
+    const apartTile = tile(plotsAgain, "2D scatter of PC1 and PC2");
+    await waitForText(
+      apartTile.getByRole("status"),
+      "Drawing 0 of 2 individuals: 2 have no value on an axis.",
+    );
+    const pc2 = grid
+      .getByRole("row")
+      .filter({ has: page.getByRole("gridcell", { name: "p1", exact: true }) })
+      .getByRole("gridcell")
+      .nth(2);
+    await pc2.dblclick();
+    // Far from 35, the centre of the column, which the empty tile drew around.
+    await page.keyboard.type("50");
+    await page.keyboard.press("Enter");
+    await waitForText(apartTile.getByRole("status"), "Drawing 1 of 2 individuals");
+    // The widgets are numbered across the tables: the scatter, the
+    // histogram, and this one.
+    await steadyPlace(plotsAgain, 0, 3);
 
     // With no column of numbers, the bar says so, and how to make one.
     assert.equal((await backend.send({ command: "e2e:load", table: NO_NUMBERS })).ok, null);
@@ -240,14 +391,17 @@ function tile(page, name) {
   return page.getByRole("group", { name, exact: true });
 }
 
-/** The place of the point of `row` on the 2D scatter, once it is the same twice in a row. */
-async function steadyPlace(page, row) {
+/**
+ * The place of the point of `row` on the 2D scatter of `widget`, once it is
+ * the same twice in a row.
+ */
+async function steadyPlace(page, row, widget = SCATTER) {
   const deadline = Date.now() + 10_000;
   let last = null;
   for (;;) {
     const place = await page.evaluate(
       ([widget, r]) => globalThis.__vavilovPlotOf?.(widget)?.placeOf(r) ?? null,
-      [SCATTER, row],
+      [widget, row],
     );
     if (place !== null && last !== null && place.x === last.x && place.y === last.y) {
       return place;

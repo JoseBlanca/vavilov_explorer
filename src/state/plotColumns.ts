@@ -3,7 +3,7 @@
 
 import type { Role, TableDescription } from "./description.ts";
 import type { ColumnId } from "./ids.ts";
-import type { Axes, Axes2, WidgetSpec } from "./widget.ts";
+import type { Axes, Axes2d, WidgetSpec } from "./widget.ts";
 
 /** A column a plot can show, such as a number, a latitude or a longitude on an axis of a 3D scatter. */
 export interface PlotColumn {
@@ -13,10 +13,10 @@ export interface PlotColumn {
   readonly name: string;
 }
 
-/** The roles of the columns of numbers, which a histogram or an axis of a 3D scatter shows. */
+/** The roles of the columns of numbers, which a histogram or an axis of a scatter shows. */
 const NUMBER_ROLES: readonly Role[] = ["number", "latitude", "longitude"];
 
-/** The columns of the table a 3D scatter can put on an axis, in the order of the table. */
+/** The columns of the table a 3D or a 2D scatter can put on an axis, in the order of the table. */
 export function axisColumns(description: TableDescription): readonly PlotColumn[] {
   return description.columns
     .filter((column) => NUMBER_ROLES.includes(column.role))
@@ -49,7 +49,7 @@ export function startingAxes(description: TableDescription): Axes | null {
  * number, as for the 3D scatter (decided by the owner on 4 October 2026).
  * `null` when there is no column a 2D scatter can show.
  */
-export function startingAxes2d(description: TableDescription): Axes2 | null {
+export function startingAxes2d(description: TableDescription): Axes2d | null {
   const numbers = columnsOfRole(description, "number");
   const [first, second = first] = numbers.length > 0 ? numbers : axisColumns(description);
   if (first === undefined || second === undefined) {

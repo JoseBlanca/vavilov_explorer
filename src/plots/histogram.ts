@@ -10,13 +10,8 @@ import type { Segment } from "../state/histogram.ts";
 import { pointClickOf } from "../state/pointClick.ts";
 import { platformOf } from "../state/undoKeys.ts";
 import "./plots.css";
+import { AXES_MARGIN as MARGIN, TICK_PX, svgElement } from "./svg.ts";
 
-const SVG = "http://www.w3.org/2000/svg";
-
-/** The room around the bars for the axes, in CSS pixels. */
-const MARGIN = { top: 18, right: 20, bottom: 52, left: 72 } as const;
-/** The length of a tick of an axis, in CSS pixels. */
-const TICK_PX = 5;
 /** The gap between two bars, in CSS pixels. */
 const GAP_PX = 1;
 /** The width of the line around the individuals selected in a segment, in CSS pixels. */
@@ -81,18 +76,6 @@ export interface Histogram {
   readonly forgetPointer: () => void;
   /** Stops watching the element and the pointer, and empties the element; it may be called twice. */
   readonly destroy: () => void;
-}
-
-/** An SVG element of `name`, with `attributes`. */
-function svgElement<K extends keyof SVGElementTagNameMap>(
-  name: K,
-  attributes: Readonly<Record<string, string | number>>,
-): SVGElementTagNameMap[K] {
-  const element = document.createElementNS(SVG, name);
-  for (const [key, value] of Object.entries(attributes)) {
-    element.setAttribute(key, String(value));
-  }
-  return element;
 }
 
 /**

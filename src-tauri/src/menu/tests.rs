@@ -22,3 +22,26 @@ fn a_name_of_no_item_of_ours_is_no_action() {
     assert_eq!(action_named("ImportTable"), None);
     assert_eq!(action_named(""), None);
 }
+
+#[test]
+fn with_no_table_only_the_import_and_the_example_are_enabled() {
+    assert!(starts_enabled(MenuAction::ImportTable));
+    assert!(starts_enabled(MenuAction::OpenExample));
+    for action in [
+        MenuAction::ExportCsv,
+        MenuAction::ExportXlsx,
+        MenuAction::Undo,
+        MenuAction::Redo,
+        MenuAction::SelectNone,
+        MenuAction::Scatter3d,
+        MenuAction::Scatter2d,
+        MenuAction::Histogram,
+        MenuAction::Map,
+        MenuAction::CountryMap,
+    ] {
+        assert!(
+            !starts_enabled(action),
+            "{action:?} is enabled with no table"
+        );
+    }
+}

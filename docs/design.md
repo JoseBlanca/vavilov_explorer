@@ -438,8 +438,8 @@ manage:
 
 - A 3D scatter has a window of its own, with its own groups panel, as
   below.
-- The Plots window holds every plot drawn with D3: the histograms, and
-  the bar plots when they come. The Maps window holds every map, of the
+- The Plots window holds every plot drawn with D3: the histograms, the
+  2D scatters, and the bar plots when they come. The Maps window holds every map, of the
   individuals and of countries. Each opens with its first plot and
   closes when its last plot is closed. A Plot item of the menu whose
   window is open adds a tile to it and brings the window to the front.
@@ -551,7 +551,8 @@ on 4 October 2026 within the boundary of section 3:
   whole window, and the owner decided on 4 October 2026 that the Maps
   window does not take it: a first click on an inactive Maps window only
   brings it to the front, so on the map of the individuals a pan or a
-  lasso starts on the second press.
+  lasso starts on the second press. So does a pan or a lasso on a 2D
+  scatter, which is in the Plots window.
 
 The 3D scatter, decided by the owner on 3 October 2026, and its first
 slice, built the same day:

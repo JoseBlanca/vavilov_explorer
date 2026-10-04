@@ -28,7 +28,7 @@ import { countText } from "../shared/numbers.ts";
 import { slot } from "../shared/slot.ts";
 import { canDrawWebGl } from "../shared/webgl.ts";
 import { countryLegendView } from "./countryLegend.view.ts";
-import { cannotDrawTile } from "./mapTile.controller.ts";
+import { cannotDrawTile } from "./pointViewTile.controller.ts";
 import { plotTileView } from "./plotTile.view.ts";
 import type { PlotTile, TileContext } from "./tile.ts";
 

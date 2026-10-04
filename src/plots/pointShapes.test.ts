@@ -12,16 +12,11 @@ describe("the shape of a point drawn in SVG", () => {
   });
 
   test("an x is the cross turned by 45 degrees", () => {
-    const x = shapePath(4, 6);
-    expect(x.startsWith("M")).toBe(true);
-    expect(x.endsWith("Z")).toBe(true);
-    const numbers = x.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];
-    expect(numbers.length).toBe(24);
-    // Every corner lies within the cross's reach, √(3² + 1²) from the centre.
-    for (let index = 0; index + 1 < numbers.length; index += 2) {
-      const corner = Math.hypot(numbers[index] ?? 0, numbers[index + 1] ?? 0);
-      expect(corner).toBeLessThanOrEqual(Math.hypot(3, 1) + 0.01);
-    }
+    // The corner -1, -3 of the plus turned is (−1 + 3, −1 − 3) / √2.
+    expect(shapePath(4, 6)).toBe(
+      "M1.41,-2.83L2.83,-1.41L1.41,0L2.83,1.41L1.41,2.83L0,1.41" +
+        "L-1.41,2.83L-2.83,1.41L-1.41,0L-2.83,-1.41L-1.41,-2.83L0,-1.41Z",
+    );
   });
 
   test("of a code past the shapes is a defect", () => {

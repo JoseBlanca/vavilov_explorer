@@ -16,7 +16,8 @@ import { hasRow } from "../state/rowSet.ts";
 import { createPointerInput } from "./pointerInput.ts";
 import type { LassoState, PointViewEvents } from "./pointerInput.ts";
 import { createPoints } from "./points.ts";
-import { pickPoint, projectPoints } from "./projection.ts";
+import { PICK_SLOP_PX, pickPoint, projectPoints } from "./projection.ts";
+import { pixelRatio, watchDensity } from "./screenDensity.ts";
 import type { ScreenPoints } from "./projection.ts";
 
 /** What a kind of point view gives the base: its camera, and what it does around each draw. */
@@ -65,10 +66,6 @@ export interface PointViewBase {
   readonly destroy: () => void;
 }
 
-/** The pointer reaches a point this many CSS pixels beyond its edge. */
-const PICK_SLOP_PX = 3;
-/** The most device pixels a CSS pixel is drawn with (frontend.md). */
-const MAX_PIXEL_RATIO = 2;
 /** The words shown over a view whose drawing the graphics card dropped (docs/design.md, section 12). */
 const LOST_WORDS = "The 3D view was lost by the graphics card and is being restored.";
 
@@ -166,7 +163,7 @@ export function createPointView(
     if (width === 0 || height === 0) {
       return;
     }
-    const ratio = Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO);
+    const ratio = pixelRatio();
     renderer.setPixelRatio(ratio);
     renderer.setSize(width, height, false);
     points.setPixelRatio(ratio);
@@ -227,23 +224,9 @@ export function createPointView(
     requestDraw();
   };
 
-  // A window moved to a screen of another density keeps its size, so the
-  // observer does not see it: a query of the density does, and is asked
-  // again for the new one each time it changes.
-  let density: MediaQueryList | null = null;
-  const onDensityChange = (): void => {
-    watchDensity();
-    resize();
-  };
-  const watchDensity = (): void => {
-    density?.removeEventListener("change", onDensityChange);
-    density = window.matchMedia(`(resolution: ${String(window.devicePixelRatio)}dppx)`);
-    density.addEventListener("change", onDensityChange);
-  };
-
   const observer = new ResizeObserver(resize);
   observer.observe(frame);
-  watchDensity();
+  const unwatchDensity = watchDensity(resize);
   const scheme = window.matchMedia("(prefers-color-scheme: dark)");
   scheme.addEventListener("change", onSchemeChange);
   canvas.addEventListener("webglcontextlost", onContextLost);
@@ -300,7 +283,7 @@ export function createPointView(
       destroyed = true;
       cancelAnimationFrame(frameRequest);
       observer.disconnect();
-      density?.removeEventListener("change", onDensityChange);
+      unwatchDensity();
       scheme.removeEventListener("change", onSchemeChange);
       input.destroy();
       canvas.removeEventListener("webglcontextlost", onContextLost);

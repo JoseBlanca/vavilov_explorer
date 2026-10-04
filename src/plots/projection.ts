@@ -73,9 +73,13 @@ export function projectPoints(
   return { xy, depth };
 }
 
+/** The pointer reaches a point this many CSS pixels beyond its edge. */
+export const PICK_SLOP_PX = 3;
+
 /**
  * The point nearest the camera whose disc, of its size plus `slop` CSS
- * pixels around it, holds the place `x`, `y` on the canvas; `null` for none.
+ * pixels around it, holds the place `x`, `y` on the canvas, and of those as
+ * near, the one whose centre is nearest the place; `null` for none.
  */
 export function pickPoint(
   screen: ScreenPoints,
@@ -86,14 +90,18 @@ export function pickPoint(
 ): number | null {
   let best: number | null = null;
   let bestDepth = Infinity;
+  let bestDistance = Infinity;
   screen.depth.forEach((depth, point) => {
     const radius = at(sizes, point) / 2 + slop;
     const place = placeOnScreen(screen, point);
     const dx = place.x - x;
     const dy = place.y - y;
-    if (dx * dx + dy * dy <= radius * radius && depth < bestDepth) {
+    const distance = dx * dx + dy * dy;
+    const nearer = depth < bestDepth || (depth === bestDepth && distance < bestDistance);
+    if (distance <= radius * radius && nearer) {
       best = point;
       bestDepth = depth;
+      bestDistance = distance;
     }
   });
   return best;

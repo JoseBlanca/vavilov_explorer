@@ -16,16 +16,16 @@ function isAxes(value: unknown): value is Axes {
 }
 
 /** The two columns of a 2D scatter, on its x and y axes. */
-export type Axes2 = readonly [ColumnId, ColumnId];
+export type Axes2d = readonly [ColumnId, ColumnId];
 
-function isAxes2(value: unknown): value is Axes2 {
+function isAxes2d(value: unknown): value is Axes2d {
   return Array.isArray(value) && value.length === 2 && value.every(isColumnIdField);
 }
 
 /** The fields of each kind of widget, and the check of each. */
 const FIELDS = {
   scatter3d: { axes: isAxes },
-  scatter2d: { axes: isAxes2 },
+  scatter2d: { axes: isAxes2d },
   map: { latitude: isColumnIdField, longitude: isColumnIdField },
   countryMap: { country: isColumnIdField },
   histogram: { column: isColumnIdField },

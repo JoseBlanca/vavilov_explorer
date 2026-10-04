@@ -131,13 +131,14 @@ impl WidgetSpec {
 }
 
 /// The kinds of window the widgets are drawn in (`docs/design.md`,
-/// section 2.2): a 3D scatter in a window of its own, the histograms as
-/// tiles of one Plots window, and the maps as tiles of one Maps window.
+/// section 2.2): a 3D scatter in a window of its own, the histograms and
+/// the 2D scatters as tiles of one Plots window, and the maps as tiles of
+/// one Maps window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WindowKind {
     /// The window of one 3D scatter.
     Scatter3d,
-    /// The Plots window, of every histogram.
+    /// The Plots window, of every histogram and 2D scatter.
     Plots,
     /// The Maps window, of every map of the individuals and of countries.
     Maps,

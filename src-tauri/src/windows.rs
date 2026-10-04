@@ -114,7 +114,8 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
 /// Whether a window of the kind takes the first click while it is
 /// inactive: the 3D scatter's does, so that a lasso or a rotation starts on
 /// the first press; the Plots window does not, since there a click on a bar
-/// selects its individuals, nor the Maps window, whose first click only
+/// or a point selects its individuals, so a pan or a lasso of a 2D scatter
+/// starts on the second press, nor the Maps window, whose first click only
 /// brings it to the front, as the owner decided on 4 October 2026, since a
 /// click on a country selects (`docs/design.md`, sections 2.2 and 10).
 const fn accepts_first_mouse(kind: WindowKind) -> bool {

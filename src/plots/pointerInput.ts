@@ -58,8 +58,6 @@ export interface PointerHooks {
 export interface PointerInput {
   /** Sets the state of the lasso; one drawn is cleared unless it waits or is being drawn. */
   readonly setLasso: (lasso: LassoState) => void;
-  /** Whether a lasso is being drawn, while the pointer is down. */
-  readonly drawing: () => boolean;
   /**
    * The view moved under the pointer: a lasso drawn no longer fits the
    * points, and goes; the hover is picked again once the plot has drawn.
@@ -79,6 +77,12 @@ export interface PointerInput {
 const CLICK_TOLERANCE_PX = 4;
 /** The points of a lasso closer together than this, in CSS pixels, are dropped. */
 const LASSO_STEP_PX = 3;
+
+/** The place of the pointer of `event` in CSS pixels of `frame`. */
+export function placeOnFrame(frame: HTMLElement, event: MouseEvent): { x: number; y: number } {
+  const rect = frame.getBoundingClientRect();
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
 
 /** The largest distance of a point of `path`, `x0, y0, x1, y1, …`, from its first. */
 function spread(path: readonly number[]): number {
@@ -157,14 +161,12 @@ export function createPointerInput(
     drawLasso();
   };
 
-  /** A place of the pointer in CSS pixels of the frame. */
-  const local = (event: PointerEvent): { x: number; y: number } => {
-    const rect = frame.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-  };
+  const local = (event: PointerEvent): { x: number; y: number } => placeOnFrame(frame, event);
 
+  // Only the first finger on a touch screen points; the others are the
+  // view's, as two fingers zoom a map.
   const onPointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0) {
+    if (event.button !== 0 || !event.isPrimary) {
       return;
     }
     const place = local(event);
@@ -177,6 +179,9 @@ export function createPointerInput(
   };
 
   const onPointerMove = (event: PointerEvent): void => {
+    if (!event.isPrimary) {
+      return;
+    }
     const place = local(event);
     if (drawing) {
       const lastX = at(lassoPath, lassoPath.length - 2);
@@ -198,7 +203,7 @@ export function createPointerInput(
   };
 
   const onPointerUp = (event: PointerEvent): void => {
-    if (event.button !== 0 || press === null) {
+    if (event.button !== 0 || press === null || !event.isPrimary) {
       return;
     }
     const place = local(event);
@@ -270,7 +275,6 @@ export function createPointerInput(
         clearLasso();
       }
     },
-    drawing: () => drawing,
     viewMoved: () => {
       hoverMoved = true;
       if (!drawing && lassoPath.length > 0) {

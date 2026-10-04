@@ -61,6 +61,14 @@ describe("pickPoint", () => {
     expect(pickPoint(screen, sizes, 50, 56, 3)).toBe(2);
     expect(pickPoint(screen, sizes, 50, 56.5, 3)).toBe(null);
   });
+
+  test("among points as near the camera, is the one whose centre is nearest the pointer", () => {
+    // Rows 0 and 1, 6 pixels apart in one layer, as on a map or a 2D scatter.
+    const flat = { xy: new Float32Array([10, 10, 16, 10]), depth: new Float32Array([1, 1]) };
+    const both = new Float32Array([8, 8]);
+    expect(pickPoint(flat, both, 15, 10, 3)).toBe(1);
+    expect(pickPoint(flat, both, 11, 10, 3)).toBe(0);
+  });
 });
 
 describe("insidePolygon and pointsInPolygon", () => {

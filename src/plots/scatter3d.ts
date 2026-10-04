@@ -15,6 +15,7 @@ import { createAxesView } from "./axesView.ts";
 import { framingDistance } from "./framing.ts";
 import { createPointView } from "./pointView.ts";
 import "./plots.css";
+import { KEY_ZOOM } from "./viewKeys.ts";
 import type { LassoState, PointViewEvents } from "./pointerInput.ts";
 
 /** What a 3D scatter draws. */
@@ -63,8 +64,6 @@ const FILL = 0.85;
 const NO_RANGE = { min: 0, max: 0 } as const;
 /** How far an arrow key turns the camera, in radians: 10°. */
 const KEY_TURN = THREE.MathUtils.degToRad(10);
-/** How many times nearer + brings the camera, and − takes it further. */
-const KEY_ZOOM = 1.25;
 /** How near the camera comes to looking straight down or up, in radians, so that its up stays defined. */
 const MIN_POLAR = 0.01;
 /** How much of its speed the camera keeps after a drag, the prototype's damping. */

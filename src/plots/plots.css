@@ -125,6 +125,12 @@
    the point views' ring, marked in the text's colour when selected or
    hovered and in the colour of the button pressed inside a waiting lasso
    (docs/design.md, section 2.2). */
+/* A drag on the 2D scatter pans or draws a lasso, which a web view would
+   take from it as a scroll (WebView2 cancels the touch). */
+.plot-scatter2d {
+  touch-action: none;
+}
+
 .plot-scatter2d-grid .plot-scatter2d-line {
   stroke: var(--color-border);
   stroke-width: 1;

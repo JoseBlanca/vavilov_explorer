@@ -7,54 +7,60 @@
 // nothing of the backend or of a window.
 
 import { scaleLinear } from "d3-scale";
+import type { ScaleLinear } from "d3-scale";
 
 import { at } from "../state/at.ts";
 import type { ColumnNumbers } from "../state/columnNumbers.ts";
 import { defect } from "../state/defect.ts";
 import type { Placed } from "../state/placed.ts";
-import { POINT_SIZE_PX, SELECTED_GROUP_SCALE } from "../state/pointStyle.ts";
 import type { PointStyle } from "../state/pointStyle.ts";
 import { hasRow } from "../state/rowSet.ts";
 import { rangeOf } from "./axes.ts";
-import { createPointerInput } from "./pointerInput.ts";
+import { createPointerInput, placeOnFrame } from "./pointerInput.ts";
 import type { LassoState, PointViewEvents } from "./pointerInput.ts";
+import { pointLayer } from "./pointLayer.ts";
 import { shapePath } from "./pointShapes.ts";
-import { pickPoint } from "./projection.ts";
+import { PICK_SLOP_PX, pickPoint } from "./projection.ts";
 import type { ScreenPoints } from "./projection.ts";
-import { homeView, panView, zoomView } from "./view2d.ts";
+import { pixelRatio, watchDensity } from "./screenDensity.ts";
+import { homeView, panView, wheelPixels, wheelZoom, zoomView } from "./view2d.ts";
 import type { View2d } from "./view2d.ts";
+import { KEY_PAN, KEY_ZOOM } from "./viewKeys.ts";
 import "./plots.css";
+import { AXES_MARGIN as MARGIN, TICK_PX, svgElement } from "./svg.ts";
 
-const SVG = "http://www.w3.org/2000/svg";
-
-/** The room around the points for the axes, in CSS pixels, as the histogram's. */
-const MARGIN = { top: 18, right: 20, bottom: 52, left: 72 } as const;
-/** The length of a tick of an axis, in CSS pixels. */
-const TICK_PX = 5;
+/** How far below its tick the baseline of an x tick's value is, in CSS pixels. */
+const X_TICK_TEXT_DROP_PX = 14;
+/** The gap between a y tick and its value, in CSS pixels. */
+const Y_TICK_TEXT_GAP_PX = 4;
+/** How far below its tick the baseline of a y tick's value is, so that the digits sit on it. */
+const Y_TICK_TEXT_RAISE_PX = 4;
+/** How far above the bottom of the frame the baseline of the x axis's name is, in CSS pixels. */
+const X_TITLE_RAISE_PX = 10;
+/** How far from the left of the frame the y axis's name, turned, is centred, in CSS pixels. */
+const Y_TITLE_INSET_PX = 16;
+/**
+ * Two spans of a view this close, as a share of them, are the same span:
+ * a pan moves the view, which adds and takes away the same amount at each
+ * edge, and changes only the last bits of a span.
+ */
+const SAME_SPAN_SHARE = 1e-9;
 /** About one tick of the x axis for this many CSS pixels, and of the y axis for the next. */
 const X_TICK_SPACING_PX = 90;
 const Y_TICK_SPACING_PX = 50;
-/** The pointer reaches a point this many CSS pixels beyond its edge, as in the point views. */
-const PICK_SLOP_PX = 3;
-/** How far an arrow key moves the view, as a share of it, as on the maps. */
-const KEY_PAN = 0.1;
-/** How many times nearer + brings the view, and − takes it further, as on the maps. */
-const KEY_ZOOM = 1.25;
-/** How much one pixel of the wheel's movement zooms, as a power of e. */
-const WHEEL_ZOOM_PER_PX = 0.002;
-/** The pixels of a line of the wheel, in a browser that scrolls by lines. */
-const WHEEL_LINE_PX = 16;
+
 /**
- * The size above which a point is the hover, drawn over every other: a
- * point marked is drawn at least as large as a selected group's
- * (pointStyle.ts), and the hover larger still.
+ * The range of an axis with no individual placed, whose axes are drawn
+ * around its centre while the count says that none is drawn, as in the 3D
+ * scatter.
  */
-const HOVER_SIZE_ABOVE = POINT_SIZE_PX * SELECTED_GROUP_SCALE;
+const NO_RANGE = { min: 0, max: 0 } as const;
 
 /** What the 2D scatter draws. */
 export interface Scatter2dData {
-  /** The values of the x and the y column. */
+  /** The values of the x column, along the bottom. */
   readonly x: ColumnNumbers;
+  /** The values of the y column, up the left. */
   readonly y: ColumnNumbers;
   /** The names of the two columns, under the x axis and beside the y axis. */
   readonly titles: readonly [string, string];
@@ -64,6 +70,8 @@ export interface Scatter2dData {
   readonly name: string;
   /** The colour, size, shape and mark of every point. */
   readonly style: PointStyle;
+  /** The row under the pointer, drawn over every other, or `null`. */
+  readonly hover: number | null;
   /** The lasso: off, armed by + or −, or drawn and waiting for Enter. */
   readonly lasso: LassoState;
 }
@@ -78,18 +86,6 @@ export interface Scatter2d {
   readonly focus: () => void;
   /** Leaves the element as it found it. */
   readonly destroy: () => void;
-}
-
-/** Which layer a point is drawn in: under the others, marked, or the hover over all. */
-type Layer = 0 | 1 | 2;
-
-function svgElement<K extends keyof SVGElementTagNameMap>(
-  name: K,
-  className: string,
-): SVGElementTagNameMap[K] {
-  const element = document.createElementNS(SVG, name);
-  element.setAttribute("class", className);
-  return element;
 }
 
 /** A colour of the style, three values from 0 to 1, as CSS writes it. */
@@ -112,30 +108,30 @@ export function createScatter2d(
 ): Scatter2d {
   const frame = document.createElement("div");
   frame.className = "plot-frame";
-  const svg = svgElement("svg", "plot-canvas plot-scatter2d");
+  const svg = svgElement("svg", { class: "plot-canvas plot-scatter2d" });
   // One control to the keyboard and to a screen reader, named by the
   // controller, as the point views' canvas; its data is reachable in the
   // main window's table.
   svg.setAttribute("role", "application");
   svg.setAttribute("tabindex", "0");
   const clipId = `plot-scatter2d-clip-${String(Math.random()).slice(2)}`;
-  const defs = svgElement("defs", "plot-scatter2d-defs");
-  const clip = svgElement("clipPath", "plot-scatter2d-clip");
+  const defs = svgElement("defs", { class: "plot-scatter2d-defs" });
+  const clip = svgElement("clipPath", { class: "plot-scatter2d-clip" });
   clip.setAttribute("id", clipId);
-  const clipBox = svgElement("rect", "plot-scatter2d-clip-box");
+  const clipBox = svgElement("rect", { class: "plot-scatter2d-clip-box" });
   clip.append(clipBox);
   defs.append(clip);
-  const grid = svgElement("g", "plot-scatter2d-grid");
-  const axes = svgElement("g", "plot-scatter2d-axes");
-  const pointsGroup = svgElement("g", "plot-scatter2d-points");
+  const grid = svgElement("g", { class: "plot-scatter2d-grid" });
+  const axes = svgElement("g", { class: "plot-scatter2d-axes" });
+  const pointsGroup = svgElement("g", { class: "plot-scatter2d-points" });
   pointsGroup.setAttribute("clip-path", `url(#${clipId})`);
   const layers = [
-    svgElement("g", "plot-scatter2d-layer"),
-    svgElement("g", "plot-scatter2d-layer"),
-    svgElement("g", "plot-scatter2d-layer"),
+    svgElement("g", { class: "plot-scatter2d-layer" }),
+    svgElement("g", { class: "plot-scatter2d-layer" }),
+    svgElement("g", { class: "plot-scatter2d-layer" }),
   ] as const;
   // Moved as one by a pan, inside the clip, which stays.
-  const shift = svgElement("g", "plot-scatter2d-shift");
+  const shift = svgElement("g", { class: "plot-scatter2d-shift" });
   shift.append(...layers);
   pointsGroup.append(shift);
   svg.append(defs, grid, axes, pointsGroup);
@@ -156,12 +152,32 @@ export function createScatter2d(
   let placedFor: { view: View2d; width: number; height: number } | null = null;
   let home: View2d | null = null;
   let view: View2d | null = null;
+  /** Whether the view was framed on values, and not on {@link NO_RANGE}. */
+  let framedOnValues = false;
   let screen: ScreenPoints | null = null;
   let frameRequest = 0;
   let pan: { x: number; y: number } | null = null;
 
   const plotWidth = (): number => Math.max(width - MARGIN.left - MARGIN.right, 1);
   const plotHeight = (): number => Math.max(height - MARGIN.top - MARGIN.bottom, 1);
+
+  /**
+   * The scales from the values of `now`, less the centres of the columns,
+   * to CSS pixels of the frame: the values of the columns are their
+   * distances from their centres, and the axes' with centres of 0.
+   */
+  const scalesOf = (
+    now: View2d,
+    xCentre: number,
+    yCentre: number,
+  ): { x: ScaleLinear; y: ScaleLinear } => ({
+    x: scaleLinear()
+      .domain([now.left - xCentre, now.right - xCentre])
+      .range([MARGIN.left, MARGIN.left + plotWidth()]),
+    y: scaleLinear()
+      .domain([now.bottom - yCentre, now.top - yCentre])
+      .range([MARGIN.top + plotHeight(), MARGIN.top]),
+  });
 
   /** Each point's place on the frame; NaN for one not drawn or outside the axes. */
   const project = (): ScreenPoints => {
@@ -176,12 +192,7 @@ export function createScatter2d(
       const { x, y, placed } = data;
       const right = MARGIN.left + plotWidth();
       const bottom = MARGIN.top + plotHeight();
-      const xScale = scaleLinear()
-        .domain([view.left - x.centre, view.right - x.centre])
-        .range([MARGIN.left, right]);
-      const yScale = scaleLinear()
-        .domain([view.bottom - y.centre, view.top - y.centre])
-        .range([bottom, MARGIN.top]);
+      const { x: xScale, y: yScale } = scalesOf(view, x.centre, y.centre);
       for (let row = 0; row < count; row += 1) {
         if (!hasRow(placed.rows, row)) {
           continue;
@@ -217,7 +228,7 @@ export function createScatter2d(
       if (!hasRow(given.placed.rows, row)) {
         return null;
       }
-      const point = svgElement("path", "plot-scatter2d-point");
+      const point = svgElement("path", { class: "plot-scatter2d-point" });
       layers[0].append(point);
       return point;
     });
@@ -228,7 +239,7 @@ export function createScatter2d(
   };
 
   /** Gives each point its style, touching only the points whose style changed. */
-  const stylePoints = (style: PointStyle): void => {
+  const stylePoints = (style: PointStyle, hover: number | null): void => {
     const before = styled;
     elements.forEach((point, row) => {
       if (point === null) {
@@ -248,7 +259,7 @@ export function createScatter2d(
       if (!same((given) => given.marks, row)) {
         point.setAttribute("data-mark", String(mark));
       }
-      const layer: Layer = size > HOVER_SIZE_ABOVE ? 2 : mark === 0 ? 0 : 1;
+      const layer = pointLayer(row, hover, mark);
       if (before === null || layerOf[row] !== layer) {
         layers[layer].append(point);
         layerOf[row] = layer;
@@ -268,12 +279,7 @@ export function createScatter2d(
       return;
     }
     const { x, y } = data;
-    const xScale = scaleLinear()
-      .domain([view.left - x.centre, view.right - x.centre])
-      .range([MARGIN.left, MARGIN.left + plotWidth()]);
-    const yScale = scaleLinear()
-      .domain([view.bottom - y.centre, view.top - y.centre])
-      .range([MARGIN.top + plotHeight(), MARGIN.top]);
+    const { x: xScale, y: yScale } = scalesOf(view, x.centre, y.centre);
     elements.forEach((point, row) => {
       if (point === null) {
         return;
@@ -296,7 +302,9 @@ export function createScatter2d(
       return;
     }
     const before = placedFor;
-    const sameSpan = (a: number, b: number): boolean => Math.abs(a - b) <= 1e-9 * Math.abs(b);
+    // A pan keeps the spans, but for the last bits of their sums.
+    const sameSpan = (a: number, b: number): boolean =>
+      Math.abs(a - b) <= SAME_SPAN_SHARE * Math.abs(b);
     if (
       before?.width !== width ||
       before.height !== height ||
@@ -323,10 +331,9 @@ export function createScatter2d(
     clipBox.setAttribute("y", String(top));
     clipBox.setAttribute("width", String(right - left));
     clipBox.setAttribute("height", String(bottom - top));
-    const x = scaleLinear().domain([now.left, now.right]).range([left, right]);
-    const y = scaleLinear().domain([now.bottom, now.top]).range([bottom, top]);
+    const { x, y } = scalesOf(now, 0, 0);
     const line = (x1: number, y1: number, x2: number, y2: number, into: SVGGElement): void => {
-      const drawn = svgElement("line", "plot-scatter2d-line");
+      const drawn = svgElement("line", { class: "plot-scatter2d-line" });
       drawn.setAttribute("x1", String(x1));
       drawn.setAttribute("y1", String(y1));
       drawn.setAttribute("x2", String(x2));
@@ -339,7 +346,7 @@ export function createScatter2d(
       anchor: string,
       className: string,
     ): SVGTextElement => {
-      const drawn = svgElement("text", className);
+      const drawn = svgElement("text", { class: className });
       drawn.setAttribute("x", String(place.x));
       drawn.setAttribute("y", String(place.y));
       drawn.setAttribute("text-anchor", anchor);
@@ -351,20 +358,27 @@ export function createScatter2d(
       const px = x(value);
       line(px, top, px, bottom, grid);
       line(px, bottom, px, bottom + TICK_PX, axes);
-      text(tickText(value), { x: px, y: bottom + TICK_PX + 14 }, "middle", "plot-scatter2d-tick");
+      const below = bottom + TICK_PX + X_TICK_TEXT_DROP_PX;
+      text(tickText(value), { x: px, y: below }, "middle", "plot-scatter2d-tick");
     }
     for (const value of y.ticks(Math.max(Math.floor((bottom - top) / Y_TICK_SPACING_PX), 2))) {
       const py = y(value);
       line(left, py, right, py, grid);
       line(left - TICK_PX, py, left, py, axes);
-      text(tickText(value), { x: left - TICK_PX - 4, y: py + 4 }, "end", "plot-scatter2d-tick");
+      const beside = { x: left - TICK_PX - Y_TICK_TEXT_GAP_PX, y: py + Y_TICK_TEXT_RAISE_PX };
+      text(tickText(value), beside, "end", "plot-scatter2d-tick");
     }
     line(left, bottom, right, bottom, axes);
     line(left, top, left, bottom, axes);
     const [xTitle, yTitle] = given.titles;
-    text(xTitle, { x: (left + right) / 2, y: height - 10 }, "middle", "plot-scatter2d-title");
+    const under = { x: (left + right) / 2, y: height - X_TITLE_RAISE_PX };
+    text(xTitle, under, "middle", "plot-scatter2d-title");
     const turned = text(yTitle, { x: 0, y: 0 }, "middle", "plot-scatter2d-title");
-    turned.setAttribute("transform", `translate(16,${String((top + bottom) / 2)}) rotate(-90)`);
+    const middle = String((top + bottom) / 2);
+    turned.setAttribute(
+      "transform",
+      `translate(${String(Y_TITLE_INSET_PX)},${middle}) rotate(-90)`,
+    );
   };
 
   const draw = (): void => {
@@ -410,13 +424,11 @@ export function createScatter2d(
     }
   };
 
-  const local = (event: MouseEvent): { x: number; y: number } => {
-    const rect = frame.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-  };
+  const local = (event: MouseEvent): { x: number; y: number } => placeOnFrame(frame, event);
 
   const onPointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0) {
+    // A second finger neither pans nor takes the first one's place.
+    if (event.button !== 0 || !event.isPrimary) {
       return;
     }
     // A drag that leaves the frame still pans, or still draws its lasso.
@@ -427,7 +439,7 @@ export function createScatter2d(
   };
 
   const onPointerMove = (event: PointerEvent): void => {
-    if (pan === null || view === null || event.buttons === 0) {
+    if (pan === null || view === null || event.buttons === 0 || !event.isPrimary) {
       return;
     }
     const place = local(event);
@@ -444,11 +456,17 @@ export function createScatter2d(
     }
   };
 
+  // The capture went with no release, as when a menu of the system opens
+  // during the drag: the pan ends, or a later drag would jump from its press.
+  const onLostCapture = (): void => {
+    pan = null;
+  };
+
   const onWheel = (event: WheelEvent): void => {
     event.preventDefault();
-    const pixels = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_PX : 1;
+    const pixels = wheelPixels(event.deltaY, event.deltaMode, event.ctrlKey);
     const { fx, fy } = shareOf(local(event).x, local(event).y);
-    zoomAt(Math.exp(-event.deltaY * pixels * WHEEL_ZOOM_PER_PX), fx, fy);
+    zoomAt(wheelZoom(pixels), fx, fy);
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
@@ -507,21 +525,28 @@ export function createScatter2d(
 
   const resize = (): void => {
     const rect = frame.getBoundingClientRect();
+    const moved = rect.width !== width || rect.height !== height;
     width = rect.width;
     height = rect.height;
-    input.resize(width, height, window.devicePixelRatio);
+    input.resize(width, height, pixelRatio());
     screen = null;
+    if (moved) {
+      // The points moved on the screen, under the lasso and the pointer.
+      input.viewMoved();
+    }
     requestDraw();
   };
 
   const observer = new ResizeObserver(resize);
   observer.observe(frame);
+  const unwatchDensity = watchDensity(resize);
   const scheme = window.matchMedia("(prefers-color-scheme: dark)");
   scheme.addEventListener("change", onSchemeChange);
   frame.addEventListener("pointerdown", onPointerDown);
   frame.addEventListener("pointermove", onPointerMove);
   frame.addEventListener("pointerup", onPointerUp);
   frame.addEventListener("pointercancel", onPointerUp);
+  frame.addEventListener("lostpointercapture", onLostCapture);
   frame.addEventListener("wheel", onWheel, { passive: false });
   frame.addEventListener("dblclick", frameHome);
   svg.addEventListener("keydown", onKeyDown);
@@ -538,16 +563,25 @@ export function createScatter2d(
       data = given;
       if (remake) {
         makePoints(given);
-        const xRange = rangeOf(given.x.values, given.placed.rows) ?? { min: 0, max: 0 };
-        const yRange = rangeOf(given.y.values, given.placed.rows) ?? { min: 0, max: 0 };
+        // Both or neither: a row is placed with a value on each axis.
+        const xRange = rangeOf(given.x.values, given.placed.rows);
+        const yRange = rangeOf(given.y.values, given.placed.rows);
+        const x = xRange ?? NO_RANGE;
+        const y = yRange ?? NO_RANGE;
         home = homeView(
-          { min: given.x.centre + xRange.min, max: given.x.centre + xRange.max },
-          { min: given.y.centre + yRange.min, max: given.y.centre + yRange.max },
+          { min: given.x.centre + x.min, max: given.x.centre + x.max },
+          { min: given.y.centre + y.min, max: given.y.centre + y.max },
         );
-        // Framed the first time; a change of the values keeps the view.
-        view ??= home;
+        // Framed the first time there are values; a change of them keeps
+        // the view.
+        if (view === null || !framedOnValues) {
+          view = home;
+          framedOnValues = xRange !== null && yRange !== null;
+        }
+        // The points moved on the screen, under the lasso and the pointer.
+        input.viewMoved();
       }
-      stylePoints(given.style);
+      stylePoints(given.style, given.hover);
       svg.setAttribute("aria-label", given.name);
       input.setLasso(given.lasso);
       if (given.lasso.kind !== "off") {
@@ -575,11 +609,13 @@ export function createScatter2d(
       destroyed = true;
       cancelAnimationFrame(frameRequest);
       observer.disconnect();
+      unwatchDensity();
       scheme.removeEventListener("change", onSchemeChange);
       frame.removeEventListener("pointerdown", onPointerDown);
       frame.removeEventListener("pointermove", onPointerMove);
       frame.removeEventListener("pointerup", onPointerUp);
       frame.removeEventListener("pointercancel", onPointerUp);
+      frame.removeEventListener("lostpointercapture", onLostCapture);
       frame.removeEventListener("wheel", onWheel);
       frame.removeEventListener("dblclick", frameHome);
       svg.removeEventListener("keydown", onKeyDown);

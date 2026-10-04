@@ -71,6 +71,12 @@ const NEED_A_TABLE: [MenuAction; 8] = [
     MenuAction::CountryMap,
 ];
 
+/// Whether the item of `action` is enabled when the app starts, with no
+/// table and nothing to undo.
+fn starts_enabled(action: MenuAction) -> bool {
+    !NEED_A_TABLE.contains(&action) && !matches!(action, MenuAction::Undo | MenuAction::Redo)
+}
+
 /// The id of our Close Window item, outside macOS. muda's own renders
 /// disabled on Linux (`muda-0.20.0/src/platform_impl/gtk/mod.rs`).
 #[cfg(not(target_os = "macos"))]
@@ -112,9 +118,7 @@ pub fn action_named(name: &str) -> Option<MenuAction> {
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     // Undo and Redo start disabled, with nothing to undo.
     let items = ITEMS.map(|(id, text, action, shortcut)| {
-        let enabled = !NEED_A_TABLE.contains(&action)
-            && !matches!(action, MenuAction::Undo | MenuAction::Redo);
-        MenuItem::with_id(app, id, text, enabled, shortcut)
+        MenuItem::with_id(app, id, text, starts_enabled(action), shortcut)
     });
     let [
         import,

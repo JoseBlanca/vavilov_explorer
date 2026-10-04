@@ -34,11 +34,13 @@ export interface PointPlotData {
   readonly name: string;
   /** The colour, size, shape and mark of every point. */
   readonly style: PointStyle;
+  /** The row under the pointer, in this window or another, or `null`. */
+  readonly hover: number | null;
   /** The lasso: off, armed by + or −, or drawn and waiting for Enter. */
   readonly lasso: LassoState;
 }
 
-/** The plot of a point view, a 3D scatter or a map of the individuals. */
+/** The plot of a point view, a 3D scatter, a map of the individuals or a 2D scatter. */
 export interface PointPlot {
   /** Draws `data`. */
   readonly update: (data: PointPlotData) => void;
@@ -46,13 +48,16 @@ export interface PointPlot {
   readonly placeOf: (row: number) => { x: number; y: number } | null;
   /**
    * For a map, the place of a latitude and a longitude in CSS pixels of the
-   * window, by which the tests find a place on it; `null` for a 3D scatter.
+   * window, by which the tests find a place on it; `null` for a scatter.
    */
   readonly placeOfDegrees:
     ((latitude: number, longitude: number) => { x: number; y: number }) | null;
   /** Gives the plot the keyboard's focus. */
   readonly focus: () => void;
-  /** Leaves the element as it found it, and gives its drawing back to the graphics card. */
+  /**
+   * Leaves the element as it found it, and gives a drawing with WebGL back
+   * to the graphics card.
+   */
   readonly destroy: () => void;
 }
 
@@ -126,8 +131,8 @@ interface WaitingLasso {
 }
 
 /**
- * Draws a point view of the kind `kind` in `element`, a 3D scatter or a map
- * of the individuals: its columns, fetched again whenever one changes, and
+ * Draws a point view of the kind `kind` in `element`, a 3D scatter, a map
+ * of the individuals or a 2D scatter: its columns, fetched again whenever one changes, and
  * the plot of them, drawn from the window's copy of the state. A click on a
  * point selects its individual, Cmd-click or Ctrl-click adds it to the
  * selection or takes it away; the pointer over a point makes it the hover,
@@ -246,6 +251,7 @@ export function createPointView(
     }
     const tokens = getComputedStyle(context.tokens);
     const token = (name: string): string => tokens.getPropertyValue(name).trim();
+    const hover = state.hover();
     const style = pointStyle({
       numRows: project.numRows,
       codes: active === null ? null : state.codes(active.column),
@@ -254,7 +260,7 @@ export function createPointView(
       unclassified: rgbOf(token("--color-point")),
       selected: active?.selected ?? [],
       selection: state.selection(),
-      hover: state.hover(),
+      hover,
       lasso,
     });
     const titles = titlesOf(now, kind.columns);
@@ -264,6 +270,7 @@ export function createPointView(
       placed: placed.placed,
       name: kind.title(titles),
       style,
+      hover,
       lasso: mode === null ? { kind: "off" } : { kind: lasso === null ? "armed" : "waiting", mode },
     });
     context.onDrawn();
