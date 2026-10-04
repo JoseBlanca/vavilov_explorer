@@ -146,7 +146,6 @@ fn every_command_is_registered_and_finds_the_session() {
     ));
     let no_project = json!({ "kind": "noProject" });
     for (cmd, args) in [
-        ("set_hover", json!({ "row": null, "basedOn": 0 })),
         (
             "set_active_classification",
             json!({ "column": null, "basedOn": 0 }),
@@ -219,6 +218,11 @@ fn every_command_is_registered_and_finds_the_session() {
     let widget = WebviewWindowBuilder::new(&app, "scatter3d-1", WebviewUrl::default())
         .build()
         .unwrap();
+    // The hover is set by the windows of points alone.
+    assert_eq!(
+        json_command(&widget, "set_hover", json!({ "row": null, "basedOn": 0 })).unwrap_err(),
+        no_project
+    );
     let plots = WebviewWindowBuilder::new(&app, "plots-2", WebviewUrl::default())
         .build()
         .unwrap();
@@ -908,8 +912,12 @@ fn session_of(app: &App<MockRuntime>) -> std::sync::MutexGuard<'_, Session> {
 
 #[test]
 fn the_hover_reaches_the_session() {
-    let (app, window) = app();
+    let (app, _main) = app();
     load(&app);
+    // The hover is set by the windows of points alone.
+    let window = WebviewWindowBuilder::new(&app, "scatter3d-1", WebviewUrl::default())
+        .build()
+        .unwrap();
     json_command(
         &window,
         "set_hover",
@@ -1525,7 +1533,6 @@ fn each_kind_of_window_is_refused_every_command_it_does_not_call() {
             "set_cells",
             "assign_rows",
             "unassign_rows",
-            "set_hover",
             "set_active_classification",
             "select_groups",
             "add_group",

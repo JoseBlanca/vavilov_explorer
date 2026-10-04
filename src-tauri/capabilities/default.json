@@ -12,7 +12,6 @@
     "allow-set-cells",
     "allow-assign-rows",
     "allow-unassign-rows",
-    "allow-set-hover",
     "allow-set-active-classification",
     "allow-select-groups",
     "allow-add-group",
