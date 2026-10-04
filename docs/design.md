@@ -479,10 +479,12 @@ The two maps, decided by the owner on 3 October 2026:
   column of countries. A column of text that names countries by their ISO
   codes or names becomes one when “country” is chosen as its role."
 - Each map window has the groups panel without Add, Edit and Delete
-  group, as the 3D scatter's. The panel of the map of the individuals has + and − on the group selected, which arm its lasso
-  (decided by the owner on 4 October 2026); that of the map of countries,
-  which has no lasso, has the classification and the groups alone. Escape
-  in a map window still releases + or − pressed in another window.
+  group, as the 3D scatter's, and with + and − on the group selected
+  (decided by the owner on 4 October 2026). On the map of the
+  individuals they arm its lasso; on the map of countries, while + or −
+  is pressed, a click on a country puts its individuals in the group or
+  takes them out, as a click selects them. Escape in a map window
+  releases + or − pressed in any window.
 - The map of the individuals, "Map of lat and lon", draws a point for each
   individual with a latitude and a longitude, as the 3D scatter does. The
   world is drawn flat, as web maps draw it (the Web Mercator projection,
@@ -588,11 +590,63 @@ The two maps, decided by the owner on 3 October 2026:
   blue of one individual does not, at 1.34 and 1.55 to 1: it differs from
   the grey by its hue, and the label of a country gives its count.
 
-Histograms and bar plots select too: dragging across bins or clicking a
-bar selects the individuals in them, and the selected share of each bar
-is drawn inside it. Each widget shows how many rows it cannot place, for
-example "312 without coordinates". Those rows are still in every other
-view.
+The histogram, decided by the owner on 4 October 2026 and built in two
+steps: first the bars of one column, stacked by group, their clicks and
+the groups panel; then the hover of another window and the number of
+bins.
+
+- Plot > Histogram… opens a dialog, "Histogram", with "Column", which
+  offers the columns whose role is a number, a latitude or a longitude,
+  and starts from the first plain number, as the 3D scatter's does. With
+  no such column, the information bar of the main window says so as an
+  error: "No histogram was opened: the table has no column of numbers. A
+  column of numbers shown as a category becomes one when “number” is
+  chosen as its role." The window is named after its column, "Histogram
+  of height".
+- The values are cut into 20 bins of equal width, from the lowest value
+  to the highest (the number chosen by the owner; a field to change it
+  comes in the second step). The vertical axis counts individuals, and is
+  named "Individuals"; the axis of the values is named after the column
+  (the assistant's, for the owner to judge). The information bar says
+  how many it draws, "Drawing 1,688 of 2,000
+  individuals: 312 have no value."
+- Each bar is stacked by the groups of the active classification. With no
+  group selected, every group is drawn in its colour, in the order of the
+  groups panel, the unassigned individuals last, in their grey. With
+  groups selected, those groups are drawn at the bottom of each bar, in
+  their colours and the panel's order, where their heights can be read
+  against the axis, and the individuals of every other group, and those
+  unassigned, as one grey segment above them. With no active
+  classification, each bar is one segment in the points' blue.
+- The individuals selected are drawn at the bottom of each segment they
+  are in, with a border in the text's colour around them, so that the
+  border shows how many of the segment are selected (the owner asked for
+  a border around the selected individuals; drawing it around their
+  share rather than around the whole bar is the assistant's reading, for
+  the owner to judge on screen).
+- A click on a segment selects its individuals alone: a group's in that
+  bin, or the grey ones; a second click on it, when they are the whole
+  selection, selects none, as a second click on a group of the panel
+  does (decided by the owner on 4 October 2026). Cmd-click on macOS, Ctrl-click on Windows and
+  Linux, adds them to the selection, or takes them away when all of them
+  were in it; Shift-click selects the same segment of every bin from the
+  one last clicked. A click on empty space does nothing. A drag across
+  bars comes in the second step. The pointer over a segment names it,
+  "ESP: 12 individuals, 1.5 to 2", or "Other groups: 40 individuals, 1.5
+  to 2" for the grey one; the words are the assistant's.
+- The window has the groups panel with + and − on the group selected and
+  no Add, Edit or Delete group; while + is pressed a click on a segment
+  puts its individuals in the group, as a click selects them. A click
+  does not act while the window is inactive, as on the map of countries.
+- A change of role that leaves the column no number closes the window, as
+  for the 3D scatter.
+- In the second step, the individual under the pointer in another window
+  is shown by a line around its bin.
+
+Bar plots select too: clicking a bar selects the individuals in it, and
+the selected share of each bar is drawn inside it. Each widget shows how
+many rows it cannot place, for example "312 without coordinates". Those
+rows are still in every other view.
 
 Widgets are independent top-level windows, not child windows. In Tauri a
 window can be given a parent. On macOS that attaches it to the parent,
@@ -1013,16 +1067,18 @@ What each part of the interface is drawn with:
 - **The 3D scatter and the map**: Three.js on a canvas, as in the
   prototype (`prototype-lessons.md`). A hover or a selection writes
   straight into the buffers of the points that the GPU draws.
-- **The histograms and the bar plots**: D3, the most widely used library
-  of data visualization on the web, drawing SVG. D3 gives the parts of a
-  plot rather than finished charts, and these modules are used:
-  `d3-array` to bin the values of a histogram, `d3-scale` and `d3-axis`
-  for the scales and the axes, `d3-selection` to create and update the
-  bars, and `d3-brush` for dragging across bins to select them. A plot
-  has a few dozen bars, whatever the number of individuals, and a new
-  selection changes only the height of the selected share of each bar.
-  D3 owns the SVG of its plot, and lit-html never renders inside it, so
-  that no element is changed by both. D3 is not used for the point
+- **The histograms and the bar plots**: SVG, drawn by the plot's own
+  code (`src/plots/histogram.ts`), with D3's `d3-scale` 4.0.2 for the
+  linear scales and their round tick values. A plot has a few hundred
+  rectangles at most, whatever the number of individuals. The bins are
+  cut in `src/state/histogram.ts`, since the state layer takes no D3, and
+  the bars and the two axes are SVG elements the plot makes, about 30
+  lines: `d3-selection` and `d3-axis`, first planned for them, ship no
+  types, and declaring their generic interfaces would be a long claim the
+  compiler cannot check (decided by the assistant on 4 October 2026). A
+  drag across bins, in the histogram's second step, may take `d3-brush`
+  or be written alike. The plot owns its SVG, and lit-html never renders
+  inside it, so that no element is changed by both. D3 is not used for the point
   views: 50,000 points in SVG would be slow, and Plotly, tried in the
   prototype, sent every point again on each edit (`prototype-lessons.md`).
 - **The table**: rows of a fixed height, of which only those on screen

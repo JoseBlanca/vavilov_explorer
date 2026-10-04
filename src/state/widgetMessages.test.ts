@@ -42,7 +42,18 @@ describe("the words of a 3D scatter that was not opened", () => {
   });
 
   test("with no column of numbers say how to make one", () => {
-    expect(noNumbersMessage().text).toContain("“number” is chosen as its role");
+    expect(noNumbersMessage("scatter3d").text).toBe(
+      "No 3D scatter was opened: the table has no column of numbers. A column of numbers shown as a category becomes one when “number” is chosen as its role.",
+    );
+    expect(noNumbersMessage("histogram").text).toBe(
+      "No histogram was opened: the table has no column of numbers. A column of numbers shown as a category becomes one when “number” is chosen as its role.",
+    );
+  });
+
+  test("of a histogram name it", () => {
+    expect(
+      widgetRefusalMessage("histogram", { kind: "notNumber", column: column(4) }, nameOf).text,
+    ).toMatch(/^No histogram was opened: /);
   });
 });
 

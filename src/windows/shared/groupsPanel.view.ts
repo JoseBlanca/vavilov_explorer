@@ -46,13 +46,11 @@ export type GroupClick = "alone" | "toggle" | "range";
 
 /**
  * What the groups panel offers: every tool, + and − on the selected
- * group and Add, Edit and Delete group, as in the main window; choosing
- * the classification and the groups, and + and −, as in the 3D scatter and
- * the map of the individuals, whose lasso they arm (decided by the owner
- * on 4 October 2026); or only choosing, as in the map of countries
- * (decided by the owner on 3 October 2026, to try).
+ * group and Add, Edit and Delete group, as in the main window; or choosing
+ * the classification and the groups, and + and −, as in the plots'
+ * windows (decided by the owner on 4 October 2026).
  */
-export type PanelTools = "all" | "assigning" | "choosing";
+export type PanelTools = "all" | "assigning";
 
 /** What the groups panel shows, and what the user can do there. */
 export interface GroupsPanelProps {
@@ -199,7 +197,7 @@ function rowView(props: GroupsPanelProps, row: GroupRow): TemplateResult {
       <span class=${classOf(styles, "count")}>${COUNT.format(row.count)}</span>
     </button>
     ${
-      props.tools !== "choosing" && row.showsPlus
+      row.showsPlus
         ? actionButton(
             addAction(row, props.model.mode),
             ["edit", "add"],
@@ -211,7 +209,7 @@ function rowView(props: GroupsPanelProps, row: GroupRow): TemplateResult {
           )
         : nothing
     }${
-      props.tools !== "choosing" && row.showsMinus
+      row.showsMinus
         ? actionButton(
             removeAction(props.model),
             ["edit", "remove"],

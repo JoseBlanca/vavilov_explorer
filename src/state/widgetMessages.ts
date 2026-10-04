@@ -1,5 +1,5 @@
-// The words the information bar of the main window shows when a 3D
-// scatter or a map cannot be opened, written from what the window knows or from the
+// The words the information bar of the main window shows when a plot
+// cannot be opened, written from what the window knows or from the
 // backend's refusal (.claude/skills/writing/SKILL.md, "The text of the
 // app"). No window was opened.
 
@@ -9,11 +9,19 @@ import type { Role } from "./description.ts";
 import type { ColumnId } from "./ids.ts";
 import type { WidgetKind } from "./widget.ts";
 
-/** The error shown when the table has no column a 3D scatter can put on an axis. */
-export function noNumbersMessage(): BarMessage {
+/** The name of each kind of widget, as a sentence says it. */
+const WIDGET_WORDS: Readonly<Record<WidgetKind, string>> = {
+  scatter3d: "3D scatter",
+  map: "map",
+  countryMap: "map of countries",
+  histogram: "histogram",
+};
+
+/** The error shown when the table has no column of numbers, which a 3D scatter or a histogram needs. */
+export function noNumbersMessage(kind: "scatter3d" | "histogram"): BarMessage {
   return {
     kind: "error",
-    text: "No 3D scatter was opened: the table has no column of numbers. A column of numbers shown as a category becomes one when “number” is chosen as its role.",
+    text: `No ${WIDGET_WORDS[kind]} was opened: the table has no column of numbers. A column of numbers shown as a category becomes one when “number” is chosen as its role.`,
   };
 }
 
@@ -62,13 +70,6 @@ export type WidgetRefused = Extract<
 export function isWidgetRefused(error: CommandError): error is WidgetRefused {
   return error.kind === "notNumber" || error.kind === "notRole" || error.kind === "windowFailed";
 }
-
-/** The name of each kind of widget, as a sentence says it. */
-const WIDGET_WORDS: Readonly<Record<WidgetKind, string>> = {
-  scatter3d: "3D scatter",
-  map: "map",
-  countryMap: "map of countries",
-};
 
 /** A column of `role`, as a sentence says it. */
 function roleWords(role: Role): string {

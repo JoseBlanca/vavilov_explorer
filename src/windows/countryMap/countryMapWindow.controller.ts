@@ -27,7 +27,7 @@ import { createInfoBar } from "../shared/infoBar.controller.ts";
 import { countText } from "../shared/numbers.ts";
 import { startPlotFrame } from "../shared/plotWindow.controller.ts";
 import { slot } from "../shared/slot.ts";
-import { createCountryLabel } from "./countryLabel.controller.ts";
+import { createTextLabel } from "../shared/textLabel.controller.ts";
 import { countryLegendView } from "./countryLegend.view.ts";
 
 /**
@@ -49,13 +49,14 @@ interface Counted {
  * the window's copy of the state. The pointer over a country shows its
  * label; a click on a country selects the individuals it counts there,
  * Cmd-click or Ctrl-click adds them to the selection or, when all are
- * selected, takes them away. Its groups panel offers only the classification and the
- * groups (docs/design.md, section 2.2). The window is named after its
+ * selected, takes them away. Its groups panel offers the classification,
+ * the groups and + and −, while which a click puts a country's individuals
+ * in the group or takes them out (docs/design.md, section 2.2). The window is named after its
  * column, "Map of countries in origin". The backend closes it when a load
  * or a change of role leaves the column no country.
  */
 export async function startCountryMapWindow(root: HTMLElement): Promise<void> {
-  const defectBar = startPlotFrame(root, "Map of countries", true);
+  const defectBar = startPlotFrame(root, "Map of countries", { legend: true, webGl: true });
   if (defectBar === null) {
     return;
   }
@@ -69,7 +70,7 @@ export async function startCountryMapWindow(root: HTMLElement): Promise<void> {
     const column = spec.country;
     const decimalMark = await connection.regionDecimalMark();
     const table = createDescribedTable(connection);
-    const label = createCountryLabel(slot(root, "label"));
+    const label = createTextLabel(slot(root, "label"));
     let counted: Counted | null = null;
     /** The country under the pointer, by its place in the map's list, and where the pointer is. */
     let hovered: { countryIndex: number; place: { x: number; y: number } } | null = null;
@@ -203,7 +204,7 @@ export async function startCountryMapWindow(root: HTMLElement): Promise<void> {
       decimalMark,
       infoBar.tell,
       defectBar.show,
-      "choosing",
+      "assigning",
     );
     if (import.meta.env.DEV) {
       // For the e2e tests alone, which click a country where it is drawn;

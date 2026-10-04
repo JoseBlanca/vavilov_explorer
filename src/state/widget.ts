@@ -18,12 +18,13 @@ const FIELDS = {
   scatter3d: { axes: isAxes },
   map: { latitude: isColumnIdField, longitude: isColumnIdField },
   countryMap: { country: isColumnIdField },
+  histogram: { column: isColumnIdField },
 };
 
 /**
  * What a widget shows: a 3D scatter of three numeric columns, a map of the
- * individuals by a latitude and a longitude column, or a map of the
- * countries of a country column.
+ * individuals by a latitude and a longitude column, a map of the countries
+ * of a country column, or a histogram of a numeric column.
  */
 export type WidgetSpec = Tagged<typeof FIELDS>;
 

@@ -11,6 +11,8 @@ describe("isWidgetSpec", () => {
     // The JSON of crates/vavilov-core/src/widgets/tests.rs.
     expect(isWidgetSpec({ kind: "map", latitude: 1, longitude: 4 })).toBe(true);
     expect(isWidgetSpec({ kind: "countryMap", country: 2 })).toBe(true);
+    expect(isWidgetSpec({ kind: "histogram", column: 1 })).toBe(true);
+    expect(isWidgetSpec({ kind: "histogram", country: 1 })).toBe(false);
     expect(isWidgetSpec({ kind: "map", latitude: 1 })).toBe(false);
     expect(isWidgetSpec({ kind: "countryMap", country: 2, latitude: 1 })).toBe(false);
   });
@@ -32,6 +34,7 @@ describe("widgetKindOf", () => {
   test("the labels of the maps' windows name theirs", () => {
     expect(widgetKindOf("map-2")).toBe("map");
     expect(widgetKindOf("countryMap-3")).toBe("countryMap");
+    expect(widgetKindOf("histogram-4")).toBe("histogram");
     expect(widgetKindOf("countrymap-3")).toBe(null);
     expect(widgetKindOf("Map-3")).toBe(null);
   });

@@ -130,7 +130,7 @@ export function createMenuActions(
     const columns = axisColumns(description);
     const axes = startingAxes(description);
     if (axes === null) {
-      infoBar.tell(noNumbersMessage());
+      infoBar.tell(noNumbersMessage("scatter3d"));
       return;
     }
     const chosen = await columnsDialog.ask("3D scatter", [
@@ -175,6 +175,28 @@ export function createMenuActions(
     }
     const [latitudeId, longitudeId] = chosen;
     await openWidget({ kind: "map", latitude: latitudeId, longitude: longitudeId }, description);
+  };
+
+  /**
+   * Asks for a column of numbers, starting from the first plain number, and
+   * opens its histogram, which needs no WebGL.
+   */
+  const openHistogram = async (): Promise<void> => {
+    const description = await describe("Histogram…");
+    const columns = axisColumns(description);
+    const first = startingAxes(description)?.[0];
+    if (first === undefined) {
+      infoBar.tell(noNumbersMessage("histogram"));
+      return;
+    }
+    const chosen = await columnsDialog.ask("Histogram", [
+      { label: "Column", columns, chosen: first },
+    ]);
+    if (chosen === null) {
+      return;
+    }
+    const [column] = chosen;
+    await openWidget({ kind: "histogram", column }, description);
   };
 
   /** Asks for a column of countries, starting from the first, and opens the map of countries. */
@@ -229,6 +251,8 @@ export function createMenuActions(
         return openMap();
       case "countryMap":
         return openCountryMap();
+      case "histogram":
+        return openHistogram();
     }
   };
 

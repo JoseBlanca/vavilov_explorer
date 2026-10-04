@@ -77,3 +77,37 @@
 .plot-lost:empty {
   display: none;
 }
+
+/* The histogram (histogram.ts): the axes and their values, and the line
+   around the individuals selected in a segment, over a halo in the
+   background's colour so that it shows on a dark segment as on a pale one. */
+.plot-histogram-axes line {
+  stroke: var(--color-control-border);
+  stroke-width: 1;
+}
+
+.plot-histogram-axes text {
+  fill: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.plot-histogram-axes .plot-histogram-title {
+  fill: var(--color-text);
+  font-weight: var(--font-weight-strong);
+}
+
+.plot-histogram-outlines {
+  fill: none;
+  pointer-events: none;
+}
+
+.plot-histogram-halo {
+  stroke: var(--color-surface);
+  stroke-width: 4;
+}
+
+.plot-histogram-outline {
+  stroke: var(--color-text);
+  stroke-width: 2;
+}

@@ -783,6 +783,52 @@ fn a_map_of_countries_is_allowed_what_its_window_calls_and_nothing_of_the_points
 }
 
 #[test]
+fn a_histogram_is_allowed_what_its_window_calls_and_nothing_of_the_points() {
+    let (app, main) = app();
+    load_places(&app);
+    let spec = json!({ "kind": "histogram", "column": 2 });
+    let histogram = open_widget(&app, &main, spec.clone(), "histogram-1");
+    allowed(
+        &histogram,
+        &[
+            ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
+            ("describe_table", json!({})),
+            ("describe_widget", json!({})),
+            ("region_decimal_mark", json!({})),
+            ("fetch_column", json!({ "column": 2, "basedOn": 4 })),
+            ("set_selection", json!({})),
+            (
+                "set_active_classification",
+                json!({ "column": 1, "basedOn": 4 }),
+            ),
+            ("select_groups", json!({})),
+            // + and − of its groups panel, and Escape, which releases them.
+            ("set_edit_mode", json!({})),
+        ],
+    );
+    let InvokeResponseBody::Json(described) =
+        json_command(&histogram, "describe_widget", json!({})).unwrap()
+    else {
+        panic!("a histogram described as raw bytes");
+    };
+    assert_eq!(serde_json::from_str::<Value>(&described).unwrap(), spec);
+    refused(
+        &histogram,
+        &[
+            "fetch_row",
+            "set_hover",
+            "assign_rows",
+            "unassign_rows",
+            "add_group",
+            "edit_group",
+            "delete_group",
+            "open_widget",
+            "set_role",
+        ],
+    );
+}
+
+#[test]
 fn a_map_of_columns_that_are_no_latitude_and_longitude_is_refused_as_such() {
     let (app, main) = app();
     load_places(&app);

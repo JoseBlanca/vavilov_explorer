@@ -191,8 +191,9 @@ pub async fn open_widget<R: Runtime>(
 
 /// What the calling window's widget shows, as `{ kind, ... }`: a 3D
 /// scatter's `{ kind: "scatter3d", axes: [x, y, z] }`, a map's `{ kind:
-/// "map", latitude, longitude }`, or a map of countries' `{ kind:
-/// "countryMap", country }`. Takes no arguments.
+/// "map", latitude, longitude }`, a map of countries' `{ kind:
+/// "countryMap", country }`, or a histogram's `{ kind: "histogram", column
+/// }`. Takes no arguments.
 ///
 /// # Errors
 ///

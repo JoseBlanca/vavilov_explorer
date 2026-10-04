@@ -62,9 +62,8 @@ interface Pressed {
  * for the selected group's name and colour; the bar says why a name was
  * refused. Delete group deletes the selected group at once, and the bar
  * says how to undo it (docs/design.md, section 2.1). With `tools`
- * "assigning" it offers + and − but no Add, Edit or Delete group, and with
- * "choosing" none of these, only the classification and the groups
- * selected; Escape still releases + or − pressed in another window.
+ * "assigning" it offers + and − but no Add, Edit or Delete group; Escape
+ * releases + or − pressed in any window.
  */
 export function createGroupsPanel(
   element: HTMLElement,

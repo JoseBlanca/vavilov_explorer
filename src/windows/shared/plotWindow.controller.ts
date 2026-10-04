@@ -10,17 +10,19 @@ import { canDrawWebGl } from "./webgl.ts";
 /**
  * Draws the frame of a plot's window in `root`, with the plot's legend when
  * `legend`, and the groups panel beside it, which its button hides and
- * shows again, and returns the bar of a defect across its top. On a
- * computer that cannot draw WebGL here, although the main window could, as
- * when the graphics card refuses one more drawing, it says so in the
- * plot's place, titles the window `untitled`, and returns `null`.
+ * shows again, and returns the bar of a defect across its top. For a plot
+ * drawn with `webGl`, on a computer that cannot draw WebGL here, although
+ * the main window could, as when the graphics card refuses one more
+ * drawing, it says so in the plot's place, titles the window `untitled`,
+ * and returns `null`.
  */
 export function startPlotFrame(
   root: HTMLElement,
   untitled: string,
-  legend: boolean,
+  options: { readonly legend: boolean; readonly webGl: boolean },
 ): DefectBar | null {
-  if (!canDrawWebGl()) {
+  const { legend } = options;
+  if (options.webGl && !canDrawWebGl()) {
     document.title = untitled;
     render(plotWindowView({ cannotDraw: NO_WEBGL_WORDS, legend: false, groups: null }), root);
     return null;

@@ -18,8 +18,9 @@ use crate::table::{Role, Table};
 /// What a widget shows: its kind and its columns.
 ///
 /// It crosses to a window as `{"kind": "scatter3d", "axes": [4, 5, 6]}`,
-/// `{"kind": "map", "latitude": 4, "longitude": 5}` or
-/// `{"kind": "countryMap", "country": 3}`.
+/// `{"kind": "map", "latitude": 4, "longitude": 5}`,
+/// `{"kind": "countryMap", "country": 3}` or
+/// `{"kind": "histogram", "column": 4}`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -47,6 +48,11 @@ pub enum WidgetSpec {
         /// The column of the countries, whose role is country.
         country: ColumnId,
     },
+    /// A histogram of a numeric column, its bars stacked by group.
+    Histogram {
+        /// The column, a number, a latitude or a longitude.
+        column: ColumnId,
+    },
 }
 
 /// What a widget needs of a column it shows.
@@ -65,6 +71,7 @@ impl WidgetSpec {
             Self::Scatter3d { .. } => "scatter3d",
             Self::Map { .. } => "map",
             Self::CountryMap { .. } => "countryMap",
+            Self::Histogram { .. } => "histogram",
         }
     }
 
@@ -80,6 +87,7 @@ impl WidgetSpec {
                 (*longitude, Needs::Role(Role::Longitude)),
             ],
             Self::CountryMap { country } => vec![(*country, Needs::Role(Role::Country))],
+            Self::Histogram { column } => vec![(*column, Needs::Numbers)],
         }
     }
 

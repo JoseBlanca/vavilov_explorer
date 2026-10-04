@@ -428,3 +428,55 @@ fn the_maps_cross_to_a_window_as_their_kind_and_their_columns() {
             .is_err()
     );
 }
+
+fn histogram(column: ColumnId) -> WidgetSpec {
+    WidgetSpec::Histogram { column }
+}
+
+#[test]
+fn a_histogram_takes_a_label_of_its_kind_and_any_column_of_numbers() {
+    let mut session = with_places();
+    // HEIGHT is a latitude there, a number for a histogram as for the 3D
+    // scatter.
+    assert_eq!(open(&mut session, histogram(HEIGHT)), label("histogram-1"));
+}
+
+#[test]
+fn a_histogram_of_a_category_is_refused_as_no_number() {
+    let mut session = loaded();
+    assert_eq!(
+        session.open_widget(histogram(ORIGIN), Revision::new(1)),
+        Err(CommandError::NotNumber { column: ORIGIN })
+    );
+}
+
+#[test]
+fn a_histogram_closes_when_its_column_becomes_a_category_and_keeps_through_a_latitude() {
+    let mut session = loaded();
+    let shown = open(&mut session, histogram(HEIGHT));
+    let kept = dispatch(
+        &mut session,
+        Command::SetRole {
+            column: HEIGHT,
+            role: Role::Latitude,
+        },
+    );
+    assert_eq!(kept.closed, Vec::<WindowLabel>::new());
+    let outcome = dispatch(
+        &mut session,
+        Command::SetRole {
+            column: HEIGHT,
+            role: Role::Category,
+        },
+    );
+    assert_eq!(outcome.closed, vec![shown.clone()]);
+    assert_eq!(session.widget(&shown), None);
+}
+
+#[test]
+fn a_histogram_crosses_to_a_window_as_its_kind_and_its_column() {
+    let spec = histogram(HEIGHT);
+    let json = serde_json::json!({ "kind": "histogram", "column": 1 });
+    assert_eq!(serde_json::to_value(&spec).unwrap(), json);
+    assert_eq!(serde_json::from_value::<WidgetSpec>(json).unwrap(), spec);
+}

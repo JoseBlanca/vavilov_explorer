@@ -5,10 +5,10 @@
 // and selects a country's individuals on a click; with groups selected it
 // counts only theirs. Plot > Map… asks for a latitude and a longitude column
 // and opens a map of the individuals, each point drawn where it is placed,
-// whose lasso + pressed in its groups panel arms. Neither panel has Add,
-// Edit and Delete group, and that of the map of countries has no + and −
-// either; a change of role that leaves a map a column it cannot show
-// closes it; and with no fitting column the main window says so.
+// whose lasso + pressed in its groups panel arms. Both panels have + and −
+// but no Add, Edit and Delete group; a change of role that leaves a map a
+// column it cannot show closes it; and with no fitting column the main
+// window says so.
 //
 // Run with `npm run test:e2e`.
 import assert from "node:assert/strict";
@@ -105,12 +105,14 @@ for (const engine of Object.keys(ENGINES)) {
     );
 
     // The groups panel chooses the classification and the groups, and
-    // offers no + and −, and no Add, Edit or Delete group.
+    // offers + and − on the group selected, but no Add, Edit or Delete
+    // group.
     const countryPanel = countries.getByRole("region", { name: "Groups" });
     await countryPanel.getByRole("combobox", { name: "Classification column" }).waitFor();
     await countryPanel.getByRole("button", { name: /^ESP/ }).click();
+    await countryPanel.getByRole("button", { name: "Add selected to ESP", exact: true }).waitFor();
+    await countryPanel.getByRole("button", { name: "Remove selected from ESP" }).waitFor();
     await assertNoGroupForms(countryPanel);
-    await assertNoPlusMinus(countryPanel);
     await countryPanel.getByRole("button", { name: /^ESP/ }).click();
 
     // Spain holds the most, Peru one, Morocco none: each is filled with its
@@ -371,13 +373,6 @@ for (const engine of Object.keys(ENGINES)) {
 /** Checks that `panel` offers no Add, Edit or Delete group. */
 async function assertNoGroupForms(panel) {
   for (const name of ["Add group", /^Edit group/, /^Delete group/]) {
-    assert.equal(await panel.getByRole("button", { name }).count(), 0, String(name));
-  }
-}
-
-/** Checks that `panel` offers no + and −, which it would on the group selected. */
-async function assertNoPlusMinus(panel) {
-  for (const name of [/^Add selected/, /^Remove selected/, /^Make selected/]) {
     assert.equal(await panel.getByRole("button", { name }).count(), 0, String(name));
   }
 }

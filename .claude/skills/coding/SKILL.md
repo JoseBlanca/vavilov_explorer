@@ -157,7 +157,10 @@ possible break and a possible abandonment.
   `world-atlas` 2.0.2 and `topojson-client` 3.1.0, approved by the owner
   on 3 October 2026; `topojson-client` ships no types, and the two
   functions the app calls are declared in
-  `src/plots/topojson-client.d.ts`.
+  `src/plots/topojson-client.d.ts`. Of D3, the histogram takes `d3-scale`
+  4.0.2 alone, with what it calls declared in `src/plots/d3-scale.d.ts`,
+  and draws its bars and axes as SVG of its own (`docs/design.md`,
+  section 9).
 - **Named by these skills and not yet decided**, each to be proposed when
   the first code needs it: a
   Parquet crate and a zip crate for the project file (`docs/design.md`,

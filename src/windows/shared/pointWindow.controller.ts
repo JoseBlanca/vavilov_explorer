@@ -105,7 +105,7 @@ export async function startPointWindow(
   untitled: string,
   kindOf: (spec: WidgetSpec) => PointWindowKind,
 ): Promise<void> {
-  const defectBar = startPlotFrame(root, untitled, false);
+  const defectBar = startPlotFrame(root, untitled, { legend: false, webGl: true });
   if (defectBar === null) {
     return;
   }

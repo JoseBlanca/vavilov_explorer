@@ -144,7 +144,7 @@ fn a_widget_whose_window_could_not_be_made_is_taken_out_of_the_session() {
 }
 
 #[test]
-fn the_point_views_take_the_first_click_and_the_map_of_countries_does_not() {
+fn the_point_views_take_the_first_click_and_the_map_of_countries_and_the_histogram_do_not() {
     let column = ColumnId::new(HEIGHT);
     assert!(accepts_first_mouse(&WidgetSpec::Scatter3d {
         axes: [column, column, column]
@@ -156,4 +156,5 @@ fn the_point_views_take_the_first_click_and_the_map_of_countries_does_not() {
     assert!(!accepts_first_mouse(&WidgetSpec::CountryMap {
         country: column
     }));
+    assert!(!accepts_first_mouse(&WidgetSpec::Histogram { column }));
 }

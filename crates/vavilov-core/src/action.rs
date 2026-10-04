@@ -29,6 +29,8 @@ pub enum MenuAction {
     Map,
     /// Plot, Map of countries….
     CountryMap,
+    /// Plot, Histogram….
+    Histogram,
 }
 
 impl MenuAction {
@@ -43,6 +45,7 @@ impl MenuAction {
             Self::Scatter3d => 6,
             Self::Map => 7,
             Self::CountryMap => 8,
+            Self::Histogram => 9,
         }
     }
 
@@ -57,7 +60,8 @@ impl MenuAction {
             | Self::ExportXlsx
             | Self::Scatter3d
             | Self::Map
-            | Self::CountryMap => true,
+            | Self::CountryMap
+            | Self::Histogram => true,
             Self::Undo | Self::Redo => false,
         }
     }

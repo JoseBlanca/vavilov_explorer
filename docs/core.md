@@ -847,8 +847,9 @@ Some rules about windows are rules about the data, and belong in the
 core: removing a column closes every widget that shows it (`design.md`,
 section 2.2). The session keeps the open widgets, each with its label,
 its kind and its columns, a `WidgetSpec`: `Scatter3d { axes: [x, y, z]
-}`, `Map { latitude, longitude }` or `CountryMap { country }`, and gives
-the labels, `scatter3d-1`, `map-2`, `countryMap-3` and on, from one
+}`, `Map { latitude, longitude }`, `CountryMap { country }` or
+`Histogram { column }`, and gives the labels, `scatter3d-1`, `map-2`,
+`countryMap-3`, `histogram-4` and on, from one
 counter that only grows, so that a label is never given twice. The widgets are part of
 the open project, since they show its columns, so a load closes them all;
 the counter is the session's, so that a label is not given again in the
@@ -865,7 +866,8 @@ no argument and which the app answers from the label of the window that
 calls it, so that a page cannot ask for another window's: the widget's
 `WidgetSpec` as JSON, `{ "kind": "scatter3d", "axes": [4, 5, 6] }`, the
 ids of the columns on the x, y and z axes, `{ "kind": "map", "latitude":
-2, "longitude": 3 }` or `{ "kind": "countryMap", "country": 1 }`, or `UnknownWindow` for a
+2, "longitude": 3 }`, `{ "kind": "countryMap", "country": 1 }` or `{
+"kind": "histogram", "column": 4 }`, or `UnknownWindow` for a
 window that is no open widget. When a window is closed, by the
 user or by the app, `Session::window_closed(label)` forgets its
 subscriber and its widget.

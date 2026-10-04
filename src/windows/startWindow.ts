@@ -36,4 +36,8 @@ const WIDGET_STARTS: Readonly<Record<WidgetKind, (root: HTMLElement) => Promise<
     const { startCountryMapWindow } = await import("./countryMap/countryMapWindow.controller.ts");
     await startCountryMapWindow(root);
   },
+  histogram: async (root) => {
+    const { startHistogramWindow } = await import("./histogram/histogramWindow.controller.ts");
+    await startHistogramWindow(root);
+  },
 };
