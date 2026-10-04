@@ -112,7 +112,10 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           version="${TAG#v}"
-          gh release create "$TAG" installers/* \
+          # The Linux build downloads as two folders, deb and appimage:
+          # the files, not the folders, are the release's.
+          mapfile -t files < <(find installers -type f)
+          gh release create "$TAG" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --draft --prerelease \
             --title "Vavilov Explorer $version" \
