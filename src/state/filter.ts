@@ -7,8 +7,14 @@ import { isRowIndex } from "./ids.ts";
 import { intersection, rangeBits } from "./rowSet.ts";
 import type { ColumnId, LevelCode, Position, Revision, RowIndex } from "./ids.ts";
 
-/** How a number of a column compares with the one typed: "<", "≤", "=", "≥" or ">". */
-export type Comparison = "less" | "atMost" | "equal" | "atLeast" | "greater";
+/**
+ * The comparisons of a number of a column with the one typed, "<", "≤",
+ * "=", "≥" and ">", in the order of their bytes in a filter part.
+ */
+export const COMPARISONS = ["less", "atMost", "equal", "atLeast", "greater"] as const;
+
+/** How a number of a column compares with the one typed. */
+export type Comparison = (typeof COMPARISONS)[number];
 
 /**
  * What a cell must be to match, the operator of the find bar and its
@@ -34,7 +40,11 @@ export type Showing = "matching" | "notMatching";
  */
 export const MAX_FILTER_TEXT = 1_000;
 
-/** The filter of the find bar. With no text, number or group it shows every row. */
+/**
+ * The filter of the find bar. With an empty text, no group chosen, or a
+ * number the backend cannot read, it shows every row; "is missing"
+ * filters with no value.
+ */
 export interface Filter {
   /** The column searched, or `null` for any column, the first included. */
   readonly column: ColumnId | null;
@@ -53,7 +63,8 @@ export interface Shown {
   /**
    * One bit per row of the table, set for a row shown, as the selection's
    * bits are laid out; `null` when every row is shown, as the backend
-   * sends while the filter has no text.
+   * sends while the filter filters nothing: an empty text, no group chosen,
+   * or a number it cannot read.
    */
   readonly bits: Uint8Array | null;
   /**
@@ -152,8 +163,8 @@ export function shownBetween(
 
 /**
  * Every row of a table of `numRows` that the filter shows, as a selection:
- * those "Select shown rows" selects, all of them while the filter has no
- * text.
+ * those "Select shown rows" selects, all of them while the filter
+ * filters nothing.
  *
  * @throws A defect for `null`, a copy of an open table with no rows shown.
  */

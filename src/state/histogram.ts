@@ -17,6 +17,9 @@ import type { SelectedGroups } from "./selectedGroups.ts";
 /** The number of bins a histogram starts with (decided by the owner on 4 October 2026). */
 export const STARTING_BINS = 20;
 
+/** The most bins a histogram can have, the most a bin's number of 16 bits holds. */
+export const MAX_BINS = 0x7fff;
+
 /** The bins of equal width a column's values are cut into, and the bin of each row. */
 export interface Bins {
   /** The left edge of the first bin, the lowest value. */
@@ -42,7 +45,8 @@ export function binsOf(column: ColumnNumbers, placed: Placed, count: number): Bi
       `column ${String(column.column)} of ${String(column.values.length)} rows in a table of ${String(numRows)}`,
     );
   }
-  if (!Number.isInteger(count) || count < 1) {
+  // The bin of a row is kept in 16 bits.
+  if (!Number.isInteger(count) || count < 1 || count > MAX_BINS) {
     throw defect(`a histogram of ${String(count)} bins`);
   }
   const ofRow = new Int16Array(numRows).fill(-1);
@@ -61,13 +65,22 @@ export function binsOf(column: ColumnNumbers, placed: Placed, count: number): Bi
     return { lowest: 0, highest: 1, count, ofRow };
   }
   if (least === most) {
-    least -= 0.5;
-    most += 0.5;
+    // Half a unit each side, or more far from zero, where the centre plus
+    // half a unit would round back to the centre.
+    const half = Math.max(0.5, Math.abs(column.centre) * 2 ** -40);
+    least -= half;
+    most += half;
   }
   const width = (most - least) / count;
+  // A value on an edge, as data in steps of 0.05 often is, comes as a float
+  // of 32 bits a little off it: one within a few of its steps of an edge
+  // is on it, and goes to the bin the edge starts.
+  const slack = (8 * 2 ** -24 * Math.max(Math.abs(least), Math.abs(most))) / width;
   for (let row = 0; row < numRows; row += 1) {
     if (hasRow(placed.rows, row)) {
-      const bin = Math.floor((at(column.values, row) - least) / width);
+      const place = (at(column.values, row) - least) / width;
+      const edge = Math.round(place);
+      const bin = Math.abs(place - edge) <= slack ? edge : Math.floor(place);
       ofRow[row] = Math.min(Math.max(bin, 0), count - 1);
     }
   }
@@ -126,6 +139,7 @@ export interface PartColours {
 
 /** What the bars are stacked from. */
 export interface StackInput {
+  /** The bins, and the bin of each row. */
   readonly bins: Bins;
   /** The codes of the active classification, `null` with none. */
   readonly codes: Uint16Array | null;
@@ -133,6 +147,7 @@ export interface StackInput {
   readonly rows: readonly GroupRow[];
   /** The individuals selected, one bit per row, or `null` before the copy has them. */
   readonly selection: Uint8Array | null;
+  /** The colours of the parts that are no group. */
   readonly colours: PartColours;
 }
 
@@ -327,7 +342,14 @@ export function segmentText(
       return individuals;
     case "others":
       return `Other groups: ${individuals}`;
-    case "row":
-      return `${part.row.kind === "unassigned" ? "Unassigned" : (segment.name ?? "")}: ${individuals}`;
+    case "row": {
+      if (part.row.kind === "unassigned") {
+        return `Unassigned: ${individuals}`;
+      }
+      if (segment.name === null) {
+        throw defect(`the segment of group ${String(part.row.code)} with no name`);
+      }
+      return `${segment.name}: ${individuals}`;
+    }
   }
 }

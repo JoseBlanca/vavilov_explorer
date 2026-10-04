@@ -4,10 +4,11 @@
 // (docs/design.md, section 2.1).
 
 import type { BarMessage } from "./barMessages.ts";
+import { defect } from "./defect.ts";
 import type { TableDescription } from "./description.ts";
 import type { Comparison, Condition, Filter } from "./filter.ts";
 import { isLevelCode } from "./ids.ts";
-import type { ColumnId } from "./ids.ts";
+import type { ColumnId, Revision } from "./ids.ts";
 
 /** An operator of the find bar: "contains", "is", "is missing", or a comparison. */
 export type Operator = "contains" | "is" | "missing" | Comparison;
@@ -19,18 +20,28 @@ export type Operator = "contains" | "is" | "missing" | Comparison;
  */
 export type Searched = "texts" | "groups" | "numbers";
 
-/** The operators each kind of column offers, in the order of the dropdown. */
-export const OPERATORS: Readonly<Record<Searched, readonly Operator[]>> = {
+/** The operators each kind of column offers, in the order of the dropdown, the first the column's default. */
+export const OPERATORS: Readonly<Record<Searched, readonly [Operator, ...Operator[]]>> = {
   texts: ["contains", "is", "missing"],
   groups: ["contains", "is", "missing"],
   numbers: ["equal", "less", "atMost", "greater", "atLeast", "missing"],
 };
 
-/** What the column `column` of `description` holds; any column, `null`, holds texts. */
+/**
+ * What the column `column` of `description` holds; any column, `null`, and
+ * the IDs hold texts.
+ *
+ * @throws A defect for a column the table does not have.
+ */
 export function searchedOf(description: TableDescription, column: ColumnId | null): Searched {
+  if (column === null || column === description.names.id) {
+    return "texts";
+  }
   const found = description.columns.find((each) => each.id === column);
-  switch (found?.role) {
-    case undefined:
+  if (found === undefined) {
+    throw defect(`a find bar on column ${String(column)}, not in the table`);
+  }
+  switch (found.role) {
     case "text":
       return "texts";
     case "category":
@@ -68,8 +79,16 @@ export function conditionText(condition: Condition, groupNames: readonly string[
     case "is":
     case "compare":
       return condition.text;
-    case "group":
-      return condition.code === null ? "" : (groupNames[condition.code] ?? "");
+    case "group": {
+      if (condition.code === null) {
+        return "";
+      }
+      const name = groupNames[condition.code];
+      if (name === undefined) {
+        throw defect(`a group ${String(condition.code)} of ${String(groupNames.length)} groups`);
+      }
+      return name;
+    }
     case "missing":
       return "";
   }
@@ -78,8 +97,8 @@ export function conditionText(condition: Condition, groupNames: readonly string[
 /**
  * The condition of `operator` on a column of `searched`, whose groups are
  * named `groupNames` by their codes, keeping the text of `previous`: "is"
- * on a column of groups chooses the group that text names, case ignored,
- * or none.
+ * on a column of groups chooses the group that text names exactly, else
+ * the one group it names with case ignored, else none.
  */
 export function conditionOf(
   operator: Operator,
@@ -98,9 +117,18 @@ export function conditionOf(
       if (previous.kind === "group") {
         return previous;
       }
-      const wanted = text.normalize("NFC").toLowerCase();
-      const found = groupNames.findIndex((name) => name.normalize("NFC").toLowerCase() === wanted);
-      return { kind: "group", code: wanted !== "" && isLevelCode(found) ? found : null };
+      // The group written exactly, else the one group written so with
+      // case ignored: two groups can differ in case alone.
+      const wanted = text.normalize("NFC");
+      const exact = groupNames.findIndex((name) => name.normalize("NFC") === wanted);
+      const ignoringCase = groupNames.flatMap((name, code) =>
+        name.normalize("NFC").toLowerCase() === wanted.toLowerCase() ? [code] : [],
+      );
+      const found = exact !== -1 ? exact : ignoringCase.length === 1 ? ignoringCase[0] : undefined;
+      return {
+        kind: "group",
+        code: wanted !== "" && found !== undefined && isLevelCode(found) ? found : null,
+      };
     }
     case "missing":
       return { kind: "missing" };
@@ -133,22 +161,28 @@ export function conditionForColumn(
   const operator = operatorOf(condition);
   const offered = OPERATORS[searched];
   const kept = offered.includes(operator) ? operator : offered[0];
-  return conditionOf(kept ?? "contains", searched, previous, groupNames);
+  return conditionOf(kept, searched, previous, groupNames);
 }
 
 /**
  * The information shown when the backend cleared the filter `before` to
  * `after`, with `names` the name of its column and, for a group, of the
  * group: the group was deleted when the column `stillGroups`, else the
- * column changed role; `null` when `after` is not `before` cleared, or
- * `before` filtered nothing.
+ * column changed role; `null` when `after` is not `before` cleared, when
+ * `before` filtered nothing, or when `loads` says another table was loaded
+ * between the two.
  */
 export function clearedFilterMessage(
   before: Filter,
   after: Filter,
   names: { readonly column: string; readonly group: string | null },
   stillGroups: boolean,
+  loads: { readonly before: Revision; readonly after: Revision },
 ): BarMessage | null {
+  // Another table loaded clears the filter, which is no news.
+  if (loads.before !== loads.after) {
+    return null;
+  }
   if (before.column !== after.column || !hasValue(before.condition) || hasValue(after.condition)) {
     return null;
   }

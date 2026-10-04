@@ -20,12 +20,14 @@ npm run tauri dev -- --features demo   # the app with the demo table loaded
 npm run tauri build    # a packaged app in target/release/bundle/
 ```
 
-A package is built on the system it is for. The Windows installer, an
-unsigned `.exe`, is built on GitHub: in the Actions tab, "Windows
-installer", "Run workflow", with "Open with the 2,000 demo plants" on or
-off; the installer is a download on the page of the run for 30 days
-(`.github/workflows/windows-installer.yml`). Windows warns that it is from
-an unknown publisher: "More info", then "Run anyway".
+A package is built on the system it is for, so the installers are built
+on GitHub (`.github/workflows/release.yml`): pushing a tag such as
+`v0.1.0` builds them for macOS, Windows and Linux and puts them in a draft
+pre-release of the tag, with the notes of
+`docs/release-notes/<version>.md`, to be read and published by hand. Run
+by hand from the Actions tab ("Release", "Run workflow"), it builds them
+only, as downloads of the run for 30 days. The installers are not signed:
+the notes say how to open them.
 
 ## Test
 

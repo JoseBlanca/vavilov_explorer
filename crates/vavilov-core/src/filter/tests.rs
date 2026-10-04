@@ -452,6 +452,13 @@ mod in_the_session {
             );
             assert_eq!(session.revision(), Revision::new(1));
         }
+        // A refused mark wrote no texts of numbers with it: the mark is
+        // checked before the texts are written, so that a window cannot make
+        // the core write every decimal number with a mark of any length.
+        let open = session.state.project.as_open().unwrap();
+        let height = ColumnId::new(1);
+        let revision = open.table.column(height).unwrap().revision();
+        assert!(open.number_texts.column(height, revision, "abcd").is_none());
         // Three characters, as a region of Windows may have, the first of
         // two bytes.
         try_set(&mut session, filter("1"), "٫ab").unwrap();
@@ -846,6 +853,226 @@ mod in_the_session {
     }
 
     #[test]
+    fn a_category_made_a_column_of_countries_clears_a_filter_by_its_group() {
+        let mut session = loaded();
+        // origin: Spain (0), Peru (1). Spain renamed Sweden, and the filter
+        // on it: made a column of countries, its groups are rebuilt in the
+        // order of their codes, PER then SWE, and code 0 would be Peru.
+        dispatch(
+            &mut session,
+            Command::EditGroup {
+                column: ColumnId::new(2),
+                group: LevelCode::new(0),
+                name: "Sweden".to_owned(),
+                colour: crate::fixtures::VERMILLION,
+                decimal_mark: ".".to_owned(),
+            },
+        );
+        set(&mut session, group(0));
+        assert_eq!(page(&session, 2).0, vec![0, 3]);
+        dispatch(
+            &mut session,
+            Command::SetRole {
+                column: ColumnId::new(2),
+                role: Role::Country,
+            },
+        );
+        assert_eq!(
+            held(&session),
+            Filter {
+                column: Some(ColumnId::new(2)),
+                ..Filter::none()
+            }
+        );
+        assert_eq!(page(&session, 4).0, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn a_filter_by_a_group_made_before_the_groups_changed_is_refused_as_stale() {
+        let mut session = loaded();
+        // Made at revision 1, when Peru was code 1; Spain, code 0, is then
+        // deleted and Peru becomes code 0.
+        dispatch(
+            &mut session,
+            Command::DeleteGroup {
+                column: ColumnId::new(2),
+                group: LevelCode::new(0),
+            },
+        );
+        let stale = session.dispatch(Request {
+            command: Command::SetFilter {
+                filter: group(1),
+                decimal_mark: ".".to_owned(),
+            },
+            based_on: Revision::new(1),
+            sent_at: None,
+        });
+        assert!(
+            matches!(stale, Err(CommandError::LevelsChanged { .. })),
+            "{stale:?}"
+        );
+        assert_eq!(held(&session), Filter::none());
+    }
+
+    /// Sets the cell of `row` in `column` to `text`, as a window types it.
+    fn set_cell(session: &mut Session, column: u32, row: u32, text: &str) {
+        dispatch(
+            session,
+            Command::SetCells {
+                column: ColumnId::new(column),
+                rows: crate::row_set::RowSet::from_rows(4, [RowIndex::new(row)]).unwrap(),
+                text: text.to_owned(),
+                decimal_mark: ".".to_owned(),
+            },
+        );
+    }
+
+    #[test]
+    fn deleting_the_first_group_while_the_filter_is_on_it_clears_the_filter() {
+        let mut session = loaded();
+        // origin: Spain (0), Peru (1). With Spain kept at code 0, the filter
+        // would name Peru, which takes code 0.
+        set(&mut session, group(0));
+        dispatch(
+            &mut session,
+            Command::DeleteGroup {
+                column: ColumnId::new(2),
+                group: LevelCode::new(0),
+            },
+        );
+        assert_eq!(
+            held(&session),
+            Filter {
+                column: Some(ColumnId::new(2)),
+                ..Filter::none()
+            }
+        );
+    }
+
+    #[test]
+    fn the_rows_a_filter_shows_follow_an_edit_of_its_column() {
+        let mut session = loaded();
+        // height: 1.5, missing, 2, 3.25; p1 made 5 is then ≥ 2.
+        set(
+            &mut session,
+            Filter {
+                column: Some(ColumnId::new(1)),
+                condition: Condition::Compare {
+                    comparison: Comparison::AtLeast,
+                    text: "2".to_owned(),
+                },
+                showing: Showing::Matching,
+            },
+        );
+        assert_eq!(page(&session, 2).0, vec![2, 3]);
+        set_cell(&mut session, 1, 0, "5");
+        assert_eq!(page(&session, 3).0, vec![0, 2, 3]);
+        // origin: Spain, Peru, missing, Spain; p3 given Peru is no longer
+        // missing.
+        set(
+            &mut session,
+            Filter {
+                column: Some(ColumnId::new(2)),
+                condition: Condition::Missing {},
+                showing: Showing::Matching,
+            },
+        );
+        assert_eq!(page(&session, 1).0, vec![2]);
+        set_cell(&mut session, 2, 2, "Peru");
+        assert!(matches!(
+            session.rows(&RowsRequest {
+                first: Position::new(0),
+                count: 1,
+                columns: vec![],
+                based_on: session.revision(),
+            }),
+            Err(CommandError::RowsOutOfRange { .. })
+        ));
+        // Peru holds p2 and now p3; p1 given Peru is shown too.
+        set(&mut session, group(1));
+        assert_eq!(page(&session, 2).0, vec![1, 2]);
+        set_cell(&mut session, 2, 0, "Peru");
+        assert_eq!(page(&session, 3).0, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn a_category_made_a_number_clears_its_filter_to_equals() {
+        let mut session = Session::new();
+        let table = Table::new(
+            "IndividualID",
+            names(&["a", "b"]),
+            vec![column("code", integer(vec![Some(1), Some(2)]))],
+        )
+        .unwrap();
+        dispatch(
+            &mut session,
+            Command::LoadTable {
+                table,
+                active_classification: None,
+            },
+        );
+        let role = |role| Command::SetRole {
+            column: ColumnId::new(1),
+            role,
+        };
+        dispatch(&mut session, role(Role::Category));
+        set(&mut session, in_column("1", 1));
+        dispatch(&mut session, role(Role::Number));
+        assert_eq!(
+            held(&session).condition,
+            Condition::Compare {
+                comparison: Comparison::Equal,
+                text: String::new()
+            }
+        );
+    }
+
+    #[test]
+    fn the_filter_part_writes_each_kind_and_each_comparison_as_its_byte() {
+        // The bytes 16 and 17 of the part, the kind and the comparison; the
+        // same table is decoded in src/backend/decodeMessage.test.ts.
+        let compare = |comparison| Filter {
+            column: Some(ColumnId::new(1)),
+            condition: Condition::Compare {
+                comparison,
+                text: "2".to_owned(),
+            },
+            showing: Showing::Matching,
+        };
+        for (filter, bytes) in [
+            (in_column("a", 6), [0, 0]),
+            (whole(in_column("tall", 6)), [1, 0]),
+            (group(1), [2, 0]),
+            (compare(Comparison::Less), [3, 0]),
+            (compare(Comparison::AtMost), [3, 1]),
+            (compare(Comparison::Equal), [3, 2]),
+            (compare(Comparison::AtLeast), [3, 3]),
+            (compare(Comparison::Greater), [3, 4]),
+            (
+                Filter {
+                    column: None,
+                    condition: Condition::Missing {},
+                    showing: Showing::Matching,
+                },
+                [4, 0],
+            ),
+        ] {
+            let mut session = loaded();
+            set(&mut session, filter.clone());
+            let snapshot = session
+                .subscribe(crate::ids::WindowLabel::main(), Box::new(Discard))
+                .unwrap();
+            let part = decode(&snapshot)
+                .parts
+                .into_iter()
+                .find(|(kind, _)| *kind == FILTER_PART)
+                .unwrap()
+                .1;
+            assert_eq!(part[16..18], bytes, "{filter:?}");
+        }
+    }
+
+    #[test]
     fn the_filter_part_of_a_comparison_says_when_its_number_cannot_be_read() {
         let mut session = loaded();
         set(
@@ -1089,6 +1316,9 @@ fn a_comparison_with_no_number_or_one_it_cannot_read_shows_every_row_and_says_so
     assert_eq!(shown_with(&table, &compare("1.5"), ","), None);
     assert!(compare("1.5").unreadable_number(Some(",")));
     assert!(compare("abc").unreadable_number(Some(".")));
+    // Spaces around the number are left out, as a cell typed in does.
+    assert_eq!(shown(&table, &compare(" 2 ")).unwrap(), ["p1"]);
+    assert!(!compare(" 2 ").unreadable_number(Some(".")));
     assert!(!compare("1.5").unreadable_number(Some(".")));
 }
 
@@ -1097,7 +1327,7 @@ fn is_missing_matches_the_missing_cells_of_a_column_or_of_any() {
     let table = plants();
     let missing = |column: Option<u32>| Filter {
         column: column.map(ColumnId::new),
-        condition: Condition::Missing,
+        condition: Condition::Missing {},
         showing: Showing::Matching,
     };
     // height: 1.5, missing, 2, 3.25; origin: Spain, Peru, missing, Spain.
@@ -1115,4 +1345,46 @@ fn is_missing_matches_the_missing_cells_of_a_column_or_of_any() {
         ..missing(Some(1))
     };
     assert_eq!(shown(&table, &not_missing).unwrap(), ["p1", "p3", "p4"]);
+}
+
+#[test]
+fn a_comparison_of_whole_numbers_past_2_to_the_53_is_exact() {
+    // Whole numbers of 16 digits, as accession numbers can be: a float
+    // holds no odd number past 2^53, 9,007,199,254,740,992.
+    let table = Table::new(
+        "IndividualID",
+        names(&["a", "b", "c"]),
+        vec![column(
+            "accession",
+            integer(vec![
+                Some(9_007_199_254_740_992),
+                Some(9_007_199_254_740_993),
+                Some(-9_007_199_254_740_993),
+            ]),
+        )],
+    )
+    .unwrap();
+    let compare = |comparison: Comparison, text: &str| {
+        shown(
+            &table,
+            &Filter {
+                column: Some(ColumnId::new(1)),
+                condition: Condition::Compare {
+                    comparison,
+                    text: text.to_owned(),
+                },
+                showing: Showing::Matching,
+            },
+        )
+        .unwrap()
+    };
+    assert_eq!(compare(Comparison::Equal, "9007199254740992"), ["a"]);
+    assert_eq!(compare(Comparison::Greater, "9007199254740992"), ["b"]);
+    assert_eq!(compare(Comparison::Equal, "-9007199254740993"), ["c"]);
+    // A decimal number between two whole ones is read as the nearest float.
+    assert_eq!(
+        compare(Comparison::Greater, "9007199254740990.5"),
+        ["a", "b"]
+    );
+    assert_eq!(compare(Comparison::Less, "1e300"), ["a", "b", "c"]);
 }

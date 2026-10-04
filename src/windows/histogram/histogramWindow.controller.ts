@@ -1,4 +1,5 @@
 import { connect } from "../../backend/connection.ts";
+import type { Click } from "../../state/pointClick.ts";
 import { tauriTransport } from "../../backend/transport.ts";
 import { numberText } from "../../state/cellText.ts";
 import type { ColumnNumbers } from "../../state/columnNumbers.ts";
@@ -23,7 +24,7 @@ import { createHistogram } from "../../plots/histogram.ts";
 import { answered } from "../shared/answered.ts";
 import { createDescribedTable } from "../shared/describedTable.ts";
 import { createFetchedColumns } from "../shared/fetchedColumns.ts";
-import { installEscapeClearsSelection } from "../shared/escapeSelection.ts";
+import { installSelectionKeys } from "../shared/selectionKeys.ts";
 import { createGroupsPanel } from "../shared/groupsPanel.controller.ts";
 import { createInfoBar } from "../shared/infoBar.controller.ts";
 import { countText } from "../shared/numbers.ts";
@@ -131,11 +132,16 @@ export async function startHistogramWindow(root: HTMLElement): Promise<void> {
      * them are in it; or, with a range, selects those of the same part in
      * every bin from the anchor's. A segment holds at least one individual.
      */
-    const select = (index: number, click: "select" | "toggle" | "range"): void => {
+    const select = (index: number, click: Click): void => {
       const now = state.selection();
-      const segment = drawn?.stack.segments[index];
-      if (drawn === null || segment === undefined || now === null) {
+      if (drawn === null || now === null) {
         return;
+      }
+      const segment = drawn.stack.segments[index];
+      if (segment === undefined) {
+        throw defect(
+          `a click on segment ${String(index)} of ${String(drawn.stack.segments.length)}`,
+        );
       }
       const from =
         click === "range" && anchor !== null && samePart(anchor.part, segment.part)
@@ -153,7 +159,7 @@ export async function startHistogramWindow(root: HTMLElement): Promise<void> {
         segment.bin,
       );
       if (countRows(rows) === 0) {
-        return;
+        throw defect(`a click on segment ${String(index)}, which holds no individual`);
       }
       const bits = click === "range" ? rows : selectionAfterClick(now, rows, click);
       connection.setSelection(bits).then(answered("selecting", draw)).catch(defectBar.show);
@@ -204,7 +210,7 @@ export async function startHistogramWindow(root: HTMLElement): Promise<void> {
         columnName,
         lowest: bins.lowest,
         highest: bins.highest,
-        binCount: bins.count,
+        numBins: bins.count,
         segments: stack.segments,
         tallest: stack.tallest,
         valueText,
@@ -245,7 +251,7 @@ export async function startHistogramWindow(root: HTMLElement): Promise<void> {
       "assigning",
     );
     // After the panel's, which releases + or − first.
-    installEscapeClearsSelection(window, connection, defectBar.show);
+    installSelectionKeys(window, connection, defectBar.show);
     if (import.meta.env.DEV) {
       // For the e2e tests alone, which click a segment where it is drawn;
       // a build for users has no such name.

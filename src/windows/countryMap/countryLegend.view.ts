@@ -28,7 +28,12 @@ export function countryLegendView(props: CountryLegendProps): TemplateResult {
   const inGroups = groups === null ? "" : ` ${groups}`;
   return html`<section class=${classOf(styles, "legend")} aria-labelledby="legend-heading">
     <h2 id="legend-heading" class=${classOf(styles, "heading")}>Individuals per country</h2>
-    ${groups === null ? nothing : html`<p class=${classOf(styles, "groups")}>${groups}</p>`}
+    ${
+      // A screen reader hears the groups in the scale's sentence, below.
+      groups === null
+        ? nothing
+        : html`<p class=${classOf(styles, "groups")} aria-hidden="true">${groups}</p>`
+    }
     <p class=${classOf(styles, "row")}>
       <span class=${classOf(styles, "empty")} aria-hidden="true"></span>
       No individuals

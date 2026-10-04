@@ -457,6 +457,8 @@ struct RoleArgs {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct FilterArgs {
+    /// The column searched, `null` for any; it must be given.
+    #[serde(deserialize_with = "Option::deserialize")]
     column: Option<u32>,
     condition: Condition,
     showing: Showing,

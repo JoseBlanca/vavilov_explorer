@@ -132,6 +132,44 @@ for (const engine of Object.keys(ENGINES)) {
     await waitSelected(grid, []);
     await rowNamed(grid, "p3").click();
     await waitSelected(grid, ["p3"]);
+    // Escape in a field typed in is the field's: the selection stays.
+    const findField = page
+      .getByRole("search", { name: "Find in the table" })
+      .getByRole("searchbox", { name: "Find" });
+    await findField.focus();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    await waitSelected(grid, ["p3"]);
+    // A double-click on a cell of the one row selected opens the cell, and
+    // never unselects the row, during it or past the time of a double-click.
+    await page.evaluate(() => {
+      globalThis.__p3Unselected = false;
+      new globalThis.MutationObserver(() => {
+        const row = [...globalThis.document.querySelectorAll('[role="row"]')].find(
+          (each) => each.querySelector('[role="gridcell"]')?.textContent?.trim() === "p3",
+        );
+        if (row?.getAttribute("aria-selected") === "false") {
+          globalThis.__p3Unselected = true;
+        }
+      }).observe(globalThis.document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["aria-selected"],
+      });
+    });
+    await rowNamed(grid, "p3").getByRole("gridcell").nth(1).dblclick();
+    const opened = grid.getByRole("textbox");
+    await opened.waitFor();
+    await page.keyboard.press("Escape");
+    await opened.waitFor({ state: "detached" });
+    await page.waitForTimeout(700);
+    await waitSelected(grid, ["p3"]);
+    assert.equal(await page.evaluate(() => globalThis.__p3Unselected), false);
+    // Space selects the row of the active cell, as a click does, and on the
+    // one row selected keeps it: only a second click clears it.
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(300);
+    await waitSelected(grid, ["p3"]);
     await rowNamed(grid, "p3").click();
     await waitSelected(grid, []);
     await rowNamed(grid, "p3").click();

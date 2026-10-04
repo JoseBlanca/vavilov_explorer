@@ -6,6 +6,7 @@
 // view knows nothing of the backend or of a window: it is given positions
 // and a style, and tells its events.
 
+import type { Click } from "../state/pointClick.ts";
 import * as THREE from "three";
 
 import { defect } from "../state/defect.ts";
@@ -32,7 +33,7 @@ export interface PointViewEvents {
    */
   readonly onHover: (row: number | null, place: { x: number; y: number } | null) => void;
   /** A click on the point of `row`, which selects it alone or toggles it in the selection. */
-  readonly onClick: (row: number, click: "select" | "toggle") => void;
+  readonly onClick: (row: number, click: Exclude<Click, "range">) => void;
   /** A lasso drawn and released, with the points drawn inside it, one bit per row. */
   readonly onLasso: (rows: Uint8Array) => void;
   /** The lasso that waited was dropped, since the camera moved. */

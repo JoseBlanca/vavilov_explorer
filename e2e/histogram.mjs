@@ -93,20 +93,31 @@ for (const engine of Object.keys(ENGINES)) {
     // A click selects a segment's individuals alone, a Cmd-click or a
     // Ctrl-click adds another's and takes them away again, and a
     // Shift-click selects a run of bins of the same group.
+    // The histogram decides a click from its own copy of the selection,
+    // so each click waits for the outlines to show what the histogram has:
+    // the main window's table can show a change first.
     await clickSegment(histogram, 0);
     await selectedAre(page, ["p1"]);
+    await outlinedAre(histogram, [0]);
     // A second click on a segment that is the whole selection selects none.
     await clickSegment(histogram, 0);
     await selectedAre(page, []);
+    await outlinedAre(histogram, []);
     await clickSegment(histogram, 0);
     await selectedAre(page, ["p1"]);
+    await outlinedAre(histogram, [0]);
     await clickSegment(histogram, 2, "ControlOrMeta");
     await selectedAre(page, ["p1", "p3"]);
+    await outlinedAre(histogram, [0, 2]);
     await clickSegment(histogram, 2, "ControlOrMeta");
     await selectedAre(page, ["p1"]);
+    await outlinedAre(histogram, [0]);
     await clickSegment(histogram, 4);
     await selectedAre(page, ["p4"]);
+    await outlinedAre(histogram, [4]);
     await clickSegment(histogram, 0);
+    await selectedAre(page, ["p1"]);
+    await outlinedAre(histogram, [0]);
     await clickSegment(histogram, 2, "Shift");
     await selectedAre(page, ["p1", "p3"]);
     // The individuals selected are outlined, in each segment that holds one.
@@ -151,6 +162,12 @@ for (const engine of Object.keys(ENGINES)) {
     await panel.getByRole("button", { name: "Add selected to Peru", pressed: true }).waitFor();
     await clickSegment(histogram, 2);
     await originSays(grid, "p3", "Peru");
+    // A click on the grey segment of the last bin puts p4 in Peru too: the
+    // bar under the pointer, which has not moved, is Peru's alone now, and
+    // the label names it, not a segment that moved into its place.
+    await clickSegment(histogram, 4);
+    await originSays(grid, "p4", "Peru");
+    await waitForText(label(histogram), "Peru: 2 individuals, 2.9 to 3");
     await histogram.keyboard.press("Escape");
     await panel.getByRole("button", { name: "Add selected to Peru", pressed: false }).waitFor();
 
@@ -181,6 +198,28 @@ for (const engine of Object.keys(ENGINES)) {
   } finally {
     await app.close();
   }
+}
+
+/**
+ * Waits until the segments outlined, those holding individuals selected,
+ * are those at `segments`, by their places in the bars: what the
+ * histogram's own copy of the selection has.
+ */
+async function outlinedAre(page, segments) {
+  await page.waitForFunction((expected) => {
+    const document = globalThis.document;
+    const rects = [...document.querySelectorAll("[data-segment]")];
+    const outlined = [...document.querySelectorAll(".plot-histogram-outline")].map((outline) => {
+      const box = outline.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      return rects.findIndex((rect) => {
+        const holder = rect.getBoundingClientRect();
+        return x >= holder.left && x <= holder.right && y >= holder.top && y <= holder.bottom;
+      });
+    });
+    return JSON.stringify(outlined.toSorted((a, b) => a - b)) === JSON.stringify(expected);
+  }, segments);
 }
 
 /** The fill of each segment, in their order, as the browser computes it. */

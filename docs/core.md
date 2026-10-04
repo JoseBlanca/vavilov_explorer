@@ -755,7 +755,7 @@ refused command may have written them, and two sessions are compared
 without them.
 
 The find bar keeps as its own the whole filter the user asked for last,
-its text, column and checkboxes, with the load of the table it was made
+its column, operator, value and checkbox, with the load of the table it was made
 for, and draws it while it is pending; otherwise it draws the backend's
 filter (`src/state/findDraft.ts`). At most one `set_filter` is on its
 way: a change made meanwhile waits, and the newest is sent once that

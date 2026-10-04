@@ -64,6 +64,17 @@ describe("the count of the table", () => {
 });
 
 describe("what the information bar counts", () => {
+  test("with a number that cannot be read and no comparison is a defect", () => {
+    expect(() =>
+      tableCountOf(
+        { kind: "open", numRows: 10, loadedAt: revision(1) },
+        { at: revision(1), numShown: 10, bits: null, unreadableNumber: true },
+        new Uint8Array(2),
+        { column: null, condition: { kind: "contains", text: "x" }, showing: "matching" },
+      ),
+    ).toThrow(/defect/);
+  });
+
   test("holds the text of a comparison that is no number", () => {
     const unread = { at: revision(1), numShown: 10, bits: null, unreadableNumber: true };
     const filter = {

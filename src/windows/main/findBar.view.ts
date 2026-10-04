@@ -152,7 +152,9 @@ function valueView(props: FindBarProps): TemplateResult | DirectiveResult {
       }}
     >
       <option value=${NO_GROUP} .selected=${live(value.chosen === null)}>Choose a group…</option>
-      ${value.names.map(
+      ${repeat(
+        value.names,
+        (_, code) => code,
         (name, code) =>
           html`<option value=${String(code)} .selected=${live(value.chosen === code)}>
             ${name}

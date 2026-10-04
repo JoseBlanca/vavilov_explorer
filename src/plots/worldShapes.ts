@@ -14,9 +14,13 @@ import { insidePolygon } from "./projection.ts";
 
 /** A box in the scene. */
 export interface Box {
+  /** Its least x, in the scene's coordinates. */
   readonly minX: number;
+  /** Its least y. */
   readonly minY: number;
+  /** Its greatest x. */
   readonly maxX: number;
+  /** Its greatest y. */
   readonly maxY: number;
 }
 

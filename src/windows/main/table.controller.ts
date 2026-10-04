@@ -274,9 +274,11 @@ export function createTable(
     }
     const send = (): void => {
       // A row clicked when it is the one selected clears the selection, as
-      // a second click does in every window (docs/design.md, section 2.1).
+      // a second click does in every window (docs/design.md, section 2.1);
+      // Space keeps it, selecting the row as a click first does.
       const now = state.selection();
-      const clears = !extend && now !== null && countRows(now) === 1 && hasRow(now, row);
+      const clears =
+        by === "mouse" && !extend && now !== null && countRows(now) === 1 && hasRow(now, row);
       const bits = clears
         ? new Uint8Array(now.length)
         : shownBetween(project.numRows, from, row, state.shown());

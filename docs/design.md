@@ -689,8 +689,10 @@ bins.
   to 2" for the grey one; the words are the assistant's.
 - The window has the groups panel with + and − on the group selected and
   no Add, Edit or Delete group; while + is pressed a click on a segment
-  puts its individuals in the group, as a click selects them. A click
-  does not act while the window is inactive, as on the map of countries.
+  puts its individuals in the group, as a click selects them. On macOS a
+  click does not act while the window is inactive, as on the map of
+  countries; on Windows and Linux the first click always acts (section
+  10), and there it selects the segment's individuals.
 - A change of role that leaves the column no number closes the window, as
   for the 3D scatter.
 - In the second step, the individual under the pointer in another window

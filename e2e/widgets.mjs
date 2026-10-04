@@ -173,16 +173,25 @@ for (const engine of Object.keys(ENGINES)) {
     // macOS, adds another.
     await second.mouse.click(p2.x, p2.y);
     await selectedAre(page, ["p2"]);
+    // The plot decides a click from its own copy of the selection: each
+    // click waits for the ring of a point selected to show what it has,
+    // with the pointer off the points.
+    await second.mouse.move(5, 5);
+    await waitForRing(second, p2, true);
     // mouse.click takes no modifier; the key is held around it.
     await second.keyboard.down("ControlOrMeta");
     await second.mouse.click(p3.x, p3.y);
     await second.keyboard.up("ControlOrMeta");
     await selectedAre(page, ["p2", "p3"]);
+    await second.mouse.move(5, 5);
+    await waitForRing(second, p3, true);
     // Cmd-click on a selected individual takes it away.
     await second.keyboard.down("ControlOrMeta");
     await second.mouse.click(p3.x, p3.y);
     await second.keyboard.up("ControlOrMeta");
     await selectedAre(page, ["p2"]);
+    await second.mouse.move(5, 5);
+    await waitForRing(second, p3, false);
     // A second click on the one point selected clears the selection, and so
     // does Escape in the plot's window. The plot decides a click and Escape
     // from its own copy of the selection, so each step waits for the ring
@@ -198,6 +207,15 @@ for (const engine of Object.keys(ENGINES)) {
     await second.mouse.move(5, 5);
     await waitForRing(second, p2, true);
     await second.keyboard.press("Escape");
+    await selectedAre(page, []);
+    await waitForRing(second, p2, false);
+    await second.mouse.click(p2.x, p2.y);
+    await selectedAre(page, ["p2"]);
+    // Select None's shortcut clears it in a plot window too, where on
+    // Windows and Linux the app's menu, the main window's, does not reach.
+    await second.mouse.move(5, 5);
+    await waitForRing(second, p2, true);
+    await second.keyboard.press("ControlOrMeta+Shift+KeyA");
     await selectedAre(page, []);
     await waitForRing(second, p2, false);
     await second.mouse.click(p2.x, p2.y);
@@ -535,18 +553,22 @@ function assertColour(pixel, expected, what) {
   assert.equal(off, false, `${what}: the pixel is ${pixel}, not ${expected}`);
 }
 
-/** Waits, for at most five seconds, until the pixel at `place` is `expected`. */
 /**
  * Waits until the ring of a point selected is, or is not, drawn around the
- * point at `place`, 5 pixels right of its centre, in the dark colour of the
- * text of the light appearance, where a point not selected and not hovered
- * draws nothing.
+ * point at `place`: a pixel 4 or 5 pixels left or right of its centre, which
+ * falls between pixels, in the dark colour of the text of the light
+ * appearance. A point not selected and not hovered has a lighter ring 4
+ * pixels out at most.
  */
 async function waitForRing(page, place, drawn) {
   const deadline = Date.now() + 5000;
   for (;;) {
-    const [red, green, blue] = await pixelAt(page, place.x + 5, place.y);
-    if ((red < 90 && green < 90 && blue < 90) === drawn) {
+    let dark = false;
+    for (const dx of [-5, -4, 4, 5]) {
+      const [red, green, blue] = await pixelAt(page, place.x + dx, place.y);
+      dark ||= red < 90 && green < 90 && blue < 90;
+    }
+    if (dark === drawn) {
       return;
     }
     assert.ok(
@@ -557,6 +579,7 @@ async function waitForRing(page, place, drawn) {
   }
 }
 
+/** Waits, for at most five seconds, until the pixel at `place` is `expected`. */
 async function waitForColour(page, place, expected, what) {
   const deadline = Date.now() + 5000;
   for (;;) {

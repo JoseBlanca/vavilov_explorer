@@ -5,8 +5,9 @@
 // a copy.
 
 import { defect } from "../state/defect.ts";
-import type { Comparison, Condition } from "../state/filter.ts";
-import { MAX_ROWS, NO_COLUMN, NO_ROW, isLevelCode } from "../state/ids.ts";
+import { COMPARISONS } from "../state/filter.ts";
+import type { Condition } from "../state/filter.ts";
+import { MAX_ROWS, NO_CODE, NO_COLUMN, NO_ROW, isLevelCode } from "../state/ids.ts";
 import type { ColumnRevision, EditMode, Message, MessagePart, Selected } from "../state/message.ts";
 import { countRows } from "../state/rowSet.ts";
 import { removableGroups, singleOf } from "../state/selectedGroups.ts";
@@ -161,12 +162,6 @@ function selectionPart(
   return { kind: "selection", numRows, bits };
 }
 
-/** The comparisons of a filter part, by their byte. */
-const COMPARISONS: readonly Comparison[] = ["less", "atMost", "equal", "atLeast", "greater"];
-
-/** The code of a filter part that holds no group. */
-const NO_GROUP = 0xffff;
-
 /**
  * The filter part: the revision at which the rows shown last changed, their
  * number, the column searched, the kind of the condition, its comparison,
@@ -246,7 +241,7 @@ function conditionOf(
     case 1:
       return { kind: "is", text };
     case 2: {
-      if (groupCode === NO_GROUP) {
+      if (groupCode === NO_CODE) {
         return { kind: "group", code: null };
       }
       if (!isLevelCode(groupCode)) {

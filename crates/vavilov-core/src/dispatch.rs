@@ -17,7 +17,9 @@ use crate::convert::{u64_from, usize_from};
 use crate::edit::Edit;
 use crate::error::CommandError;
 use crate::filter::texts::NumberTexts;
-use crate::filter::{Filter, MAX_FILTER_TEXT, MovedCodes, Replaced, fits, fitted, shown_rows};
+use crate::filter::{
+    Condition, Filter, MAX_FILTER_TEXT, MovedCodes, Replaced, fits, fitted, shown_rows,
+};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt, WindowLabel};
 use crate::message::{MessageKind, MessageWriter, whole_state};
 use crate::row_set::RowSet;
@@ -118,7 +120,13 @@ impl Session {
             Command::SetFilter {
                 filter,
                 decimal_mark,
-            } => filter.reads_number_texts().then(|| decimal_mark.clone()),
+            } => {
+                // The mark is checked before the texts are written with it, as
+                // the command checks it again: one of any length would write
+                // every decimal number of the table with it.
+                check_decimal_mark(decimal_mark, "a filter")?;
+                filter.reads_number_texts().then(|| decimal_mark.clone())
+            }
             Command::LoadTable { .. }
             | Command::SetHover { .. }
             | Command::SetActiveClassification { .. }
@@ -232,6 +240,13 @@ impl Session {
                             "a filter's text of {length} characters, more than the find bar's {MAX_FILTER_TEXT}"
                         ),
                     });
+                }
+                // A group chosen from a list the groups have changed since is
+                // stale, as every command that names a group is.
+                if let (Some(column), Condition::Group { code: Some(_) }) =
+                    (filter.column, &filter.condition)
+                {
+                    check_levels_at(open, column, based_on)?;
                 }
                 if !fits(&filter, &open.table)? {
                     return Err(CommandError::Defect {
@@ -945,7 +960,15 @@ fn plan_values(
             })
         });
     let revision = state.revision.next()?;
-    let shown = refiltered(open, Replaced::Values(column, &values), revision, None)?;
+    // For the same reason a filter by one of its groups is cleared: a code
+    // kept would name another group (docs/design.md, section 2.1).
+    let cleared = |_: LevelCode| None;
+    let shown = refiltered(
+        open,
+        Replaced::Values(column, &values),
+        revision,
+        Some((column, &cleared)),
+    )?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.shape(revision)?;
     if let Some(active) = &active {
@@ -1141,9 +1164,9 @@ fn plan_codes(
 
 /// The filter as an edit leaves it, fitted to its column, and the rows it
 /// shows then.
-pub(super) struct Refiltered {
-    pub(super) filter: Filter,
-    pub(super) shown: Shown,
+struct Refiltered {
+    filter: Filter,
+    shown: Shown,
 }
 
 /// The filter once `replaced` is applied, its group moved by `moved` when
@@ -1151,7 +1174,7 @@ pub(super) struct Refiltered {
 /// column (`filter::fitted`), and the rows it shows, taking the edit's
 /// `revision`; `None` when neither the filter nor the rows change, so that
 /// the pages a window holds stay good.
-pub(super) fn refiltered(
+fn refiltered(
     open: &OpenProject,
     replaced: Replaced<'_>,
     revision: Revision,

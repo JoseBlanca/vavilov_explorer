@@ -95,6 +95,10 @@ describe("selectionAfterClick", () => {
     expect(rowsIn(selectionAfterClick(p1, p1, "select"), 6)).toEqual([]);
   });
 
+  test("of a selection of another table is a defect", () => {
+    expect(() => selectionAfterClick(new Uint8Array(2), p1, "select")).toThrow(/defect/);
+  });
+
   test("a toggle adds them, or takes them away when all were selected", () => {
     expect(
       rowsIn(

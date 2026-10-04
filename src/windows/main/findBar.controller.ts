@@ -17,7 +17,7 @@ import {
   operatorOf,
   searchedOf,
 } from "../../state/findCondition.ts";
-import type { ColumnId } from "../../state/ids.ts";
+import type { ColumnId, Revision } from "../../state/ids.ts";
 import {
   NO_DRAFT,
   backendChanged,
@@ -80,6 +80,7 @@ export function createFindBar(
    */
   let lastHeard: {
     readonly filter: Filter;
+    readonly loadedAt: Revision;
     readonly names: { readonly column: string; readonly group: string | null };
   } | null = null;
 
@@ -92,10 +93,19 @@ export function createFindBar(
   };
 
   /** The name of `column` in `table`, "any column" for none. */
-  const columnNameOf = (table: TableDescription, column: ColumnId | null): string =>
-    column === table.names.id
-      ? table.names.header
-      : (table.columns.find((each) => each.id === column)?.name ?? "any column");
+  const columnNameOf = (table: TableDescription, column: ColumnId | null): string => {
+    if (column === null) {
+      return "any column";
+    }
+    if (column === table.names.id) {
+      return table.names.header;
+    }
+    const found = table.columns.find((each) => each.id === column);
+    if (found === undefined) {
+      throw defect(`a filter on column ${String(column)}, not in the table`);
+    }
+    return found.name;
+  };
 
   /** The backend's filter in the window's copy, and its load, or `null` with no project. */
   const backend = (): FilterOfLoad | null => {
@@ -178,7 +188,7 @@ export function createFindBar(
     if (lastHeard !== null && heardNow !== null && sameFilter(lastHeard.filter, heardNow.filter)) {
       // The names as the table now has them, which a filter cleared later
       // names.
-      lastHeard = { filter: lastHeard.filter, names: namesOf(table, lastHeard.filter) };
+      lastHeard = { ...lastHeard, names: namesOf(table, lastHeard.filter) };
     }
     const { condition } = filter;
     const searched = searchedOf(table, filter.column);
@@ -284,7 +294,10 @@ export function createFindBar(
     const { filter } = now;
     if (quiet && lastHeard !== null) {
       const stillGroups = filter.column !== null && state.codes(filter.column) !== null;
-      const message = clearedFilterMessage(lastHeard.filter, filter, lastHeard.names, stillGroups);
+      const message = clearedFilterMessage(lastHeard.filter, filter, lastHeard.names, stillGroups, {
+        before: lastHeard.loadedAt,
+        after: now.loadedAt,
+      });
       if (message !== null) {
         tell(message);
       }
@@ -292,6 +305,7 @@ export function createFindBar(
     const described = description();
     lastHeard = {
       filter,
+      loadedAt: now.loadedAt,
       names:
         described.kind === "current"
           ? namesOf(described.description, filter)

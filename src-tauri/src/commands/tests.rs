@@ -1171,17 +1171,29 @@ fn every_condition_of_the_find_bar_crosses_as_its_kind_and_its_value() {
         );
         assert!(answer.is_ok(), "{condition}: {answer:?}");
     }
-    // A comparison it does not know is refused as a defect.
-    let refused = json_command(
-        &window,
-        "set_filter",
+    // A comparison it does not know, a field missing or one more, are
+    // refused as defects: none is read as a default.
+    for args in [
         json!({
             "column": 2, "condition": { "kind": "compare", "comparison": "about", "text": "1" },
             "showing": "matching", "decimalMark": ",", "basedOn": 7
         }),
-    )
-    .unwrap_err();
-    assert_eq!(refused["kind"], "defect");
+        json!({
+            "column": 1, "condition": { "kind": "group" },
+            "showing": "matching", "decimalMark": ",", "basedOn": 7
+        }),
+        json!({
+            "column": null, "condition": { "kind": "missing", "text": "x" },
+            "showing": "matching", "decimalMark": ",", "basedOn": 7
+        }),
+        json!({
+            "condition": { "kind": "missing" },
+            "showing": "matching", "decimalMark": ",", "basedOn": 7
+        }),
+    ] {
+        let refused = json_command(&window, "set_filter", args.clone()).unwrap_err();
+        assert_eq!(refused["kind"], "defect", "{args}");
+    }
 }
 
 #[test]

@@ -1,4 +1,5 @@
 import { connect } from "../../backend/connection.ts";
+import type { Click } from "../../state/pointClick.ts";
 import type { Connection } from "../../backend/connection.ts";
 import { tauriTransport } from "../../backend/transport.ts";
 import { numberText } from "../../state/cellText.ts";
@@ -20,7 +21,7 @@ import type { LassoState, PointViewEvents } from "../../plots/pointView.ts";
 import { answered } from "./answered.ts";
 import { createFetchedColumns } from "./fetchedColumns.ts";
 import { createDescribedTable } from "./describedTable.ts";
-import { installEscapeClearsSelection } from "./escapeSelection.ts";
+import { installSelectionKeys } from "./selectionKeys.ts";
 import { createGroupsPanel } from "./groupsPanel.controller.ts";
 import type { PanelTools } from "./groupsPanel.view.ts";
 import { createHoverLabel } from "./hoverLabel.controller.ts";
@@ -165,7 +166,7 @@ export async function startPointWindow(
       sent.then(answered("applying the lasso", draw)).catch(defectBar.show);
     };
 
-    const select = (point: number, click: "select" | "toggle"): void => {
+    const select = (point: number, click: Exclude<Click, "range">): void => {
       const row = rowOf(point);
       const now = state.selection();
       const project = state.project();
@@ -309,7 +310,7 @@ export async function startPointWindow(
       kind.tools,
     );
     // After the lasso's keys and the panel's, which take Escape first.
-    installEscapeClearsSelection(window, connection, defectBar.show);
+    installSelectionKeys(window, connection, defectBar.show);
     if (import.meta.env.DEV) {
       // For the e2e tests alone, which find a point where it is drawn; a
       // build for users has no such name.

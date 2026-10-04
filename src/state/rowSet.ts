@@ -4,6 +4,7 @@
 
 import { at } from "./at.ts";
 import { defect } from "./defect.ts";
+import type { Click } from "./pointClick.ts";
 
 /** The rows from `from` to `to`, both included and in either order, of a table of `numRows`. */
 export function rangeBits(numRows: number, from: number, to: number): Uint8Array {
@@ -116,7 +117,7 @@ export function countRows(bits: Uint8Array): number {
 export function selectionAfterClick(
   now: Uint8Array,
   rows: Uint8Array,
-  click: "select" | "toggle",
+  click: Exclude<Click, "range">,
 ): Uint8Array {
   if (click === "toggle") {
     return toggledRows(now, rows);

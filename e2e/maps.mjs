@@ -178,6 +178,7 @@ for (const engine of Object.keys(ENGINES)) {
     await countries.mouse.click(lima.x, lima.y);
     await countries.keyboard.up("ControlOrMeta");
     await selectedAre(page, ["p1", "p2", "p3", "p6"]);
+    await waitForColourNear(countries, peruCoast, TEXT, "the line round Peru");
     await countries.keyboard.down("ControlOrMeta");
     await countries.mouse.click(madrid.x, madrid.y);
     await countries.keyboard.up("ControlOrMeta");

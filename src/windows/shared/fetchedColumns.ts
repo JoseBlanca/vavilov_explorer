@@ -18,7 +18,9 @@ export interface FetchedColumns {
 
 /** What the columns of the axes are fetched from: the backend, and the window's copy. */
 export interface FetchedColumnsSource {
+  /** Asks the backend for a column's values. */
   readonly fetchColumn: Connection["fetchColumn"];
+  /** The window's copy, which says the revision of each column. */
   readonly state: Pick<WindowState, "columnRevision">;
 }
 

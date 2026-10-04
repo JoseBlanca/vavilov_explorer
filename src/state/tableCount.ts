@@ -49,15 +49,31 @@ export function tableCountOf(
     numRows: project.numRows,
     filtered: shown.bits !== null,
     numSelected: countRows(selection),
-    unreadable:
-      shown.unreadableNumber && filter?.condition.kind === "compare" ? filter.condition.text : null,
+    unreadable: unreadableOf(shown, filter),
   };
+}
+
+/**
+ * The text of the filter's comparison when the backend says it is no
+ * number, else `null`.
+ *
+ * @throws A defect when the backend says so of a filter that compares
+ * nothing.
+ */
+function unreadableOf(shown: Shown, filter: Filter | null): string | null {
+  if (!shown.unreadableNumber) {
+    return null;
+  }
+  if (filter?.condition.kind !== "compare") {
+    throw defect("a number that cannot be read in a filter that compares nothing");
+  }
+  return filter.condition.text;
 }
 
 /**
  * The count the information bar writes, with `count` writing each number
  * in the user's language: "2,000 individuals", or "Showing 312 of 2,000
- * individuals" while a filter has a text, then "· “abc” is not a
+ * individuals" while a filter filters, then "· “abc” is not a
  * number" when the number of its comparison cannot be read, and "· 45
  * selected" when rows are selected.
  */

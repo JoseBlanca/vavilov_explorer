@@ -514,6 +514,27 @@ describe("a filter part", () => {
     });
   });
 
+  test("decodes each kind and each comparison from its byte", () => {
+    // crates/vavilov-core/src/filter/tests.rs,
+    // the_filter_part_writes_each_kind_and_each_comparison_as_its_byte: the
+    // bytes 16 and 17 of the part, here after its header of 8.
+    const table = [
+      [0, 0, { kind: "contains", text: "2,5" }],
+      [1, 0, { kind: "is", text: "2,5" }],
+      [3, 0, { kind: "compare", comparison: "less", text: "2,5" }],
+      [3, 1, { kind: "compare", comparison: "atMost", text: "2,5" }],
+      [3, 2, { kind: "compare", comparison: "equal", text: "2,5" }],
+      [3, 3, { kind: "compare", comparison: "atLeast", text: "2,5" }],
+      [3, 4, { kind: "compare", comparison: "greater", text: "2,5" }],
+    ] as const;
+    for (const [kind, comparison, condition] of table) {
+      const part = [...COMPARE_PART];
+      part[24] = kind;
+      part[25] = comparison;
+      expect(decoded(part)).toMatchObject({ filter: { condition } });
+    }
+  });
+
   test("of a missing value, and of no group chosen, decode with no text", () => {
     const missing = [...GROUP_PART];
     missing[24] = 4;

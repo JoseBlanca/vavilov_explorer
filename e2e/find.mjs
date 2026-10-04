@@ -280,12 +280,41 @@ for (const engine of Object.keys(ENGINES)) {
       "country",
     );
 
+    // Undo in a cell being edited, before anything is typed in it, takes
+    // back nothing: the page's last typing, in the find field, is not the
+    // cell's, and the filter, the cell and the focus stay.
+    await field.fill("");
+    await field.click();
+    await page.keyboard.type("tall");
+    await rowsShown(grid, ["p3", "p4"], COUNTRY_CELLS);
+    await rowNamed(grid, "p3").getByRole("gridcell").nth(3).dblclick();
+    const note = grid.getByRole("textbox", { name: "note of p3" });
+    await note.waitFor();
+    await page.keyboard.press("ControlOrMeta+z");
+    assert.equal(await field.inputValue(), "tall");
+    assert.equal(await note.inputValue(), "tall");
+    assert.equal(
+      await page.evaluate(() => globalThis.document.activeElement?.getAttribute("aria-label")),
+      "note of p3",
+    );
+    await page.keyboard.press("Escape");
+    await note.waitFor({ state: "detached" });
+    await rowsShown(grid, ["p3", "p4"], COUNTRY_CELLS);
+
     // A load clears the filter, and the field.
     await field.fill("tall");
     await rowsShown(grid, ["p3", "p4"], COUNTRY_CELLS);
     assert.equal((await backend.send({ command: "e2e:load", table: PLANTS })).ok, null);
     await rowsShown(grid, ALL);
     assert.equal(await field.inputValue(), "");
+    // The filter the load cleared is not news: the bar says nothing of it.
+    assert.equal(
+      await page
+        .getByRole("status")
+        .filter({ hasText: "The filter on any column was removed" })
+        .count(),
+      0,
+    );
     assert.equal(await column.inputValue(), "any");
 
     // A filter of 150 rows of 250, scrolled past its first page of 100:

@@ -78,6 +78,9 @@ const TABLE: TableDescription = {
 
 const GROUPS = ["Spain", "Peru"];
 
+/** The loads of a filter before and after, the same table. */
+const SAME_LOAD = { before: revision(1), after: revision(1) };
+
 describe("the operators of a column", () => {
   test("depend on what it holds, any column holding texts", () => {
     expect(searchedOf(TABLE, null)).toBe("texts");
@@ -87,6 +90,10 @@ describe("the operators of a column", () => {
     expect(searchedOf(TABLE, id(2))).toBe("groups");
     expect(searchedOf(TABLE, id(3))).toBe("groups");
     expect(searchedOf(TABLE, id(4))).toBe("texts");
+  });
+
+  test("of a column the table does not have is a defect", () => {
+    expect(() => searchedOf(TABLE, id(9))).toThrow(/defect/);
   });
 
   test("are words for texts and groups, and symbols for numbers, each with is missing", () => {
@@ -127,9 +134,23 @@ describe("the condition of an operator", () => {
     });
   });
 
+  test("is on groups that differ in case alone chooses the one written exactly", () => {
+    const names = ["esp", "ESP"];
+    expect(conditionOf("is", "groups", { kind: "contains", text: "ESP" }, names)).toEqual({
+      kind: "group",
+      code: code(1),
+    });
+    // With case ignored, two would do, and none is chosen.
+    expect(conditionOf("is", "groups", { kind: "contains", text: "Esp" }, names)).toEqual({
+      kind: "group",
+      code: null,
+    });
+  });
+
   test("of a group's text is the group's name", () => {
     expect(conditionText({ kind: "group", code: code(0) }, GROUPS)).toBe("Spain");
     expect(conditionText({ kind: "group", code: null }, GROUPS)).toBe("");
+    expect(() => conditionText({ kind: "group", code: code(5) }, GROUPS)).toThrow(/defect/);
     expect(conditionText({ kind: "missing" }, GROUPS)).toBe("");
     expect(conditionText({ kind: "compare", comparison: "less", text: "1,5" }, GROUPS)).toBe("1,5");
     expect(conditionOf("contains", "groups", { kind: "group", code: code(0) }, GROUPS)).toEqual({
@@ -178,6 +199,7 @@ describe("the words of a filter the backend cleared", () => {
         of(2, { kind: "contains", text: "" }),
         names,
         true,
+        SAME_LOAD,
       ),
     ).toEqual({
       kind: "information",
@@ -189,11 +211,24 @@ describe("the words of a filter the backend cleared", () => {
         of(1, { kind: "contains", text: "" }),
         { column: "height", group: null },
         false,
+        SAME_LOAD,
       ),
     ).toEqual({
       kind: "information",
       text: "The filter on height was removed: its column changed role.",
     });
+  });
+
+  test("are none for a filter that another table loaded cleared", () => {
+    expect(
+      clearedFilterMessage(
+        { column: null, condition: { kind: "contains", text: "tall" }, showing: "matching" },
+        { column: null, condition: { kind: "contains", text: "" }, showing: "matching" },
+        { column: "any column", group: null },
+        false,
+        { before: revision(1), after: revision(7) },
+      ),
+    ).toBeNull();
   });
 
   test("are none for a filter with no value, or one not cleared", () => {
@@ -203,6 +238,7 @@ describe("the words of a filter the backend cleared", () => {
         of(2, { kind: "contains", text: "" }),
         names,
         true,
+        SAME_LOAD,
       ),
     ).toBeNull();
     expect(
@@ -211,6 +247,7 @@ describe("the words of a filter the backend cleared", () => {
         of(2, { kind: "group", code: code(0) }),
         names,
         true,
+        SAME_LOAD,
       ),
     ).toBeNull();
     expect(
@@ -219,6 +256,7 @@ describe("the words of a filter the backend cleared", () => {
         of(4, { kind: "contains", text: "" }),
         names,
         false,
+        SAME_LOAD,
       ),
     ).toBeNull();
   });

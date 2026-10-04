@@ -75,7 +75,9 @@ pub enum Condition {
     /// countries.
     Group {
         /// The group's code, or `None` before one is chosen, which matches
-        /// every row.
+        /// every row. It must be given, `null` for none: a window that left
+        /// it out would otherwise filter nothing without a word.
+        #[serde(deserialize_with = "Option::deserialize")]
         code: Option<LevelCode>,
     },
     /// "=", "<", "≤", ">" or "≥" a number, on a column of numbers.
@@ -86,8 +88,9 @@ pub enum Condition {
         /// none, and one that is no number, both of which match every row.
         text: String,
     },
-    /// "is missing".
-    Missing,
+    /// "is missing", an empty variant with braces, so that a field sent
+    /// with it is refused as for the others.
+    Missing {},
 }
 
 /// Which rows the filter shows.
@@ -100,9 +103,9 @@ pub enum Showing {
     NotMatching,
 }
 
-/// The filter of the find bar. With no text, no number and no group it
-/// shows every row, and keeps its column and its choices for when the user
-/// types.
+/// The filter of the find bar. With an empty text, no group chosen, or a
+/// number it cannot read, it shows every row, and keeps its column and its
+/// choices for when the user types; "is missing" filters with no value.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Filter {
     /// The column searched, or `None` for any column, the first included.
@@ -142,7 +145,7 @@ impl Filter {
             Condition::Contains { text }
             | Condition::Is { text }
             | Condition::Compare { text, .. } => Some(text),
-            Condition::Group { .. } | Condition::Missing => None,
+            Condition::Group { .. } | Condition::Missing {} => None,
         }
     }
 
@@ -151,7 +154,7 @@ impl Filter {
     pub(crate) fn reads_number_texts(&self) -> bool {
         match &self.condition {
             Condition::Contains { text } | Condition::Is { text } => !text.is_empty(),
-            Condition::Group { .. } | Condition::Compare { .. } | Condition::Missing => false,
+            Condition::Group { .. } | Condition::Compare { .. } | Condition::Missing {} => false,
         }
     }
 
@@ -162,10 +165,16 @@ impl Filter {
     pub fn unreadable_number(&self, decimal_mark: Option<&str>) -> bool {
         match (&self.condition, decimal_mark) {
             (Condition::Compare { text, .. }, Some(mark)) => {
-                !text.is_empty() && decimal_number(text, mark).is_err()
+                !text.trim().is_empty() && decimal_number(text.trim(), mark).is_err()
             }
-            (Condition::Compare { text, .. }, None) => !text.is_empty(),
-            _ => false,
+            (Condition::Compare { text, .. }, None) => !text.trim().is_empty(),
+            (
+                Condition::Contains { .. }
+                | Condition::Is { .. }
+                | Condition::Group { .. }
+                | Condition::Missing {},
+                _,
+            ) => false,
         }
     }
 }
@@ -201,7 +210,7 @@ impl Condition {
     /// Whether it fits a column of `searched`, or any column for `None`.
     pub(crate) fn fits(&self, searched: Option<Searched>) -> bool {
         match (self, searched) {
-            (Self::Missing, _)
+            (Self::Missing {}, _)
             | (Self::Contains { .. }, None | Some(Searched::Texts | Searched::Groups(_)))
             | (Self::Is { .. }, None | Some(Searched::Texts))
             | (Self::Compare { .. }, Some(Searched::Numbers)) => true,
@@ -376,8 +385,10 @@ pub(crate) fn shown_rows(
             let codes = codes_of(searched_column(filter, table)?, replaced)?;
             codes.iter().map(|each| *each == Some(*code)).collect()
         }
-        Condition::Compare { text, .. } if text.is_empty() => return Ok(None),
+        Condition::Compare { text, .. } if text.trim().is_empty() => return Ok(None),
         Condition::Compare { comparison, text } => {
+            // Spaces around the number are left out, as a cell typed in does.
+            let text = text.trim();
             let decimal_mark = decimal_mark.ok_or_else(|| CommandError::Defect {
                 what: "a filter with a number and no decimal mark".to_owned(),
             })?;
@@ -385,9 +396,9 @@ pub(crate) fn shown_rows(
                 return Ok(None);
             };
             let values = values_of(searched_column(filter, table)?, replaced);
-            compared(values, *comparison, number)?
+            compared(values, *comparison, text, number)?
         }
-        Condition::Missing => missing_matches(filter.column, table, replaced)?,
+        Condition::Missing {} => missing_matches(filter.column, table, replaced)?,
     };
     if matches.len() != num_rows {
         return Err(CommandError::Defect {
@@ -449,35 +460,38 @@ fn codes_of<'a>(
         })
 }
 
-/// Whether each row of `values`, a column of numbers, compares with
-/// `number` as `comparison` asks; a missing value never does.
+/// Whether each row of `values`, a column of numbers, compares with the
+/// number `text`, read as `number`, as `comparison` asks; a missing value
+/// never does. A whole number compares exactly, past 2^53 too, where a
+/// float holds no odd number: with the text read as a whole number when it
+/// is one, else against the float exactly.
 fn compared(
     values: &ColumnValues,
     comparison: Comparison,
+    text: &str,
     number: f64,
 ) -> Result<Vec<bool>, CommandError> {
-    let holds = |value: f64| {
-        value
-            .partial_cmp(&number)
-            .is_some_and(|ordering| comparison.holds(ordering))
-    };
+    let holds =
+        |ordering: Option<Ordering>| ordering.is_some_and(|ordering| comparison.holds(ordering));
+    let whole = text.parse::<i64>().ok();
     match values {
         ColumnValues::Number(numbers)
         | ColumnValues::Latitude(numbers)
         | ColumnValues::Longitude(numbers) => Ok(match numbers {
-            // A whole number of a column is far below 2^53, where every
-            // whole number is a float.
-            #[expect(
-                clippy::cast_precision_loss,
-                reason = "the whole numbers of a table are far below 2^53"
-            )]
             Numbers::Integer(values) => values
                 .iter()
-                .map(|value| value.is_some_and(|value| holds(value as f64)))
+                .map(|value| {
+                    value.is_some_and(|value| {
+                        holds(match whole {
+                            Some(whole) => Some(value.cmp(&whole)),
+                            None => whole_against(value, number),
+                        })
+                    })
+                })
                 .collect(),
             Numbers::Float(values) => values
                 .iter()
-                .map(|value| value.is_some_and(holds))
+                .map(|value| value.is_some_and(|value| holds(value.partial_cmp(&number))))
                 .collect(),
         }),
         ColumnValues::Text(_) | ColumnValues::Category(_) | ColumnValues::Country(_) => {
@@ -486,6 +500,38 @@ fn compared(
             })
         }
     }
+}
+
+/// How the whole number `value` stands to the float `number`, exactly;
+/// `None` for a number that is not one.
+fn whole_against(value: i64, number: f64) -> Option<Ordering> {
+    /// 2^63, the first float past every whole number of 64 bits.
+    const PAST_I64: f64 = 9_223_372_036_854_775_808.0;
+    if number.is_nan() {
+        return None;
+    }
+    if number >= PAST_I64 {
+        return Some(Ordering::Less);
+    }
+    if number < -PAST_I64 {
+        return Some(Ordering::Greater);
+    }
+    let whole_part = number.trunc();
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a float from -2^63 to below 2^63 with no fraction is a whole number of 64 bits"
+    )]
+    let truncated = whole_part as i64;
+    Some(value.cmp(&truncated).then_with(|| {
+        // The fraction the whole part leaves decides a tie.
+        if number > whole_part {
+            Ordering::Less
+        } else if number < whole_part {
+            Ordering::Greater
+        } else {
+            Ordering::Equal
+        }
+    }))
 }
 
 /// Whether each row of `values` is missing.

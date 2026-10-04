@@ -1,4 +1,5 @@
 import { html, nothing } from "lit-html";
+import type { Click } from "../../state/pointClick.ts";
 import type { TemplateResult } from "lit-html";
 import { live } from "lit-html/directives/live.js";
 import { repeat } from "lit-html/directives/repeat.js";
@@ -42,7 +43,7 @@ export type GroupForm =
  * How a group's row was clicked: alone, with Cmd or Ctrl to add it or take
  * it away, or with Shift to select the range from the last row clicked.
  */
-export type GroupClick = "alone" | "toggle" | "range";
+export type GroupClick = Click;
 
 /**
  * What the groups panel offers: every tool, + and − on the selected
@@ -184,7 +185,7 @@ function rowView(props: GroupsPanelProps, row: GroupRow): TemplateResult {
       @click=${(event: MouseEvent) => {
         props.onPress(
           row,
-          event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "alone",
+          event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "select",
         );
       }}
     >

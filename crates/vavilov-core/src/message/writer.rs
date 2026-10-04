@@ -208,7 +208,7 @@ impl MessageWriter {
                 },
                 None,
             ),
-            Condition::Missing => (4, 0, None),
+            Condition::Missing {} => (4, 0, None),
         };
         self.part(PartKind::Filter, |payload| {
             payload.extend_from_slice(&shown.at.get().to_le_bytes());
@@ -224,7 +224,7 @@ impl MessageWriter {
             payload.push(u8::from(bits.is_some()));
             payload.push(u8::from(filter.unreadable_number(decimal_mark)));
             payload.push(0);
-            payload.extend_from_slice(&code.map_or(u16::MAX, LevelCode::get).to_le_bytes());
+            payload.extend_from_slice(&code.map_or(NO_CODE, LevelCode::get).to_le_bytes());
             text_list(payload, std::iter::once(filter.text().unwrap_or_default()))?;
             if let Some(bits) = &bits {
                 pad(payload)?;

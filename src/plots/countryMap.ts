@@ -4,6 +4,7 @@
 // holds an individual selected, on the flat map (flatMap.ts). The pointer
 // picks a country, not a point.
 
+import type { Click } from "../state/pointClick.ts";
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
@@ -40,7 +41,7 @@ export interface CountryMapEvents {
   /** The pointer moved over `country`, or none, at `place` in CSS pixels of the window; `null` and no place when it left. */
   readonly onHover: (country: number | null, place: { x: number; y: number } | null) => void;
   /** A click on `country`, which selects its individuals alone or adds them to the selection. */
-  readonly onClick: (country: number, click: "select" | "toggle") => void;
+  readonly onClick: (country: number, click: Exclude<Click, "range">) => void;
   /** The system changed between light and dark: the colours are read again. */
   readonly onThemeChange: () => void;
 }

@@ -107,7 +107,7 @@ export function createGroupsPanel(
     }
     let selected: SelectedGroups;
     switch (click) {
-      case "alone":
+      case "select":
         selected = row.isSelected && singleOf(active.selected) !== null ? [] : [row.selected];
         anchor = { column: active.column, row: row.selected };
         break;

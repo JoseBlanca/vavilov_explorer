@@ -102,12 +102,11 @@
   pointer-events: none;
 }
 
+/* Their widths are set by histogram.ts, which insets the box by them. */
 .plot-histogram-halo {
   stroke: var(--color-surface);
-  stroke-width: 4;
 }
 
 .plot-histogram-outline {
   stroke: var(--color-text);
-  stroke-width: 2;
 }

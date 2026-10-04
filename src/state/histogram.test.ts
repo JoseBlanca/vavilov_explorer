@@ -50,11 +50,20 @@ function levelCode(value: number): LevelCode {
 describe("binsOf", () => {
   test("cuts the values into bins of equal width, the highest in the last", () => {
     const bins = binsOfValues(10, [5, 10, 15, 11, null], 2);
-    expect(bins.lowest).toBe(5);
-    expect(bins.highest).toBe(15);
+    expect(bins.lowest).toBeCloseTo(5, 12);
+    expect(bins.highest).toBeCloseTo(15, 12);
     expect([...bins.ofRow]).toEqual([0, 1, 1, 1, -1]);
-    expect(edgesOf(bins, 0)).toEqual({ low: 5, high: 10 });
-    expect(edgesOf(bins, 1)).toEqual({ low: 10, high: 15 });
+    // Floats the code computes, compared to 12 decimals.
+    const edges = (bin: number): number[] => {
+      const { low, high } = edgesOf(bins, bin);
+      return [low, high];
+    };
+    edges(0).forEach((edge, index) => {
+      expect(edge).toBeCloseTo([5, 10][index] ?? NaN, 12);
+    });
+    edges(1).forEach((edge, index) => {
+      expect(edge).toBeCloseTo([10, 15][index] ?? NaN, 12);
+    });
   });
 
   test("starts with 20 bins", () => {
@@ -65,15 +74,32 @@ describe("binsOf", () => {
 
   test("of one value span one unit around it", () => {
     const bins = binsOfValues(3, [3, 3], STARTING_BINS);
-    expect(bins.lowest).toBe(2.5);
-    expect(bins.highest).toBe(3.5);
+    expect(bins.lowest).toBeCloseTo(2.5, 12);
+    expect(bins.highest).toBeCloseTo(3.5, 12);
     expect([...bins.ofRow]).toEqual([10, 10]);
+  });
+
+  test("put a value on an inner edge in the bin its label starts with", () => {
+    // Data in steps of 0.05 from 0 to 1, each on an edge of the 20 bins;
+    // a float of 32 bits holds 0.1 a little under it.
+    const values = Array.from({ length: 21 }, (_, step) => step / 20);
+    const bins = binsOfValues(0.5, values, STARTING_BINS);
+    expect([...bins.ofRow]).toEqual([...values.keys()].map((step) => Math.min(step, 19)));
+  });
+
+  test("of more than an Int16Array holds are a defect", () => {
+    expect(() => binsOfValues(0, [0, 1], 40_000)).toThrow(/defect/);
+  });
+
+  test("of one value far from zero still span some width", () => {
+    const bins = binsOfValues(1e16, [1e16, 1e16], STARTING_BINS);
+    expect(bins.highest).toBeGreaterThan(bins.lowest);
   });
 
   test("with no value drawn hold none", () => {
     const bins = binsOfValues(0, [null, null], STARTING_BINS);
-    expect(bins.lowest).toBe(0);
-    expect(bins.highest).toBe(1);
+    expect(bins.lowest).toBeCloseTo(0, 12);
+    expect(bins.highest).toBeCloseTo(1, 12);
     expect([...bins.ofRow]).toEqual([-1, -1]);
   });
 });

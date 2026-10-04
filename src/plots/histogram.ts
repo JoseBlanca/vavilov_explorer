@@ -3,6 +3,7 @@
 // left (docs/design.md, section 2.2). It draws what it is given and reports
 // the pointer and the clicks; it knows nothing of the backend or a window.
 
+import type { Click } from "../state/pointClick.ts";
 import { scaleLinear } from "d3-scale";
 
 import type { Segment } from "../state/histogram.ts";
@@ -18,11 +19,14 @@ const MARGIN = { top: 18, right: 20, bottom: 52, left: 72 } as const;
 const TICK_PX = 5;
 /** The gap between two bars, in CSS pixels. */
 const GAP_PX = 1;
-/**
- * The width of the line around the individuals selected in a segment, in
- * CSS pixels, as plots.css draws it, which insets the line by half of it.
- */
+/** The width of the line around the individuals selected in a segment, in CSS pixels. */
 const OUTLINE_WIDTH_PX = 2;
+/**
+ * The width of the halo under that line, in the colour of the background,
+ * so that the line shows on a dark segment as on a pale one. Both are drawn
+ * on one box inset by half the halo, which keeps the halo inside the bar.
+ */
+const HALO_WIDTH_PX = 4;
 
 /** What the histogram draws. */
 export interface HistogramData {
@@ -30,10 +34,12 @@ export interface HistogramData {
   readonly name: string;
   /** The name of the column, below the axis of the values. */
   readonly columnName: string;
-  /** The left edge of the first bin, the right edge of the last, and how many bins there are. */
+  /** The left edge of the first bin. */
   readonly lowest: number;
+  /** The right edge of the last bin. */
   readonly highest: number;
-  readonly binCount: number;
+  /** How many bins there are. */
+  readonly numBins: number;
   /** The segments, bar by bar, bottom to top in each, with their colours as CSS writes them. */
   readonly segments: readonly Segment[];
   /** The most individuals in one bar. */
@@ -56,7 +62,7 @@ export interface HistogramEvents {
    * A click on the segment at `segment`: alone, with Cmd or Ctrl to add its
    * individuals or take them away, or with Shift to select a run of bins.
    */
-  readonly onClick: (segment: number, click: "select" | "toggle" | "range") => void;
+  readonly onClick: (segment: number, click: Click) => void;
 }
 
 /** A histogram drawn in its element. */
@@ -67,6 +73,8 @@ export interface Histogram {
   readonly placeOf: (segment: number) => { x: number; y: number } | null;
   /** Gives the plot the keyboard's focus. */
   readonly focus: () => void;
+  /** Stops watching the element and the pointer, and empties the element; it may be called twice. */
+  readonly destroy: () => void;
 }
 
 /** An SVG element of `name`, with `attributes`. */
@@ -98,6 +106,8 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
   frame.append(svg);
   element.replaceChildren(frame);
   let shown: HistogramData | null = null;
+  /** Where the pointer last was over the plot, in CSS pixels of the window, or `null` once it left. */
+  let pointer: { x: number; y: number } | null = null;
 
   const segmentAt = (target: EventTarget | null): number | null => {
     if (!(target instanceof Element)) {
@@ -107,14 +117,20 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
     return found === undefined || found === null ? null : Number(found);
   };
 
-  svg.addEventListener("pointermove", (event) => {
-    const segment = segmentAt(event.target);
-    events.onHover(segment, segment === null ? null : { x: event.clientX, y: event.clientY });
-  });
-  svg.addEventListener("pointerleave", () => {
+  /** Tells what is under the pointer at `place`, a segment or nothing. */
+  const hoverAt = (place: { x: number; y: number }): void => {
+    const segment = segmentAt(document.elementFromPoint(place.x, place.y));
+    events.onHover(segment, segment === null ? null : place);
+  };
+  const onPointerMove = (event: PointerEvent): void => {
+    pointer = { x: event.clientX, y: event.clientY };
+    hoverAt(pointer);
+  };
+  const onPointerLeave = (): void => {
+    pointer = null;
     events.onHover(null, null);
-  });
-  svg.addEventListener("click", (event) => {
+  };
+  const onClick = (event: MouseEvent): void => {
     const segment = segmentAt(event.target);
     if (segment === null) {
       return;
@@ -127,13 +143,17 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
     if (click !== "none") {
       events.onClick(segment, click);
     }
-  });
+  };
   // A Shift-click must not select the text of the axes.
-  svg.addEventListener("mousedown", (event) => {
+  const onMouseDown = (event: MouseEvent): void => {
     if (event.shiftKey) {
       event.preventDefault();
     }
-  });
+  };
+  svg.addEventListener("pointermove", onPointerMove);
+  svg.addEventListener("pointerleave", onPointerLeave);
+  svg.addEventListener("click", onClick);
+  svg.addEventListener("mousedown", onMouseDown);
 
   const draw = (): void => {
     if (shown === null) {
@@ -152,7 +172,7 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
       .domain([0, Math.max(data.tallest, 1)])
       .range([bottom, MARGIN.top])
       .nice(5);
-    const binWidth = (data.highest - data.lowest) / data.binCount;
+    const binWidth = (data.highest - data.lowest) / data.numBins;
     const edge = (bin: number): number => x(data.lowest + bin * binWidth);
 
     const bars = svgElement("g", {});
@@ -173,14 +193,22 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
       if (segment.selected > 0) {
         const selectedTop = y(segment.bottom + segment.selected);
         const box = {
-          x: left + OUTLINE_WIDTH_PX / 2,
-          y: selectedTop + OUTLINE_WIDTH_PX / 2,
-          width: Math.max(barWidth - OUTLINE_WIDTH_PX, 0),
-          height: Math.max(y(segment.bottom) - selectedTop - OUTLINE_WIDTH_PX, 0),
+          x: left + HALO_WIDTH_PX / 2,
+          y: selectedTop + HALO_WIDTH_PX / 2,
+          width: Math.max(barWidth - HALO_WIDTH_PX, 0),
+          height: Math.max(y(segment.bottom) - selectedTop - HALO_WIDTH_PX, 0),
         };
         outlines.append(
-          svgElement("rect", { ...box, class: "plot-histogram-halo" }),
-          svgElement("rect", { ...box, class: "plot-histogram-outline" }),
+          svgElement("rect", {
+            ...box,
+            class: "plot-histogram-halo",
+            "stroke-width": HALO_WIDTH_PX,
+          }),
+          svgElement("rect", {
+            ...box,
+            class: "plot-histogram-outline",
+            "stroke-width": OUTLINE_WIDTH_PX,
+          }),
         );
       }
     });
@@ -227,9 +255,16 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
     countTitle.textContent = "Individuals";
     axes.append(columnTitle, countTitle);
     svg.replaceChildren(bars, outlines, axes);
+    // The bars may have changed under a pointer that has not moved: what it
+    // is over is found again, as the point views pick again.
+    if (pointer !== null) {
+      hoverAt(pointer);
+    }
   };
 
-  new ResizeObserver(draw).observe(frame);
+  const resized = new ResizeObserver(draw);
+  resized.observe(frame);
+  let destroyed = false;
 
   return {
     update: (data) => {
@@ -246,6 +281,18 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
     },
     focus: () => {
       svg.focus();
+    },
+    destroy: () => {
+      if (destroyed) {
+        return;
+      }
+      destroyed = true;
+      resized.disconnect();
+      svg.removeEventListener("pointermove", onPointerMove);
+      svg.removeEventListener("pointerleave", onPointerLeave);
+      svg.removeEventListener("click", onClick);
+      svg.removeEventListener("mousedown", onMouseDown);
+      element.replaceChildren();
     },
   };
 }
