@@ -5,7 +5,10 @@ use serde_json::{Value, json};
 use tauri::http::{HeaderMap, HeaderName, HeaderValue};
 use tauri::ipc::InvokeBody;
 use vavilov_core::{CommandError, Session, Subscriber, WindowLabel, export_table};
-use vavilov_explorer_lib::widgets::{Closed, Widgets, WindowHost};
+use vavilov_explorer_lib::actions::send_action;
+use vavilov_explorer_lib::calls::ClosedWidget;
+use vavilov_explorer_lib::error::AppError;
+use vavilov_explorer_lib::widgets::{Widgets, WindowHost};
 use vavilov_explorer_lib::{calls, menu, transfer, windows};
 
 use crate::load;
@@ -87,13 +90,19 @@ enum Answer {
 
 enum Failure {
     /// A refusal of the app, as a window receives it.
-    Refused(CommandError),
+    Refused(AppError),
     /// A line the harness should not have written.
     Harness(String),
 }
 
 impl From<CommandError> for Failure {
     fn from(error: CommandError) -> Self {
+        Self::Refused(error.into())
+    }
+}
+
+impl From<AppError> for Failure {
+    fn from(error: AppError) -> Self {
         Self::Refused(error)
     }
 }
@@ -122,7 +131,7 @@ fn outcome(
                 .as_deref()
                 .and_then(menu::action_named)
                 .ok_or_else(|| Failure::Harness(format!("e2e:action of {:?}", line.action)))?;
-            match session.send_action(&WindowLabel::main(), action)? {
+            match send_action(session, action)? {
                 None => Ok(Answer::Done),
                 Some(dropped) => Err(Failure::Harness(format!(
                     "the action {action:?} failed on its channel: {dropped:?}"
@@ -200,24 +209,20 @@ fn outcome(
         // know is refused.
         "subscribe" => {
             let label = WindowLabel::new(window(line.window)?);
-            if label.as_str() != WindowLabel::MAIN {
-                widgets.subscribe(&label, subscriber(label.clone()))?;
-            }
-            let snapshot = session.subscribe(label.clone(), subscriber(label))?;
+            let snapshot = calls::subscribe(session, widgets, label.clone(), subscriber(label))?;
             Ok(Answer::Bytes(snapshot))
         }
         "open_widget" => {
             window(line.window)?;
-            let (opened, spec) = calls::open_widget(session, widgets, &json_body(line.json)?)?;
-            if let Some(failed) = opened.failed {
+            let opened = calls::open_widget(session, widgets, &json_body(line.json)?)?;
+            if let Some(dropped) = opened.dropped {
                 return Err(Failure::Harness(format!(
-                    "open_widget was applied, and the channel of {} failed: {failed:?}",
-                    opened.window
+                    "open_widget was applied, and a channel failed: {dropped:?}"
                 )));
             }
             if !opened.new_window {
                 host.raise(&opened.window)?;
-            } else if let Err(error) = host.open(&opened.window, &spec) {
+            } else if let Err(error) = host.open(&opened.window, &opened.spec) {
                 widgets.window_closed(&opened.window);
                 return Err(Failure::Refused(error));
             }
@@ -225,17 +230,14 @@ fn outcome(
         }
         "close_widget" => {
             let label = WindowLabel::new(window(line.window)?);
-            match calls::close_widget(widgets, &label, &json_body(line.json)?)? {
-                Closed::Kept(None) => {}
-                Closed::Kept(Some(failed)) => {
+            match calls::close_widget(session, widgets, &label, &json_body(line.json)?)? {
+                ClosedWidget::Kept(None) => {}
+                ClosedWidget::Kept(Some(dropped)) => {
                     return Err(Failure::Harness(format!(
-                        "close_widget was applied, and the channel of {label} failed: {failed:?}"
+                        "close_widget was applied, and a channel failed: {dropped:?}"
                     )));
                 }
-                Closed::Window => {
-                    session.unsubscribe(&label);
-                    windows::close_all(host, &[label]);
-                }
+                ClosedWidget::Window => windows::close_all(host, &[label]),
             }
             Ok(Answer::Done)
         }
@@ -285,11 +287,7 @@ fn close_every_widget_window(
     widgets: &mut Widgets,
     host: &mut impl WindowHost,
 ) {
-    let closed = widgets.close_all();
-    for label in &closed {
-        session.unsubscribe(label);
-    }
-    windows::close_all(host, &closed);
+    windows::close_all(host, &calls::forget_every_widget_window(session, widgets));
 }
 
 /// The program's channels write to its output, so a failed send is a fault

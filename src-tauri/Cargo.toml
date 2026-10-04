@@ -27,6 +27,9 @@ tauri-build = { version = "2", features = ["isolation"] }
 # Tauri's guide says no feature is required (spikes/windowing/README.md).
 tauri = { version = "2", features = ["isolation"] }
 serde.workspace = true
+# The app layer's error enum (src/error.rs), as the core's; approved by the
+# owner on 2 October 2026 for the error enums (coding skill, Dependencies).
+thiserror.workspace = true
 # The system's Open and Save dialogs of the import and the export, opened
 # from the backend so that no window sends a path (docs/design.md,
 # section 2.1); approved by the owner on 2 October 2026.

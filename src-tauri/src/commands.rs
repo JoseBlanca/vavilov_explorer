@@ -13,12 +13,14 @@ use vavilov_core::{
 };
 
 use crate::calls;
+use crate::calls::ClosedWidget;
 use crate::dialogs;
+use crate::error::{AppError, WindowError};
 use crate::example;
 use crate::menu;
 use crate::region;
 use crate::transfer::{self, ExportAnswer, ImportAnswer};
-use crate::widgets::{Closed, Widgets, WindowHost};
+use crate::widgets::{Widgets, WindowHost};
 use crate::windows::{self, TauriWindows};
 
 /// The session, as every command takes it.
@@ -43,20 +45,23 @@ pub fn subscribe<R: Runtime>(
     on_change: Channel<InvokeResponseBody>,
     session: SessionState<'_>,
     widgets: WidgetsState<'_>,
-) -> Result<Response, CommandError> {
+) -> Result<Response, AppError> {
     let label = WindowLabel::new(window.label());
-    let mut session = lock(&session)?;
-    if label.as_str() != WindowLabel::MAIN {
-        let subscribed = lock_widgets(&widgets)?
-            .subscribe(&label, Box::new(ChannelSubscriber(on_change.clone())));
-        if let Err(error) = subscribed {
-            drop(session);
-            close_later(&window);
-            return Err(error);
+    let subscribed = calls::subscribe(
+        &mut *lock(&session)?,
+        &*lock_widgets(&widgets)?,
+        label,
+        Box::new(ChannelSubscriber(on_change)),
+    );
+    match subscribed {
+        Ok(snapshot) => Ok(Response::new(snapshot)),
+        Err(error) => {
+            if let AppError::Window(WindowError::UnknownWindow { .. }) = error {
+                close_later(&window);
+            }
+            Err(error)
         }
     }
-    let snapshot = session.subscribe(label, Box::new(ChannelSubscriber(on_change)))?;
-    Ok(Response::new(snapshot))
 }
 
 /// The description of the table: its columns, their types, and the names
@@ -178,24 +183,21 @@ pub async fn open_widget<R: Runtime>(
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
     widgets: WidgetsState<'_>,
-) -> Result<(), CommandError> {
-    let (opened, spec) = {
+) -> Result<(), AppError> {
+    let opened = {
         // The session's lock first, as everywhere, so that a load cannot
         // fall between the check of the revision and the widget added.
-        let session = lock(&session)?;
-        calls::open_widget(&session, &mut *lock_widgets(&widgets)?, request.body())?
+        let mut session = lock(&session)?;
+        calls::open_widget(&mut session, &mut *lock_widgets(&widgets)?, request.body())?
     };
-    if let Some(reason) = opened.failed {
-        report_dropped(
-            &app,
-            vec![Dropped {
-                label: opened.window.clone(),
-                reason,
-            }],
-        );
-    }
+    report_dropped(&app, opened.dropped.into_iter().collect());
     if opened.new_window {
-        windows::open_widget_window(&widgets, &mut TauriWindows(&app), &opened.window, &spec)
+        windows::open_widget_window(
+            &widgets,
+            &mut TauriWindows(&app),
+            &opened.window,
+            &opened.spec,
+        )
     } else {
         TauriWindows(&app).raise(&opened.window)
     }
@@ -216,23 +218,20 @@ pub fn close_widget<R: Runtime>(
     request: tauri::ipc::Request<'_>,
     session: SessionState<'_>,
     widgets: WidgetsState<'_>,
-) -> Result<(), CommandError> {
+) -> Result<(), AppError> {
     let label = WindowLabel::new(window.label());
-    let closed = {
-        let mut session = lock(&session)?;
-        let closed = calls::close_widget(&mut *lock_widgets(&widgets)?, &label, request.body())?;
-        if closed == Closed::Window {
-            session.unsubscribe(&label);
-        }
-        closed
-    };
+    let closed = calls::close_widget(
+        &mut *lock(&session)?,
+        &mut *lock_widgets(&widgets)?,
+        &label,
+        request.body(),
+    )?;
     match closed {
-        Closed::Kept(None) => Ok(()),
-        Closed::Kept(Some(reason)) => {
-            report_dropped(&app, vec![Dropped { label, reason }]);
+        ClosedWidget::Kept(dropped) => {
+            report_dropped(&app, dropped.into_iter().collect());
             Ok(())
         }
-        Closed::Window => TauriWindows(&app).close(&label),
+        ClosedWidget::Window => TauriWindows(&app).close(&label),
     }
 }
 
@@ -249,7 +248,7 @@ pub fn window_widgets<R: Runtime>(
     window: WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
     widgets: WidgetsState<'_>,
-) -> Result<Response, CommandError> {
+) -> Result<Response, AppError> {
     calls::window_widgets(
         &mut *lock_widgets(&widgets)?,
         &WindowLabel::new(window.label()),
@@ -558,10 +557,7 @@ fn read_and_load<R: Runtime>(
         // Under the session's lock, so that no widget of the table before
         // is added between the load and the closing, and their windows
         // receive nothing more.
-        let closed = lock_widgets(widgets)?.close_all();
-        for label in &closed {
-            session.unsubscribe(label);
-        }
+        let closed = calls::forget_every_widget_window(&mut session, &mut *lock_widgets(widgets)?);
         (answer, outcome, session.undo_redo(), closed)
     };
     report_dropped(app, outcome.dropped);

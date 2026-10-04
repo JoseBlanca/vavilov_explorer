@@ -70,6 +70,32 @@ for (const engine of Object.keys(ENGINES)) {
       await dialog.getByRole("button", { name: "Open" }).click();
       await dialog.waitFor({ state: "hidden" });
     };
+    /** Sets the role of `column`, as the table's dropdown does, from the copy at `basedOn`. */
+    const setRole = async (column, role, basedOn) => {
+      const set = await backend.send({
+        command: "set_role",
+        window: "main",
+        json: { column, role, basedOn },
+      });
+      assert.equal(set.ok, null, JSON.stringify(set));
+    };
+
+    // A column that is no longer a number by the time the user presses
+    // Open opens no window, and the bar says so: here the role of height
+    // changes while the dialog is open, as another window could change it.
+    await choose("histogram");
+    const early = page.getByRole("dialog", { name: "Histogram" });
+    await early.waitFor();
+    await setRole(3, "category", 1);
+    await early.getByRole("button", { name: "Open" }).click();
+    await page
+      .getByRole("alert")
+      .filter({ hasText: "No histogram was opened: “height” is no longer a column of numbers." })
+      .waitFor();
+    assert.deepEqual(app.windows(), ["main"]);
+    await page.getByRole("button", { name: "Dismiss" }).click();
+    await setRole(3, "number", 2);
+    await grid.getByRole("combobox", { name: "Role of height", exact: true }).waitFor();
 
     // Histogram… offers the columns of numbers, a latitude among them, and
     // starts from the first plain number.

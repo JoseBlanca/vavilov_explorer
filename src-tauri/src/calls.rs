@@ -11,12 +11,13 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    Colour, ColumnId, Command, CommandError, Condition, EditMode, Filter, LevelCode, Outcome,
-    Position, Request, Revision, Role, RowIndex, RowsRequest, Selected, SelectedGroups, SentAt,
-    Session, Showing, TableDescription, WidgetId, WindowLabel,
+    Colour, ColumnId, Command, CommandError, Condition, Delivery, Dropped, EditMode, Filter,
+    LevelCode, Outcome, Position, Request, Revision, Role, RowIndex, RowsRequest, Selected,
+    SelectedGroups, SentAt, Session, Showing, Subscriber, TableDescription, WindowLabel,
 };
 
-use crate::widgets::{Closed, Opened, WidgetSpec, Widgets};
+use crate::error::{AppError, WindowError};
+use crate::widgets::{Closed, WidgetId, WidgetList, WidgetSpec, Widgets};
 
 /// The commands `call` takes, every command of the app but `subscribe`
 /// and those of the widgets, `open_widget`, `close_widget` and
@@ -275,12 +276,48 @@ pub enum Reply {
     Bytes(Vec<u8>),
 }
 
+/// The steps of `subscribe` that are no Tauri's: a window that is neither
+/// the main window nor an open window of widgets is refused, as one closed
+/// before it subscribed, and the others subscribe to the session, which
+/// gives the snapshot. The caller closes a window refused.
+///
+/// # Errors
+///
+/// `UnknownWindow`, or a `Defect` when the snapshot cannot be encoded.
+pub fn subscribe(
+    session: &mut Session,
+    widgets: &Widgets,
+    label: WindowLabel,
+    subscriber: Box<dyn Subscriber>,
+) -> Result<Vec<u8>, AppError> {
+    if label.as_str() != WindowLabel::MAIN && !widgets.is_open(&label) {
+        return Err(WindowError::UnknownWindow { label }.into());
+    }
+    Ok(session.subscribe(label, subscriber)?)
+}
+
+/// A widget added by [`open_widget`].
+#[derive(Debug)]
+pub struct OpenedWidget {
+    /// The label of its window.
+    pub window: WindowLabel,
+    /// What it shows.
+    pub spec: WidgetSpec,
+    /// Whether its window is new, for the caller to open, rather than the
+    /// open window of its kind, which was sent its new list, for the caller
+    /// to bring to the front.
+    pub new_window: bool,
+    /// The open window, when its channel failed as it was sent its list.
+    pub dropped: Option<Dropped>,
+}
+
 /// Adds a widget, for `open_widget`: `{ spec, basedOn }`, `spec` being
 /// what it shows, made from the main window's copy at `basedOn`. A widget
 /// asked for from a copy of a table replaced since is refused, since its
 /// column ids may name other columns now; whether its columns fit is the
 /// window's rule, which closes a widget it cannot show (`docs/design.md`,
-/// section 2.2). The caller then opens its window, or brings the open one
+/// section 2.2). The open window it goes into is sent its new list through
+/// the session; the caller then opens a new window, or brings the open one
 /// to the front, once it has released the locks.
 ///
 /// # Errors
@@ -288,35 +325,76 @@ pub enum Reply {
 /// `NoProject`, `MadeBeforeLoad`, or a `Defect` for an argument missing,
 /// unknown or of the wrong type, or a counter that would pass its type.
 pub fn open_widget(
-    session: &Session,
+    session: &mut Session,
     widgets: &mut Widgets,
     body: &InvokeBody,
-) -> Result<(Opened, WidgetSpec), CommandError> {
+) -> Result<OpenedWidget, AppError> {
     let args: WidgetArgs = json_args("open_widget", body)?;
     if session.table().is_none() {
-        return Err(CommandError::NoProject);
+        return Err(CommandError::NoProject.into());
     }
     session.check_based_on(Revision::new(args.based_on))?;
     let opened = widgets.open(args.spec.clone())?;
-    Ok((opened, args.spec))
+    let dropped = match &opened.list {
+        Some(list) => send_list(session, &opened.window, list)?,
+        None => None,
+    };
+    Ok(OpenedWidget {
+        window: opened.window,
+        spec: args.spec,
+        new_window: opened.list.is_none(),
+        dropped,
+    })
+}
+
+/// What forgetting a widget left, for its caller.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ClosedWidget {
+    /// The window keeps others, and was sent its new list; with the window,
+    /// when its channel failed.
+    Kept(Option<Dropped>),
+    /// The window had no other: it is forgotten and unsubscribed, so that it
+    /// receives nothing more, and the caller closes it.
+    Window,
 }
 
 /// Forgets a widget of the calling window, `label`, for `close_widget`:
 /// `{ widget }`, the widget's number, whose tile was closed or which the
-/// window cannot show. The window is sent the widgets it has left, or,
-/// when it was the last, the caller closes it.
+/// window cannot show. The window is sent the widgets it has left, or, when
+/// it was the last, is unsubscribed, for the caller to close it.
 ///
 /// # Errors
 ///
 /// `UnknownWidget` when the window holds no such widget, or a `Defect` for
 /// an argument missing, unknown or of the wrong type.
 pub fn close_widget(
+    session: &mut Session,
     widgets: &mut Widgets,
     label: &WindowLabel,
     body: &InvokeBody,
-) -> Result<Closed, CommandError> {
+) -> Result<ClosedWidget, AppError> {
     let args: CloseWidgetArgs = json_args("close_widget", body)?;
-    widgets.close(label, WidgetId::new(args.widget))
+    match widgets.close(label, WidgetId::new(args.widget))? {
+        Closed::Kept(list) => Ok(ClosedWidget::Kept(send_list(session, label, &list)?)),
+        Closed::Window => {
+            session.unsubscribe(label);
+            Ok(ClosedWidget::Window)
+        }
+    }
+}
+
+/// Forgets every window of widgets, as another table loads, each
+/// unsubscribed so that it receives nothing more, and gives their labels
+/// for the caller to close.
+pub fn forget_every_widget_window(
+    session: &mut Session,
+    widgets: &mut Widgets,
+) -> Vec<WindowLabel> {
+    let closed = widgets.close_all();
+    for label in &closed {
+        session.unsubscribe(label);
+    }
+    closed
 }
 
 /// The widgets of the calling window, `label`, for `window_widgets`, which
@@ -330,9 +408,23 @@ pub fn window_widgets(
     widgets: &mut Widgets,
     label: &WindowLabel,
     body: &InvokeBody,
-) -> Result<Vec<u8>, CommandError> {
+) -> Result<Vec<u8>, AppError> {
     json_args::<Nothing>("window_widgets", body)?;
     widgets.list(label)?.to_bytes()
+}
+
+/// Sends the window `label` its `list` through the session: nothing when it
+/// has not subscribed yet, as while it starts, since it asks for its list
+/// then; the window when its channel failed.
+fn send_list(
+    session: &mut Session,
+    label: &WindowLabel,
+    list: &WidgetList,
+) -> Result<Option<Dropped>, AppError> {
+    Ok(match session.send_to(label, list.to_bytes()?) {
+        Delivery::Sent | Delivery::NoSubscriber => None,
+        Delivery::Dropped(dropped) => Some(dropped),
+    })
 }
 
 /// The arguments of `close_widget`: the widget's number. It takes no

@@ -1,6 +1,7 @@
-// A command the backend refused, as the core's CommandError crosses to a
-// window: its kind and its fields, in camelCase
-// (crates/vavilov-core/src/error.rs). The table below is the one list of
+// A command the backend refused, as the core's CommandError and the app
+// layer's refusals about windows cross to a window: its kind and its
+// fields, in camelCase (crates/vavilov-core/src/error.rs,
+// src-tauri/src/error.rs). The table below is the one list of
 // them on this side, and the type is made from it (tagged.ts).
 
 import { isRole, isStorageType } from "./description.ts";
@@ -36,7 +37,6 @@ const FIELDS = {
   unknownColumn: { column: isColumnIdField },
   notCategory: { column: isColumnIdField },
   notNumber: { column: isColumnIdField },
-  notRole: { column: isColumnIdField, role: isRole },
   windowFailed: { label: isText, message: isText },
   roleNotPossible: { column: isColumnIdField, storage: isStorageType, role: isRole },
   valueNotFor: { column: isColumnIdField, role: isRole, row: isRowIndexField },

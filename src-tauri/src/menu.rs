@@ -9,7 +9,9 @@ use std::sync::Mutex;
 
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, Runtime};
-use vavilov_core::{MenuAction, Session, UndoRedo, WindowLabel};
+use vavilov_core::{Session, UndoRedo, WindowLabel};
+
+use crate::actions::{MenuAction, send_action};
 
 use crate::commands::report_dropped;
 
@@ -295,7 +297,7 @@ pub fn chosen<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         bring_main_window_forward(app);
     }
     let sent = match session.lock() {
-        Ok(mut session) => session.send_action(&WindowLabel::main(), action),
+        Ok(mut session) => send_action(&mut session, action),
         Err(_) => {
             eprintln!("Vavilov Explorer defect: the session's lock is poisoned; {action:?} lost");
             return;

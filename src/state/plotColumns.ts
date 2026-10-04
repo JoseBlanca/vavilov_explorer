@@ -52,28 +52,45 @@ export function columnsOfRole(description: TableDescription, role: Role): readon
     .map(({ id, name }) => ({ id, name }));
 }
 
+/** A column a widget cannot show, and the role it needs there: "number" for a number, a latitude or a longitude. */
+export interface UnfitColumn {
+  /** The column. */
+  readonly column: ColumnId;
+  /** The role the widget needs of it. */
+  readonly role: Role;
+}
+
 /**
- * Whether the table has every column `spec` shows, each of a role it can
- * show: a number, a latitude or a longitude on a histogram or an axis of a
- * 3D scatter, a latitude and a longitude in their places on a map, and a
- * column of countries on a map of countries. A window closes a widget that
- * does not fit, as after a change of role (docs/design.md, section 2.2).
+ * The first column of `spec` the table cannot show as the widget needs it,
+ * or `null` when every column fits: a histogram and the axes of a 3D
+ * scatter need a number, a latitude or a longitude, a map a latitude and a
+ * longitude in their places, and a map of countries a column of countries.
+ * A window closes a widget that does not fit, as after a change of role,
+ * and the main window does not ask for one (docs/design.md, section 2.2).
  */
-export function widgetFits(spec: WidgetSpec, description: TableDescription): boolean {
+export function unfitColumn(spec: WidgetSpec, description: TableDescription): UnfitColumn | null {
   const roleOf = (column: ColumnId): Role | undefined =>
     description.columns.find((each) => each.id === column)?.role;
-  const isNumber = (column: ColumnId): boolean => {
-    const role = roleOf(column);
-    return role !== undefined && NUMBER_ROLES.includes(role);
-  };
-  switch (spec.kind) {
-    case "histogram":
-      return isNumber(spec.column);
-    case "scatter3d":
-      return spec.axes.every(isNumber);
-    case "map":
-      return roleOf(spec.latitude) === "latitude" && roleOf(spec.longitude) === "longitude";
-    case "countryMap":
-      return roleOf(spec.country) === "country";
-  }
+  const needs: readonly UnfitColumn[] =
+    spec.kind === "histogram"
+      ? [{ column: spec.column, role: "number" }]
+      : spec.kind === "scatter3d"
+        ? spec.axes.map((column) => ({ column, role: "number" }))
+        : spec.kind === "map"
+          ? [
+              { column: spec.latitude, role: "latitude" },
+              { column: spec.longitude, role: "longitude" },
+            ]
+          : [{ column: spec.country, role: "country" }];
+  return (
+    needs.find(({ column, role }) => {
+      const has = roleOf(column);
+      return has === undefined || (role === "number" ? !NUMBER_ROLES.includes(has) : has !== role);
+    }) ?? null
+  );
+}
+
+/** Whether the table has every column `spec` shows, each of a role it can show ({@link unfitColumn}). */
+export function widgetFits(spec: WidgetSpec, description: TableDescription): boolean {
+  return unfitColumn(spec, description) === null;
 }

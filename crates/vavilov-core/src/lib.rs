@@ -8,7 +8,6 @@
 
 #![forbid(unsafe_code)]
 
-mod action;
 mod cells;
 mod command;
 mod convert;
@@ -33,7 +32,6 @@ mod session;
 mod table;
 mod text;
 
-pub use action::MenuAction;
 pub use command::{Command, Request};
 pub use countries::{Country, country_code, country_of};
 pub use description::{
@@ -50,13 +48,13 @@ pub use formats::{
 };
 pub use ids::{
     ColumnId, HoverSeq, LevelCode, MAX_EXACT_IN_JAVASCRIPT, Position, Revision, RowIndex, SentAt,
-    WidgetId, WindowLabel,
+    WindowLabel,
 };
 pub use import::{Imported, MAX_GUESSED_LEVELS, MAX_IMPORT_BYTES, MAX_IMPORT_CELLS, import_table};
 pub use row_set::RowSet;
 pub use rows::RowsRequest;
 pub use session::{
-    Active, EditMode, Selected, SelectedGroups, SendFailed, Session, Subscriber, UndoRedo,
+    Active, Delivery, EditMode, Selected, SelectedGroups, SendFailed, Session, Subscriber, UndoRedo,
 };
 pub use table::{
     Categorical, Colour, Column, ColumnValues, INDIVIDUAL_ID, LevelValues, MAX_COLUMNS,

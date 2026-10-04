@@ -534,7 +534,7 @@ numbers are little-endian, the order of every platform the app targets.
 
 | bytes | field |
 |---|---|
-| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows, 4 action, 5 numbers (below); 6 is the app layer's list of a window's widgets (section 7), whose layout is the app layer's (`src-tauri/src/widgets.rs`, `WidgetList::to_bytes`) |
+| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows, 5 numbers (below); 4 and 6 are the app layer's, which the session hands on unread (section 7): 4 an item of the menu, in this layout (section 8), and 6 a window's list of widgets, in a layout of its own (`src-tauri/src/widgets.rs`, `WidgetList::to_bytes`) |
 | 1 | flags: bit 0 set when the time below was given, the other bits zero |
 | 2 to 7 | zero |
 | 8 to 15 | the revision, `u64` |
@@ -826,12 +826,14 @@ pub enum CommandError {
 ```
 
 It is the core's and not the app's so that the app and the test program
-of the e2e harness return the same errors in the same shape. The app's
-Tauri commands return `Result<T, CommandError>`. The app has no error
-enum of its own for what crosses to a window: a window that could not be
-created is the core's `WindowFailed`, which the core's `WindowHost`
-returns (section 7) and which the app fills with Tauri's message as
-text, and a poisoned lock is a `Defect`.
+of the e2e harness return the same errors in the same shape. It holds the
+refusals about the data alone: those about the windows are the app
+layer's (section 7), in its own enum, `WindowError`, with `UnknownWindow`,
+`UnknownWidget` and `WindowFailed`; the app's `AppError` is either, and
+crosses to a window as this one does, untagged, so that the window reads
+both kinds in one table (`src/state/commandError.ts`). A Tauri command
+that touches no window returns `Result<T, CommandError>`, one that does
+`Result<T, AppError>`, and a poisoned lock is a `Defect`.
 
 - `rename_all` names the kinds in camelCase; `rename_all_fields` does the
   same for the fields, which `rename_all` alone leaves in snake_case.
@@ -892,10 +894,13 @@ the session, so that the window receives nothing more. A command that
 takes both the session's lock and the widgets' takes the session's
 first.
 
-Two parts of the core still name windows and are to move to the app
-layer: the items of the menu, which the core encodes for the main window
-(section 8), and the refusals about windows, `UnknownWindow`,
-`UnknownWidget` and `WindowFailed`, which share the core's error type.
+The app layer sends a window its own messages, an item of the menu to the
+main window and a list of widgets to a window of them, through
+`Session::send_to(label, bytes)`, which hands bytes the core does not read
+to one subscriber, so that each window has one channel, the session's,
+and the app keeps no copy of it. It gives `Delivery::Sent`,
+`NoSubscriber`, for a window that has not subscribed yet, or `Dropped`,
+for a subscriber that failed and was removed, as the dispatcher does.
 
 ## 8. The import and the export
 
@@ -943,14 +948,16 @@ the file a test picked in the place of the dialog's.
 
 ### The menu's actions
 
-The menu is the backend's, and an item the user chooses in File or Edit
-is carried out by the main window, so that the window shows the answer of
-the command, a refusal in its information bar, as it would for a control of its
-own. The backend hands the item to the window as a message of the kind
-action, 4, whose header has the current revision, which takes no part
-in the order, and whose one part, kind 12, holds the item's code as a
-`u16`, 1 Import table…, 2 Export as CSV…, 3 Export as Excel…, 4 Undo,
-5 Redo, and six zero bytes. An action changes no state. Undo and Redo
+The menu is the app layer's, not the core's (section 7), and an item the
+user chooses in File or Edit is carried out by the main window, so that
+the window shows the answer of the command, a refusal in its information
+bar, as it would for a control of its own. The app layer
+(`src-tauri/src/actions.rs`) hands the item to the window through
+`Session::send_to` as a message in the core's layout, of the kind action,
+4, whose header has the current revision, which takes no part in the
+order, and whose one part, kind 12, holds the item's code as a `u16`,
+1 Import table…, 2 Export as CSV…, 3 Export as Excel…, 4 Undo, 5 Redo,
+and six zero bytes. An action changes no state. Undo and Redo
 are carried out by the window, with the revision of its copy, like any
 command it sends, so that an undo made from a stale copy is refused. The
 backend enables them while the session has something to undo and to

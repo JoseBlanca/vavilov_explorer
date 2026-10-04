@@ -19,13 +19,21 @@ const nameOf = (id: number): string | null => NAMES.get(id) ?? null;
 describe("the words of a 3D scatter that was not opened", () => {
   test("name the column that is no longer of numbers", () => {
     expect(
-      widgetRefusalMessage("scatter3d", { kind: "notNumber", column: column(2) }, nameOf),
+      widgetRefusalMessage(
+        "scatter3d",
+        { kind: "unfit", column: column(2), role: "number" },
+        nameOf,
+      ),
     ).toEqual({
       kind: "error",
       text: "No 3D scatter was opened: “PC1” is no longer a column of numbers.",
     });
     expect(
-      widgetRefusalMessage("scatter3d", { kind: "notNumber", column: column(9) }, nameOf).text,
+      widgetRefusalMessage(
+        "scatter3d",
+        { kind: "unfit", column: column(9), role: "number" },
+        nameOf,
+      ).text,
     ).toBe("No 3D scatter was opened: one of its columns is no longer a column of numbers.");
   });
 
@@ -52,7 +60,11 @@ describe("the words of a 3D scatter that was not opened", () => {
 
   test("of a histogram name it", () => {
     expect(
-      widgetRefusalMessage("histogram", { kind: "notNumber", column: column(4) }, nameOf).text,
+      widgetRefusalMessage(
+        "histogram",
+        { kind: "unfit", column: column(4), role: "number" },
+        nameOf,
+      ).text,
     ).toMatch(/^No histogram was opened: /);
   });
 });
@@ -60,7 +72,7 @@ describe("the words of a 3D scatter that was not opened", () => {
 describe("the words of a map that was not opened", () => {
   test("name the column that is no longer of its role", () => {
     expect(
-      widgetRefusalMessage("map", { kind: "notRole", column: column(3), role: "latitude" }, nameOf),
+      widgetRefusalMessage("map", { kind: "unfit", column: column(3), role: "latitude" }, nameOf),
     ).toEqual({
       kind: "error",
       text: "No map was opened: “lat” is no longer a latitude column.",
@@ -68,12 +80,12 @@ describe("the words of a map that was not opened", () => {
     expect(
       widgetRefusalMessage(
         "countryMap",
-        { kind: "notRole", column: column(4), role: "country" },
+        { kind: "unfit", column: column(4), role: "country" },
         nameOf,
       ).text,
     ).toBe("No map of countries was opened: “origin” is no longer a column of countries.");
     expect(
-      widgetRefusalMessage("map", { kind: "notRole", column: column(9), role: "longitude" }, nameOf)
+      widgetRefusalMessage("map", { kind: "unfit", column: column(9), role: "longitude" }, nameOf)
         .text,
     ).toBe("No map was opened: one of its columns is no longer a longitude column.");
   });

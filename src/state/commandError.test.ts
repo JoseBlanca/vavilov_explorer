@@ -16,13 +16,14 @@ describe("a refusal of the backend", () => {
     expect(
       isCommandError({ kind: "roleNotPossible", column: 3, storage: "date", role: "number" }),
     ).toBe(false);
-    // The JSON of NotRole in crates/vavilov-core/src/error/tests.rs.
-    expect(isCommandError({ kind: "notRole", column: 3, role: "latitude" })).toBe(true);
-    expect(isCommandError({ kind: "notRole", column: 3, role: "lat" })).toBe(false);
+    // The JSON of RoleNotPossible in crates/vavilov-core/src/error.rs.
+    expect(
+      isCommandError({ kind: "roleNotPossible", column: 3, storage: "text", role: "latitude" }),
+    ).toBe(true);
     expect(
       isCommandError({ kind: "duplicateIndividual", name: "p2", firstRow: 1, secondRow: 3 }),
     ).toBe(true);
-    // The JSON of UnknownWidget in crates/vavilov-core/src/error/tests.rs.
+    // The JSON of UnknownWidget in src-tauri/src/error/tests.rs.
     expect(isCommandError({ kind: "unknownWidget", label: "plots-1", widget: 2 })).toBe(true);
     expect(isCommandError({ kind: "unknownWidget", label: "plots-1", widget: -2 })).toBe(false);
   });

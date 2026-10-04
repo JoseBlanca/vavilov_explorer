@@ -3,7 +3,13 @@ import { describe, expect, test } from "vitest";
 import type { ColumnDescription, TableDescription } from "./description.ts";
 import { isColumnId, isRevision } from "./ids.ts";
 import type { ColumnId, Revision } from "./ids.ts";
-import { axisColumns, columnsOfRole, startingAxes, widgetFits } from "./plotColumns.ts";
+import {
+  axisColumns,
+  columnsOfRole,
+  startingAxes,
+  unfitColumn,
+  widgetFits,
+} from "./plotColumns.ts";
 
 function id(value: number): ColumnId {
   if (!isColumnId(value)) throw new Error("not a column");
@@ -143,5 +149,37 @@ describe("widgetFits", () => {
 
   test("a column the table does not have fits nothing", () => {
     expect(widgetFits({ kind: "histogram", column: id(9) }, places)).toBe(false);
+  });
+});
+
+describe("unfitColumn", () => {
+  const places = table([
+    column(1, "height", "number"),
+    column(2, "lat", "latitude"),
+    column(3, "lon", "longitude"),
+    column(5, "cluster", "category"),
+  ]);
+
+  test("names the first column a widget cannot show, and the role it needs", () => {
+    expect(unfitColumn({ kind: "scatter3d", axes: [id(1), id(5), id(9)] }, places)).toEqual({
+      column: id(5),
+      role: "number",
+    });
+    expect(unfitColumn({ kind: "map", latitude: id(3), longitude: id(3) }, places)).toEqual({
+      column: id(3),
+      role: "latitude",
+    });
+    expect(unfitColumn({ kind: "map", latitude: id(2), longitude: id(1) }, places)).toEqual({
+      column: id(1),
+      role: "longitude",
+    });
+    expect(unfitColumn({ kind: "countryMap", country: id(5) }, places)).toEqual({
+      column: id(5),
+      role: "country",
+    });
+  });
+
+  test("is null for a widget whose columns all fit", () => {
+    expect(unfitColumn({ kind: "histogram", column: id(2) }, places)).toBeNull();
   });
 });

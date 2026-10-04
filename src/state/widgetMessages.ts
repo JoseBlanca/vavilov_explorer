@@ -1,12 +1,14 @@
 // The words the information bar of the main window shows when a plot
-// cannot be opened, written from what the window knows or from the
-// backend's refusal (.claude/skills/writing/SKILL.md, "The text of the
-// app"). No window was opened.
+// cannot be opened, written from what the window knows, a column the table
+// can no longer show, or from the app's refusal of a window the system
+// could not open (.claude/skills/writing/SKILL.md, "The text of the app").
+// No window was opened.
 
 import type { BarMessage } from "./barMessages.ts";
 import type { CommandError } from "./commandError.ts";
 import type { Role } from "./description.ts";
 import type { ColumnId } from "./ids.ts";
+import type { UnfitColumn } from "./plotColumns.ts";
 import type { WidgetKind } from "./widget.ts";
 
 /** The name of each kind of widget, as a sentence says it. */
@@ -60,16 +62,20 @@ export function noColumnMessage(role: MapRole): BarMessage {
   }
 }
 
-/** A refusal of open_widget the window shows. */
-export type WidgetRefused = Extract<
-  CommandError,
-  { readonly kind: "notNumber" | "notRole" | "windowFailed" }
->;
+/** A refusal of open_widget the window shows: a window the system could not open. */
+export type WidgetRefused = Extract<CommandError, { readonly kind: "windowFailed" }>;
 
 /** Whether `error` is a refusal of open_widget the window shows. */
 export function isWidgetRefused(error: CommandError): error is WidgetRefused {
-  return error.kind === "notNumber" || error.kind === "notRole" || error.kind === "windowFailed";
+  return error.kind === "windowFailed";
 }
+
+/**
+ * Why a widget was not opened: a column the table, described again as the
+ * user chose Open, can no longer show as the widget needs it, or the app's
+ * refusal.
+ */
+export type WidgetNotOpened = ({ readonly kind: "unfit" } & UnfitColumn) | WidgetRefused;
 
 /** A column of `role`, as a sentence says it. */
 function roleWords(role: Role): string {
@@ -90,13 +96,13 @@ function roleWords(role: Role): string {
 }
 
 /**
- * The error shown for a widget of `kind` the backend refused to open, with
- * `columnName` the name of a column of the window's copy, or `null` when
- * the copy does not have it.
+ * The error shown for a widget of `kind` that was not opened, for `why`,
+ * with `columnName` the name of a column of the window's copy, or `null`
+ * when the copy does not have it.
  */
 export function widgetRefusalMessage(
   kind: WidgetKind,
-  error: WidgetRefused,
+  why: WidgetNotOpened,
   columnName: (column: ColumnId) => string | null,
 ): BarMessage {
   const opened = `No ${WIDGET_WORDS[kind]} was opened`;
@@ -105,11 +111,9 @@ export function widgetRefusalMessage(
     const which = name === null ? "one of its columns" : `“${name}”`;
     return { kind: "error", text: `${opened}: ${which} is no longer ${roleWords(role)}.` };
   };
-  switch (error.kind) {
-    case "notNumber":
-      return noLonger(error.column, "number");
-    case "notRole":
-      return noLonger(error.column, error.role);
+  switch (why.kind) {
+    case "unfit":
+      return noLonger(why.column, why.role);
     case "windowFailed":
       return {
         kind: "error",

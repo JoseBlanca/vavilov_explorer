@@ -80,7 +80,9 @@ overflow; in a debug build they panic; `/` and `%` by zero panic in both;
   missing value is the defect this rule is for.
 - Each crate has one error enum, written with
   `thiserror` (approved by the owner on 2 October 2026, `SKILL.md`,
-  "Dependencies"), to which each module adds its cases. It is not
+  "Dependencies"), to which each module adds its cases: the core's
+  `CommandError`, and the app's `AppError`, which wraps it beside the
+  app layer's refusals about windows. It is not
   `#[non_exhaustive]`: the crates ship together, and the attribute would
   force a `_` arm in every `match` of another crate, where a new case
   falls in silence (the review of the core, 2 October 2026). A case names what was being done,

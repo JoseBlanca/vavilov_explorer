@@ -31,9 +31,6 @@ pub(crate) enum MessageKind {
     Hover,
     /// A page of rows a window asked for, at the current revision.
     Rows,
-    /// An item of the menu for the window to carry out, which takes no
-    /// revision: the header has the current one.
-    Action,
     /// The values of a numeric column as a window draws them, which it
     /// asked for, at the current revision.
     Numbers,
@@ -46,7 +43,6 @@ impl MessageKind {
             Self::Change => 1,
             Self::Hover => 2,
             Self::Rows => 3,
-            Self::Action => 4,
             Self::Numbers => 5,
         }
     }
@@ -66,7 +62,6 @@ pub(crate) enum PartKind {
     Names,
     Values,
     Shape,
-    Action,
     Filter,
     Numbers,
 }
@@ -85,7 +80,6 @@ impl PartKind {
             Self::Names => 9,
             Self::Values => 10,
             Self::Shape => 11,
-            Self::Action => 12,
             Self::Filter => 13,
             Self::Numbers => 14,
         }

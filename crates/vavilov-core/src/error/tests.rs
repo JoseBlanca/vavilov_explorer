@@ -41,21 +41,6 @@ fn revisions_rows_and_labels_cross_as_plain_values() {
         .unwrap(),
         json!({ "kind": "duplicateIndividual", "name": "p2", "firstRow": 1, "secondRow": 3 })
     );
-    assert_eq!(
-        serde_json::to_value(CommandError::UnknownWindow {
-            label: WindowLabel::new("scatter3d-1")
-        })
-        .unwrap(),
-        json!({ "kind": "unknownWindow", "label": "scatter3d-1" })
-    );
-    assert_eq!(
-        serde_json::to_value(CommandError::UnknownWidget {
-            label: WindowLabel::new("plots-1"),
-            widget: WidgetId::new(2),
-        })
-        .unwrap(),
-        json!({ "kind": "unknownWidget", "label": "plots-1", "widget": 2 })
-    );
 }
 
 #[test]
@@ -433,28 +418,12 @@ fn a_command_made_before_the_levels_changed_crosses_with_its_revisions() {
 }
 
 #[test]
-fn a_column_that_is_no_number_and_a_window_that_failed_cross_with_their_fields() {
+fn a_column_that_is_no_number_crosses_with_its_id() {
     assert_eq!(
         serde_json::to_value(CommandError::NotNumber {
             column: ColumnId::new(2)
         })
         .unwrap(),
         json!({ "kind": "notNumber", "column": 2 })
-    );
-    assert_eq!(
-        serde_json::to_value(CommandError::NotRole {
-            column: ColumnId::new(3),
-            role: Role::Latitude,
-        })
-        .unwrap(),
-        json!({ "kind": "notRole", "column": 3, "role": "latitude" })
-    );
-    assert_eq!(
-        serde_json::to_value(CommandError::WindowFailed {
-            label: WindowLabel::new("scatter3d-1"),
-            message: "no display".to_owned(),
-        })
-        .unwrap(),
-        json!({ "kind": "windowFailed", "label": "scatter3d-1", "message": "no display" })
     );
 }

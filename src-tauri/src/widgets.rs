@@ -10,8 +10,39 @@
 //! widget can show is the windows' rule: a window draws the widgets its
 //! copy of the table can show and asks to forget the others.
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
-use vavilov_core::{ColumnId, CommandError, SendFailed, Subscriber, WidgetId, WindowLabel};
+use vavilov_core::{ColumnId, WindowLabel};
+
+use crate::error::{AppError, WindowError, defect};
+
+/// The number of a widget, given when it is opened from a counter that
+/// only grows, so that a number is never given twice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct WidgetId(u32);
+
+impl WidgetId {
+    /// The widget with this number, which may not be open: a window's
+    /// number is checked when a command uses it.
+    #[must_use]
+    pub const fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    /// The number.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl fmt::Display for WidgetId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 /// What a widget shows: its kind and its columns.
 ///
@@ -137,13 +168,11 @@ pub struct WidgetList {
 /// the kind of message after those of the core (`docs/core.md`, section 5).
 pub const WIDGETS_MESSAGE: u8 = 6;
 
-/// A window of widgets: its label, its kind, its widgets, and the end of
-/// its channel through which it is sent its list, once it subscribed.
+/// A window of widgets: its label, its kind and its widgets.
 struct WidgetWindow {
     label: WindowLabel,
     kind: WindowKind,
     widgets: Vec<Widget>,
-    channel: Option<Box<dyn Subscriber>>,
 }
 
 /// A widget added by [`Widgets::open`].
@@ -153,21 +182,17 @@ pub struct Opened {
     pub window: WindowLabel,
     /// Its number.
     pub widget: WidgetId,
-    /// Whether its window is a new one, for the caller to open, rather than
-    /// an open one that was sent its new list, for the caller to bring to
-    /// the front.
-    pub new_window: bool,
-    /// Why the open window's channel failed when it was sent its new list;
-    /// its channel was then forgotten.
-    pub failed: Option<SendFailed>,
+    /// The new list of the open window the widget went into, for the
+    /// caller to send it and bring it to the front; `None` for a new window,
+    /// for the caller to open, which asks for its list as it starts.
+    pub list: Option<WidgetList>,
 }
 
 /// What closing a widget left.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Closed {
-    /// The window has widgets left, and was sent its list; with why its
-    /// channel failed, when it did.
-    Kept(Option<SendFailed>),
+    /// The window has widgets left: its new list, for the caller to send it.
+    Kept(WidgetList),
     /// The window has none left, and is forgotten: the caller closes it.
     Window,
 }
@@ -187,7 +212,7 @@ pub struct Widgets {
 impl Widgets {
     /// Adds a widget that shows `spec`, with the next number of a counter
     /// that only grows. A widget whose kind of window holds many goes into
-    /// the open window of its kind, which is sent its new list; any other,
+    /// the open window of its kind, whose new list it gives; any other,
     /// or the first of its kind, into a new window, labelled with its kind
     /// and the next number of another counter that only grows, `plots-2`,
     /// so that a label is never given twice.
@@ -195,7 +220,7 @@ impl Widgets {
     /// # Errors
     ///
     /// A `Defect` when a counter would pass its type.
-    pub fn open(&mut self, spec: WidgetSpec) -> Result<Opened, CommandError> {
+    pub fn open(&mut self, spec: WidgetSpec) -> Result<Opened, AppError> {
         let kind = spec.window_kind();
         let id = self
             .widgets_given
@@ -211,23 +236,20 @@ impl Widgets {
             spec,
         };
         let opened = if let Some(index) = shared {
-            let list = self.next_list()?;
+            let seq = self.next_list()?;
             let window = self
                 .windows
                 .get_mut(index)
                 .ok_or_else(|| defect("a window found and gone"))?;
             window.widgets.push(widget);
             self.widgets_given = id;
-            let failed = self.send_list(index, list);
-            let window = self
-                .windows
-                .get(index)
-                .ok_or_else(|| defect("a window found and gone"))?;
             Opened {
                 window: window.label.clone(),
                 widget: WidgetId::new(id),
-                new_window: false,
-                failed,
+                list: Some(WidgetList {
+                    seq,
+                    widgets: window.widgets.clone(),
+                }),
             }
         } else {
             let number = self
@@ -239,34 +261,34 @@ impl Widgets {
                 label: label.clone(),
                 kind,
                 widgets: vec![widget],
-                channel: None,
             });
             self.widgets_given = id;
             self.windows_given = number;
             Opened {
                 window: label,
                 widget: WidgetId::new(id),
-                new_window: true,
-                failed: None,
+                list: None,
             }
         };
         Ok(opened)
     }
 
     /// Forgets the widget `widget` of the window `label`, whose tile was
-    /// closed or which the window cannot show: the window is sent the list
-    /// it has left, or, when it was its last, is forgotten, for the caller
-    /// to close.
+    /// closed or which the window cannot show: it gives the list the window
+    /// has left, or, when it was its last, forgets the window, for the
+    /// caller to close.
     ///
     /// # Errors
     ///
     /// `UnknownWidget` when the window holds no such widget, as one closed
     /// a moment before, or a `Defect` when the sequence number would pass
     /// its type.
-    pub fn close(&mut self, label: &WindowLabel, widget: WidgetId) -> Result<Closed, CommandError> {
-        let unknown = || CommandError::UnknownWidget {
-            label: label.clone(),
-            widget,
+    pub fn close(&mut self, label: &WindowLabel, widget: WidgetId) -> Result<Closed, AppError> {
+        let unknown = || {
+            AppError::from(WindowError::UnknownWidget {
+                label: label.clone(),
+                widget,
+            })
         };
         let index = self
             .windows
@@ -281,34 +303,13 @@ impl Widgets {
             self.windows.remove(index);
             return Ok(Closed::Window);
         }
-        let list = self.next_list()?;
+        let seq = self.next_list()?;
         let window = self.windows.get_mut(index).ok_or_else(unknown)?;
         window.widgets.retain(|each| each.id != widget);
-        Ok(Closed::Kept(self.send_list(index, list)))
-    }
-
-    /// Takes the end of the channel of the window `label`, which subscribed,
-    /// through which it is sent its list from then on, in the place of the
-    /// one it had before a reload.
-    ///
-    /// # Errors
-    ///
-    /// `UnknownWindow` when no window of widgets has that label, as one
-    /// closed before it subscribed.
-    pub fn subscribe(
-        &mut self,
-        label: &WindowLabel,
-        channel: Box<dyn Subscriber>,
-    ) -> Result<(), CommandError> {
-        let window = self
-            .windows
-            .iter_mut()
-            .find(|window| window.label == *label)
-            .ok_or_else(|| CommandError::UnknownWindow {
-                label: label.clone(),
-            })?;
-        window.channel = Some(channel);
-        Ok(())
+        Ok(Closed::Kept(WidgetList {
+            seq,
+            widgets: window.widgets.clone(),
+        }))
     }
 
     /// The widgets of the window `label`, with the next sequence number.
@@ -317,11 +318,12 @@ impl Widgets {
     ///
     /// `UnknownWindow` when no window of widgets has that label, or a
     /// `Defect` when the sequence number would pass its type.
-    pub fn list(&mut self, label: &WindowLabel) -> Result<WidgetList, CommandError> {
+    pub fn list(&mut self, label: &WindowLabel) -> Result<WidgetList, AppError> {
         if !self.is_open(label) {
-            return Err(CommandError::UnknownWindow {
+            return Err(WindowError::UnknownWindow {
                 label: label.clone(),
-            });
+            }
+            .into());
         }
         let seq = self.next_list()?;
         Ok(WidgetList {
@@ -359,39 +361,13 @@ impl Widgets {
     }
 
     /// The next sequence number of a list.
-    fn next_list(&mut self) -> Result<u64, CommandError> {
+    fn next_list(&mut self) -> Result<u64, AppError> {
         let seq = self
             .lists_given
             .checked_add(1)
             .ok_or_else(|| defect("more lists of widgets than a u64 counts"))?;
         self.lists_given = seq;
         Ok(seq)
-    }
-
-    /// Sends the window at `index` its list, at `seq`: nothing when it has
-    /// not subscribed yet, as while it starts, since it asks for its list
-    /// then; why its channel failed when it did, and the channel is then
-    /// forgotten, as the core forgets a failed subscriber.
-    fn send_list(&mut self, index: usize, seq: u64) -> Option<SendFailed> {
-        let window = self.windows.get_mut(index)?;
-        let list = WidgetList {
-            seq,
-            widgets: window.widgets.clone(),
-        };
-        let channel = window.channel.as_ref()?;
-        let sent = list
-            .to_bytes()
-            .map_err(|error| SendFailed {
-                reason: error.to_string(),
-            })
-            .and_then(|message| channel.send(message));
-        match sent {
-            Ok(()) => None,
-            Err(failed) => {
-                window.channel = None;
-                Some(failed)
-            }
-        }
     }
 }
 
@@ -409,7 +385,7 @@ impl WidgetList {
     /// # Errors
     ///
     /// A `Defect` for more widgets than a `u32` counts.
-    pub fn to_bytes(&self) -> Result<Vec<u8>, CommandError> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, AppError> {
         let count = u32::try_from(self.widgets.len())
             .map_err(|_| defect("more widgets in a window than a u32 counts"))?;
         let mut bytes = vec![WIDGETS_MESSAGE, 0, 0, 0, 0, 0, 0, 0];
@@ -445,7 +421,7 @@ pub trait WindowHost {
     /// `WindowFailed`, with the system's message, when the window could not
     /// be made; the caller then forgets it with
     /// [`Widgets::window_closed`].
-    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), CommandError>;
+    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), AppError>;
 
     /// Brings the open window `label` to the front, when a widget was
     /// added to it; a window that does not exist yet, still being made
@@ -455,7 +431,7 @@ pub trait WindowHost {
     ///
     /// `WindowFailed`, with the system's message, when the window could not
     /// be brought forward.
-    fn raise(&mut self, label: &WindowLabel) -> Result<(), CommandError>;
+    fn raise(&mut self, label: &WindowLabel) -> Result<(), AppError>;
 
     /// Closes the window `label`.
     ///
@@ -463,13 +439,7 @@ pub trait WindowHost {
     ///
     /// `WindowFailed`, with the system's message, when the window could not
     /// be closed.
-    fn close(&mut self, label: &WindowLabel) -> Result<(), CommandError>;
-}
-
-fn defect(what: &str) -> CommandError {
-    CommandError::Defect {
-        what: what.to_owned(),
-    }
+    fn close(&mut self, label: &WindowLabel) -> Result<(), AppError>;
 }
 
 #[cfg(test)]

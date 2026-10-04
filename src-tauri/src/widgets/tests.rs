@@ -1,37 +1,8 @@
-use std::sync::{Arc, Mutex};
-
 use super::*;
+use crate::error::WindowError;
 
 const HEIGHT: ColumnId = ColumnId::new(1);
 const SEEDS: ColumnId = ColumnId::new(4);
-
-/// A channel that keeps the messages it is sent.
-#[derive(Clone, Default)]
-struct Recorder(Arc<Mutex<Vec<Vec<u8>>>>);
-
-impl Recorder {
-    fn take(&self) -> Vec<Vec<u8>> {
-        std::mem::take(&mut *self.0.lock().unwrap())
-    }
-}
-
-impl Subscriber for Recorder {
-    fn send(&self, message: Vec<u8>) -> Result<(), SendFailed> {
-        self.0.lock().unwrap().push(message);
-        Ok(())
-    }
-}
-
-/// A channel whose window is gone.
-struct Failing;
-
-impl Subscriber for Failing {
-    fn send(&self, _message: Vec<u8>) -> Result<(), SendFailed> {
-        Err(SendFailed {
-            reason: "gone".to_owned(),
-        })
-    }
-}
 
 fn label(text: &str) -> WindowLabel {
     WindowLabel::new(text)
@@ -80,7 +51,7 @@ fn the_histograms_share_one_plots_window_and_each_takes_a_number_of_its_own() {
         opened.map(|each| (
             each.window.as_str().to_owned(),
             each.widget.get(),
-            each.new_window
+            each.list.is_none()
         )),
         [
             ("plots-1".to_owned(), 1, true),
@@ -105,15 +76,11 @@ fn the_histograms_share_one_plots_window_and_each_takes_a_number_of_its_own() {
 }
 
 #[test]
-fn a_widget_added_to_an_open_window_sends_it_its_new_list() {
+fn a_widget_added_to_an_open_window_gives_its_new_list_to_send_it() {
     let mut widgets = Widgets::default();
-    widgets.open(histogram(HEIGHT)).unwrap();
-    let plots = Recorder::default();
-    widgets
-        .subscribe(&label("plots-1"), Box::new(plots.clone()))
-        .unwrap();
-    widgets.open(histogram(SEEDS)).unwrap();
-    assert_eq!(plots.take(), [TWO_HISTOGRAMS.to_vec()]);
+    assert_eq!(widgets.open(histogram(HEIGHT)).unwrap().list, None);
+    let list = widgets.open(histogram(SEEDS)).unwrap().list.unwrap();
+    assert_eq!(list.to_bytes().unwrap(), TWO_HISTOGRAMS);
 }
 
 #[test]
@@ -125,9 +92,9 @@ fn a_list_asked_for_takes_the_next_sequence_number() {
     assert_eq!((first.seq, second.seq), (1, 2));
     assert_eq!(
         widgets.list(&label("plots-9")),
-        Err(CommandError::UnknownWindow {
+        Err(AppError::Window(WindowError::UnknownWindow {
             label: label("plots-9")
-        })
+        }))
     );
 }
 
@@ -136,22 +103,24 @@ fn closing_a_tile_forgets_its_widget_and_closing_the_last_forgets_its_window() {
     let mut widgets = Widgets::default();
     widgets.open(histogram(HEIGHT)).unwrap();
     widgets.open(histogram(SEEDS)).unwrap();
-    let plots = Recorder::default();
-    widgets
-        .subscribe(&label("plots-1"), Box::new(plots.clone()))
-        .unwrap();
+    // The window is given the list it has left, after the one the second
+    // histogram gave.
     assert_eq!(
         widgets.close(&label("plots-1"), WidgetId::new(1)),
-        Ok(Closed::Kept(None))
+        Ok(Closed::Kept(WidgetList {
+            seq: 2,
+            widgets: vec![Widget {
+                id: WidgetId::new(2),
+                spec: histogram(SEEDS)
+            }]
+        }))
     );
     assert_eq!(ids_in(&widgets, "plots-1"), [2]);
-    assert_eq!(plots.take().len(), 1);
     assert_eq!(
         widgets.close(&label("plots-1"), WidgetId::new(2)),
         Ok(Closed::Window)
     );
     assert!(!widgets.is_open(&label("plots-1")));
-    assert!(plots.take().is_empty());
 }
 
 #[test]
@@ -161,17 +130,17 @@ fn a_window_cannot_close_a_widget_it_does_not_hold() {
     let scattered = widgets.open(scatter(HEIGHT, SEEDS, HEIGHT)).unwrap().window;
     assert_eq!(
         widgets.close(&scattered, WidgetId::new(1)),
-        Err(CommandError::UnknownWidget {
+        Err(AppError::Window(WindowError::UnknownWidget {
             label: scattered.clone(),
             widget: WidgetId::new(1)
-        })
+        }))
     );
     assert_eq!(
         widgets.close(&label("plots-1"), WidgetId::new(9)),
-        Err(CommandError::UnknownWidget {
+        Err(AppError::Window(WindowError::UnknownWidget {
             label: label("plots-1"),
             widget: WidgetId::new(9)
-        })
+        }))
     );
     assert_eq!(ids_in(&widgets, "plots-1"), [1]);
 }
@@ -203,35 +172,6 @@ fn a_load_forgets_every_window_and_gives_their_labels() {
         widgets.open(histogram(HEIGHT)).unwrap().window,
         label("plots-3")
     );
-}
-
-#[test]
-fn a_window_that_never_opened_cannot_subscribe() {
-    let mut widgets = Widgets::default();
-    assert_eq!(
-        widgets.subscribe(&label("scatter3d-1"), Box::new(Recorder::default())),
-        Err(CommandError::UnknownWindow {
-            label: label("scatter3d-1")
-        })
-    );
-}
-
-#[test]
-fn a_channel_that_fails_is_said_and_forgotten() {
-    let mut widgets = Widgets::default();
-    widgets.open(histogram(HEIGHT)).unwrap();
-    widgets
-        .subscribe(&label("plots-1"), Box::new(Failing))
-        .unwrap();
-    let opened = widgets.open(histogram(SEEDS)).unwrap();
-    assert_eq!(
-        opened.failed,
-        Some(SendFailed {
-            reason: "gone".to_owned()
-        })
-    );
-    // Forgotten: the next list has no channel to fail on.
-    assert_eq!(widgets.open(histogram(HEIGHT)).unwrap().failed, None);
 }
 
 #[test]
@@ -289,7 +229,7 @@ fn the_two_maps_share_one_maps_window_apart_from_the_plots() {
             .unwrap(),
     ];
     assert_eq!(
-        opened.map(|each| (each.window.as_str().to_owned(), each.new_window)),
+        opened.map(|each| (each.window.as_str().to_owned(), each.list.is_none())),
         [
             ("maps-1".to_owned(), true),
             ("plots-2".to_owned(), true),

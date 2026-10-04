@@ -13,12 +13,25 @@ pub(crate) use history::{History, HistoryStep};
 pub(crate) use interaction::{Interaction, Shown};
 pub(crate) use subscribers::Subscribers;
 
+use crate::dispatch::Dropped;
 use crate::error::CommandError;
 use crate::filter::texts::NumberTexts;
 use crate::ids::{HoverSeq, Revision, RowIndex, WindowLabel};
 use crate::message::{MessageKind, whole_state};
 use crate::row_set::RowSet;
 use crate::table::Table;
+
+/// What became of bytes sent to one subscriber with [`Session::send_to`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Delivery {
+    /// They were handed to the subscriber.
+    Sent,
+    /// No subscriber has that name, as a window that has not subscribed yet.
+    NoSubscriber,
+    /// The subscriber failed, and was removed: the caller reports it, as
+    /// the dispatcher's caller reports a window dropped.
+    Dropped(Dropped),
+}
 
 /// The session of the app. The app holds it once, behind a lock, and
 /// every change goes through [`Session::dispatch`].
@@ -135,6 +148,22 @@ impl Session {
         )?;
         self.subscribers.register(label, subscriber);
         Ok(snapshot)
+    }
+
+    /// Sends `message`, bytes the core does not read, to the subscriber
+    /// `label` alone, as the app layer sends a window an item of the menu
+    /// or its list of widgets (`docs/core.md`, section 7). It changes
+    /// nothing in the session; a subscriber that fails is removed, as the
+    /// dispatcher removes one.
+    pub fn send_to(&mut self, label: &WindowLabel, message: Vec<u8>) -> Delivery {
+        match self.subscribers.send_to(label, &message) {
+            None => Delivery::NoSubscriber,
+            Some(None) => Delivery::Sent,
+            Some(Some(reason)) => Delivery::Dropped(Dropped {
+                label: label.clone(),
+                reason,
+            }),
+        }
     }
 
     /// Forgets the subscriber `label`, whose window was closed; nothing for

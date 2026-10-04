@@ -6,9 +6,10 @@ use std::sync::Mutex;
 
 use tauri::utils::config::BackgroundThrottlingPolicy;
 use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
-use vavilov_core::{CommandError, WindowLabel};
+use vavilov_core::WindowLabel;
 
 use crate::commands::lock_widgets;
+use crate::error::{AppError, WindowError};
 use crate::widgets::{WidgetSpec, Widgets, WindowHost, WindowKind};
 
 /// The size a widget's window opens at, in logical pixels, before the
@@ -29,10 +30,12 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
     /// its title from its page's. On macOS it cannot go fullscreen, which
     /// would move it to a Space of its own away from the other windows
     /// (`docs/design.md`, section 10).
-    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), CommandError> {
-        let failed = |error: tauri::Error| CommandError::WindowFailed {
-            label: label.clone(),
-            message: error.to_string(),
+    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), AppError> {
+        let failed = |error: tauri::Error| {
+            AppError::from(WindowError::WindowFailed {
+                label: label.clone(),
+                message: error.to_string(),
+            })
         };
         let builder =
             WebviewWindowBuilder::new(self.0, label.as_str(), WebviewUrl::App("index.html".into()))
@@ -67,13 +70,15 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
     /// Brings the window to the front, out of the Dock or the taskbar when
     /// it was minimized; a window not made yet is left alone, since it
     /// shows itself once made.
-    fn raise(&mut self, label: &WindowLabel) -> Result<(), CommandError> {
+    fn raise(&mut self, label: &WindowLabel) -> Result<(), AppError> {
         let Some(window) = self.0.get_webview_window(label.as_str()) else {
             return Ok(());
         };
-        let failed = |error: tauri::Error| CommandError::WindowFailed {
-            label: label.clone(),
-            message: error.to_string(),
+        let failed = |error: tauri::Error| {
+            AppError::from(WindowError::WindowFailed {
+                label: label.clone(),
+                message: error.to_string(),
+            })
         };
         window.unminimize().map_err(failed)?;
         window.set_focus().map_err(failed)
@@ -82,7 +87,7 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
     /// Closes the window once the call that asked for it has returned, as
     /// a window is never destroyed from inside a call (tauri.md); a window
     /// already gone is closed.
-    fn close(&mut self, label: &WindowLabel) -> Result<(), CommandError> {
+    fn close(&mut self, label: &WindowLabel) -> Result<(), AppError> {
         let Some(window) = self.0.get_webview_window(label.as_str()) else {
             return Ok(());
         };
@@ -96,9 +101,11 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
                     );
                 }
             })
-            .map_err(|error| CommandError::WindowFailed {
-                label: label.clone(),
-                message: error.to_string(),
+            .map_err(|error| {
+                AppError::from(WindowError::WindowFailed {
+                    label: label.clone(),
+                    message: error.to_string(),
+                })
             })
     }
 }
@@ -143,7 +150,7 @@ pub fn open_widget_window(
     host: &mut impl WindowHost,
     label: &WindowLabel,
     spec: &WidgetSpec,
-) -> Result<(), CommandError> {
+) -> Result<(), AppError> {
     let opened = host.open(label, spec);
     let mut widgets = lock_widgets(widgets)?;
     if let Err(error) = opened {

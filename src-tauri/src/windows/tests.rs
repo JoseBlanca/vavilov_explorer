@@ -1,8 +1,9 @@
 use std::sync::Mutex;
 
-use vavilov_core::{ColumnId, CommandError, WindowLabel};
+use vavilov_core::{ColumnId, WindowLabel};
 
 use super::{accepts_first_mouse, open_widget_window};
+use crate::error::{AppError, WindowError};
 use crate::widgets::{WidgetSpec, Widgets, WindowHost, WindowKind};
 
 const HEIGHT: ColumnId = ColumnId::new(1);
@@ -17,18 +18,18 @@ struct LoadWhileOpening<'a> {
 }
 
 impl WindowHost for LoadWhileOpening<'_> {
-    fn open(&mut self, label: &WindowLabel, _widget: &WidgetSpec) -> Result<(), CommandError> {
+    fn open(&mut self, label: &WindowLabel, _widget: &WidgetSpec) -> Result<(), AppError> {
         self.closed_by_the_load = self.widgets.lock().unwrap().close_all();
         // The load's close finds no window yet, as Tauri's does.
         self.open.push(label.clone());
         Ok(())
     }
 
-    fn raise(&mut self, _label: &WindowLabel) -> Result<(), CommandError> {
+    fn raise(&mut self, _label: &WindowLabel) -> Result<(), AppError> {
         Ok(())
     }
 
-    fn close(&mut self, label: &WindowLabel) -> Result<(), CommandError> {
+    fn close(&mut self, label: &WindowLabel) -> Result<(), AppError> {
         self.open.retain(|open| open != label);
         Ok(())
     }
@@ -56,18 +57,19 @@ fn a_window_forgotten_while_it_was_being_made_is_closed() {
 struct Failing;
 
 impl WindowHost for Failing {
-    fn open(&mut self, label: &WindowLabel, _widget: &WidgetSpec) -> Result<(), CommandError> {
-        Err(CommandError::WindowFailed {
+    fn open(&mut self, label: &WindowLabel, _widget: &WidgetSpec) -> Result<(), AppError> {
+        Err(WindowError::WindowFailed {
             label: label.clone(),
             message: "no window today".to_owned(),
-        })
+        }
+        .into())
     }
 
-    fn raise(&mut self, _label: &WindowLabel) -> Result<(), CommandError> {
+    fn raise(&mut self, _label: &WindowLabel) -> Result<(), AppError> {
         Ok(())
     }
 
-    fn close(&mut self, _label: &WindowLabel) -> Result<(), CommandError> {
+    fn close(&mut self, _label: &WindowLabel) -> Result<(), AppError> {
         Ok(())
     }
 }
@@ -79,10 +81,10 @@ fn a_window_that_could_not_be_made_is_forgotten_with_its_widgets() {
     let label = widgets.lock().unwrap().open(spec.clone()).unwrap().window;
     assert_eq!(
         open_widget_window(&widgets, &mut Failing, &label, &spec),
-        Err(CommandError::WindowFailed {
+        Err(AppError::Window(WindowError::WindowFailed {
             label: WindowLabel::new("plots-1"),
             message: "no window today".to_owned(),
-        })
+        }))
     );
     assert!(!widgets.lock().unwrap().is_open(&label));
 }

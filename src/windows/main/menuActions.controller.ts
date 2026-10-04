@@ -2,7 +2,8 @@ import type { Connection } from "../../backend/connection.ts";
 import type { Refusal } from "../../state/commandError.ts";
 import { defect } from "../../state/defect.ts";
 import { fileRefusalMessage, isFileRefusal, undecodedMessage } from "../../state/fileMessages.ts";
-import { axisColumns, columnsOfRole, startingAxes } from "../../state/plotColumns.ts";
+import { axisColumns, columnsOfRole, startingAxes, unfitColumn } from "../../state/plotColumns.ts";
+import type { ColumnId } from "../../state/ids.ts";
 import { csvDefaults } from "../../state/transfer.ts";
 import {
   isWidgetRefused,
@@ -98,10 +99,20 @@ export function createMenuActions(
   };
 
   /**
-   * Opens the widget `spec`; the backend checks its columns again against
-   * its table, and refuses one that changed meanwhile, which the bar says.
+   * Opens the widget `spec`, chosen from `description`. Its columns are
+   * checked again against the table the backend has as the user presses
+   * Open, by the rule the widget's window keeps (unfitColumn), and a
+   * column that changed meanwhile is said in the bar, as is a window the
+   * system could not open.
    */
   const openWidget = async (spec: WidgetSpec, description: TableDescription): Promise<void> => {
+    const nameOf = (id: ColumnId): string | null =>
+      description.columns.find((column) => column.id === id)?.name ?? null;
+    const unfit = unfitColumn(spec, await describe(spec.kind));
+    if (unfit !== null) {
+      infoBar.tell(widgetRefusalMessage(spec.kind, { kind: "unfit", ...unfit }, nameOf));
+      return;
+    }
     const answer = await connection.openWidget(spec);
     if (answer.ok) {
       return;
@@ -113,13 +124,7 @@ export function createMenuActions(
     // The bar says what happened; the system's reason for a window that
     // failed goes to the log.
     console.warn(`Vavilov Explorer: a widget of the kind ${spec.kind} was refused`, error);
-    infoBar.tell(
-      widgetRefusalMessage(
-        spec.kind,
-        error,
-        (id) => description.columns.find((column) => column.id === id)?.name ?? null,
-      ),
-    );
+    infoBar.tell(widgetRefusalMessage(spec.kind, error, nameOf));
   };
 
   /** Asks for the three axes, from the columns of numbers, and opens the 3D scatter. */

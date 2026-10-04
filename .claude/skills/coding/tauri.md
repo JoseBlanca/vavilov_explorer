@@ -188,6 +188,13 @@ catches it at the call, checks its shape, and returns a `Result` of
 kind and the data, as the `writing` skill says of the app's text. The
 backend never sends text meant for the user: the words are the window's.
 
+The core's `CommandError` holds the refusals about the data; those about
+the windows are the app layer's `WindowError` (`src/error.rs`), since the
+core knows no window (`docs/design.md`, section 3). A command that
+touches a window returns `AppError`, either of the two, serialised
+untagged, so that each crosses as `{ "kind", ... }` and the window reads
+both in one table; the others return `CommandError`.
+
 ## Windows
 
 - **Labels**: `main`, and for the windows of the widgets their kind and

@@ -1852,3 +1852,46 @@ mod edit_mode;
 mod delete_and_edit;
 
 mod several_groups;
+
+#[test]
+fn bytes_sent_to_one_subscriber_reach_it_alone_and_change_nothing() {
+    let (mut session, main) = loaded();
+    let other = Recorder::default();
+    session
+        .subscribe(WindowLabel::new("plots-1"), Box::new(other.clone()))
+        .unwrap();
+    let before = session.state.clone();
+    assert_eq!(
+        session.send_to(&WindowLabel::new("plots-1"), vec![6, 0, 0, 0, 0, 0, 0, 0]),
+        Delivery::Sent
+    );
+    assert_eq!(other.take(), [vec![6, 0, 0, 0, 0, 0, 0, 0]]);
+    assert!(main.take().is_empty());
+    assert_eq!(session.state, before);
+}
+
+#[test]
+fn bytes_for_no_subscriber_say_so_and_a_failed_one_is_dropped() {
+    let (mut session, _main) = loaded();
+    assert_eq!(
+        session.send_to(&WindowLabel::new("plots-1"), vec![6]),
+        Delivery::NoSubscriber
+    );
+    session
+        .subscribe(WindowLabel::new("plots-1"), Box::new(Failing))
+        .unwrap();
+    assert_eq!(
+        session.send_to(&WindowLabel::new("plots-1"), vec![6]),
+        Delivery::Dropped(Dropped {
+            label: WindowLabel::new("plots-1"),
+            reason: SendFailed {
+                reason: "the channel is closed".to_owned()
+            }
+        })
+    );
+    // Dropped: the next finds no subscriber.
+    assert_eq!(
+        session.send_to(&WindowLabel::new("plots-1"), vec![6]),
+        Delivery::NoSubscriber
+    );
+}

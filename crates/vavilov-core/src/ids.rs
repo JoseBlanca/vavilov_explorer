@@ -199,37 +199,10 @@ fn next_exact(value: u64, what: &str) -> Result<u64, CommandError> {
         })
 }
 
-/// The number of a widget, given when it is opened from a counter that
-/// only grows, so that a number is never given twice (`docs/core.md`,
-/// section 7).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct WidgetId(u32);
-
-impl WidgetId {
-    /// The widget with this number, which may not be open: a window's
-    /// number is checked when a command uses it.
-    #[must_use]
-    pub const fn new(id: u32) -> Self {
-        Self(id)
-    }
-
-    /// The number.
-    #[must_use]
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for WidgetId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-/// The label of a window, fixed when the window is created: `main`, or the
-/// kind of window of the widgets and its number, such as `scatter3d-1` or
-/// `plots-2`. It never holds a user's text.
+/// The name of a subscriber, which the core does not read: the label of the
+/// window it is, fixed when the window is created by the app layer, `main`
+/// or such as `plots-2` (`docs/core.md`, section 7). It never holds a
+/// user's text.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct WindowLabel(String);

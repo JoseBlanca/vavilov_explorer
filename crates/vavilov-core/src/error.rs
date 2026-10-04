@@ -11,7 +11,7 @@ pub use group::GroupRefusal;
 
 use serde::Serialize;
 
-use crate::ids::{ColumnId, LevelCode, Position, Revision, RowIndex, WidgetId, WindowLabel};
+use crate::ids::{ColumnId, LevelCode, Position, Revision, RowIndex};
 use crate::table::{Role, StorageType};
 
 /// Why a command was refused, or a table could not be built.
@@ -59,24 +59,6 @@ pub enum CommandError {
         levels_at: Revision,
     },
 
-    /// A window subscribed with a label that is neither the main window
-    /// nor an open widget.
-    #[error("no window {label} is open")]
-    UnknownWindow {
-        /// The label the window gave.
-        label: WindowLabel,
-    },
-
-    /// A window asked to close a widget it does not hold: one a command
-    /// dropped meanwhile, or another window's.
-    #[error("window {label} holds no widget {widget}")]
-    UnknownWidget {
-        /// The window that asked.
-        label: WindowLabel,
-        /// The widget it gave.
-        widget: WidgetId,
-    },
-
     /// No column of the table has this id.
     #[error("column {column} is not in the table")]
     UnknownColumn {
@@ -97,26 +79,6 @@ pub enum CommandError {
     NotNumber {
         /// The column the command gave.
         column: ColumnId,
-    },
-
-    /// The command needs a column of one role, such as the latitude of a
-    /// map or the countries of a map of countries, and the column has
-    /// another.
-    #[error("column {column} is not of the role {role:?}")]
-    NotRole {
-        /// The column the command gave.
-        column: ColumnId,
-        /// The role the command needs.
-        role: Role,
-    },
-
-    /// A window could not be opened or closed by the system.
-    #[error("window {label} could not be opened or closed: {message}")]
-    WindowFailed {
-        /// The window's label.
-        label: WindowLabel,
-        /// The system's message, for the technical details.
-        message: String,
     },
 
     /// The column's storage type cannot take the role asked for: a number

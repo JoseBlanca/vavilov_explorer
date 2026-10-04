@@ -39,7 +39,8 @@ mod wire;
 use std::io::{BufRead, Write};
 use std::process::ExitCode;
 
-use vavilov_core::{CommandError, SendFailed, Session, Subscriber, WindowLabel};
+use vavilov_core::{SendFailed, Session, Subscriber, WindowLabel};
+use vavilov_explorer_lib::error::{AppError, WindowError};
 use vavilov_explorer_lib::widgets::{WidgetSpec, Widgets, WindowHost};
 
 fn main() -> ExitCode {
@@ -91,27 +92,28 @@ impl Subscriber for Stdout {
 struct Pages;
 
 impl WindowHost for Pages {
-    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), CommandError> {
+    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), AppError> {
         let line = serde_json::json!({ "open": label.as_str(), "widget": widget });
         write_line(&line).map_err(|error| failed(label, &error))
     }
 
-    fn raise(&mut self, label: &WindowLabel) -> Result<(), CommandError> {
+    fn raise(&mut self, label: &WindowLabel) -> Result<(), AppError> {
         let line = serde_json::json!({ "raise": label.as_str() });
         write_line(&line).map_err(|error| failed(label, &error))
     }
 
-    fn close(&mut self, label: &WindowLabel) -> Result<(), CommandError> {
+    fn close(&mut self, label: &WindowLabel) -> Result<(), AppError> {
         let line = serde_json::json!({ "close": label.as_str() });
         write_line(&line).map_err(|error| failed(label, &error))
     }
 }
 
-fn failed(label: &WindowLabel, error: &std::io::Error) -> CommandError {
-    CommandError::WindowFailed {
+fn failed(label: &WindowLabel, error: &std::io::Error) -> AppError {
+    WindowError::WindowFailed {
         label: label.clone(),
         message: error.to_string(),
     }
+    .into()
 }
 
 fn write_line(value: &serde_json::Value) -> std::io::Result<()> {

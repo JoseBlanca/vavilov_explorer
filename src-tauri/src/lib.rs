@@ -1,11 +1,13 @@
 //! The Tauri app of Vavilov Explorer: its commands, channels and windows,
 //! each a thin layer over the core (.claude/skills/coding/SKILL.md).
 
+pub mod actions;
 pub mod calls;
 pub mod commands;
 #[cfg(any(feature = "demo", test))]
 pub mod demo;
 pub mod dialogs;
+pub mod error;
 pub mod example;
 pub mod menu;
 pub mod region;

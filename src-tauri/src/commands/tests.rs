@@ -6,11 +6,11 @@ use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use vavilov_core::{
     Categorical, Colour, ColumnId, ColumnValues, Command, LevelCode, LevelValues, NewColumn,
-    Numbers, Request, Role, RowIndex, Table, UndoRedo, WidgetId,
+    Numbers, Request, Role, RowIndex, Table, UndoRedo,
 };
 
 use super::*;
-use crate::widgets::{Widget, WidgetSpec, Widgets};
+use crate::widgets::{Widget, WidgetId, WidgetSpec, Widgets};
 use crate::with_session;
 
 const ORIGIN: u32 = 1;

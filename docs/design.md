@@ -939,10 +939,11 @@ and to the windows themselves:
   of the windows that the app layer gives it at a save, and gives it
   back at a load, without reading it (section 8).
 
-Two parts of the core still name windows and are to move to the app
-layer: the items of the menu, which the core encodes for the main window
-(`core.md`, section 8), and the refusals about windows, `UnknownWindow`,
-`UnknownWidget` and `WindowFailed`, which share the core's error type.
+The items of the menu and the refusals about windows, an unknown window,
+an unknown widget and a window the system could not open, are the app
+layer's too. The app layer sends a window its own messages, an item of the
+menu or a list of widgets, through the session's channel to that window,
+as bytes the core does not read, so that each window has one channel.
 
 Making the main window's JavaScript the owner of the state was
 considered and not taken. Reloading or closing that window would lose
