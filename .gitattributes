@@ -1,3 +1,7 @@
 # Every text file is stored and checked out with LF line endings, which
 # Prettier and rustfmt expect, also on Windows.
 * text=auto eol=lf
+
+# The example table is the core's export byte for byte, its CRLF line
+# endings included, which a test checks: it is stored as it is.
+src-tauri/resources/example-plants.csv -text
