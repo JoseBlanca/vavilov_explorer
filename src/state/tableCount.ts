@@ -73,14 +73,23 @@ function unreadableOf(shown: Shown, filter: Filter | null): string | null {
 /**
  * The count the information bar writes, with `count` writing each number
  * in the user's language: "2,000 individuals", or "Showing 312 of 2,000
- * individuals" while a filter filters, then "· “abc” is not a
- * number" when the number of its comparison cannot be read, and "· 45
- * selected" when rows are selected.
+ * individuals" while a filter filters, then "· “1.5” is not a number: the
+ * decimal mark here is “,”" when the number of its comparison cannot be
+ * read with `decimalMark`, the region's, and "· 45 selected" when rows are
+ * selected.
  */
-export function tableCountText(table: TableCount, count: (value: number) => string): string {
+export function tableCountText(
+  table: TableCount,
+  count: (value: number) => string,
+  decimalMark: string,
+): string {
   const individuals = `${count(table.numRows)} ${table.numRows === 1 ? "individual" : "individuals"}`;
   const shown = table.filtered ? `Showing ${count(table.numShown)} of ${individuals}` : individuals;
+  // The mark says how to write the number (decided by the owner on
+  // 4 October 2026).
   const read =
-    table.unreadable === null ? shown : `${shown} · “${table.unreadable}” is not a number`;
+    table.unreadable === null
+      ? shown
+      : `${shown} · “${table.unreadable}” is not a number: the decimal mark here is “${decimalMark}”`;
   return table.numSelected > 0 ? `${read} · ${count(table.numSelected)} selected` : read;
 }

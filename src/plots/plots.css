@@ -97,6 +97,15 @@
   font-weight: var(--font-weight-strong);
 }
 
+/* Every segment has an edge in the grey of the box's lines, so that a pale
+   group shows on the background, and two segments of one bar part, as the
+   points of a point view have a ring (decided by the owner on 4 October
+   2026). */
+.plot-histogram-segment {
+  stroke: var(--color-control-border);
+  stroke-width: 1px;
+}
+
 .plot-histogram-outlines {
   fill: none;
   pointer-events: none;

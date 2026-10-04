@@ -19,12 +19,14 @@ describe("the count of the table", () => {
       tableCountText(
         { numShown: 2000, numRows: 2000, filtered: false, numSelected: 0, unreadable: null },
         count,
+        ",",
       ),
     ).toBe("2.000 individuals");
     expect(
       tableCountText(
         { numShown: 1, numRows: 1, filtered: false, numSelected: 0, unreadable: null },
         count,
+        ",",
       ),
     ).toBe("1 individual");
   });
@@ -34,12 +36,14 @@ describe("the count of the table", () => {
       tableCountText(
         { numShown: 312, numRows: 2000, filtered: true, numSelected: 0, unreadable: null },
         count,
+        ",",
       ),
     ).toBe("Showing 312 of 2.000 individuals");
     expect(
       tableCountText(
         { numShown: 4, numRows: 4, filtered: true, numSelected: 0, unreadable: null },
         count,
+        ",",
       ),
     ).toBe("Showing 4 of 4 individuals");
   });
@@ -47,10 +51,11 @@ describe("the count of the table", () => {
   test("says when the number typed for a comparison is no number", () => {
     expect(
       tableCountText(
-        { numShown: 2000, numRows: 2000, filtered: false, numSelected: 45, unreadable: "abc" },
+        { numShown: 2000, numRows: 2000, filtered: false, numSelected: 45, unreadable: "1.5" },
         count,
+        ",",
       ),
-    ).toBe("2.000 individuals · “abc” is not a number · 45 selected");
+    ).toBe("2.000 individuals · “1.5” is not a number: the decimal mark here is “,” · 45 selected");
   });
 
   test("adds the rows selected", () => {
@@ -58,6 +63,7 @@ describe("the count of the table", () => {
       tableCountText(
         { numShown: 312, numRows: 2000, filtered: true, numSelected: 45, unreadable: null },
         count,
+        ",",
       ),
     ).toBe("Showing 312 of 2.000 individuals · 45 selected");
   });

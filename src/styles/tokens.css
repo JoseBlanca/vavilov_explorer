@@ -26,6 +26,10 @@
      while there is no active classification. */
   --color-point-unassigned: #7c7c84;
   --color-point: #1d4ed8;
+  /* The histogram: the grey of the groups not selected, paler than the
+     unassigned individuals' so that the two part (decided by the owner on
+     4 October 2026). */
+  --color-other-groups: #dcdce1;
   /* The map of countries: a country of no individual, and the ends of the
      scale of the counts, from one individual to the most in a country. */
   --color-country-empty: #e4e4e9;
@@ -78,6 +82,7 @@
     --color-remove-text: #1d0b0b;
     --color-point-unassigned: #8b8b94;
     --color-point: #8fb0ff;
+    --color-other-groups: #3a3a40;
     --color-country-empty: #303036;
     --color-count-low: #1f4f80;
     --color-count-high: #b3d7ff;
@@ -105,6 +110,7 @@
   --color-remove-text: #1d0b0b;
   --color-point-unassigned: #8b8b94;
   --color-point: #8fb0ff;
+  --color-other-groups: #3a3a40;
   --color-country-empty: #303036;
   --color-count-low: #1f4f80;
   --color-count-high: #b3d7ff;

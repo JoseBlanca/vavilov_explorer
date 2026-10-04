@@ -73,6 +73,12 @@ export interface Histogram {
   readonly placeOf: (segment: number) => { x: number; y: number } | null;
   /** Gives the plot the keyboard's focus. */
   readonly focus: () => void;
+  /**
+   * Forgets the segment under the pointer, as if the pointer had left,
+   * until the pointer moves again: what the label beside it shows is then
+   * hidden, and a drawing of the bars meanwhile does not show it again.
+   */
+  readonly forgetPointer: () => void;
   /** Stops watching the element and the pointer, and empties the element; it may be called twice. */
   readonly destroy: () => void;
 }
@@ -182,6 +188,7 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
       const barWidth = Math.max(edge(segment.bin + 1) - edge(segment.bin) - GAP_PX, 1);
       const top = y(segment.bottom + segment.count);
       const rect = svgElement("rect", {
+        class: "plot-histogram-segment",
         "data-segment": index,
         x: left,
         y: top,
@@ -281,6 +288,10 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
     },
     focus: () => {
       svg.focus();
+    },
+    forgetPointer: () => {
+      pointer = null;
+      events.onHover(null, null);
     },
     destroy: () => {
       if (destroyed) {

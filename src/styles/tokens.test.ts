@@ -71,6 +71,9 @@ const PAIRS: readonly (readonly [string, string, number])[] = [
   // from none by its hue, and the hover's label gives its count.
   ["--color-control-border", "--color-country-empty", 3],
   ["--color-count-high", "--color-country-empty", 3],
+  // The histogram: the edge of every segment against the paler grey of the
+  // groups not selected, so that it parts them from the unassigned grey.
+  ["--color-control-border", "--color-other-groups", 3],
 ];
 
 describe("the tokens", () => {

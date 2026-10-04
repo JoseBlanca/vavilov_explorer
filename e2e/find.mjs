@@ -158,7 +158,7 @@ for (const engine of Object.keys(ENGINES)) {
     // shows every row, and the information bar says why.
     await field.fill("1.5");
     await rowsShown(grid, ALL);
-    await countSays(page, "6 individuals · “1.5” is not a number");
+    await countSays(page, "6 individuals · “1.5” is not a number: the decimal mark here is “,”");
 
     // A group deleted while the filter chose it clears the filter; its undo
     // does not bring the filter back.

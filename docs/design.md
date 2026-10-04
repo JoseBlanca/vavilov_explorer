@@ -167,8 +167,9 @@ it.
   and follows the group when it is renamed or when the groups are
   renumbered. A comparison reads the number with the decimal mark of the
   system's region, as the import does; a text that is not a number
-  filters nothing, and the information bar says so: "“abc” is not a
-  number." "is missing" matches the missing cells, "Any column is
+  filters nothing, and the information bar says so, with the mark: "“1.5”
+  is not a number: the decimal mark here is “,”" (the mark added by the
+  owner on 4 October 2026). "is missing" matches the missing cells, "Any column is
   missing" a row with at least one. Apart from "is missing", a missing
   cell never matches, so a missing height is neither ≤ 1.5 nor > 1.5.
   "Show rows that don't match" shows the others, and turns "is missing"
@@ -669,8 +670,15 @@ bins.
   groups selected, those groups are drawn at the bottom of each bar, in
   their colours and the panel's order, where their heights can be read
   against the axis, and the individuals of every other group, and those
-  unassigned, as one grey segment above them. With no active
-  classification, each bar is one segment in the points' blue.
+  unassigned, as one segment above them, in a grey paler than the
+  unassigned individuals', so that the two part when the unassigned are
+  the group selected. With no active classification, each bar is one
+  segment in the points' blue. Every segment has an edge of one pixel in
+  the grey of the box's lines, as the points of a point view have a ring,
+  so that a pale group shows on the background, at least 3 to 1, and two
+  segments of one bar part (both decided by the owner on 4 October 2026,
+  after the review found a yellow bar at 1.2 to 1 on the light
+  background).
 - The individuals selected are drawn at the bottom of each segment they
   are in, with a border in the text's colour around them, so that the
   border shows how many of the segment are selected (the owner asked for
@@ -686,7 +694,9 @@ bins.
   one last clicked. A click on empty space does nothing. A drag across
   bars comes in the second step. The pointer over a segment names it,
   "ESP: 12 individuals, 1.5 to 2", or "Other groups: 40 individuals, 1.5
-  to 2" for the grey one; the words are the assistant's.
+  to 2" for the grey one; the words are the assistant's. Escape hides the
+  label, which can cover the groups panel, until the pointer moves
+  (decided by the owner on 4 October 2026).
 - The window has the groups panel with + and − on the group selected and
   no Add, Edit or Delete group; while + is pressed a click on a segment
   puts its individuals in the group, as a click selects them. On macOS a

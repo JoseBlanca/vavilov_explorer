@@ -48,7 +48,7 @@ interface Drawn {
 /** The colours of the parts that are no group, from the tokens (src/styles/tokens.css). */
 const PART_COLOURS = {
   unassigned: "var(--color-point-unassigned)",
-  others: "var(--color-point-unassigned)",
+  others: "var(--color-other-groups)",
   unclassified: "var(--color-point)",
 } as const;
 
@@ -171,6 +171,15 @@ export async function startHistogramWindow(root: HTMLElement): Promise<void> {
         showLabel();
       },
       onClick: select,
+    });
+
+    // Escape hides the label beside the pointer, which may cover the groups
+    // panel, until the pointer moves (decided by the owner on 4 October
+    // 2026); the key goes on to release + or −, or clear the selection.
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        plot.forgetPointer();
+      }
     });
 
     const columns = createFetchedColumns(connection, [column], () => {

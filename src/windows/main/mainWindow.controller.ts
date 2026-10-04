@@ -76,7 +76,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
             state.selection(),
             state.filter(),
           );
-          return counted === null ? null : tableCountText(counted, countText);
+          return counted === null ? null : tableCountText(counted, countText, decimalMark);
         },
       },
       () => {

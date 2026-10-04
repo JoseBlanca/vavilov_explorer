@@ -85,6 +85,19 @@ for (const engine of Object.keys(ENGINES)) {
       await tokenColour(histogram, "--color-point-unassigned"),
     ]);
 
+    // Every segment has an edge in the grey of the box's lines, so that a
+    // pale group shows on the background, and two segments of one bar part.
+    const edge = await tokenColour(histogram, "--color-control-border");
+    assert.deepEqual(
+      await histogram.evaluate(() =>
+        [...globalThis.document.querySelectorAll("[data-segment]")].map((rect) => {
+          const style = globalThis.getComputedStyle(rect);
+          return [style.stroke, style.strokeWidth];
+        }),
+      ),
+      Array.from({ length: 5 }, () => [edge, "1px"]),
+    );
+
     // The pointer over a segment names it, its individuals and its bin.
     await hover(histogram, 3);
     await waitForText(label(histogram), "Peru: 1 individual, 2.9 to 3");
@@ -125,6 +138,17 @@ for (const engine of Object.keys(ENGINES)) {
       () => globalThis.document.querySelectorAll(".plot-histogram-outline").length === 2,
     );
     await shoot(histogram, engine, "histogram-selected");
+    // Escape hides the label beside the pointer, which may cover the groups
+    // panel, and it stays hidden although the bars are drawn again, as the
+    // selection Escape clears; moving the pointer shows it again.
+    await hover(histogram, 3);
+    await waitForText(label(histogram), "Peru: 1 individual, 2.9 to 3");
+    await histogram.keyboard.press("Escape");
+    await selectedAre(page, []);
+    await outlinedAre(histogram, []);
+    assert.equal(await label(histogram).count(), 0);
+    await hover(histogram, 3);
+    await waitForText(label(histogram), "Peru: 1 individual, 2.9 to 3");
 
     // The groups panel has + and − on the group selected, and no Add,
     // Edit or Delete group.
@@ -137,7 +161,7 @@ for (const engine of Object.keys(ENGINES)) {
     // With Peru selected, its individuals are at the bottom of each bar,
     // and every other individual in one grey segment above them: 0 others
     // (p1), 1 Peru (p2), 2 others (p3), 3 Peru (p6), 4 others (p4).
-    const grey = await tokenColour(histogram, "--color-point-unassigned");
+    const grey = await tokenColour(histogram, "--color-other-groups");
     await histogram.waitForFunction(
       () => globalThis.document.querySelectorAll("[data-segment]").length === 5,
     );
