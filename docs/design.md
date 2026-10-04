@@ -412,6 +412,7 @@ A widget is one plot of some columns:
 | widget | columns | where it is drawn |
 |---|---|---|
 | 3D scatter | three numeric columns | a window of its own |
+| 2D scatter | two numeric columns | a tile of the Plots window |
 | histogram | one numeric column | a tile of the Plots window |
 | bar plot | one category | a tile of the Plots window |
 | map of the individuals | a latitude and a longitude column | a tile of the Maps window |
@@ -788,6 +789,48 @@ The two maps, decided by the owner on 3 October 2026:
   at 10.1 to 1 in the light appearance and 8.8 in the dark. The light
   blue of one individual does not, at 1.34 and 1.55 to 1: it differs from
   the grey by its hue, and the label of a country gives its count.
+
+The 2D scatter, decided by the owner on 4 October 2026 (issue #7):
+
+- It behaves as the 3D scatter does, with two exceptions: it does not
+  rotate, which means nothing in two dimensions, and each is a tile of
+  the Plots window, beside the histograms, not a window of its own.
+- Plot > 2D scatter… opens a dialog, "2D scatter", with a dropdown for
+  each axis, "X axis" and "Y axis", which offers the columns the 3D
+  scatter's does. It starts from the first two columns whose role is a
+  number, and with one, from it on both axes; from the latitudes and the
+  longitudes only when the table has no plain number. With no such
+  column the bar says so, as for the 3D scatter: "No 2D scatter was
+  opened: the table has no column of numbers. …".
+- The tile is named after its columns, "2D scatter of PC1 and PC2", and
+  counts its individuals as the 3D scatter's window does: "Drawing 1,688
+  of 2,000 individuals: 312 have no value on an axis."
+- It is drawn in SVG with D3, as the histogram is, not with WebGL: it
+  does not count among the 16 plots drawn with WebGL, and counts among
+  the 6 tiles of the Plots window. Measured on the owner's Mac on
+  4 October 2026, in the e2e harness, a debug build, the median of 5
+  runs: with 2,000 individuals a frame of pan and a hover each draw
+  within the two animation frames the measurement waits, 32 to 33 ms;
+  with 50,000, a frame of pan takes 84 ms in WebKit and 48 ms in
+  Chromium, and a hover 86 and 52 ms. A pan moves one group that holds
+  every point, and a new style touches only the points whose style
+  changed; before these two, the same 50,000 took 148 and 122 ms in
+  WebKit and 117 and 105 ms in Chromium.
+- An axis at the bottom for the first column and one at the left for the
+  second, with ticks at round values, each named after its column, and a
+  light grid at the ticks behind the points.
+- The points have the 3D scatter's colours, shapes, sizes and rings, and
+  the same order: the hover over the selection over the rest. The
+  pointer, the clicks, the hover's label and the lasso with + and − are
+  the 3D scatter's.
+- It pans and zooms as the maps do: a drag pans, the wheel zooms where
+  the pointer is, and a double click frames every point again; with the
+  keyboard's focus on it, the arrows pan, + and − zoom, and Home frames
+  every point again. While + or − is pressed, a drag draws a lasso and
+  does not pan. The pan and the zoom are the app's own code, not D3's
+  `d3-zoom`, which would be a new dependency.
+- A change of role that leaves an axis without a column of numbers
+  closes its tile, as for every tile.
 
 The histogram, decided by the owner on 4 October 2026 and built in two
 steps: first the bars of one column, stacked by group, their clicks and

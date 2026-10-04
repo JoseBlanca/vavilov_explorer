@@ -19,7 +19,7 @@ use crate::commands::report_dropped;
 /// the window gives its action, its text, the action, and its shortcut.
 /// Undo and Redo have Cmd-Z and Cmd-Shift-Z, and Select None
 /// Cmd-Shift-A, Ctrl outside macOS (`docs/design.md`, section 2.1).
-const ITEMS: [(&str, &str, MenuAction, Option<&str>); 11] = [
+const ITEMS: [(&str, &str, MenuAction, Option<&str>); 12] = [
     (
         "importTable",
         "Import table…",
@@ -48,6 +48,7 @@ const ITEMS: [(&str, &str, MenuAction, Option<&str>); 11] = [
         Some("CmdOrCtrl+Shift+A"),
     ),
     ("scatter3d", "3D scatter…", MenuAction::Scatter3d, None),
+    ("scatter2d", "2D scatter…", MenuAction::Scatter2d, None),
     ("histogram", "Histogram…", MenuAction::Histogram, None),
     ("map", "Map…", MenuAction::Map, None),
     (
@@ -59,11 +60,12 @@ const ITEMS: [(&str, &str, MenuAction, Option<&str>); 11] = [
 ];
 
 /// The actions whose items need a table, disabled until one is open.
-const NEED_A_TABLE: [MenuAction; 7] = [
+const NEED_A_TABLE: [MenuAction; 8] = [
     MenuAction::ExportCsv,
     MenuAction::ExportXlsx,
     MenuAction::SelectNone,
     MenuAction::Scatter3d,
+    MenuAction::Scatter2d,
     MenuAction::Histogram,
     MenuAction::Map,
     MenuAction::CountryMap,
@@ -123,6 +125,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         redo,
         select_none,
         scatter3d,
+        scatter2d,
         histogram,
         map,
         country_map,
@@ -136,6 +139,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         redo,
         select_none,
         scatter3d,
+        scatter2d,
         histogram,
         map,
         country_map,
@@ -148,6 +152,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         redo?,
         select_none?,
         scatter3d?,
+        scatter2d?,
         histogram?,
         map?,
         country_map?,
@@ -190,7 +195,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         app,
         "Plot",
         true,
-        &[&scatter3d, &histogram, &map, &country_map],
+        &[&scatter3d, &scatter2d, &histogram, &map, &country_map],
     )?;
     #[cfg(target_os = "macos")]
     {
@@ -238,6 +243,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             export_xlsx,
             select_none,
             scatter3d,
+            scatter2d,
             histogram,
             map,
             country_map,

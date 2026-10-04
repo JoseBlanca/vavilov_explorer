@@ -7,6 +7,7 @@ import {
   axisColumns,
   columnsOfRole,
   startingAxes,
+  startingAxes2d,
   unfitColumn,
   widgetFits,
 } from "./plotColumns.ts";
@@ -99,6 +100,31 @@ describe("startingAxes", () => {
   });
 });
 
+describe("startingAxes2d", () => {
+  test("are the first two numbers, leaving out the latitudes and longitudes", () => {
+    expect(startingAxes2d(TABLE)).toEqual([2, 7]);
+  });
+
+  test("put the one number on both axes", () => {
+    expect(
+      startingAxes2d(table([column(4, "lat", "latitude"), column(2, "PC1", "number")])),
+    ).toEqual([2, 2]);
+  });
+
+  test("are the latitudes and longitudes when the table has no plain number", () => {
+    const places = table([
+      column(1, "origin", "category"),
+      column(4, "lat", "latitude"),
+      column(6, "lon", "longitude"),
+    ]);
+    expect(startingAxes2d(places)).toEqual([4, 6]);
+  });
+
+  test("are none with no column of numbers", () => {
+    expect(startingAxes2d(table([column(1, "origin", "category")]))).toBe(null);
+  });
+});
+
 describe("columnsOfRole", () => {
   test("are the columns of one role, in the order of the table, as a map offers them", () => {
     const places = table([
@@ -134,6 +160,13 @@ describe("widgetFits", () => {
     expect(widgetFits({ kind: "scatter3d", axes: [id(1), id(2), id(3)] }, places)).toBe(true);
     expect(widgetFits({ kind: "histogram", column: id(5) }, places)).toBe(false);
     expect(widgetFits({ kind: "scatter3d", axes: [id(1), id(5), id(3)] }, places)).toBe(false);
+  });
+
+  test("a 2D scatter shows a number, a latitude or a longitude on each axis", () => {
+    expect(widgetFits({ kind: "scatter2d", axes: [id(1), id(2)] }, places)).toBe(true);
+    expect(widgetFits({ kind: "scatter2d", axes: [id(3), id(3)] }, places)).toBe(true);
+    expect(widgetFits({ kind: "scatter2d", axes: [id(1), id(4)] }, places)).toBe(false);
+    expect(widgetFits({ kind: "scatter2d", axes: [id(5), id(1)] }, places)).toBe(false);
   });
 
   test("a map shows a latitude and a longitude, each in its place", () => {
@@ -172,6 +205,10 @@ describe("unfitColumn", () => {
     expect(unfitColumn({ kind: "map", latitude: id(2), longitude: id(1) }, places)).toEqual({
       column: id(1),
       role: "longitude",
+    });
+    expect(unfitColumn({ kind: "scatter2d", axes: [id(1), id(5)] }, places)).toEqual({
+      column: id(5),
+      role: "number",
     });
     expect(unfitColumn({ kind: "countryMap", country: id(5) }, places)).toEqual({
       column: id(5),

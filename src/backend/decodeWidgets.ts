@@ -102,6 +102,13 @@ function widgetSpec(kind: number, columns: readonly number[]): WidgetSpec {
       }
       return { kind: "histogram", column };
     }
+    case 5: {
+      const [x, y] = used("scatter2d", 2);
+      if (x === undefined || y === undefined) {
+        throw defect("a 2D scatter widget without its two axes");
+      }
+      return { kind: "scatter2d", axes: [x, y] };
+    }
     default:
       throw defect(`a kind of widget ${String(kind)}`);
   }

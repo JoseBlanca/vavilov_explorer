@@ -15,18 +15,27 @@ function isAxes(value: unknown): value is Axes {
   return Array.isArray(value) && value.length === 3 && value.every(isColumnIdField);
 }
 
+/** The two columns of a 2D scatter, on its x and y axes. */
+export type Axes2 = readonly [ColumnId, ColumnId];
+
+function isAxes2(value: unknown): value is Axes2 {
+  return Array.isArray(value) && value.length === 2 && value.every(isColumnIdField);
+}
+
 /** The fields of each kind of widget, and the check of each. */
 const FIELDS = {
   scatter3d: { axes: isAxes },
+  scatter2d: { axes: isAxes2 },
   map: { latitude: isColumnIdField, longitude: isColumnIdField },
   countryMap: { country: isColumnIdField },
   histogram: { column: isColumnIdField },
 };
 
 /**
- * What a widget shows: a 3D scatter of three numeric columns, a map of the
- * individuals by a latitude and a longitude column, a map of the countries
- * of a country column, or a histogram of a numeric column.
+ * What a widget shows: a 3D scatter of three numeric columns, a 2D scatter
+ * of two, a map of the individuals by a latitude and a longitude column, a
+ * map of the countries of a country column, or a histogram of a numeric
+ * column.
  */
 export type WidgetSpec = Tagged<typeof FIELDS>;
 
@@ -47,8 +56,8 @@ export interface Widget {
 /**
  * The kinds of window of the widgets, as the start of their labels
  * (`WindowKind` of the app layer, src-tauri/src/widgets.rs): a 3D
- * scatter's, the Plots window of the histograms, and the Maps window of
- * the maps.
+ * scatter's, the Plots window of the histograms and the 2D scatters, and
+ * the Maps window of the maps.
  */
 export const WINDOW_KINDS = ["scatter3d", "plots", "maps"] as const;
 

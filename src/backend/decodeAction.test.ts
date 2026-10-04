@@ -28,10 +28,11 @@ describe("a message of an action", () => {
     expect(decodeAction(message(9))).toBe("histogram");
     expect(decodeAction(message(10))).toBe("selectNone");
     expect(decodeAction(message(11))).toBe("openExample");
+    expect(decodeAction(message(12))).toBe("scatter2d");
   });
 
   test("with an unknown code, or a byte that should be zero, is a defect", () => {
-    expect(() => decodeAction(message(12))).toThrow(/defect: an action of code 12/);
+    expect(() => decodeAction(message(13))).toThrow(/defect: an action of code 13/);
     expect(() => decodeAction(message(0))).toThrow(/defect: an action of code 0/);
     expect(() => decodeAction(message(1, 1))).toThrow(/defect: bytes 2 to 7 of an action part/);
   });

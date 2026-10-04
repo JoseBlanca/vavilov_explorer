@@ -34,6 +34,19 @@ const TWO_MAPS = [
   255, 255, 255, 255, 0, 0, 0, 0,
 ];
 
+// HISTOGRAM_AND_SCATTER: at sequence 1, the histogram 1 of height and the
+// 2D scatter 2 of seeds against height.
+// prettier-ignore
+const HISTOGRAM_AND_SCATTER = [
+  6, 0, 0, 0, 0, 0, 0, 0, // a list of widgets
+  1, 0, 0, 0, 0, 0, 0, 0, // sequence 1
+  2, 0, 0, 0, 0, 0, 0, 0, // two widgets
+  1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, // 1, a histogram of height
+  255, 255, 255, 255, 0, 0, 0, 0,
+  2, 0, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, // 2, a 2D scatter of seeds and height
+  255, 255, 255, 255, 0, 0, 0, 0,
+];
+
 const NONE = 0xffff_ffff;
 
 /** A list at sequence 3 of one widget, 7, of the kind `kind` and the columns `columns`. */
@@ -68,6 +81,14 @@ describe("a list of widgets", () => {
     });
   });
 
+  test("a 2D scatter decodes to its two axes, beside a histogram", () => {
+    expect(decodeWidgetList(buffer(HISTOGRAM_AND_SCATTER)).widgets).toEqual([
+      { id: 1, spec: { kind: "histogram", column: 1 } },
+      { id: 2, spec: { kind: "scatter2d", axes: [4, 1] } },
+    ]);
+    expect(() => decodeWidgetList(buffer(one(5, [1, 2, 3])))).toThrow(/scatter2d/);
+  });
+
   test("the two maps decode to their kinds and their columns", () => {
     expect(decodeWidgetList(buffer(TWO_MAPS)).widgets).toEqual([
       { id: 1, spec: { kind: "map", latitude: 1, longitude: 4 } },
@@ -88,7 +109,7 @@ describe("a list of widgets", () => {
   });
 
   test("an unknown kind, a column missing or one too many is a defect", () => {
-    expect(() => decodeWidgetList(buffer(one(5, [1, NONE, NONE])))).toThrow(/kind of widget 5/);
+    expect(() => decodeWidgetList(buffer(one(6, [1, NONE, NONE])))).toThrow(/kind of widget 6/);
     expect(() => decodeWidgetList(buffer(one(1, [1, 2, NONE])))).toThrow(/column/);
     expect(() => decodeWidgetList(buffer(one(4, [1, 2, NONE])))).toThrow(/histogram/);
   });

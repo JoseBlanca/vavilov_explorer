@@ -7,7 +7,13 @@ import {
   isFileRefusal,
   undecodedMessage,
 } from "../../state/fileMessages.ts";
-import { axisColumns, columnsOfRole, startingAxes, unfitColumn } from "../../state/plotColumns.ts";
+import {
+  axisColumns,
+  columnsOfRole,
+  startingAxes,
+  startingAxes2d,
+  unfitColumn,
+} from "../../state/plotColumns.ts";
 import type { ColumnId } from "../../state/ids.ts";
 import { csvDefaults } from "../../state/transfer.ts";
 import {
@@ -157,6 +163,28 @@ export function createMenuActions(
   };
 
   /**
+   * Asks for the two axes, from the columns of numbers, and opens the 2D
+   * scatter, which needs no WebGL.
+   */
+  const openScatter2d = async (): Promise<void> => {
+    const description = await describe("2D scatter…");
+    const columns = axisColumns(description);
+    const axes = startingAxes2d(description);
+    if (axes === null) {
+      infoBar.tell(noNumbersMessage("scatter2d"));
+      return;
+    }
+    const chosen = await columnsDialog.ask("2D scatter", [
+      { label: "X axis", columns, chosen: axes[0] },
+      { label: "Y axis", columns, chosen: axes[1] },
+    ]);
+    if (chosen === null) {
+      return;
+    }
+    await openWidget({ kind: "scatter2d", axes: chosen }, description);
+  };
+
+  /**
    * Asks for a latitude and a longitude column, each from those of its
    * role, starting from the first, and opens the map of the individuals.
    */
@@ -273,6 +301,8 @@ export function createMenuActions(
           : connection.redo().then(answered("redoing", ignore));
       case "scatter3d":
         return openScatter3d();
+      case "scatter2d":
+        return openScatter2d();
       case "map":
         return openMap();
       case "countryMap":

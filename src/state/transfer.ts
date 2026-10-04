@@ -19,12 +19,13 @@ export const MENU_ACTIONS = [
   "histogram",
   "selectNone",
   "openExample",
+  "scatter2d",
 ] as const;
 
 /**
  * An item of the menu a window carries out: Import table…, Export as CSV…,
  * Export as Excel…, Undo, Redo, 3D scatter…, Map…, Map of countries…,
- * Histogram…, Select None and Open Example Table.
+ * Histogram…, Select None, Open Example Table and 2D scatter….
  */
 export type MenuAction = (typeof MENU_ACTIONS)[number];
 

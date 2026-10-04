@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "plots",
-  "description": "What the Plots windows, of the histograms, may call: the table, a column of numbers, the selection, their groups panel, their widgets and the closing of a tile, and nothing of the individuals' points",
+  "description": "What the Plots windows, of the histograms and the 2D scatters, may call: the table, a column of numbers, one individual's values, the selection, the hover, the lasso, their groups panel, their widgets and the closing of a tile",
   "windows": ["plots-*"],
   "permissions": [
     "allow-subscribe",
@@ -9,8 +9,12 @@
     "allow-window-widgets",
     "allow-close-widget",
     "allow-fetch-column",
+    "allow-fetch-row",
+    "allow-set-hover",
     "allow-region-decimal-mark",
     "allow-set-selection",
+    "allow-assign-rows",
+    "allow-unassign-rows",
     "allow-set-active-classification",
     "allow-select-groups",
     "allow-set-edit-mode"

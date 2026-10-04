@@ -10,6 +10,13 @@ describe("isWidgetSpec", () => {
     expect(isWidgetSpec({ kind: "scatter3d", axes: [4, 5, 4] })).toBe(true);
   });
 
+  test("a 2D scatter of two columns is one, and one of three columns is not", () => {
+    // The JSON of src-tauri/src/widgets/tests.rs.
+    expect(isWidgetSpec({ kind: "scatter2d", axes: [4, 1] })).toBe(true);
+    expect(isWidgetSpec({ kind: "scatter2d", axes: [4, 1, 2] })).toBe(false);
+    expect(isWidgetSpec({ kind: "scatter2d", axes: [4] })).toBe(false);
+  });
+
   test("a map of a latitude and a longitude, and a map of countries, are ones", () => {
     // The JSON of src-tauri/src/widgets/tests.rs.
     expect(isWidgetSpec({ kind: "map", latitude: 1, longitude: 4 })).toBe(true);

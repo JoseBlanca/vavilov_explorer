@@ -15,7 +15,7 @@ import { createAxesView } from "./axesView.ts";
 import { framingDistance } from "./framing.ts";
 import { createPointView } from "./pointView.ts";
 import "./plots.css";
-import type { LassoState, PointViewEvents } from "./pointView.ts";
+import type { LassoState, PointViewEvents } from "./pointerInput.ts";
 
 /** What a 3D scatter draws. */
 export interface Scatter3dData {

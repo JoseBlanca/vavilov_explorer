@@ -788,16 +788,19 @@ fn a_maps_window_is_allowed_what_its_maps_call_and_not_to_edit_the_groups() {
 }
 
 #[test]
-fn a_histogram_is_allowed_what_its_window_calls_and_nothing_of_the_points() {
+fn the_plots_window_is_allowed_what_its_histograms_and_2d_scatters_call() {
     let (app, main) = app();
     load_places(&app);
     let spec = json!({ "kind": "histogram", "column": 2 });
-    let histogram = open_widget(&app, &main, spec, "plots-1");
+    let plots = open_widget(&app, &main, spec, "plots-1");
+    let spec = json!({ "kind": "scatter2d", "axes": [2, 3] });
+    open_widget(&app, &main, spec, "plots-1");
     allowed(
-        &histogram,
+        &plots,
         &[
             ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
             ("describe_table", json!({})),
+            ("window_widgets", json!({})),
             ("close_widget", json!({ "widget": 9 })),
             ("region_decimal_mark", json!({})),
             ("fetch_column", json!({ "column": 2, "basedOn": 4 })),
@@ -809,15 +812,19 @@ fn a_histogram_is_allowed_what_its_window_calls_and_nothing_of_the_points() {
             ("select_groups", json!({})),
             // + and − of its groups panel, and Escape, which releases them.
             ("set_edit_mode", json!({})),
+            // A 2D scatter's hover, its label and its lasso.
+            ("set_hover", json!({ "row": 0, "basedOn": 4 })),
+            (
+                "fetch_row",
+                json!({ "row": 0, "columns": [2], "basedOn": 4 }),
+            ),
+            ("assign_rows", json!({})),
+            ("unassign_rows", json!({})),
         ],
     );
     refused(
-        &histogram,
+        &plots,
         &[
-            "fetch_row",
-            "set_hover",
-            "assign_rows",
-            "unassign_rows",
             "add_group",
             "edit_group",
             "delete_group",
@@ -1507,21 +1514,8 @@ fn each_kind_of_window_is_refused_every_command_it_does_not_call() {
     ];
     refused_but(&scatter, &points);
     refused_but(&maps, &points);
-    refused_but(
-        &plots,
-        &[
-            "subscribe",
-            "describe_table",
-            "window_widgets",
-            "close_widget",
-            "fetch_column",
-            "region_decimal_mark",
-            "set_selection",
-            "set_active_classification",
-            "select_groups",
-            "set_edit_mode",
-        ],
-    );
+    // The Plots window's 2D scatters are points too.
+    refused_but(&plots, &points);
     refused_but(
         &main,
         &[

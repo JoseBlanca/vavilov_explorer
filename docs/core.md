@@ -962,8 +962,8 @@ bar, as it would for a control of its own. The app layer
 order, and whose one part, kind 12, holds the item's code as a `u16`,
 1 Import table…, 2 Export as CSV…, 3 Export as Excel…, 4 Undo, 5 Redo,
 6 3D scatter…, 7 Map…, 8 Map of countries…, 9 Histogram…, 10 Select
-none, 11 Open Example Table, and six zero bytes. The core keeps the
-kinds 4 and 6 of message and 12 of part for the app layer,
+none, 11 Open Example Table, 12 2D scatter…, and six zero bytes. The
+core keeps the kinds 4 and 6 of message and 12 of part for the app layer,
 `APP_MESSAGE_KINDS` and `APP_PART_KINDS`, and a test checks that none of
 its own takes them. An action changes no state. Undo and Redo
 are carried out by the window, with the revision of its copy, like any

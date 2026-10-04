@@ -23,6 +23,18 @@ describe("the copies of one plot in a window", () => {
     expect(samePlot(MAP, { kind: "countryMap", country: column(3) })).toBe(false);
     expect(
       samePlot(
+        { kind: "scatter2d", axes: [column(3), column(4)] },
+        { kind: "scatter2d", axes: [column(3), column(4)] },
+      ),
+    ).toBe(true);
+    expect(
+      samePlot(
+        { kind: "scatter2d", axes: [column(3), column(4)] },
+        { kind: "scatter2d", axes: [column(4), column(3)] },
+      ),
+    ).toBe(false);
+    expect(
+      samePlot(
         { kind: "scatter3d", axes: [column(1), column(2), column(1)] },
         { kind: "scatter3d", axes: [column(1), column(2), column(1)] },
       ),

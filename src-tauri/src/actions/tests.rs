@@ -87,10 +87,11 @@ fn each_action_has_a_code_of_its_own() {
         MenuAction::Histogram,
         MenuAction::SelectNone,
         MenuAction::OpenExample,
+        MenuAction::Scatter2d,
     ];
     assert_eq!(
         actions.map(MenuAction::code),
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     );
 }
 
@@ -143,12 +144,13 @@ fn the_items_with_a_dialog_or_a_message_show_in_the_main_window() {
         MenuAction::Histogram,
         MenuAction::SelectNone,
         MenuAction::OpenExample,
+        MenuAction::Scatter2d,
     ]
     .map(MenuAction::shows_in_main_window);
     assert_eq!(
         shown,
         [
-            true, true, true, false, false, true, true, true, true, false, true
+            true, true, true, false, false, true, true, true, true, false, true, true
         ]
     );
 }

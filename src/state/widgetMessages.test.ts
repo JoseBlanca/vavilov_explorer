@@ -53,6 +53,9 @@ describe("the words of a 3D scatter that was not opened", () => {
     expect(noNumbersMessage("scatter3d").text).toBe(
       "No 3D scatter was opened: the table has no column of numbers. A column of numbers shown as a category becomes one when “number” is chosen as its role.",
     );
+    expect(noNumbersMessage("scatter2d").text).toBe(
+      "No 2D scatter was opened: the table has no column of numbers. A column of numbers shown as a category becomes one when “number” is chosen as its role.",
+    );
     expect(noNumbersMessage("histogram").text).toBe(
       "No histogram was opened: the table has no column of numbers. A column of numbers shown as a category becomes one when “number” is chosen as its role.",
     );
@@ -84,6 +87,12 @@ describe("the words of a plot past the limits", () => {
     expect(
       widgetRefusalMessage("map", { kind: "tooManyTiles", label: "maps-2", most: 6 }, nameOf).text,
     ).toBe("No map was opened: the Maps window holds 6 maps at most. Close one to open another.");
+    expect(
+      widgetRefusalMessage("scatter2d", { kind: "tooManyTiles", label: "plots-1", most: 6 }, nameOf)
+        .text,
+    ).toBe(
+      "No 2D scatter was opened: the Plots window holds 6 plots at most. Close one to open another.",
+    );
     expect(
       widgetRefusalMessage("countryMap", { kind: "tooManyTiles", label: "maps-2", most: 6 }, nameOf)
         .text,

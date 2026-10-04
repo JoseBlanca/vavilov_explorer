@@ -391,3 +391,63 @@ fn a_seventeenth_widget_drawn_with_webgl_is_refused_and_a_histogram_is_not() {
         label("plots-13")
     );
 }
+
+/// The list of the histogram 1 of height and the 2D scatter 2 of seeds
+/// against height, at sequence 1. The same bytes are decoded in
+/// src/backend/decodeWidgets.test.ts.
+#[rustfmt::skip]
+const HISTOGRAM_AND_SCATTER: [u8; 72] = [
+    6, 0, 0, 0, 0, 0, 0, 0, // a list of widgets
+    1, 0, 0, 0, 0, 0, 0, 0, // sequence 1
+    2, 0, 0, 0, 0, 0, 0, 0, // two widgets
+    1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, // 1, a histogram of height
+    255, 255, 255, 255, 0, 0, 0, 0,
+    2, 0, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, // 2, a 2D scatter of seeds and height
+    255, 255, 255, 255, 0, 0, 0, 0,
+];
+
+#[test]
+fn a_2d_scatter_is_a_tile_of_the_plots_window_beside_the_histograms() {
+    let mut widgets = Widgets::default();
+    widgets.open(histogram(HEIGHT)).unwrap();
+    let opened = widgets
+        .open(WidgetSpec::Scatter2d {
+            axes: [SEEDS, HEIGHT],
+        })
+        .unwrap();
+    assert_eq!(opened.window, label("plots-1"));
+    assert_eq!(added(opened).to_bytes().unwrap(), HISTOGRAM_AND_SCATTER);
+}
+
+#[test]
+fn a_2d_scatter_crosses_as_its_kind_and_its_two_axes() {
+    let spec = WidgetSpec::Scatter2d {
+        axes: [SEEDS, HEIGHT],
+    };
+    let json = serde_json::json!({ "kind": "scatter2d", "axes": [4, 1] });
+    assert_eq!(serde_json::to_value(&spec).unwrap(), json);
+    assert_eq!(serde_json::from_value::<WidgetSpec>(json).unwrap(), spec);
+    assert!(
+        serde_json::from_value::<WidgetSpec>(
+            serde_json::json!({ "kind": "scatter2d", "axes": [4] })
+        )
+        .is_err()
+    );
+    // Drawn in SVG, it does not count among the plots drawn with WebGL.
+    assert!(!spec.draws_with_webgl());
+}
+
+#[test]
+fn a_2d_scatter_is_not_held_back_by_the_plots_drawn_with_webgl() {
+    let mut widgets = Widgets::default();
+    for _ in 0..16 {
+        widgets.open(scatter(HEIGHT, SEEDS, HEIGHT)).unwrap();
+    }
+    assert!(
+        widgets
+            .open(WidgetSpec::Scatter2d {
+                axes: [SEEDS, HEIGHT]
+            })
+            .is_ok()
+    );
+}

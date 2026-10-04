@@ -13,7 +13,7 @@ import { MARK } from "../state/pointStyle.ts";
 import type { PointStyle } from "../state/pointStyle.ts";
 import { createFlatMap } from "./flatMap.ts";
 import { mercatorX, mercatorY } from "./mercator.ts";
-import type { LassoState, PointViewEvents } from "./pointView.ts";
+import type { LassoState, PointViewEvents } from "./pointerInput.ts";
 import { WORLD_BOX } from "./world.ts";
 import type { Box } from "./worldShapes.ts";
 

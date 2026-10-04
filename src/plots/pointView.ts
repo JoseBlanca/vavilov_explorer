@@ -1,56 +1,23 @@
-// What the point views share, the 3D scatter and the maps: the
-// renderer, the points, drawing on demand, the size of the canvas, the
-// colours of the theme, the place of each point on the screen, and what the
-// pointer does over them, hover, click and lasso (frontend.md, "The point
-// views"; docs/prototype-lessons.md, "A shared base for point views"). A
-// view knows nothing of the backend or of a window: it is given positions
-// and a style, and tells its events.
+// What the point views drawn with WebGL share, the 3D scatter and the
+// maps: the renderer, the points, drawing on demand, the size of the
+// canvas, the colours of the theme and the place of each point on the
+// screen; what the pointer does over them, hover, click and lasso, is
+// pointerInput.ts's (frontend.md, "The point views";
+// docs/prototype-lessons.md, "A shared base for point views"). A view
+// knows nothing of the backend or of a window: it is given positions and a
+// style, and tells its events.
 
-import type { Click } from "../state/pointClick.ts";
 import * as THREE from "three";
 
 import { defect } from "../state/defect.ts";
-import { at } from "../state/at.ts";
-import type { EditMode } from "../state/message.ts";
 import { rgbOf } from "../state/pointStyle.ts";
 import type { PointStyle } from "../state/pointStyle.ts";
-import { pointClickOf } from "../state/pointClick.ts";
 import { hasRow } from "../state/rowSet.ts";
-import { platformOf } from "../state/undoKeys.ts";
+import { createPointerInput } from "./pointerInput.ts";
+import type { LassoState, PointViewEvents } from "./pointerInput.ts";
 import { createPoints } from "./points.ts";
-import { pickPoint, pointsInPolygon, projectPoints } from "./projection.ts";
+import { pickPoint, projectPoints } from "./projection.ts";
 import type { ScreenPoints } from "./projection.ts";
-
-/**
- * What the user does with the pointer over a point view. What the pointer
- * is over is the point of a row, or, in a view that picks something else,
- * as the map of countries picks a country, the number the view gives it.
- */
-export interface PointViewEvents {
-  /**
-   * The pointer moved, over the point of `row` or over none, at `x`, `y` in
-   * CSS pixels of the window; and with `null` and no place, it left the view.
-   */
-  readonly onHover: (row: number | null, place: { x: number; y: number } | null) => void;
-  /** A click on the point of `row`, which selects it alone or toggles it in the selection. */
-  readonly onClick: (row: number, click: Exclude<Click, "range">) => void;
-  /** A lasso drawn and released, with the points drawn inside it, one bit per row. */
-  readonly onLasso: (rows: Uint8Array) => void;
-  /** The lasso that waited was dropped, since the camera moved. */
-  readonly onLassoDropped: () => void;
-  /** The system changed between light and dark: colours read from the theme are read again. */
-  readonly onThemeChange: () => void;
-}
-
-/**
- * The lasso of a point view: off; armed by the button pressed, + or −, so
- * that a drag draws it; or drawn and waiting for Enter, which keeps it on
- * screen until the camera moves.
- */
-export type LassoState =
-  | { readonly kind: "off" }
-  | { readonly kind: "armed"; readonly mode: EditMode }
-  | { readonly kind: "waiting"; readonly mode: EditMode };
 
 /** What a kind of point view gives the base: its camera, and what it does around each draw. */
 export interface PointViewHooks {
@@ -100,25 +67,10 @@ export interface PointViewBase {
 
 /** The pointer reaches a point this many CSS pixels beyond its edge. */
 const PICK_SLOP_PX = 3;
-/** A press that moves less than this, in CSS pixels, is a click and not a drag. */
-const CLICK_TOLERANCE_PX = 4;
-/** The points of a lasso closer together than this, in CSS pixels, are dropped. */
-const LASSO_STEP_PX = 3;
 /** The most device pixels a CSS pixel is drawn with (frontend.md). */
 const MAX_PIXEL_RATIO = 2;
 /** The words shown over a view whose drawing the graphics card dropped (docs/design.md, section 12). */
 const LOST_WORDS = "The 3D view was lost by the graphics card and is being restored.";
-
-/** The largest distance of a point of `path`, `x0, y0, x1, y1, …`, from its first. */
-function spread(path: readonly number[]): number {
-  const x0 = at(path, 0);
-  const y0 = at(path, 1);
-  let largest = 0;
-  for (let index = 2; index + 1 < path.length; index += 2) {
-    largest = Math.max(largest, Math.hypot(at(path, index) - x0, at(path, index + 1) - y0));
-  }
-  return largest;
-}
 
 /**
  * The base of a point view in `element`, which it fills, seen through
@@ -144,17 +96,8 @@ export function createPointView(
   // must still read.
   canvas.setAttribute("role", "application");
   canvas.tabIndex = 0;
-  const lassoCanvas = document.createElement("canvas");
-  lassoCanvas.className = "plot-lasso";
-  const lost = document.createElement("p");
-  lost.className = "plot-lost";
-  lost.setAttribute("role", "status");
-  frame.append(canvas, labels, lassoCanvas, lost);
+  frame.append(canvas, labels);
   element.append(frame);
-  const context = lassoCanvas.getContext("2d");
-  if (context === null) {
-    throw defect("a canvas with no 2D context for the lasso");
-  }
 
   const scene = new THREE.Scene();
   const points = createPoints();
@@ -165,19 +108,7 @@ export function createPointView(
   let frameRequest = 0;
   let width = 0;
   let height = 0;
-  let lassoMode: EditMode | null = null;
-  let lassoPath: number[] = [];
-  let drawing = false;
-  let press: { x: number; y: number } | null = null;
   let lostShown = false;
-  const platform = platformOf(navigator.userAgent);
-  // Where the pointer rests over the view with no button down, in CSS pixels
-  // of the canvas and of the window, or `null`; and whether the camera moved
-  // since the hover was picked there.
-  let resting: { x: number; y: number; clientX: number; clientY: number } | null = null;
-  let hoverMoved = false;
-  // Read from the theme as the view is made, before anything is drawn.
-  let lassoColours: { add: string; remove: string } | null = null;
 
   const project = (): ScreenPoints => {
     if (screen === null) {
@@ -191,6 +122,18 @@ export function createPointView(
     return screen;
   };
 
+  const pick = (x: number, y: number): number | null =>
+    hooks.pick === null ? pickPoint(project(), sizes, x, y, PICK_SLOP_PX) : hooks.pick(x, y);
+
+  // The controls of the camera, which cannot rotate while + or − is
+  // pressed, capture the pointer on the canvas, so a lasso dragged out of
+  // the frame still reaches it.
+  const input = createPointerInput(frame, { pick, screen: project }, events);
+  const lost = document.createElement("p");
+  lost.className = "plot-lost";
+  lost.setAttribute("role", "status");
+  frame.append(lost);
+
   const draw = (): void => {
     frameRequest = 0;
     if (width === 0 || height === 0) {
@@ -200,11 +143,7 @@ export function createPointView(
     renderer.render(scene, camera);
     screen = null;
     hooks.afterDraw();
-    if (hoverMoved && resting !== null) {
-      // The points moved under a pointer that did not.
-      hoverMoved = false;
-      events.onHover(pick(resting.x, resting.y), { x: resting.clientX, y: resting.clientY });
-    }
+    input.drawn();
     if (lostShown && !renderer.getContext().isContextLost()) {
       lostShown = false;
       lost.textContent = "";
@@ -220,37 +159,6 @@ export function createPointView(
     }
   };
 
-  const drawLasso = (): void => {
-    const ratio = lassoCanvas.width / Math.max(width, 1);
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, width, height);
-    if (lassoPath.length < 4 || lassoMode === null) {
-      return;
-    }
-    if (lassoColours === null) {
-      throw defect("a lasso drawn before the theme was read");
-    }
-    const colour = lassoMode === "add" ? lassoColours.add : lassoColours.remove;
-    context.beginPath();
-    context.moveTo(at(lassoPath, 0), at(lassoPath, 1));
-    for (let index = 2; index + 1 < lassoPath.length; index += 2) {
-      context.lineTo(at(lassoPath, index), at(lassoPath, index + 1));
-    }
-    context.setLineDash([6, 4]);
-    context.lineWidth = 2;
-    context.strokeStyle = colour;
-    if (!drawing) {
-      context.closePath();
-    }
-    context.stroke();
-  };
-
-  const clearLasso = (): void => {
-    lassoPath = [];
-    drawing = false;
-    drawLasso();
-  };
-
   const resize = (): void => {
     const rect = frame.getBoundingClientRect();
     width = rect.width;
@@ -262,11 +170,9 @@ export function createPointView(
     renderer.setPixelRatio(ratio);
     renderer.setSize(width, height, false);
     points.setPixelRatio(ratio);
-    lassoCanvas.width = Math.round(width * ratio);
-    lassoCanvas.height = Math.round(height * ratio);
+    input.resize(width, height, ratio);
     hooks.onResize(width, height);
     screen = null;
-    drawLasso();
     requestDraw();
   };
 
@@ -281,115 +187,19 @@ export function createPointView(
     };
     const surface = token("--color-surface");
     renderer.setClearColor(surface);
-    lassoColours = { add: token("--color-add-surface"), remove: token("--color-remove-surface") };
+    const lassoAdd = token("--color-add-surface");
+    const lassoRemove = token("--color-remove-surface");
+    input.setColours(lassoAdd, lassoRemove);
     points.setColours({
       // The edge of every point stands out from the background, whatever its
       // group's colour (docs/design.md, section 2.2).
       ring: rgbOf(token("--color-control-border")),
       marked: rgbOf(token("--color-text")),
-      lassoAdd: rgbOf(lassoColours.add),
-      lassoRemove: rgbOf(lassoColours.remove),
+      lassoAdd: rgbOf(lassoAdd),
+      lassoRemove: rgbOf(lassoRemove),
     });
     hooks.onTheme(token);
-    drawLasso();
     requestDraw();
-  };
-
-  /** A place of the pointer in CSS pixels of the canvas. */
-  const local = (event: PointerEvent): { x: number; y: number } => {
-    const rect = frame.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-  };
-
-  const pick = (x: number, y: number): number | null =>
-    hooks.pick === null ? pickPoint(project(), sizes, x, y, PICK_SLOP_PX) : hooks.pick(x, y);
-
-  const onPointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0) {
-      return;
-    }
-    const place = local(event);
-    press = place;
-    if (lassoMode !== null) {
-      // The controls of the camera, which cannot rotate meanwhile, capture
-      // the pointer on the canvas, so a lasso dragged out of the frame
-      // still reaches it.
-      lassoPath = [place.x, place.y];
-      drawing = true;
-      drawLasso();
-    }
-  };
-
-  const onPointerMove = (event: PointerEvent): void => {
-    const place = local(event);
-    if (drawing) {
-      const lastX = at(lassoPath, lassoPath.length - 2);
-      const lastY = at(lassoPath, lassoPath.length - 1);
-      if (Math.hypot(place.x - lastX, place.y - lastY) >= LASSO_STEP_PX) {
-        lassoPath.push(place.x, place.y);
-        drawLasso();
-      }
-      return;
-    }
-    if (event.buttons !== 0) {
-      // The camera is being dragged: no hover meanwhile.
-      resting = null;
-      return;
-    }
-    resting = { ...place, clientX: event.clientX, clientY: event.clientY };
-    hoverMoved = false;
-    events.onHover(pick(place.x, place.y), { x: event.clientX, y: event.clientY });
-  };
-
-  const onPointerUp = (event: PointerEvent): void => {
-    if (event.button !== 0 || press === null) {
-      return;
-    }
-    const place = local(event);
-    const start = press;
-    press = null;
-    // A lasso closes where it started, so a press is a click when the
-    // pointer went nowhere between, not when it ends where it began.
-    const moved = drawing ? spread(lassoPath) : Math.hypot(place.x - start.x, place.y - start.y);
-    if (moved < CLICK_TOLERANCE_PX) {
-      if (drawing) {
-        clearLasso();
-      }
-      const row = pick(place.x, place.y);
-      const click = pointClickOf(event, platform);
-      if (row !== null && click !== "none") {
-        events.onClick(row, click);
-      }
-      return;
-    }
-    if (drawing) {
-      drawing = false;
-      if (lassoPath.length < 6) {
-        clearLasso();
-        return;
-      }
-      drawLasso();
-      events.onLasso(pointsInPolygon(project(), lassoPath));
-    }
-  };
-
-  // The system took the pointer, as a web view does with a touch it reads
-  // as a scroll: the lasso being drawn is dropped, and so is the press.
-  const onPointerCancel = (): void => {
-    press = null;
-    if (drawing) {
-      clearLasso();
-    }
-  };
-
-  // A window left for another, as with Cmd-Tab, gets no pointer events on
-  // macOS (docs/design.md, section 10), so its hover would stay: it is given
-  // up with the focus.
-  const onWindowBlur = (): void => {
-    if (resting !== null && !drawing) {
-      resting = null;
-      events.onHover(null, null);
-    }
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
@@ -404,13 +214,6 @@ export function createPointView(
   const onSchemeChange = (): void => {
     readTheme();
     events.onThemeChange();
-  };
-
-  const onPointerLeave = (): void => {
-    resting = null;
-    if (!drawing) {
-      events.onHover(null, null);
-    }
   };
 
   const onContextLost = (event: Event): void => {
@@ -443,12 +246,6 @@ export function createPointView(
   watchDensity();
   const scheme = window.matchMedia("(prefers-color-scheme: dark)");
   scheme.addEventListener("change", onSchemeChange);
-  frame.addEventListener("pointerdown", onPointerDown);
-  frame.addEventListener("pointermove", onPointerMove);
-  frame.addEventListener("pointerup", onPointerUp);
-  frame.addEventListener("pointerleave", onPointerLeave);
-  frame.addEventListener("pointercancel", onPointerCancel);
-  window.addEventListener("blur", onWindowBlur);
   canvas.addEventListener("webglcontextlost", onContextLost);
   canvas.addEventListener("keydown", onKeyDown);
   canvas.addEventListener("webglcontextrestored", onContextRestored);
@@ -470,26 +267,14 @@ export function createPointView(
       screen = null;
       requestDraw();
     },
-    setLasso: (lasso) => {
-      const mode = lasso.kind === "off" ? null : lasso.mode;
-      const waiting = lasso.kind === "waiting";
-      lassoMode = mode;
-      frame.classList.toggle("plot-lasso-armed", mode !== null);
-      if (mode === null || (!waiting && !drawing)) {
-        clearLasso();
-      }
-    },
+    setLasso: input.setLasso,
     requestDraw,
     setName: (name) => {
       canvas.setAttribute("aria-label", name);
     },
     cameraMoved: () => {
       screen = null;
-      hoverMoved = true;
-      if (!drawing && lassoPath.length > 0) {
-        clearLasso();
-        events.onLassoDropped();
-      }
+      input.viewMoved();
       requestDraw();
     },
     toCanvas: (point) => {
@@ -517,12 +302,7 @@ export function createPointView(
       observer.disconnect();
       density?.removeEventListener("change", onDensityChange);
       scheme.removeEventListener("change", onSchemeChange);
-      frame.removeEventListener("pointerdown", onPointerDown);
-      frame.removeEventListener("pointermove", onPointerMove);
-      frame.removeEventListener("pointerup", onPointerUp);
-      frame.removeEventListener("pointerleave", onPointerLeave);
-      frame.removeEventListener("pointercancel", onPointerCancel);
-      window.removeEventListener("blur", onWindowBlur);
+      input.destroy();
       canvas.removeEventListener("webglcontextlost", onContextLost);
       canvas.removeEventListener("keydown", onKeyDown);
       canvas.removeEventListener("webglcontextrestored", onContextRestored);

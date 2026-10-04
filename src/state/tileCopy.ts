@@ -11,6 +11,8 @@ export function samePlot(a: WidgetSpec, b: WidgetSpec): boolean {
   switch (a.kind) {
     case "scatter3d":
       return b.kind === "scatter3d" && a.axes.every((axis, index) => axis === b.axes[index]);
+    case "scatter2d":
+      return b.kind === "scatter2d" && a.axes.every((axis, index) => axis === b.axes[index]);
     case "map":
       return b.kind === "map" && a.latitude === b.latitude && a.longitude === b.longitude;
     case "countryMap":

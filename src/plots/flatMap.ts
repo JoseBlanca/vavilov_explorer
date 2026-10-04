@@ -9,7 +9,8 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 import { at } from "../state/at.ts";
 import { createPointView } from "./pointView.ts";
-import type { PointViewBase, PointViewEvents } from "./pointView.ts";
+import type { PointViewEvents } from "./pointerInput.ts";
+import type { PointViewBase } from "./pointView.ts";
 import { theWorld } from "./world.ts";
 import type { Box } from "./worldShapes.ts";
 import "./plots.css";

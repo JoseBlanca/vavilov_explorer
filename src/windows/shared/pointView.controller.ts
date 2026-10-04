@@ -14,7 +14,7 @@ import { pointStyle, rgbOf } from "../../state/pointStyle.ts";
 import type { PointStyle } from "../../state/pointStyle.ts";
 import { onlyRow, selectionAfterClick, toggledRow } from "../../state/rowSet.ts";
 import { singleOf } from "../../state/selectedGroups.ts";
-import type { LassoState, PointViewEvents } from "../../plots/pointView.ts";
+import type { LassoState, PointViewEvents } from "../../plots/pointerInput.ts";
 import { answered } from "./answered.ts";
 import type { DescribedTable } from "./describedTable.ts";
 import { createFetchedColumns } from "./fetchedColumns.ts";

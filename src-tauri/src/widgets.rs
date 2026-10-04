@@ -48,6 +48,7 @@ impl fmt::Display for WidgetId {
 ///
 /// The main window asks for it in `open_widget` as
 /// `{"kind": "scatter3d", "axes": [4, 5, 6]}`,
+/// `{"kind": "scatter2d", "axes": [4, 5]}`,
 /// `{"kind": "map", "latitude": 4, "longitude": 5}`,
 /// `{"kind": "countryMap", "country": 3}` or
 /// `{"kind": "histogram", "column": 4}`; a window receives it in its list,
@@ -65,6 +66,12 @@ pub enum WidgetSpec {
     Scatter3d {
         /// The columns on the x, y and z axes.
         axes: [ColumnId; 3],
+    },
+    /// A 2D scatter of two numeric columns, on its x and y axes, in that
+    /// order; a column may be on both.
+    Scatter2d {
+        /// The columns on the x and y axes.
+        axes: [ColumnId; 2],
     },
     /// A map of the individuals, each placed by its latitude and longitude.
     Map {
@@ -93,7 +100,7 @@ impl WidgetSpec {
     pub const fn draws_with_webgl(&self) -> bool {
         match self {
             Self::Scatter3d { .. } | Self::Map { .. } | Self::CountryMap { .. } => true,
-            Self::Histogram { .. } => false,
+            Self::Histogram { .. } | Self::Scatter2d { .. } => false,
         }
     }
 
@@ -103,7 +110,7 @@ impl WidgetSpec {
         match self {
             Self::Scatter3d { .. } => WindowKind::Scatter3d,
             Self::Map { .. } | Self::CountryMap { .. } => WindowKind::Maps,
-            Self::Histogram { .. } => WindowKind::Plots,
+            Self::Histogram { .. } | Self::Scatter2d { .. } => WindowKind::Plots,
         }
     }
 
@@ -112,6 +119,7 @@ impl WidgetSpec {
     const fn wire(&self) -> (u16, [Option<ColumnId>; 3]) {
         match self {
             Self::Scatter3d { axes: [x, y, z] } => (1, [Some(*x), Some(*y), Some(*z)]),
+            Self::Scatter2d { axes: [x, y] } => (5, [Some(*x), Some(*y), None]),
             Self::Map {
                 latitude,
                 longitude,
@@ -453,7 +461,7 @@ impl WidgetList {
     /// [`WIDGETS_MESSAGE`], and seven zero bytes; the sequence number, `u64`;
     /// the number of widgets, `u32`, and four zero bytes; then for each its
     /// number, `u32`, the code of its kind, `u16`, 1 a 3D scatter, 2 a map,
-    /// 3 a map of countries, 4 a histogram, two zero bytes, its three
+    /// 3 a map of countries, 4 a histogram, 5 a 2D scatter, two zero bytes, its three
     /// columns, `u32` each, `u32::MAX` past those it has, and four zero
     /// bytes; every number little-endian. The core's messages share the
     /// first byte's meaning (`docs/core.md`, section 5).

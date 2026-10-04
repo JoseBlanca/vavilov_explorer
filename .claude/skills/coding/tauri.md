@@ -214,9 +214,9 @@ both in one table; the others return `CommandError`.
   window of widgets has its own, which covers its windows with a pattern
   of labels: `capabilities/widgets.json`, `"windows": ["scatter3d-*"]`,
   for the 3D scatter, `plots.json`, `"windows": ["plots-*"]`, for the
-  Plots window of the histograms, which cannot fetch a row or set the
-  hover, and `maps.json`, `"windows": ["maps-*"]`, for the Maps window of
-  both maps; none can add, edit or delete a group (4 October 2026).
+  Plots window of the histograms and the 2D scatters, and `maps.json`,
+  `"windows": ["maps-*"]`, for the Maps window of both maps; none can
+  add, edit or delete a group (4 October 2026).
   One file for all windows, as this rule said before 3 October 2026,
   would let a widget call what only the main window needs, an import
   among them. The windows call none of Tauri's own today: the window's

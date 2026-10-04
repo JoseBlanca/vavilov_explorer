@@ -35,6 +35,8 @@ pub enum MenuAction {
     SelectNone,
     /// File, Open Example Table.
     OpenExample,
+    /// Plot, 2D scatter….
+    Scatter2d,
 }
 
 impl MenuAction {
@@ -52,6 +54,7 @@ impl MenuAction {
             Self::Histogram => 9,
             Self::SelectNone => 10,
             Self::OpenExample => 11,
+            Self::Scatter2d => 12,
         }
     }
 
@@ -65,6 +68,7 @@ impl MenuAction {
             | Self::ExportCsv
             | Self::ExportXlsx
             | Self::Scatter3d
+            | Self::Scatter2d
             | Self::Map
             | Self::CountryMap
             | Self::Histogram

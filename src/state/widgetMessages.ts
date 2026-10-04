@@ -15,13 +15,14 @@ import type { WidgetKind } from "./widget.ts";
 /** The name of each kind of widget, as a sentence says it. */
 const WIDGET_WORDS: Readonly<Record<WidgetKind, string>> = {
   scatter3d: "3D scatter",
+  scatter2d: "2D scatter",
   map: "map",
   countryMap: "map of countries",
   histogram: "histogram",
 };
 
-/** The error shown when the table has no column of numbers, which a 3D scatter or a histogram needs. */
-export function noNumbersMessage(kind: "scatter3d" | "histogram"): BarMessage {
+/** The error shown when the table has no column of numbers, which a scatter or a histogram needs. */
+export function noNumbersMessage(kind: "scatter3d" | "scatter2d" | "histogram"): BarMessage {
   return {
     kind: "error",
     text: `No ${WIDGET_WORDS[kind]} was opened: the table has no column of numbers. A column of numbers shown as a category becomes one when “number” is chosen as its role.`,
@@ -90,6 +91,7 @@ export function isWidgetRefused(error: CommandError): error is WidgetRefused {
 function tilesWindowWords(kind: WidgetKind): { readonly window: string; readonly plots: string } {
   switch (kind) {
     case "histogram":
+    case "scatter2d":
       return { window: "the Plots window", plots: "plots" };
     case "map":
     case "countryMap":

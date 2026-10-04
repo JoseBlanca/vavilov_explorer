@@ -119,3 +119,52 @@
 .plot-histogram-outline {
   stroke: var(--color-text);
 }
+
+/* The 2D scatter (scatter2d.ts): a light grid at the ticks behind the
+   points, the axes and their values as the histogram's, and the points with
+   the point views' ring, marked in the text's colour when selected or
+   hovered and in the colour of the button pressed inside a waiting lasso
+   (docs/design.md, section 2.2). */
+.plot-scatter2d-grid .plot-scatter2d-line {
+  stroke: var(--color-border);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.plot-scatter2d-axes .plot-scatter2d-line {
+  stroke: var(--color-control-border);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.plot-scatter2d-tick {
+  fill: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.plot-scatter2d-title {
+  fill: var(--color-text);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-strong);
+}
+
+.plot-scatter2d-point {
+  stroke: var(--color-control-border);
+  stroke-width: 1px;
+}
+
+.plot-scatter2d-point[data-mark="1"] {
+  stroke: var(--color-text);
+  stroke-width: 2px;
+}
+
+.plot-scatter2d-point[data-mark="2"] {
+  stroke: var(--color-add-surface);
+  stroke-width: 2px;
+}
+
+.plot-scatter2d-point[data-mark="3"] {
+  stroke: var(--color-remove-surface);
+  stroke-width: 2px;
+}

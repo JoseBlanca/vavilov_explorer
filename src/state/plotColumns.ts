@@ -3,7 +3,7 @@
 
 import type { Role, TableDescription } from "./description.ts";
 import type { ColumnId } from "./ids.ts";
-import type { Axes, WidgetSpec } from "./widget.ts";
+import type { Axes, Axes2, WidgetSpec } from "./widget.ts";
 
 /** A column a plot can show, such as a number, a latitude or a longitude on an axis of a 3D scatter. */
 export interface PlotColumn {
@@ -43,6 +43,22 @@ export function startingAxes(description: TableDescription): Axes | null {
 }
 
 /**
+ * The axes the dialog of a 2D scatter starts from, x then y: the first two
+ * columns of the table whose role is a number, or the one on both axes,
+ * and the latitudes and longitudes only when the table has no plain
+ * number, as for the 3D scatter (decided by the owner on 4 October 2026).
+ * `null` when there is no column a 2D scatter can show.
+ */
+export function startingAxes2d(description: TableDescription): Axes2 | null {
+  const numbers = columnsOfRole(description, "number");
+  const [first, second = first] = numbers.length > 0 ? numbers : axisColumns(description);
+  if (first === undefined || second === undefined) {
+    return null;
+  }
+  return [first.id, second.id];
+}
+
+/**
  * The columns of the table whose role is `role`, in the order of the table:
  * those a map offers for its latitude, its longitude or its countries.
  */
@@ -62,8 +78,8 @@ export interface UnfitColumn {
 
 /**
  * The first column of `spec` the table cannot show as the widget needs it,
- * or `null` when every column fits: a histogram and the axes of a 3D
- * scatter need a number, a latitude or a longitude, a map a latitude and a
+ * or `null` when every column fits: a histogram and the axes of a 3D or
+ * a 2D scatter need a number, a latitude or a longitude, a map a latitude and a
  * longitude in their places, and a map of countries a column of countries.
  * A window closes a widget that does not fit, as after a change of role,
  * and the main window does not ask for one (docs/design.md, section 2.2).
@@ -71,23 +87,30 @@ export interface UnfitColumn {
 export function unfitColumn(spec: WidgetSpec, description: TableDescription): UnfitColumn | null {
   const roleOf = (column: ColumnId): Role | undefined =>
     description.columns.find((each) => each.id === column)?.role;
-  const needs: readonly UnfitColumn[] =
-    spec.kind === "histogram"
-      ? [{ column: spec.column, role: "number" }]
-      : spec.kind === "scatter3d"
-        ? spec.axes.map((column) => ({ column, role: "number" }))
-        : spec.kind === "map"
-          ? [
-              { column: spec.latitude, role: "latitude" },
-              { column: spec.longitude, role: "longitude" },
-            ]
-          : [{ column: spec.country, role: "country" }];
   return (
-    needs.find(({ column, role }) => {
+    needsOf(spec).find(({ column, role }) => {
       const has = roleOf(column);
       return has === undefined || (role === "number" ? !NUMBER_ROLES.includes(has) : has !== role);
     }) ?? null
   );
+}
+
+/** The columns of `spec`, each with the role it needs there. */
+function needsOf(spec: WidgetSpec): readonly UnfitColumn[] {
+  switch (spec.kind) {
+    case "histogram":
+      return [{ column: spec.column, role: "number" }];
+    case "scatter3d":
+    case "scatter2d":
+      return spec.axes.map((column) => ({ column, role: "number" }));
+    case "map":
+      return [
+        { column: spec.latitude, role: "latitude" },
+        { column: spec.longitude, role: "longitude" },
+      ];
+    case "countryMap":
+      return [{ column: spec.country, role: "country" }];
+  }
 }
 
 /** Whether the table has every column `spec` shows, each of a role it can show ({@link unfitColumn}). */
