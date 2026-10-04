@@ -12,18 +12,18 @@ import {
   rowsOfPart,
   samePart,
   segmentText,
-  selectionAfterClick,
   stackOf,
 } from "../../state/histogram.ts";
 import type { Bins, Part, Stack } from "../../state/histogram.ts";
 import { placedRows, placedText } from "../../state/placed.ts";
 import type { Placed } from "../../state/placed.ts";
-import { countRows } from "../../state/rowSet.ts";
+import { countRows, selectionAfterClick } from "../../state/rowSet.ts";
 import type { SelectedGroups } from "../../state/selectedGroups.ts";
 import { createHistogram } from "../../plots/histogram.ts";
 import { answered } from "../shared/answered.ts";
 import { createDescribedTable } from "../shared/describedTable.ts";
 import { createFetchedColumns } from "../shared/fetchedColumns.ts";
+import { installEscapeClearsSelection } from "../shared/escapeSelection.ts";
 import { createGroupsPanel } from "../shared/groupsPanel.controller.ts";
 import { createInfoBar } from "../shared/infoBar.controller.ts";
 import { countText } from "../shared/numbers.ts";
@@ -244,6 +244,8 @@ export async function startHistogramWindow(root: HTMLElement): Promise<void> {
       defectBar.show,
       "assigning",
     );
+    // After the panel's, which releases + or − first.
+    installEscapeClearsSelection(window, connection, defectBar.show);
     if (import.meta.env.DEV) {
       // For the e2e tests alone, which click a segment where it is drawn;
       // a build for users has no such name.

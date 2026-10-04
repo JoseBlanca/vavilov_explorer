@@ -150,6 +150,7 @@ fn the_items_with_a_dialog_or_a_message_show_in_the_main_window() {
     assert!(MenuAction::Scatter3d.shows_in_main_window());
     assert!(!MenuAction::Undo.shows_in_main_window());
     assert!(!MenuAction::Redo.shows_in_main_window());
+    assert!(!MenuAction::SelectNone.shows_in_main_window());
 }
 
 #[test]
@@ -164,10 +165,11 @@ fn each_action_has_the_code_the_window_reads_and_the_plots_show_in_the_main_wind
         MenuAction::Map,
         MenuAction::CountryMap,
         MenuAction::Histogram,
+        MenuAction::SelectNone,
     ]
     .map(MenuAction::code);
     // The codes of MENU_ACTIONS in src/state/transfer.ts, 1 and on.
-    assert_eq!(codes, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    assert_eq!(codes, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     for action in [
         MenuAction::Scatter3d,
         MenuAction::Map,

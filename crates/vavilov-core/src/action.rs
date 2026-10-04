@@ -31,6 +31,8 @@ pub enum MenuAction {
     CountryMap,
     /// Plot, Histogram….
     Histogram,
+    /// Edit, Select None.
+    SelectNone,
 }
 
 impl MenuAction {
@@ -46,6 +48,7 @@ impl MenuAction {
             Self::Map => 7,
             Self::CountryMap => 8,
             Self::Histogram => 9,
+            Self::SelectNone => 10,
         }
     }
 
@@ -62,7 +65,7 @@ impl MenuAction {
             | Self::Map
             | Self::CountryMap
             | Self::Histogram => true,
-            Self::Undo | Self::Redo => false,
+            Self::Undo | Self::Redo | Self::SelectNone => false,
         }
     }
 }

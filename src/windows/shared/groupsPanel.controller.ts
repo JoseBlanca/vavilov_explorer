@@ -21,6 +21,7 @@ import type { TypedFor } from "../../state/groupMessages.ts";
 import { editTargetOf, groupsModel } from "../../state/groups.ts";
 import type { GroupRow, GroupsModel } from "../../state/groups.ts";
 import { answered } from "./answered.ts";
+import { takesEscape } from "./takesEscape.ts";
 import { countText } from "./numbers.ts";
 import { groupsPanelView } from "./groupsPanel.view.ts";
 import type { GroupClick, GroupForm, PanelTools } from "./groupsPanel.view.ts";
@@ -460,28 +461,4 @@ export function createGroupsPanel(
       render(nothing, element);
     },
   };
-}
-
-/** The types of `<input>` the user types text into, where Escape belongs to the field. */
-const TEXT_INPUTS: ReadonlySet<string> = new Set([
-  "text",
-  "search",
-  "number",
-  "email",
-  "url",
-  "tel",
-  "password",
-]);
-
-/**
- * Whether `target` takes Escape itself: a field the user types text into.
- * A checkbox, a button or a closed dropdown does not, so Escape there
- * releases + or −.
- */
-function takesEscape(target: EventTarget | null): boolean {
-  return (
-    (target instanceof HTMLInputElement && TEXT_INPUTS.has(target.type)) ||
-    target instanceof HTMLTextAreaElement ||
-    (target instanceof HTMLElement && target.isContentEditable)
-  );
 }

@@ -10,7 +10,7 @@ import type { GroupRow } from "./groups.ts";
 import { NO_CODE } from "./ids.ts";
 import type { Selected } from "./message.ts";
 import type { Placed } from "./placed.ts";
-import { hasRow, rowsWhere, toggledRows } from "./rowSet.ts";
+import { hasRow, rowsWhere } from "./rowSet.ts";
 import { holdsCode } from "./selectedGroups.ts";
 import type { SelectedGroups } from "./selectedGroups.ts";
 
@@ -281,29 +281,6 @@ export function rowsOfPart(
     const group = code === NO_CODE ? null : code;
     return part.kind === "others" ? !holdsCode(selected, group) : holdsCode([part.row], group);
   });
-}
-
-/**
- * The selection after a click on a segment whose individuals are `rows`,
- * when `now` is selected: with "select", its individuals alone, or none
- * when they were the selection already, as a second click on a group of
- * the panel selects none; with "toggle", the selection with them added, or
- * taken away when all of them were in it.
- */
-export function selectionAfterClick(
-  now: Uint8Array,
-  rows: Uint8Array,
-  click: "select" | "toggle",
-): Uint8Array {
-  if (click === "toggle") {
-    return toggledRows(now, rows);
-  }
-  if (now.length !== rows.length) {
-    throw defect(
-      `a click on rows of ${String(rows.length)} bytes with a selection of ${String(now.length)}`,
-    );
-  }
-  return now.every((byte, index) => byte === rows[index]) ? new Uint8Array(rows.length) : rows;
 }
 
 /** Whether two parts are the same. */

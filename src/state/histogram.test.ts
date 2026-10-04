@@ -10,7 +10,6 @@ import {
   rowsOfPart,
   samePart,
   segmentText,
-  selectionAfterClick,
   stackOf,
 } from "./histogram.ts";
 import type { Bins, Part, PartColours, Segment } from "./histogram.ts";
@@ -212,30 +211,6 @@ describe("rowsOfPart", () => {
     expect(rowsIn(rowsOfPart(BINS, FARMS, south, SOUTH, 1, 0), 6)).toEqual([1]);
     expect(rowsIn(rowsOfPart(BINS, FARMS, [], UNASSIGNED, 0, 1), 6)).toEqual([2]);
     expect(rowsIn(rowsOfPart(BINS, null, [], ALL, 1, 1), 6)).toEqual([3, 4]);
-  });
-});
-
-describe("selectionAfterClick", () => {
-  const p1 = rowsWhere(6, (row) => row === 1);
-  const p1p3 = rowsWhere(6, (row) => row === 1 || row === 3);
-
-  test("a click selects a segment's individuals alone, and a second click none", () => {
-    expect(rowsIn(selectionAfterClick(p1p3, p1, "select"), 6)).toEqual([1]);
-    expect(rowsIn(selectionAfterClick(p1, p1, "select"), 6)).toEqual([]);
-  });
-
-  test("a toggle adds them, or takes them away when all were selected", () => {
-    expect(
-      rowsIn(
-        selectionAfterClick(
-          p1,
-          rowsWhere(6, (row) => row === 3),
-          "toggle",
-        ),
-        6,
-      ),
-    ).toEqual([1, 3]);
-    expect(rowsIn(selectionAfterClick(p1p3, p1, "toggle"), 6)).toEqual([3]);
   });
 });
 

@@ -46,10 +46,11 @@ const MARGIN_ROWS = 30;
 /** Pages kept beyond those the rows drawn need, so that scrolling back does not fetch them again. */
 const PAGES_KEPT = 3;
 /**
- * How long a click on a row of a selection of several waits for a second
- * click before it selects that row alone, in milliseconds: Windows' default
- * double-click time, 500 ms, so that a double-click that opens a cell keeps
- * the selection "Apply to all selected rows" applies to.
+ * How long a click on a row selected waits for a second click before it
+ * selects that row alone, or clears the selection when it was the one
+ * selected, in milliseconds: Windows' default double-click time, 500 ms,
+ * so that a double-click that opens a cell keeps the selection "Apply to
+ * all selected rows" applies to.
  */
 const DOUBLE_CLICK_MS = 500;
 
@@ -253,9 +254,10 @@ export function createTable(
   };
 
   /**
-   * Selects the row clicked, or with `extend` the rows shown from the last
-   * one clicked to it: a shift-click over a filtered table selects none of
-   * the rows the filter hides between the two.
+   * Selects the row clicked, or none when it was the one selected, or with
+   * `extend` the rows shown from the last one clicked to it: a shift-click
+   * over a filtered table selects none of the rows the filter hides
+   * between the two.
    */
   const select = (row: RowIndex, extend: boolean, by: "mouse" | "keyboard" = "mouse"): void => {
     const project = state.project();
@@ -271,17 +273,20 @@ export function createTable(
       anchor = row;
     }
     const send = (): void => {
-      const bits = shownBetween(project.numRows, from, row, state.shown());
+      // A row clicked when it is the one selected clears the selection, as
+      // a second click does in every window (docs/design.md, section 2.1).
+      const now = state.selection();
+      const clears = !extend && now !== null && countRows(now) === 1 && hasRow(now, row);
+      const bits = clears
+        ? new Uint8Array(now.length)
+        : shownBetween(project.numRows, from, row, state.shown());
       connection.setSelection(bits).then(answered("selecting rows", schedule), report);
     };
     const selection = state.selection();
-    if (
-      by === "mouse" &&
-      !extend &&
-      selection !== null &&
-      hasRow(selection, row) &&
-      countRows(selection) > 1
-    ) {
+    // A click on a row selected waits for a double-click, which opens its
+    // cell and must keep the selection: one of several would narrow it,
+    // the one selected would clear it.
+    if (by === "mouse" && !extend && selection !== null && hasRow(selection, row)) {
       narrowing = window.setTimeout(() => {
         narrowing = null;
         if (isLoaded(project.loadedAt)) {

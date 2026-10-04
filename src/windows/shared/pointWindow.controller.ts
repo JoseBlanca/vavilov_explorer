@@ -13,13 +13,14 @@ import { placedRows, placedText } from "../../state/placed.ts";
 import type { Placed } from "../../state/placed.ts";
 import { pointStyle, rgbOf } from "../../state/pointStyle.ts";
 import type { PointStyle } from "../../state/pointStyle.ts";
-import { onlyRow, toggledRow } from "../../state/rowSet.ts";
+import { onlyRow, selectionAfterClick, toggledRow } from "../../state/rowSet.ts";
 import { singleOf } from "../../state/selectedGroups.ts";
 import type { WidgetSpec } from "../../state/widget.ts";
 import type { LassoState, PointViewEvents } from "../../plots/pointView.ts";
 import { answered } from "./answered.ts";
 import { createFetchedColumns } from "./fetchedColumns.ts";
 import { createDescribedTable } from "./describedTable.ts";
+import { installEscapeClearsSelection } from "./escapeSelection.ts";
 import { createGroupsPanel } from "./groupsPanel.controller.ts";
 import type { PanelTools } from "./groupsPanel.view.ts";
 import { createHoverLabel } from "./hoverLabel.controller.ts";
@@ -171,9 +172,13 @@ export async function startPointWindow(
       if (now === null || project.kind === "noProject") {
         return;
       }
-      // A click selects the individual alone; a toggle adds it to the
-      // selection, or takes it away when it was in it.
-      const bits = click === "toggle" ? toggledRow(now, row) : onlyRow(project.numRows, row);
+      // A click selects the individual alone, or none when it was the one
+      // selected; a toggle adds it to the selection, or takes it away when
+      // it was in it.
+      const bits =
+        click === "toggle"
+          ? toggledRow(now, row)
+          : selectionAfterClick(now, onlyRow(project.numRows, row), "select");
       connection.setSelection(bits).then(answered("selecting", draw)).catch(defectBar.show);
     };
 
@@ -303,6 +308,8 @@ export async function startPointWindow(
       defectBar.show,
       kind.tools,
     );
+    // After the lasso's keys and the panel's, which take Escape first.
+    installEscapeClearsSelection(window, connection, defectBar.show);
     if (import.meta.env.DEV) {
       // For the e2e tests alone, which find a point where it is drawn; a
       // build for users has no such name.

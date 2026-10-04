@@ -7,6 +7,7 @@ import type { DescriptionNow, TableDescription } from "../../state/description.t
 import { tableCountOf, tableCountText } from "../../state/tableCount.ts";
 import { createDialog } from "../shared/dialog.controller.ts";
 import { createDefectBar } from "../shared/defectBar.controller.ts";
+import { installEscapeClearsSelection } from "../shared/escapeSelection.ts";
 import { installFieldUndo } from "../shared/fieldUndo.ts";
 import { countText } from "../shared/numbers.ts";
 import { slot } from "../shared/slot.ts";
@@ -91,6 +92,8 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       defectBar.show,
       "all",
     );
+    // After the panel's, which releases + or − first.
+    installEscapeClearsSelection(window, connection, defectBar.show);
     const table = createTable(
       slot(root, "table"),
       connection,

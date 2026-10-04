@@ -104,3 +104,27 @@ export function countRows(bits: Uint8Array): number {
   }
   return count;
 }
+
+/**
+ * The selection after a click on what holds the individuals `rows`, a
+ * point, a row, a country or a segment of a histogram, when `now` is
+ * selected: with "select", those individuals alone, or none when they were
+ * the selection already, so that a second click clears it (docs/design.md,
+ * section 2.1); with "toggle", the selection with them added, or taken
+ * away when all of them were in it.
+ */
+export function selectionAfterClick(
+  now: Uint8Array,
+  rows: Uint8Array,
+  click: "select" | "toggle",
+): Uint8Array {
+  if (click === "toggle") {
+    return toggledRows(now, rows);
+  }
+  if (now.length !== rows.length) {
+    throw defect(
+      `a click on rows of ${String(rows.length)} bytes with a selection of ${String(now.length)}`,
+    );
+  }
+  return now.every((byte, index) => byte === rows[index]) ? new Uint8Array(rows.length) : rows;
+}

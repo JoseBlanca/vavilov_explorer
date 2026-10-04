@@ -123,6 +123,24 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal(lasso.ok, null, JSON.stringify(lasso));
     await rowNamed(grid, "p2").getByRole("gridcell", { name: "Spain" }).waitFor();
 
+    // Escape in the table clears the selection. A second click on the one
+    // row selected clears it too, once the time of a double-click has
+    // passed; and Edit > Select None does.
+    await rowNamed(grid, "p3").click();
+    await waitSelected(grid, ["p3"]);
+    await page.keyboard.press("Escape");
+    await waitSelected(grid, []);
+    await rowNamed(grid, "p3").click();
+    await waitSelected(grid, ["p3"]);
+    await rowNamed(grid, "p3").click();
+    await waitSelected(grid, []);
+    await rowNamed(grid, "p3").click();
+    await rowNamed(grid, "p5").click({ modifiers: ["Shift"] });
+    await waitSelected(grid, ["p3", "p4", "p5"]);
+    const none = await backend.send({ command: "e2e:action", action: "selectNone" });
+    assert.equal(none.ok, null, JSON.stringify(none));
+    await waitSelected(grid, []);
+
     // Every category can be chosen in the panel, fertile as well as origin.
     const panel = page.getByRole("region", { name: "Groups" });
     const classification = panel.getByRole("combobox", { name: "Classification column" });

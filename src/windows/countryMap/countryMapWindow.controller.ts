@@ -17,11 +17,12 @@ import { defect } from "../../state/defect.ts";
 import type { CountryLevel, TableDescription } from "../../state/description.ts";
 import { groupsModel } from "../../state/groups.ts";
 import type { ColumnId } from "../../state/ids.ts";
-import { countRows, intersection, toggledRows } from "../../state/rowSet.ts";
+import { countRows, intersection, selectionAfterClick } from "../../state/rowSet.ts";
 import { createCountryMap } from "../../plots/countryMap.ts";
 import type { CountryShape } from "../../plots/worldShapes.ts";
 import { answered } from "../shared/answered.ts";
 import { createDescribedTable } from "../shared/describedTable.ts";
+import { installEscapeClearsSelection } from "../shared/escapeSelection.ts";
 import { createGroupsPanel } from "../shared/groupsPanel.controller.ts";
 import { createInfoBar } from "../shared/infoBar.controller.ts";
 import { countText } from "../shared/numbers.ts";
@@ -107,7 +108,7 @@ export async function startCountryMapWindow(root: HTMLElement): Promise<void> {
 
     /**
      * Selects the individuals of `country` alone, those the map counts
-     * there; or, with a toggle, adds them to the selection, or takes them
+     * there, or none when they were the selection; or, with a toggle, adds them to the selection, or takes them
      * away when all of them are in it.
      * A country of no individual changes nothing, as a click on empty space
      * does in a point view, since a selection cannot be undone.
@@ -126,7 +127,7 @@ export async function startCountryMapWindow(root: HTMLElement): Promise<void> {
       if (countRows(rows) === 0) {
         return;
       }
-      const bits = click === "toggle" ? toggledRows(now, rows) : rows;
+      const bits = selectionAfterClick(now, rows, click);
       connection.setSelection(bits).then(answered("selecting", draw)).catch(defectBar.show);
     };
 
@@ -206,6 +207,8 @@ export async function startCountryMapWindow(root: HTMLElement): Promise<void> {
       defectBar.show,
       "assigning",
     );
+    // After the panel's, which releases + or − first.
+    installEscapeClearsSelection(window, connection, defectBar.show);
     if (import.meta.env.DEV) {
       // For the e2e tests alone, which click a country where it is drawn;
       // a build for users has no such name.

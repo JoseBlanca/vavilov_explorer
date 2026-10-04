@@ -183,6 +183,25 @@ for (const engine of Object.keys(ENGINES)) {
     await second.mouse.click(p3.x, p3.y);
     await second.keyboard.up("ControlOrMeta");
     await selectedAre(page, ["p2"]);
+    // A second click on the one point selected clears the selection, and so
+    // does Escape in the plot's window. The plot decides a click and Escape
+    // from its own copy of the selection, so each step waits for the ring
+    // of the point selected to show what the plot has, with the pointer off
+    // the point, whose hover is drawn as large: the main window's table can
+    // show a change first.
+    await second.mouse.click(p2.x, p2.y);
+    await selectedAre(page, []);
+    await second.mouse.move(5, 5);
+    await waitForRing(second, p2, false);
+    await second.mouse.click(p2.x, p2.y);
+    await selectedAre(page, ["p2"]);
+    await second.mouse.move(5, 5);
+    await waitForRing(second, p2, true);
+    await second.keyboard.press("Escape");
+    await selectedAre(page, []);
+    await waitForRing(second, p2, false);
+    await second.mouse.click(p2.x, p2.y);
+    await selectedAre(page, ["p2"]);
 
     // With + pressed on Peru, a lasso around p1 waits for Enter, which puts
     // p1 in Peru; one around p3 that Escape drops changes nothing.
@@ -517,6 +536,27 @@ function assertColour(pixel, expected, what) {
 }
 
 /** Waits, for at most five seconds, until the pixel at `place` is `expected`. */
+/**
+ * Waits until the ring of a point selected is, or is not, drawn around the
+ * point at `place`, 5 pixels right of its centre, in the dark colour of the
+ * text of the light appearance, where a point not selected and not hovered
+ * draws nothing.
+ */
+async function waitForRing(page, place, drawn) {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const [red, green, blue] = await pixelAt(page, place.x + 5, place.y);
+    if ((red < 90 && green < 90 && blue < 90) === drawn) {
+      return;
+    }
+    assert.ok(
+      Date.now() < deadline,
+      `the ring of the point selected is ${drawn ? "not " : ""}drawn`,
+    );
+    await page.waitForTimeout(100);
+  }
+}
+
 async function waitForColour(page, place, expected, what) {
   const deadline = Date.now() + 5000;
   for (;;) {

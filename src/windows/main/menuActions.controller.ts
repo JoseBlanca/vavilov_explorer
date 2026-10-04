@@ -16,6 +16,7 @@ import type { WidgetSpec } from "../../state/widget.ts";
 import type { ExportFormat, MenuAction } from "../../state/transfer.ts";
 import { countText } from "../shared/numbers.ts";
 import { answered } from "../shared/answered.ts";
+import { countRows } from "../../state/rowSet.ts";
 import { undoOrRedoField } from "../shared/fieldUndo.ts";
 import { canDrawWebGl } from "../shared/webgl.ts";
 import type { CsvDialog } from "./csvDialog.controller.ts";
@@ -222,6 +223,17 @@ export function createMenuActions(
     await openWidget({ kind: "countryMap", country }, description);
   };
 
+  /** Clears the selection, Edit > Select None; with none selected, nothing is sent. */
+  const selectNone = (): Promise<void> => {
+    const now = connection.state.selection();
+    if (now === null || countRows(now) === 0) {
+      return Promise.resolve();
+    }
+    return connection
+      .setSelection(new Uint8Array(now.length))
+      .then(answered("selecting none", ignore));
+  };
+
   const refused = (error: Refusal): void => {
     if (!isFileRefusal(error)) {
       throw defect(`an import or an export refused as ${error.kind}`);
@@ -253,6 +265,8 @@ export function createMenuActions(
         return openCountryMap();
       case "histogram":
         return openHistogram();
+      case "selectNone":
+        return selectNone();
     }
   };
 

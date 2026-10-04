@@ -164,6 +164,16 @@ for (const engine of Object.keys(ENGINES)) {
     const spainCoast = await steadyDegrees(countries, 43.45, -5);
     const peruCoast = await steadyDegrees(countries, -12, -77.15);
     await waitForColourNear(countries, spainCoast, TEXT, "the line round Spain");
+    // A second click on the country whose individuals are the selection
+    // clears it. The map decides a click from its own copy of the
+    // selection, so each click waits for the line to show what the map
+    // has: the main window's table can show a change first.
+    await countries.mouse.click(madrid.x, madrid.y);
+    await selectedAre(page, []);
+    await waitForNoColourNear(countries, spainCoast, TEXT, "the line round Spain");
+    await countries.mouse.click(madrid.x, madrid.y);
+    await selectedAre(page, ["p1", "p2", "p6"]);
+    await waitForColourNear(countries, spainCoast, TEXT, "the line round Spain");
     await countries.keyboard.down("ControlOrMeta");
     await countries.mouse.click(lima.x, lima.y);
     await countries.keyboard.up("ControlOrMeta");
@@ -323,10 +333,14 @@ for (const engine of Object.keys(ENGINES)) {
     await shoot(map, engine, "maps-lasso");
     await map.keyboard.press("Enter");
     await originSays(grid, "p3", "ESP");
-    // Escape in the map's window releases +, in every window.
+    // Escape in the map's window releases +, in every window, and keeps
+    // the selection; a second Escape clears it.
     await map.keyboard.press("Escape");
     await panel.getByRole("button", { name: "Add selected to ESP", pressed: false }).waitFor();
     await mapPanel.getByRole("button", { name: "Add selected to ESP", pressed: false }).waitFor();
+    await selectedAre(page, ["p1"]);
+    await map.keyboard.press("Escape");
+    await selectedAre(page, []);
     // The map of countries counts p3 in Spain now: Spain holds 4, and Peru
     // none.
     await legend.filter({ hasText: /No individuals\s*1\s*4/ }).waitFor();
@@ -463,6 +477,18 @@ async function waitForColourNear(page, place, expected, what) {
       Date.now() < deadline,
       `${what}: no pixel of ${expected} near ${JSON.stringify(place)}`,
     );
+    await page.waitForTimeout(100);
+  }
+}
+
+/** Waits until no pixel near `place` is of `colour`, as the line round a country goes. */
+async function waitForNoColourNear(page, place, colour, what) {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    if ((await centreOfColour(page, place.x, place.y, colour, 8)) === null) {
+      return;
+    }
+    assert.ok(Date.now() < deadline, `${what}: still drawn near ${JSON.stringify(place)}`);
     await page.waitForTimeout(100);
   }
 }

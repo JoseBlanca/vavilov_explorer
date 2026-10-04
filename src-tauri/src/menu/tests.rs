@@ -11,6 +11,7 @@ fn each_name_the_window_gives_an_action_is_the_action_of_its_item() {
     assert_eq!(action_named("map"), Some(MenuAction::Map));
     assert_eq!(action_named("countryMap"), Some(MenuAction::CountryMap));
     assert_eq!(action_named("histogram"), Some(MenuAction::Histogram));
+    assert_eq!(action_named("selectNone"), Some(MenuAction::SelectNone));
 }
 
 #[test]

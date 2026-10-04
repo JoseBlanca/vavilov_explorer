@@ -72,6 +72,22 @@ column of countries as their three-letter codes. The export refuses a
 value that would not read back as itself, such as a text `NA`, and the
 message names its column and its individual.
 
+## Selecting individuals
+
+Click a row of the table to select its individual, or shift-click to
+select the rows from the last one you clicked. In a plot, click a point,
+a country or a bar; Cmd-click (Ctrl-click on Windows and Linux) adds to
+the selection or takes away. What you select is selected in every
+window.
+
+To clear the selection, press Escape, click again the one row or point
+that is selected, or choose Edit > Select None (Shift-Cmd-A, Shift-Ctrl-A
+on Windows and Linux). While + or − is pressed, or a lasso waits for
+Enter, the first Escape releases the button or drops the lasso, and the
+next one clears the selection. A click on an empty part of a plot does
+nothing, so that a stray click does not lose a selection: a selection
+cannot be undone.
+
 ## Finding rows
 
 The bar above the table reads as a sentence, "Find height ≥ 1,5", and

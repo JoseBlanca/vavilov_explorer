@@ -6,9 +6,15 @@ import {
   onlyRow,
   rangeBits,
   rowsWhere,
+  selectionAfterClick,
   toggledRow,
   toggledRows,
 } from "./rowSet.ts";
+
+/** The rows of a set of rows, one bit each, among the first `numRows`. */
+function rowsIn(bits: Uint8Array, numRows: number): number[] {
+  return [...Array(numRows).keys()].filter((row) => hasRow(bits, row));
+}
 
 describe("a set of rows", () => {
   test("of one row has its bit alone, in a byte per 8 rows", () => {
@@ -77,5 +83,29 @@ describe("toggledRows", () => {
     expect(() => toggledRows(new Uint8Array(2), new Uint8Array(1))).toThrow(
       /defect: the rows of a set of 1 bytes toggled in one of 2/,
     );
+  });
+});
+
+describe("selectionAfterClick", () => {
+  const p1 = rowsWhere(6, (row) => row === 1);
+  const p1p3 = rowsWhere(6, (row) => row === 1 || row === 3);
+
+  test("a click selects a segment's individuals alone, and a second click none", () => {
+    expect(rowsIn(selectionAfterClick(p1p3, p1, "select"), 6)).toEqual([1]);
+    expect(rowsIn(selectionAfterClick(p1, p1, "select"), 6)).toEqual([]);
+  });
+
+  test("a toggle adds them, or takes them away when all were selected", () => {
+    expect(
+      rowsIn(
+        selectionAfterClick(
+          p1,
+          rowsWhere(6, (row) => row === 3),
+          "toggle",
+        ),
+        6,
+      ),
+    ).toEqual([1, 3]);
+    expect(rowsIn(selectionAfterClick(p1p3, p1, "toggle"), 6)).toEqual([3]);
   });
 });

@@ -239,6 +239,25 @@ it.
   page sees the key before the menu and takes it, and a click on Edit >
   Undo reaches the main window as an action, which undoes the field's
   typing when a field has the focus (section 10).
+- The selection is cleared in three ways (decided by the owner on
+  4 October 2026):
+  - Escape, in any window. One press does one thing: it drops a lasso
+    waiting for Enter, else releases + or − pressed, else clears the
+    selection. In a field being typed in, or with a dialog open, Escape
+    keeps its own meaning there.
+  - A second plain click on what holds exactly the individuals selected:
+    the one point selected in the 3D scatter or the map of the
+    individuals, the one row selected in the table, a country on the map
+    of countries or a segment of the histogram. On a row it waits the
+    500 ms of a double-click first, as a click on a row of several does,
+    so that a double-click to edit a cell does not clear the selection.
+  - Edit > Select None, with Shift-Cmd-A, Shift-Ctrl-A on Windows and
+    Linux, the shortcut of GIMP and Illustrator; Finder's Option-Cmd-A
+    would be Ctrl-Alt-A on Windows, where many keyboards type letters
+    such as ą with it (the shortcut chosen by the assistant).
+
+  A click on empty space still does nothing, since a selection cannot be
+  undone.
 - The groups panel lists the groups of the active
   classification, each with its colour, name and number of individuals. A
   dropdown above it chooses the active classification. It is where a
@@ -474,8 +493,10 @@ slice, built the same day:
 - A click on a point selects its individual alone, and Cmd-click on
   macOS, Ctrl-click on Windows and Linux, adds it to the selection or
   takes it away; on macOS a Ctrl-click is the system's secondary click,
-  and does nothing on a point (decided by the owner on 3 October 2026). A click on empty space does nothing, since a selection cannot be
-  undone (decided by the owner on 3 October 2026). While + or − is
+  and does nothing on a point (decided by the owner on 3 October 2026). A
+  second click on the one point selected clears the selection, and so
+  does Escape (section 2.1). A click on empty space does nothing, since a
+  selection cannot be undone (decided by the owner on 3 October 2026). While + or − is
   pressed a click selects too, and so puts the individual in the group or
   takes it out, as a click in the table does.
 - Each plot window has the groups panel of the main window, the same

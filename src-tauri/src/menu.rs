@@ -15,9 +15,9 @@ use crate::commands::report_dropped;
 
 /// Each item the main window carries out: its id, which is also the name
 /// the window gives its action, its text, the action, and its shortcut.
-/// Undo and Redo have Cmd-Z and Cmd-Shift-Z, Ctrl outside macOS
-/// (`docs/design.md`, section 2.1).
-const ITEMS: [(&str, &str, MenuAction, Option<&str>); 9] = [
+/// Undo and Redo have Cmd-Z and Cmd-Shift-Z, and Select None
+/// Cmd-Shift-A, Ctrl outside macOS (`docs/design.md`, section 2.1).
+const ITEMS: [(&str, &str, MenuAction, Option<&str>); 10] = [
     (
         "importTable",
         "Import table…",
@@ -33,6 +33,12 @@ const ITEMS: [(&str, &str, MenuAction, Option<&str>); 9] = [
     ),
     ("undo", "Undo", MenuAction::Undo, Some("CmdOrCtrl+Z")),
     ("redo", "Redo", MenuAction::Redo, Some("CmdOrCtrl+Shift+Z")),
+    (
+        "selectNone",
+        "Select None",
+        MenuAction::SelectNone,
+        Some("CmdOrCtrl+Shift+A"),
+    ),
     ("scatter3d", "3D scatter…", MenuAction::Scatter3d, None),
     ("histogram", "Histogram…", MenuAction::Histogram, None),
     ("map", "Map…", MenuAction::Map, None),
@@ -45,9 +51,10 @@ const ITEMS: [(&str, &str, MenuAction, Option<&str>); 9] = [
 ];
 
 /// The actions whose items need a table, disabled until one is open.
-const NEED_A_TABLE: [MenuAction; 6] = [
+const NEED_A_TABLE: [MenuAction; 7] = [
     MenuAction::ExportCsv,
     MenuAction::ExportXlsx,
+    MenuAction::SelectNone,
     MenuAction::Scatter3d,
     MenuAction::Histogram,
     MenuAction::Map,
@@ -105,17 +112,30 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         export_xlsx,
         undo,
         redo,
+        select_none,
         scatter3d,
         histogram,
         map,
         country_map,
     ] = items;
-    let (import, export_csv, export_xlsx, undo, redo, scatter3d, histogram, map, country_map) = (
+    let (
+        import,
+        export_csv,
+        export_xlsx,
+        undo,
+        redo,
+        select_none,
+        scatter3d,
+        histogram,
+        map,
+        country_map,
+    ) = (
         import?,
         export_csv?,
         export_xlsx?,
         undo?,
         redo?,
+        select_none?,
         scatter3d?,
         histogram?,
         map?,
@@ -151,6 +171,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             &PredefinedMenuItem::copy(app, None)?,
             &PredefinedMenuItem::paste(app, None)?,
             &PredefinedMenuItem::select_all(app, None)?,
+            &select_none,
         ],
     )?;
     let plot = Submenu::with_items(
@@ -203,6 +224,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         table: vec![
             export_csv,
             export_xlsx,
+            select_none,
             scatter3d,
             histogram,
             map,
