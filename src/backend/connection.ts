@@ -163,6 +163,11 @@ export interface Connection {
    */
   readonly importTable: () => Promise<Result<ImportAnswer | "stale", Refusal>>;
   /**
+   * Imports the example table installed with the app, as `importTable`
+   * does a file the user chose, with no dialog: File > Open Example Table.
+   */
+  readonly openExample: () => Promise<Result<ImportAnswer | "stale", Refusal>>;
+  /**
    * Exports the table of the window's copy: the backend refuses a table
    * that would not read back as itself, then asks the user where to save it.
    */
@@ -273,6 +278,27 @@ export async function connect(
   };
 
   /** Throws a defect for a command made from a copy that met a defect. */
+  /**
+   * Sends `name`, an import of a table, `import_table` or `open_example`,
+   * and gives its answer, or its refusal.
+   */
+  const importCommand = async (
+    name: "import_table" | "open_example",
+  ): Promise<Result<ImportAnswer | "stale", Refusal>> => {
+    checkSound(name);
+    let answer: unknown;
+    try {
+      answer = await transport.invoke(name, { sentAt: now() });
+    } catch (error: unknown) {
+      return refusal(name, error);
+    }
+    const value = importAnswerOf(answer);
+    if (value === null) {
+      throw defect(`an answer of ${name} that does not fit: ${describe(answer)}`);
+    }
+    return { ok: true, value };
+  };
+
   const checkSound = (name: CommandName): void => {
     if (broken) {
       throw defect(`the command ${name}, from a copy of the state that met a defect`);
@@ -470,20 +496,8 @@ export async function connect(
       }),
     undo: () => command("undo", {}),
     redo: () => command("redo", {}),
-    importTable: async () => {
-      checkSound("import_table");
-      let answer: unknown;
-      try {
-        answer = await transport.invoke("import_table", { sentAt: now() });
-      } catch (error: unknown) {
-        return refusal("import_table", error);
-      }
-      const value = importAnswerOf(answer);
-      if (value === null) {
-        throw defect(`an answer of import_table that does not fit: ${describe(answer)}`);
-      }
-      return { ok: true, value };
-    },
+    importTable: () => importCommand("import_table"),
+    openExample: () => importCommand("open_example"),
     exportTable: async (format) => {
       checkSound("export_table");
       let answer: unknown;

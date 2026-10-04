@@ -48,6 +48,7 @@
     ],
     "macOS": {
       "signingIdentity": "-"
-    }
+    },
+    "resources": ["resources/example-plants.csv"]
   }
 }

@@ -17,11 +17,17 @@ use crate::commands::report_dropped;
 /// the window gives its action, its text, the action, and its shortcut.
 /// Undo and Redo have Cmd-Z and Cmd-Shift-Z, and Select None
 /// Cmd-Shift-A, Ctrl outside macOS (`docs/design.md`, section 2.1).
-const ITEMS: [(&str, &str, MenuAction, Option<&str>); 10] = [
+const ITEMS: [(&str, &str, MenuAction, Option<&str>); 11] = [
     (
         "importTable",
         "Import table…",
         MenuAction::ImportTable,
+        None,
+    ),
+    (
+        "openExample",
+        "Open Example Table",
+        MenuAction::OpenExample,
         None,
     ),
     ("exportCsv", "Export as CSV…", MenuAction::ExportCsv, None),
@@ -108,6 +114,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     });
     let [
         import,
+        open_example,
         export_csv,
         export_xlsx,
         undo,
@@ -120,6 +127,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     ] = items;
     let (
         import,
+        open_example,
         export_csv,
         export_xlsx,
         undo,
@@ -131,6 +139,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         country_map,
     ) = (
         import?,
+        open_example?,
         export_csv?,
         export_xlsx?,
         undo?,
@@ -147,6 +156,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         true,
         &[
             &import,
+            &open_example,
             &PredefinedMenuItem::separator(app)?,
             &export_csv,
             &export_xlsx,

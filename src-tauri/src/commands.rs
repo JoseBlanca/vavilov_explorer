@@ -14,6 +14,7 @@ use vavilov_core::{
 
 use crate::calls;
 use crate::dialogs;
+use crate::example;
 use crate::menu;
 use crate::region;
 use crate::transfer::{self, ExportAnswer, ImportAnswer};
@@ -469,17 +470,49 @@ pub async fn import_table<R: Runtime>(
     let Some(path) = dialogs::open(&window).await? else {
         return Ok(ImportAnswer::Cancelled);
     };
-    let (file_name, imported) = transfer::read(&path)?;
+    read_and_load(&app, &session, &path, args)
+}
+
+/// Imports the example table installed with the app, as `import_table`
+/// does a file the user chose, File > Open Example Table: `{ sentAt }`.
+/// It takes no path: the file is the app's own (`example.rs`).
+///
+/// # Errors
+///
+/// The refusals of `import_table`, and a `Defect` when the app's resources
+/// cannot be found.
+#[tauri::command]
+pub async fn open_example<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+    session: SessionState<'_>,
+) -> Result<ImportAnswer, CommandError> {
+    let args: transfer::ImportArgs = calls::json_args("open_example", request.body())?;
+    let path = example::path(&app)?;
+    read_and_load(&app, &session, &path, args)
+}
+
+/// Reads and imports the file at `path`, before the session's lock is
+/// taken, and loads its table, which replaces the one there was; then
+/// closes the widgets of the table before and sets the menu for a table
+/// with no history.
+fn read_and_load<R: Runtime>(
+    app: &AppHandle<R>,
+    session: &SessionState<'_>,
+    path: &std::path::Path,
+    args: transfer::ImportArgs,
+) -> Result<ImportAnswer, CommandError> {
+    let (file_name, imported) = transfer::read(path)?;
     let (answer, outcome, undo_redo) = {
-        let mut session = lock(&session)?;
+        let mut session = lock(session)?;
         let (answer, outcome) = transfer::load(&mut session, file_name, imported, args)?;
         (answer, outcome, session.undo_redo())
     };
-    report_dropped(&app, outcome.dropped);
-    windows::close_all(&mut TauriWindows(&app), &outcome.closed);
-    menu::enable_table_items(&app);
+    report_dropped(app, outcome.dropped);
+    windows::close_all(&mut TauriWindows(app), &outcome.closed);
+    menu::enable_table_items(app);
     // A table loaded has no history.
-    menu::show_undo_redo(&app, undo_redo);
+    menu::show_undo_redo(app, undo_redo);
     Ok(answer)
 }
 

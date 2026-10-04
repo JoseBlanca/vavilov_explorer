@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-example"
+description = "Enables the open_example command without any pre-configured scope."
+commands.allow = ["open_example"]
+
+[[permission]]
+identifier = "deny-open-example"
+description = "Denies the open_example command without any pre-configured scope."
+commands.deny = ["open_example"]

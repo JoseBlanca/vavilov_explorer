@@ -18,12 +18,13 @@ export const MENU_ACTIONS = [
   "countryMap",
   "histogram",
   "selectNone",
+  "openExample",
 ] as const;
 
 /**
  * An item of the menu a window carries out: Import table…, Export as CSV…,
  * Export as Excel…, Undo, Redo, 3D scatter…, Map…, Map of countries…,
- * Histogram… and Select None.
+ * Histogram…, Select None and Open Example Table.
  */
 export type MenuAction = (typeof MENU_ACTIONS)[number];
 

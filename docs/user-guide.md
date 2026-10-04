@@ -59,6 +59,14 @@ values, every cell missing, is text. The leftmost category becomes the
 Classification column of the groups panel, so its groups show
 at once; a table with no category starts with None there.
 
+To try the app before preparing a file of your own, choose File, Open
+Example Table: it imports a table of 2,000 plants installed with the
+app, with their country, genetic cluster, coordinates, three principal
+components and a few traits. Its country column starts as a category;
+choose "country" as its role to use the map of countries. Like any
+table, it replaces the one open, and a change to it is kept only by
+exporting it.
+
 ## Exporting it
 
 File, Export as CSV… and Export as Excel… write the table to a new file.

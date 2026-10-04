@@ -6,6 +6,7 @@ pub mod commands;
 #[cfg(any(feature = "demo", test))]
 pub mod demo;
 pub mod dialogs;
+pub mod example;
 pub mod menu;
 pub mod region;
 pub mod transfer;
@@ -86,6 +87,7 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::undo,
             commands::redo,
             commands::import_table,
+            commands::open_example,
             commands::export_table,
             commands::region_decimal_mark,
         ])

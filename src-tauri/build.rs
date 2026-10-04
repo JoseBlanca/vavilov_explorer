@@ -29,6 +29,7 @@ const COMMANDS: &[&str] = &[
     "undo",
     "redo",
     "import_table",
+    "open_example",
     "export_table",
     "region_decimal_mark",
 ];

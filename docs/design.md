@@ -372,6 +372,19 @@ it.
   shows the title; an import replaces the table there is without
   asking, since there is no project to save yet (decided by the owner on
   2 October 2026).
+- File > Open Example Table, after Import table…, imports a table of
+  2,000 plants installed with the app, `example-plants.csv`, so that a
+  new user can try every window before preparing a file of their own
+  (decided by the owner on 4 October 2026, in the place of a demo
+  installer). It is enabled with no table open, and imports the file as
+  Import table… does, with its messages, replacing the table there is;
+  so the roles are those the import guesses: latitude and longitude by
+  their headers, and the column of countries a category, made a column
+  of countries by choosing that role. The file is the demo table of
+  `src-tauri/src/demo.rs`, the one `--features demo` loads, written by the
+  core's export as a CSV with commas, the point and UTF-8, and a test
+  checks that it still is. It is not a project: a change is kept by
+  exporting it, as for any table.
 - The Open and Save dialogs of an import and an export are the system's,
   opened by the backend, so that no window sends the backend the path of
   a file (decided by the owner on 2 October 2026). The dialog of Import

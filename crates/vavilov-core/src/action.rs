@@ -33,6 +33,8 @@ pub enum MenuAction {
     Histogram,
     /// Edit, Select None.
     SelectNone,
+    /// File, Open Example Table.
+    OpenExample,
 }
 
 impl MenuAction {
@@ -49,6 +51,7 @@ impl MenuAction {
             Self::CountryMap => 8,
             Self::Histogram => 9,
             Self::SelectNone => 10,
+            Self::OpenExample => 11,
         }
     }
 
@@ -64,7 +67,8 @@ impl MenuAction {
             | Self::Scatter3d
             | Self::Map
             | Self::CountryMap
-            | Self::Histogram => true,
+            | Self::Histogram
+            | Self::OpenExample => true,
             Self::Undo | Self::Redo | Self::SelectNone => false,
         }
     }

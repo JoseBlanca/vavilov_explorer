@@ -270,6 +270,35 @@ fn a_window_cannot_name_the_file_of_an_import() {
 }
 
 #[test]
+fn the_example_table_is_the_main_window_s_to_open_and_takes_no_file() {
+    let (app, main) = app();
+    load_with_height(&app);
+    // The main window may call it: an answer, the table or a file the mock
+    // runtime has no resources to find, and not a refusal of the
+    // capability.
+    assert!(!not_allowed(json_command(
+        &main,
+        "open_example",
+        json!({ "sentAt": 1.5 })
+    )));
+    // It reads the file installed with the app alone: a path is refused.
+    let refused = json_command(
+        &main,
+        "open_example",
+        json!({ "sentAt": 1.5, "path": "/etc/passwd" }),
+    )
+    .unwrap_err();
+    assert_eq!(refused["kind"], "defect");
+    assert!(
+        refused["what"]
+            .as_str()
+            .unwrap()
+            .contains("unknown field `path`"),
+        "{refused}"
+    );
+}
+
+#[test]
 fn subscribe_returns_the_snapshot_as_raw_bytes() {
     let (app, window) = app();
     load(&app);
@@ -533,6 +562,7 @@ fn each_window_is_refused_the_commands_it_does_not_use() {
     for cmd in [
         "open_widget",
         "import_table",
+        "open_example",
         "export_table",
         "set_role",
         "set_cells",

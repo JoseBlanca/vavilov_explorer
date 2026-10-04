@@ -167,6 +167,21 @@ fn outcome(
             windows::close_all(host, &outcome.closed);
             value(&answer)
         }
+        // The example table, from the repository, where the app reads it from
+        // its resources.
+        "open_example" => {
+            window(line.window)?;
+            let args: transfer::ImportArgs =
+                calls::json_args("open_example", &json_body(line.json)?)?;
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../src-tauri")
+                .join(vavilov_explorer_lib::example::FILE);
+            let (file_name, imported) = transfer::read(&path)?;
+            let (answer, outcome) = transfer::load(session, file_name, imported, args)?;
+            channels_sent("open_example", &outcome)?;
+            windows::close_all(host, &outcome.closed);
+            value(&answer)
+        }
         "export_table" => {
             window(line.window)?;
             let args: transfer::ExportArgs =

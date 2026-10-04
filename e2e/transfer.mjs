@@ -322,6 +322,22 @@ try {
       assert.equal(await roleOf(grid, "colour").inputValue(), "category");
       assert.equal(await roleOf(grid, "weight").inputValue(), "number");
 
+      // File > Open Example Table imports the 2,000 plants installed with
+      // the app, in the place of the table there is, with no dialog: its
+      // latitude and longitude take their roles, and its countries are a
+      // category until that role is chosen.
+      await choose("openExample");
+      await rowNamed(grid, "VAV-0001").waitFor();
+      await page
+        .getByRole("status")
+        // Counted in the language of the locale: Spanish groups no number
+        // of four digits.
+        .filter({ hasText: /2[.,]?000 individuals/ })
+        .waitFor();
+      assert.equal(await roleOf(grid, "latitude").inputValue(), "latitude");
+      assert.equal(await roleOf(grid, "country").inputValue(), "category");
+      await shoot(page, engine, "transfer-example");
+
       assert.deepEqual(errors, [], "no page errors");
       console.log(`e2e transfer, ${engine}: passed`);
     } finally {

@@ -55,8 +55,9 @@ export function createMenuActions(
   columnsDialog: ColumnsDialog,
   report: (error: unknown) => void,
 ): MenuActions {
-  const importTable = async (): Promise<void> => {
-    const answer = await connection.importTable();
+  /** Imports a table, the user's or the example installed with the app, and says what the import found. */
+  const importTable = async (from: "file" | "example"): Promise<void> => {
+    const answer = await (from === "file" ? connection.importTable() : connection.openExample());
     if (!answer.ok) {
       refused(answer.error);
       return;
@@ -244,7 +245,9 @@ export function createMenuActions(
   const run = (action: MenuAction): Promise<void> => {
     switch (action) {
       case "importTable":
-        return importTable();
+        return importTable("file");
+      case "openExample":
+        return importTable("example");
       case "exportCsv":
         return exportTable("csv");
       case "exportXlsx":
