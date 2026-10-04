@@ -13,11 +13,13 @@ use serde::{Deserialize, Serialize};
 use crate::error::CommandError;
 use crate::ids::{ColumnId, Revision, WindowLabel};
 use crate::session::Session;
-use crate::table::Table;
+use crate::table::{Role, Table};
 
 /// What a widget shows: its kind and its columns.
 ///
-/// It crosses to a window as `{"kind": "scatter3d", "axes": [4, 5, 6]}`.
+/// It crosses to a window as `{"kind": "scatter3d", "axes": [4, 5, 6]}`,
+/// `{"kind": "map", "latitude": 4, "longitude": 5}` or
+/// `{"kind": "countryMap", "country": 3}`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -32,6 +34,28 @@ pub enum WidgetSpec {
         /// The columns on the x, y and z axes.
         axes: [ColumnId; 3],
     },
+    /// A map of the individuals, each placed by its latitude and longitude.
+    Map {
+        /// The column of the latitudes, whose role is latitude.
+        latitude: ColumnId,
+        /// The column of the longitudes, whose role is longitude.
+        longitude: ColumnId,
+    },
+    /// A map of the countries, each filled by how many individuals the
+    /// column puts in it.
+    CountryMap {
+        /// The column of the countries, whose role is country.
+        country: ColumnId,
+    },
+}
+
+/// What a widget needs of a column it shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Needs {
+    /// Numbers: a number, a latitude or a longitude.
+    Numbers,
+    /// This role alone.
+    Role(Role),
 }
 
 impl WidgetSpec {
@@ -39,13 +63,23 @@ impl WidgetSpec {
     const fn label_prefix(&self) -> &'static str {
         match self {
             Self::Scatter3d { .. } => "scatter3d",
+            Self::Map { .. } => "map",
+            Self::CountryMap { .. } => "countryMap",
         }
     }
 
-    /// The columns the widget shows.
-    fn columns(&self) -> &[ColumnId] {
+    /// The columns the widget shows, each with what it needs of it.
+    fn columns(&self) -> Vec<(ColumnId, Needs)> {
         match self {
-            Self::Scatter3d { axes } => axes,
+            Self::Scatter3d { axes } => axes.iter().map(|axis| (*axis, Needs::Numbers)).collect(),
+            Self::Map {
+                latitude,
+                longitude,
+            } => vec![
+                (*latitude, Needs::Role(Role::Latitude)),
+                (*longitude, Needs::Role(Role::Longitude)),
+            ],
+            Self::CountryMap { country } => vec![(*country, Needs::Role(Role::Country))],
         }
     }
 
@@ -54,15 +88,27 @@ impl WidgetSpec {
     ///
     /// # Errors
     ///
-    /// `UnknownColumn` for a column the table does not have, and
-    /// `NotNumber` for one that is not a number, a latitude or a longitude.
+    /// `UnknownColumn` for a column the table does not have, `NotNumber`
+    /// for one that is not a number, a latitude or a longitude where the
+    /// widget needs numbers, and `NotRole` for one of another role than the
+    /// one it needs.
     fn check(&self, table: &Table) -> Result<(), CommandError> {
-        for column in self.columns() {
-            let found = table
-                .column(*column)
-                .ok_or(CommandError::UnknownColumn { column: *column })?;
-            if found.values().numbers().is_none() {
-                return Err(CommandError::NotNumber { column: *column });
+        for (column, needs) in self.columns() {
+            let values = table
+                .column(column)
+                .ok_or(CommandError::UnknownColumn { column })?
+                .values();
+            match needs {
+                Needs::Numbers => {
+                    if values.numbers().is_none() {
+                        return Err(CommandError::NotNumber { column });
+                    }
+                }
+                Needs::Role(role) => {
+                    if values.role() != role {
+                        return Err(CommandError::NotRole { column, role });
+                    }
+                }
             }
         }
         Ok(())
@@ -110,7 +156,8 @@ impl Session {
     ///
     /// # Errors
     ///
-    /// `MadeBeforeLoad`, `NoProject`, `UnknownColumn`, `NotNumber`, or a
+    /// `MadeBeforeLoad`, `NoProject`, `UnknownColumn`, `NotNumber`,
+    /// `NotRole` for a column of another role than the widget needs, or a
     /// `Defect` when the counter would pass `u32::MAX`.
     pub fn open_widget(
         &mut self,

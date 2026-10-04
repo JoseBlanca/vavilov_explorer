@@ -66,6 +66,11 @@ const PAIRS: readonly (readonly [string, string, number])[] = [
   ["--color-remove-surface", "--color-surface", 3],
   ["--color-text", "--color-surface", 3],
   ["--color-control-border", "--color-surface", 3],
+  // The map of countries: the borders over a country of no individual, and
+  // the most individuals against none. The low end of the scale differs
+  // from none by its hue, and the hover's label gives its count.
+  ["--color-control-border", "--color-country-empty", 3],
+  ["--color-count-high", "--color-country-empty", 3],
 ];
 
 describe("the tokens", () => {

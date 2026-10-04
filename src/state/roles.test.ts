@@ -79,7 +79,7 @@ describe("a change of role", () => {
       confirm: "Make it a latitude",
       cancel: "Keep it a category",
     });
-    const countries: ColumnDescription = { ...origin, role: "country" };
+    const countries: ColumnDescription = { ...origin, role: "country", levels: [] };
     expect(roleChangeQuestion(countries, "text", column(2))).toMatchObject({
       cancel: "Keep it a country",
     });

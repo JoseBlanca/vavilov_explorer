@@ -558,6 +558,23 @@ describe("the description of the table", () => {
         roles: ["number", "category"],
         levels: [{ value: "-12", colour: "#e69f00" }],
       },
+      {
+        id: 4,
+        name: "country",
+        revision: 1,
+        storage: "text",
+        role: "country",
+        roles: ["category", "country", "text"],
+        // As the core writes them in crates/vavilov-core/src/description/tests.rs.
+        levels: [
+          { value: "ESP", colour: "#e69f00", country: { name: "Spain", numeric: "724" } },
+          {
+            value: "SUN",
+            colour: "#56b4e9",
+            country: { name: "Soviet Union", numeric: null },
+          },
+        ],
+      },
     ],
   };
 
@@ -600,6 +617,43 @@ describe("the description of the table", () => {
       { ...DESCRIPTION, columns: [{ ...height, role: "number", levels: [] }] },
       { ...DESCRIPTION, columns: [{ ...origin, levels: [{ value: "Spain", colour: "red" }] }] },
       { ...DESCRIPTION, columns: [{ ...origin, levels: [{ value: "", colour: "#e69f00" }] }] },
+      // A level of a country with no country, a country on a category, and
+      // a numeric code of other than three digits.
+      {
+        ...DESCRIPTION,
+        columns: [
+          {
+            ...origin,
+            role: "country",
+            roles: ["country"],
+            levels: [{ value: "ESP", colour: "#e69f00" }],
+          },
+        ],
+      },
+      {
+        ...DESCRIPTION,
+        columns: [
+          {
+            ...origin,
+            levels: [
+              { value: "ESP", colour: "#e69f00", country: { name: "Spain", numeric: "724" } },
+            ],
+          },
+        ],
+      },
+      {
+        ...DESCRIPTION,
+        columns: [
+          {
+            ...origin,
+            role: "country",
+            roles: ["country"],
+            levels: [
+              { value: "ESP", colour: "#e69f00", country: { name: "Spain", numeric: "72" } },
+            ],
+          },
+        ],
+      },
       // A whole number as a JSON number, which cannot hold every one.
       {
         ...DESCRIPTION,

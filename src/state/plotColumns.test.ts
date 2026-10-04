@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import type { ColumnDescription, TableDescription } from "./description.ts";
 import { isColumnId, isRevision } from "./ids.ts";
 import type { ColumnId, Revision } from "./ids.ts";
-import { axisColumns, startingAxes } from "./scatterAxes.ts";
+import { axisColumns, columnsOfRole, startingAxes } from "./plotColumns.ts";
 
 function id(value: number): ColumnId {
   if (!isColumnId(value)) throw new Error("not a column");
@@ -67,17 +67,46 @@ describe("axisColumns", () => {
 });
 
 describe("startingAxes", () => {
-  test("are the first three columns", () => {
-    expect(startingAxes(axisColumns(TABLE))).toEqual([2, 4, 6]);
+  test("are the first three numbers, leaving out the latitudes and longitudes", () => {
+    const three = table([...TABLE.columns, column(8, "PC3", "number")]);
+    expect(startingAxes(three)).toEqual([2, 7, 8]);
   });
 
-  test("start the list again when it has fewer than three", () => {
-    const two = axisColumns(table([column(2, "PC1", "number"), column(7, "PC2", "number")]));
-    expect(startingAxes(two)).toEqual([2, 7, 2]);
-    expect(startingAxes(two.slice(0, 1))).toEqual([2, 2, 2]);
+  test("start the list of numbers again when it has fewer than three", () => {
+    expect(startingAxes(TABLE)).toEqual([2, 7, 2]);
+    expect(startingAxes(table([column(4, "lat", "latitude"), column(2, "PC1", "number")]))).toEqual(
+      [2, 2, 2],
+    );
+  });
+
+  test("are the latitudes and longitudes when the table has no plain number", () => {
+    const places = table([
+      column(1, "origin", "category"),
+      column(4, "lat", "latitude"),
+      column(6, "lon", "longitude"),
+    ]);
+    expect(startingAxes(places)).toEqual([4, 6, 4]);
   });
 
   test("are none with no column of numbers", () => {
-    expect(startingAxes(axisColumns(table([column(1, "origin", "category")])))).toBe(null);
+    expect(startingAxes(table([column(1, "origin", "category")]))).toBe(null);
+  });
+});
+
+describe("columnsOfRole", () => {
+  test("are the columns of one role, in the order of the table, as a map offers them", () => {
+    const places = table([
+      column(4, "lat", "latitude"),
+      column(2, "PC1", "number"),
+      column(8, "Latitude", "latitude"),
+      column(6, "lon", "longitude"),
+    ]);
+    expect(columnsOfRole(places, "latitude")).toEqual([
+      { id: 4, name: "lat" },
+      { id: 8, name: "Latitude" },
+    ]);
+    expect(columnsOfRole(places, "longitude")).toEqual([{ id: 6, name: "lon" }]);
+    expect(columnsOfRole(TABLE, "country")).toEqual([{ id: 5, name: "country" }]);
+    expect(columnsOfRole(places, "country")).toEqual([]);
   });
 });

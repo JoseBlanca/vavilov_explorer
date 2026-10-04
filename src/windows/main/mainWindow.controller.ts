@@ -17,7 +17,7 @@ import { mainWindowView } from "./mainWindow.view.ts";
 import { createGroupsPanel } from "../shared/groupsPanel.controller.ts";
 import { createTable } from "./table.controller.ts";
 import { createMenuActions } from "./menuActions.controller.ts";
-import { createScatter3dDialog } from "./scatter3dDialog.controller.ts";
+import { createColumnsDialog } from "./columnsDialog.controller.ts";
 
 /**
  * Starts the main window in `root`: the frame, the bar of a defect, the
@@ -81,6 +81,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       decimalMark,
       infoBar.tell,
       defectBar.show,
+      "all",
     );
     const table = createTable(
       slot(root, "table"),
@@ -95,7 +96,7 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       connection,
       infoBar,
       createCsvDialog(slot(root, "export")),
-      createScatter3dDialog(slot(root, "plot")),
+      createColumnsDialog(slot(root, "plot")),
       defectBar.show,
     );
 

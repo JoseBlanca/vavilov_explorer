@@ -2,11 +2,14 @@ import type { Connection } from "../../backend/connection.ts";
 import type { ColumnNumbers } from "../../state/columnNumbers.ts";
 import { defect } from "../../state/defect.ts";
 import type { ColumnId } from "../../state/ids.ts";
-import type { Axes } from "../../state/widget.ts";
 import type { WindowState } from "../../state/windowState.ts";
 
-/** The columns of a window's axes, as the window's copy of the state has them. */
-export interface AxisColumns {
+/**
+ * The columns a plot window draws, on the axes of a 3D scatter or as the
+ * latitude and longitude of a map, as the window's copy of the state has
+ * them.
+ */
+export interface FetchedColumns {
   /** Fetches each column whose revision in the copy is newer than that of the values held. */
   readonly refresh: () => Promise<void>;
   /** The values of the axes, in their order, or `null` while one is not that of the copy. */
@@ -14,7 +17,7 @@ export interface AxisColumns {
 }
 
 /** What the columns of the axes are fetched from: the backend, and the window's copy. */
-export interface AxisColumnsSource {
+export interface FetchedColumnsSource {
   readonly fetchColumn: Connection["fetchColumn"];
   readonly state: Pick<WindowState, "columnRevision">;
 }
@@ -29,11 +32,11 @@ export interface AxisColumnsSource {
  * for a table replaced since the copy, are not shown: the backend closes the
  * window then.
  */
-export function createAxisColumns(
-  source: AxisColumnsSource,
-  axes: Axes,
+export function createFetchedColumns(
+  source: FetchedColumnsSource,
+  axes: readonly ColumnId[],
   onChange: () => void,
-): AxisColumns {
+): FetchedColumns {
   const held = new Map<ColumnId, ColumnNumbers>();
   const fetching = new Set<ColumnId>();
   const { state } = source;
@@ -51,7 +54,7 @@ export function createAxisColumns(
       const answer = await source.fetchColumn(column);
       if (!answer.ok) {
         if (answer.error.kind !== "notNumber" && answer.error.kind !== "unknownColumn") {
-          throw defect(`column ${String(column)} of a 3D scatter refused as ${answer.error.kind}`);
+          throw defect(`column ${String(column)} of a plot refused as ${answer.error.kind}`);
         }
         return;
       }

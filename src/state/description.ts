@@ -54,6 +54,17 @@ export function isStorageType(value: unknown): value is StorageType {
  */
 export type LevelValue = string | number | boolean;
 
+/**
+ * The country a level of a column of countries is, as a map names and
+ * draws it: `CountryDescription` in the core.
+ */
+export interface CountryDescription {
+  /** Its common name in English, `Russia` (docs/design.md, section 2.2). */
+  readonly name: string;
+  /** Its ISO numeric code, three digits, which names its shape on the map; `null` for a former country. */
+  readonly numeric: string | null;
+}
+
 /** A level of a category: in the active classification, a group. */
 export interface LevelDescription {
   /** Its value, of the column's storage type. */
@@ -61,6 +72,17 @@ export interface LevelDescription {
   /** Its colour, as CSS writes it, `#rrggbb`. */
   readonly colour: string;
 }
+
+/** A level of a column of countries, with the country it is. */
+export interface CountryLevel extends LevelDescription {
+  /** The country it is. */
+  readonly country: CountryDescription;
+}
+
+/** The levels of a category of the role `R`: of a column of countries, each with its country. */
+export type LevelOf<R extends CategoricalRole> = R extends "country"
+  ? CountryLevel
+  : LevelDescription;
 
 /** What every column other than the first has. */
 interface ColumnCommon {
@@ -91,7 +113,7 @@ export interface CategoricalColumn<R extends CategoricalRole> extends ColumnComm
   /** What it is for. */
   readonly role: R;
   /** Its levels, in the order of their codes. */
-  readonly levels: readonly LevelDescription[];
+  readonly levels: readonly LevelOf<R>[];
 }
 
 /** A column other than the first. */
@@ -117,7 +139,7 @@ export type DescriptionNow =
 /** Whether `column` holds codes into levels: a category, of countries or not. */
 export function isCategoricalColumn(
   column: ColumnDescription,
-): column is CategoricalColumn<CategoricalRole> {
+): column is CategoricalColumn<"category"> | CategoricalColumn<"country"> {
   return isCategorical(column.role);
 }
 
@@ -208,8 +230,22 @@ function isColumn(value: unknown): value is ColumnDescription {
         isRecord(level) &&
         isLevelValue(level["value"], storage) &&
         typeof level["colour"] === "string" &&
-        COLOUR.test(level["colour"]),
+        COLOUR.test(level["colour"]) &&
+        (role === "country" ? isLevelCountry(level["country"]) : level["country"] === undefined),
     )
+  );
+}
+
+/** Whether `value` is the country of a level: its name, and its numeric code of three digits or `null`. */
+function isLevelCountry(value: unknown): value is CountryDescription {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const { name, numeric } = value;
+  return (
+    typeof name === "string" &&
+    name !== "" &&
+    (numeric === null || (typeof numeric === "string" && /^[0-9]{3}$/.test(numeric)))
   );
 }
 

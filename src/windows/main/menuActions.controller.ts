@@ -2,14 +2,17 @@ import type { Connection } from "../../backend/connection.ts";
 import type { Refusal } from "../../state/commandError.ts";
 import { defect } from "../../state/defect.ts";
 import { fileRefusalMessage, isFileRefusal, undecodedMessage } from "../../state/fileMessages.ts";
-import { axisColumns, startingAxes } from "../../state/scatterAxes.ts";
+import { axisColumns, columnsOfRole, startingAxes } from "../../state/plotColumns.ts";
 import { csvDefaults } from "../../state/transfer.ts";
 import {
   isWidgetRefused,
+  noColumnMessage,
   noNumbersMessage,
   noWebGlMessage,
   widgetRefusalMessage,
 } from "../../state/widgetMessages.ts";
+import type { TableDescription } from "../../state/description.ts";
+import type { WidgetSpec } from "../../state/widget.ts";
 import type { ExportFormat, MenuAction } from "../../state/transfer.ts";
 import { countText } from "../shared/numbers.ts";
 import { answered } from "../shared/answered.ts";
@@ -17,7 +20,7 @@ import { undoOrRedoField } from "../shared/fieldUndo.ts";
 import { canDrawWebGl } from "../shared/webgl.ts";
 import type { CsvDialog } from "./csvDialog.controller.ts";
 import type { InfoBar } from "../shared/infoBar.controller.ts";
-import type { Scatter3dDialog } from "./scatter3dDialog.controller.ts";
+import type { ColumnsDialog } from "./columnsDialog.controller.ts";
 
 /** Nothing to draw again after an undo or a redo the backend did not apply. */
 const ignore = (): void => undefined;
@@ -39,15 +42,16 @@ export interface MenuActions {
  * backend to undo or redo the last edit of the window's copy, or the
  * typing of the text field that has the focus. The items are carried out
  * one at a time, in the order they came, each once the one before has
- * ended, its dialog answered. Plot > 3D scatter… asks for the axes and opens
- * the 3D scatter's window, and tells the bar why it could not, as an error. A refusal that is not about a file is a
- * defect, since the backend gives none here.
+ * ended, its dialog answered. Plot > 3D scatter…, Map… and Map of
+ * countries… ask for the plot's columns and open its window, and tell the
+ * bar why they could not, as an error. A refusal that is not about a file
+ * or a plot is a defect, since the backend gives none here.
  */
 export function createMenuActions(
   connection: Connection,
   infoBar: InfoBar,
   csvDialog: CsvDialog,
-  scatter3dDialog: Scatter3dDialog,
+  columnsDialog: ColumnsDialog,
   report: (error: unknown) => void,
 ): MenuActions {
   const importTable = async (): Promise<void> => {
@@ -82,48 +86,118 @@ export function createMenuActions(
     }
   };
 
-  /**
-   * Asks for the three axes, from the columns of numbers of the table the
-   * backend has now, and opens the 3D scatter; the backend checks the
-   * columns again against its table, and refuses one that changed meanwhile.
-   */
-  const openScatter3d = async (): Promise<void> => {
-    if (!canDrawWebGl()) {
-      infoBar.tell(noWebGlMessage());
-      return;
-    }
+  /** The table the backend has now, which an item of the Plot menu offers the columns of. */
+  const describe = async (item: string): Promise<TableDescription> => {
     const described = await connection.describeTable();
     if (!described.ok) {
-      throw defect(`Plot > 3D scatter… with no table: ${described.error.kind}`);
+      throw defect(`Plot > ${item} with no table: ${described.error.kind}`);
     }
-    const description = described.value;
-    const columns = axisColumns(description);
-    const axes = startingAxes(columns);
-    if (axes === null) {
-      infoBar.tell(noNumbersMessage());
-      return;
-    }
-    const chosen = await scatter3dDialog.ask(columns, axes);
-    if (chosen === null) {
-      return;
-    }
-    const answer = await connection.openWidget({ kind: "scatter3d", axes: chosen });
+    return described.value;
+  };
+
+  /**
+   * Opens the widget `spec`; the backend checks its columns again against
+   * its table, and refuses one that changed meanwhile, which the bar says.
+   */
+  const openWidget = async (spec: WidgetSpec, description: TableDescription): Promise<void> => {
+    const answer = await connection.openWidget(spec);
     if (answer.ok) {
       return;
     }
     const { error } = answer;
     if (!isWidgetRefused(error)) {
-      throw defect(`a 3D scatter refused as ${error.kind}`);
+      throw defect(`a widget of the kind ${spec.kind} refused as ${error.kind}`);
     }
     // The bar says what happened; the system's reason for a window that
     // failed goes to the log.
-    console.warn("Vavilov Explorer: a 3D scatter was refused", error);
+    console.warn(`Vavilov Explorer: a widget of the kind ${spec.kind} was refused`, error);
     infoBar.tell(
       widgetRefusalMessage(
+        spec.kind,
         error,
         (id) => description.columns.find((column) => column.id === id)?.name ?? null,
       ),
     );
+  };
+
+  /** Asks for the three axes, from the columns of numbers, and opens the 3D scatter. */
+  const openScatter3d = async (): Promise<void> => {
+    if (!canDrawWebGl()) {
+      infoBar.tell(noWebGlMessage());
+      return;
+    }
+    const description = await describe("3D scatter…");
+    const columns = axisColumns(description);
+    const axes = startingAxes(description);
+    if (axes === null) {
+      infoBar.tell(noNumbersMessage());
+      return;
+    }
+    const chosen = await columnsDialog.ask("3D scatter", [
+      { label: "X axis", columns, chosen: axes[0] },
+      { label: "Y axis", columns, chosen: axes[1] },
+      { label: "Z axis", columns, chosen: axes[2] },
+    ]);
+    if (chosen === null) {
+      return;
+    }
+    await openWidget({ kind: "scatter3d", axes: chosen }, description);
+  };
+
+  /**
+   * Asks for a latitude and a longitude column, each from those of its
+   * role, starting from the first, and opens the map of the individuals.
+   */
+  const openMap = async (): Promise<void> => {
+    if (!canDrawWebGl()) {
+      infoBar.tell(noWebGlMessage());
+      return;
+    }
+    const description = await describe("Map…");
+    const latitudes = columnsOfRole(description, "latitude");
+    const longitudes = columnsOfRole(description, "longitude");
+    const [latitude] = latitudes;
+    const [longitude] = longitudes;
+    if (latitude === undefined) {
+      infoBar.tell(noColumnMessage("latitude"));
+      return;
+    }
+    if (longitude === undefined) {
+      infoBar.tell(noColumnMessage("longitude"));
+      return;
+    }
+    const chosen = await columnsDialog.ask("Map", [
+      { label: "Latitude column", columns: latitudes, chosen: latitude.id },
+      { label: "Longitude column", columns: longitudes, chosen: longitude.id },
+    ]);
+    if (chosen === null) {
+      return;
+    }
+    const [latitudeId, longitudeId] = chosen;
+    await openWidget({ kind: "map", latitude: latitudeId, longitude: longitudeId }, description);
+  };
+
+  /** Asks for a column of countries, starting from the first, and opens the map of countries. */
+  const openCountryMap = async (): Promise<void> => {
+    if (!canDrawWebGl()) {
+      infoBar.tell(noWebGlMessage());
+      return;
+    }
+    const description = await describe("Map of countries…");
+    const countries = columnsOfRole(description, "country");
+    const [first] = countries;
+    if (first === undefined) {
+      infoBar.tell(noColumnMessage("country"));
+      return;
+    }
+    const chosen = await columnsDialog.ask("Map of countries", [
+      { label: "Country column", columns: countries, chosen: first.id },
+    ]);
+    if (chosen === null) {
+      return;
+    }
+    const [country] = chosen;
+    await openWidget({ kind: "countryMap", country }, description);
   };
 
   const refused = (error: Refusal): void => {
@@ -151,6 +225,10 @@ export function createMenuActions(
           : connection.redo().then(answered("redoing", ignore));
       case "scatter3d":
         return openScatter3d();
+      case "map":
+        return openMap();
+      case "countryMap":
+        return openCountryMap();
     }
   };
 

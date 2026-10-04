@@ -153,9 +153,10 @@ once:
   right click;
 - a lost WebGL context gives no `WEBGL_lose_context` extension, so the
   test of a loss keeps the one it fetched before, to restore with it;
-- the dev server's build exposes a 3D scatter's `placeOf(row)` as
-  `__vavilovScatter3d`, behind `import.meta.env.DEV`, which a build for
-  users does not have;
+- the dev server's build exposes the plot of a plot window as
+  `__vavilovPlot`, behind `import.meta.env.DEV`, which a build for users
+  does not have: `placeOf(row)` of a point, and on a map
+  `placeOfDegrees(latitude, longitude)` of a place;
 - a point is checked where the centre of the pixels of its colour is,
   within 1 px of its place, not by one pixel at its place, which passed
   with the place 2 px off;
@@ -164,6 +165,13 @@ once:
   whose size Playwright set with `setViewportSize`, as every widget's page
   is, so a window moved to a screen of another density is not tested in
   the harness;
+- a place on a plot is read again after the window's information bar
+  changes, since a line of the bar takes the plot's height and the
+  plot is drawn smaller: the map of countries' test read Peru where the
+  sea had come (3 October 2026);
+- a lasso drawn in one window after + was pressed in another waits for
+  the window to have the button's message, which `.plot-lasso-armed` on
+  its frame shows; Chromium's drag came first and panned the map;
 - in Playwright's WebKit on the Mac the GPU draws; in its Chromium,
   SwiftShader draws on the processor (popnei_web's `testing.md`), so a
   test of pixels runs in both and a difference between them is looked at,

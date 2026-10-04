@@ -25,6 +25,10 @@ function axis(id: number, values: readonly (number | null)[]): ColumnNumbers {
 
 const words = (value: number): string => value.toLocaleString("en");
 
+/** What a 3D scatter's and a map's individuals lack when they are not drawn. */
+const AXIS = "no value on an axis";
+const MAP = "no coordinates";
+
 describe("placedRows", () => {
   test("places the rows with a finite value on every axis", () => {
     const placed = placedRows(
@@ -47,20 +51,26 @@ describe("placedRows", () => {
 
 describe("placedText", () => {
   test("says all are drawn when none is left out", () => {
-    expect(placedText({ rows: new Uint8Array(), count: 2000, numRows: 2000 }, words)).toBe(
+    expect(placedText({ rows: new Uint8Array(), count: 2000, numRows: 2000 }, words, AXIS)).toBe(
       "Drawing all 2,000 individuals.",
     );
-    expect(placedText({ rows: new Uint8Array(), count: 1, numRows: 1 }, words)).toBe(
+    expect(placedText({ rows: new Uint8Array(), count: 1, numRows: 1 }, words, AXIS)).toBe(
       "Drawing the one individual.",
     );
   });
 
   test("counts those without a value on an axis", () => {
-    expect(placedText({ rows: new Uint8Array(), count: 1688, numRows: 2000 }, words)).toBe(
+    expect(placedText({ rows: new Uint8Array(), count: 1688, numRows: 2000 }, words, AXIS)).toBe(
       "Drawing 1,688 of 2,000 individuals: 312 have no value on an axis.",
     );
-    expect(placedText({ rows: new Uint8Array(), count: 2, numRows: 3 }, words)).toBe(
+    expect(placedText({ rows: new Uint8Array(), count: 2, numRows: 3 }, words, AXIS)).toBe(
       "Drawing 2 of 3 individuals: 1 has no value on an axis.",
+    );
+  });
+
+  test("says what a map's left out lack: their coordinates", () => {
+    expect(placedText({ rows: new Uint8Array(), count: 1688, numRows: 2000 }, words, MAP)).toBe(
+      "Drawing 1,688 of 2,000 individuals: 312 have no coordinates.",
     );
   });
 });

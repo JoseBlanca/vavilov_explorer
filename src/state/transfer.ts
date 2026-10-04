@@ -14,11 +14,13 @@ export const MENU_ACTIONS = [
   "undo",
   "redo",
   "scatter3d",
+  "map",
+  "countryMap",
 ] as const;
 
 /**
  * An item of the menu a window carries out: Import table…, Export as CSV…,
- * Export as Excel…, Undo, Redo and 3D scatter….
+ * Export as Excel…, Undo, Redo, 3D scatter…, Map… and Map of countries….
  */
 export type MenuAction = (typeof MENU_ACTIONS)[number];
 

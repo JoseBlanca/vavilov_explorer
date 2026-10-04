@@ -4,8 +4,8 @@ import type { ColumnNumbers } from "../../state/columnNumbers.ts";
 import { defect } from "../../state/defect.ts";
 import { isColumnId, isRevision } from "../../state/ids.ts";
 import type { ColumnId, Revision } from "../../state/ids.ts";
-import type { AxisColumnsSource } from "./axisColumns.ts";
-import { createAxisColumns } from "./axisColumns.ts";
+import type { FetchedColumnsSource } from "./fetchedColumns.ts";
+import { createFetchedColumns } from "./fetchedColumns.ts";
 
 function columnId(value: number): ColumnId {
   if (!isColumnId(value)) {
@@ -37,7 +37,7 @@ function source(backendAt: number, copyAt: number, stale = false) {
     values: new Float32Array([1.5, 2]),
     missing: new Uint8Array(1),
   });
-  const given: AxisColumnsSource = {
+  const given: FetchedColumnsSource = {
     fetchColumn: (column) => {
       world.fetches += 1;
       if (world.fetches > 10) {
@@ -51,10 +51,10 @@ function source(backendAt: number, copyAt: number, stale = false) {
   return { world, given };
 }
 
-describe("createAxisColumns", () => {
+describe("createFetchedColumns", () => {
   test("a column fetched at the copy's revision is fetched once and is current", async () => {
     const { world, given } = source(3, 3);
-    const columns = createAxisColumns(given, [HEIGHT, HEIGHT, HEIGHT], () => undefined);
+    const columns = createFetchedColumns(given, [HEIGHT, HEIGHT, HEIGHT], () => undefined);
     await columns.refresh();
     expect(world.fetches).toBe(1);
     expect(columns.current()?.map((axis) => axis.revision)).toEqual([3, 3, 3]);
@@ -62,7 +62,7 @@ describe("createAxisColumns", () => {
 
   test("an answer ahead of the copy is fetched once, and is current when the copy reaches it", async () => {
     const { world, given } = source(5, 4);
-    const columns = createAxisColumns(given, [HEIGHT, HEIGHT, HEIGHT], () => undefined);
+    const columns = createFetchedColumns(given, [HEIGHT, HEIGHT, HEIGHT], () => undefined);
     await columns.refresh();
     expect(world.fetches).toBe(1);
     expect(columns.current()).toBe(null);
@@ -74,7 +74,7 @@ describe("createAxisColumns", () => {
 
   test("an answer for a table replaced since the copy is not fetched again", async () => {
     const { world, given } = source(3, 3, true);
-    const columns = createAxisColumns(given, [HEIGHT, HEIGHT, HEIGHT], () => undefined);
+    const columns = createFetchedColumns(given, [HEIGHT, HEIGHT, HEIGHT], () => undefined);
     await columns.refresh();
     expect(world.fetches).toBe(1);
     expect(columns.current()).toBe(null);
@@ -82,7 +82,7 @@ describe("createAxisColumns", () => {
 
   test("a column the copy moved past while it was on its way is fetched again", async () => {
     const { world, given } = source(3, 3);
-    const columns = createAxisColumns(given, [HEIGHT, HEIGHT, HEIGHT], () => {
+    const columns = createFetchedColumns(given, [HEIGHT, HEIGHT, HEIGHT], () => {
       if (world.fetches === 1) {
         world.backendAt = 6;
         world.copyAt = 6;

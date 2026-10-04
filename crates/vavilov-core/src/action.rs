@@ -25,6 +25,10 @@ pub enum MenuAction {
     Redo,
     /// Plot, 3D scatter….
     Scatter3d,
+    /// Plot, Map….
+    Map,
+    /// Plot, Map of countries….
+    CountryMap,
 }
 
 impl MenuAction {
@@ -37,6 +41,8 @@ impl MenuAction {
             Self::Undo => 4,
             Self::Redo => 5,
             Self::Scatter3d => 6,
+            Self::Map => 7,
+            Self::CountryMap => 8,
         }
     }
 
@@ -46,7 +52,12 @@ impl MenuAction {
     #[must_use]
     pub const fn shows_in_main_window(self) -> bool {
         match self {
-            Self::ImportTable | Self::ExportCsv | Self::ExportXlsx | Self::Scatter3d => true,
+            Self::ImportTable
+            | Self::ExportCsv
+            | Self::ExportXlsx
+            | Self::Scatter3d
+            | Self::Map
+            | Self::CountryMap => true,
             Self::Undo | Self::Redo => false,
         }
     }

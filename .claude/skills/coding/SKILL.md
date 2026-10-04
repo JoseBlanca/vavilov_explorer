@@ -153,12 +153,15 @@ possible break and a possible abandonment.
   `three` 0.186.1, with its types, the development package
   `@types/three` 0.186.0, approved by the owner on 3 October 2026; the
   types pull in six packages of their own, among them a physics engine
-  of 7 MB, which stay in `node_modules` and reach no build.
+  of 7 MB, which stay in `node_modules` and reach no build. For the maps,
+  `world-atlas` 2.0.2 and `topojson-client` 3.1.0, approved by the owner
+  on 3 October 2026; `topojson-client` ships no types, and the two
+  functions the app calls are declared in
+  `src/plots/topojson-client.d.ts`.
 - **Named by these skills and not yet decided**, each to be proposed when
   the first code needs it: a
   Parquet crate and a zip crate for the project file (`docs/design.md`,
-  section 8); `world-atlas` and `topojson-client` for the map's borders,
-  as in the prototype; WebdriverIO's Tauri service and
+  section 8); WebdriverIO's Tauri service and
   `tauri-plugin-wdio-webdriver` for the tests of the real app, as in the
   windowing spike; `tauri-plugin-opener`, 2.7, to show an exported file in
   Finder or Explorer or open it in its program, looked at on 2 October

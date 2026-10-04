@@ -12,10 +12,32 @@
   min-height: 0;
 }
 
+.plotArea {
+  /* The plot, with the legend laid over its corner. */
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+
 .plot {
   min-width: 0;
   min-height: 0;
   user-select: none;
+}
+
+/* Over the plot's lower left corner. It is read, not used, and lets the
+   pointer through to the plot under it (frontend.md, "Nothing laid over
+   the canvas takes the pointer from it"). */
+.legend {
+  position: absolute;
+  pointer-events: none;
+  bottom: var(--space-2);
+  left: var(--space-2);
+}
+
+.legend:empty {
+  display: none;
 }
 
 .cannotDraw {

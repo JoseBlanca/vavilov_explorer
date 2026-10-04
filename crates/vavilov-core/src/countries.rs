@@ -18,6 +18,33 @@ pub fn country_code(text: &str) -> Option<&'static str> {
         .map(|(_, code)| *code)
 }
 
+/// A country as a view names and draws it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Country {
+    /// Its common name in English, `Russia` for the Russian Federation
+    /// (`docs/design.md`, section 2.2).
+    pub name: &'static str,
+    /// Its ISO numeric code, three digits such as `724`, by which the map's
+    /// shapes are named; `None` for a former country, which the map does
+    /// not draw.
+    pub numeric: Option<&'static str>,
+}
+
+/// The country shown by `code`, its three-letter code or the four-letter
+/// one of a former country, as [`country_code`] gives it; `None` for a code
+/// of no country.
+#[must_use]
+pub fn country_of(code: &str) -> Option<Country> {
+    table::COUNTRIES
+        .binary_search_by(|(shown, _, _)| (*shown).cmp(code))
+        .ok()
+        .and_then(|index| table::COUNTRIES.get(index))
+        .map(|(_, name, numeric)| Country {
+            name,
+            numeric: *numeric,
+        })
+}
+
 /// Every name and code, in lower case, of the country shown by `code`,
 /// its own code among them; none for a code of no country.
 pub(crate) fn names_of(code: &str) -> impl Iterator<Item = &'static str> + '_ {

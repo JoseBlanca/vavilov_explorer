@@ -6,7 +6,7 @@ use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use vavilov_core::{
     Categorical, Colour, ColumnId, ColumnValues, Command, LevelCode, LevelValues, NewColumn,
-    Numbers, Request, RowIndex, Table, UndoRedo,
+    Numbers, Request, Role, RowIndex, Table, UndoRedo,
 };
 
 use super::*;
@@ -546,7 +546,7 @@ fn each_window_is_refused_the_commands_it_does_not_use() {
 }
 
 #[test]
-fn a_widget_is_allowed_every_command_its_window_calls() {
+fn a_widget_is_allowed_every_command_its_window_calls_and_not_to_edit_the_groups() {
     let (app, main) = app();
     load_with_height(&app);
     let spec = json!({ "kind": "scatter3d", "axes": [2, 2, 2] });
@@ -575,13 +575,13 @@ fn a_widget_is_allowed_every_command_its_window_calls() {
         ),
         ("select_groups", json!({})),
         ("set_edit_mode", json!({})),
-        ("add_group", json!({})),
-        ("edit_group", json!({})),
-        ("delete_group", json!({})),
     ] {
         let answer = json_command(&widget, cmd, args);
         assert!(!not_allowed(answer.clone()), "widget, {cmd}: {answer:?}");
     }
+    // Its groups panel has no Add, Edit or Delete group, which the main
+    // window has.
+    refused(&widget, &["add_group", "edit_group", "delete_group"]);
     assert!(matches!(
         json_command(
             &widget,
@@ -590,6 +590,208 @@ fn a_widget_is_allowed_every_command_its_window_calls() {
         ),
         Ok(InvokeResponseBody::Raw(_))
     ));
+}
+
+/// `load_with_height`, with a second number, `width`, as column 3, then
+/// `origin` made a country, `height` a latitude and `width` a longitude, so
+/// that both maps can show them; the last change of role is revision 4.
+fn load_places(app: &App<MockRuntime>) {
+    let colour = Colour {
+        red: 0,
+        green: 114,
+        blue: 178,
+    };
+    let table = Table::new(
+        "IndividualID",
+        vec!["p1".to_owned(), "p2".to_owned()],
+        vec![
+            NewColumn {
+                name: "origin".to_owned(),
+                values: ColumnValues::Category(Categorical::new(
+                    LevelValues::Text(vec!["Spain".to_owned()]),
+                    vec![colour],
+                    vec![Some(LevelCode::new(0)), None],
+                )),
+            },
+            NewColumn {
+                name: "height".to_owned(),
+                values: ColumnValues::Number(Numbers::Float(vec![Some(1.5), None])),
+            },
+            NewColumn {
+                name: "width".to_owned(),
+                values: ColumnValues::Number(Numbers::Float(vec![Some(-3.0), Some(4.0)])),
+            },
+        ],
+    )
+    .unwrap();
+    let mut session = session_of(app);
+    let mut based_on = vavilov_core::Revision::ZERO;
+    for command in [
+        Command::LoadTable {
+            table,
+            active_classification: Some(ColumnId::new(ORIGIN)),
+        },
+        Command::SetRole {
+            column: ColumnId::new(1),
+            role: Role::Country,
+        },
+        Command::SetRole {
+            column: ColumnId::new(2),
+            role: Role::Latitude,
+        },
+        Command::SetRole {
+            column: ColumnId::new(3),
+            role: Role::Longitude,
+        },
+    ] {
+        session
+            .dispatch(Request {
+                command,
+                based_on,
+                sent_at: None,
+            })
+            .unwrap();
+        based_on = session.revision();
+    }
+}
+
+/// Opens the widget `spec` from the main window and returns its window.
+fn open_widget(
+    app: &App<MockRuntime>,
+    main: &WebviewWindow<MockRuntime>,
+    spec: Value,
+    label: &str,
+) -> WebviewWindow<MockRuntime> {
+    let answer = json_command(main, "open_widget", json!({ "spec": spec, "basedOn": 4 }));
+    assert!(answer.is_ok(), "{spec}: {answer:?}");
+    app.get_webview_window(label).unwrap()
+}
+
+/// Whether each of `commands` is allowed in `window`, with its arguments
+/// or none: a refusal of the arguments is an answer, and only "not
+/// allowed" is the capability's.
+fn allowed(window: &WebviewWindow<MockRuntime>, commands: &[(&str, Value)]) {
+    for (cmd, args) in commands {
+        let answer = json_command(window, cmd, args.clone());
+        assert!(
+            !not_allowed(answer.clone()),
+            "{}, {cmd}: {answer:?}",
+            window.label()
+        );
+    }
+}
+
+/// Whether each of `commands` is refused to `window` by its capability.
+fn refused(window: &WebviewWindow<MockRuntime>, commands: &[&str]) {
+    for cmd in commands {
+        assert!(
+            not_allowed(json_command(window, cmd, json!({ "basedOn": 4 }))),
+            "{}, {cmd}",
+            window.label()
+        );
+    }
+}
+
+#[test]
+fn a_map_is_allowed_what_its_window_calls_and_not_to_edit_the_groups() {
+    let (app, main) = app();
+    load_places(&app);
+    let spec = json!({ "kind": "map", "latitude": 2, "longitude": 3 });
+    let map = open_widget(&app, &main, spec.clone(), "map-1");
+    allowed(
+        &map,
+        &[
+            ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
+            ("describe_table", json!({})),
+            ("describe_widget", json!({})),
+            ("region_decimal_mark", json!({})),
+            ("fetch_column", json!({ "column": 2, "basedOn": 4 })),
+            (
+                "fetch_row",
+                json!({ "row": 0, "columns": [2], "basedOn": 4 }),
+            ),
+            ("set_hover", json!({ "row": 0, "basedOn": 4 })),
+            ("set_selection", json!({})),
+            ("assign_rows", json!({})),
+            ("unassign_rows", json!({})),
+            (
+                "set_active_classification",
+                json!({ "column": 1, "basedOn": 4 }),
+            ),
+            ("select_groups", json!({})),
+            // + and − of its groups panel, and Escape, which releases them.
+            ("set_edit_mode", json!({})),
+        ],
+    );
+    let InvokeResponseBody::Json(described) =
+        json_command(&map, "describe_widget", json!({})).unwrap()
+    else {
+        panic!("a map described as raw bytes");
+    };
+    assert_eq!(serde_json::from_str::<Value>(&described).unwrap(), spec);
+    refused(
+        &map,
+        &[
+            "add_group",
+            "edit_group",
+            "delete_group",
+            "open_widget",
+            "import_table",
+            "set_role",
+            "set_cells",
+            "fetch_rows",
+        ],
+    );
+}
+
+#[test]
+fn a_map_of_countries_is_allowed_what_its_window_calls_and_nothing_of_the_points() {
+    let (app, main) = app();
+    load_places(&app);
+    let spec = json!({ "kind": "countryMap", "country": 1 });
+    let countries = open_widget(&app, &main, spec, "countryMap-1");
+    allowed(
+        &countries,
+        &[
+            ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
+            ("describe_table", json!({})),
+            ("describe_widget", json!({})),
+            ("region_decimal_mark", json!({})),
+            ("set_selection", json!({})),
+            (
+                "set_active_classification",
+                json!({ "column": 1, "basedOn": 4 }),
+            ),
+            ("select_groups", json!({})),
+            ("set_edit_mode", json!({})),
+        ],
+    );
+    refused(
+        &countries,
+        &[
+            "fetch_column",
+            "fetch_row",
+            "set_hover",
+            "assign_rows",
+            "unassign_rows",
+            "add_group",
+            "edit_group",
+            "delete_group",
+            "open_widget",
+        ],
+    );
+}
+
+#[test]
+fn a_map_of_columns_that_are_no_latitude_and_longitude_is_refused_as_such() {
+    let (app, main) = app();
+    load_places(&app);
+    let spec = json!({ "kind": "map", "latitude": 3, "longitude": 2 });
+    assert_eq!(
+        json_command(&main, "open_widget", json!({ "spec": spec, "basedOn": 4 })).unwrap_err(),
+        json!({ "kind": "notRole", "column": 3, "role": "latitude" })
+    );
+    assert!(app.get_webview_window("map-1").is_none());
 }
 
 #[test]

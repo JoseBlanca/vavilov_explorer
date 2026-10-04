@@ -48,10 +48,15 @@ export function placedRows(axes: readonly ColumnNumbers[], numRows: number): Pla
 /**
  * The line of a point view's information bar that says how many
  * individuals it draws, with `countWords` writing a count in the user's
- * language: "Drawing all 2,000 individuals.", or "Drawing 1,688 of 2,000
- * individuals: 312 have no value on an axis."
+ * language and `lacking` what those it leaves out lack: "Drawing all 2,000
+ * individuals.", or "Drawing 1,688 of 2,000 individuals: 312 have no value
+ * on an axis."
  */
-export function placedText(placed: Placed, countWords: (value: number) => string): string {
+export function placedText(
+  placed: Placed,
+  countWords: (value: number) => string,
+  lacking: string,
+): string {
   const left = placed.numRows - placed.count;
   const individuals = placed.numRows === 1 ? "individual" : "individuals";
   if (left === 0) {
@@ -60,5 +65,5 @@ export function placedText(placed: Placed, countWords: (value: number) => string
       : `Drawing all ${countWords(placed.numRows)} ${individuals}.`;
   }
   const have = left === 1 ? "has" : "have";
-  return `Drawing ${countWords(placed.count)} of ${countWords(placed.numRows)} ${individuals}: ${countWords(left)} ${have} no value on an axis.`;
+  return `Drawing ${countWords(placed.count)} of ${countWords(placed.numRows)} ${individuals}: ${countWords(left)} ${have} ${lacking}.`;
 }

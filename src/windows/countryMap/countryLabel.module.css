@@ -1,0 +1,14 @@
+.label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  max-width: var(--dialog-width);
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  background: var(--color-panel);
+  font-size: var(--font-size-small);
+  pointer-events: none;
+}

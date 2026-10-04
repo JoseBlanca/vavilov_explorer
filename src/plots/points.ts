@@ -124,7 +124,11 @@ const FRAGMENT_SHADER = /* glsl */ `${CODES}
 export interface PointsObject {
   /** The object to add to the scene. */
   readonly object: THREE.Points;
-  /** Sets the positions, three per point in the scene. */
+  /**
+   * Sets the positions, three per point in the scene, into the buffer the
+   * points have when it is of their length, as the map's order of drawing
+   * changes them with every hover.
+   */
   readonly setPositions: (positions: Float32Array) => void;
   /** Sets each point's colour, size, shape and mark, of as many points as the positions. */
   readonly setStyle: (style: PointStyle) => void;
@@ -181,7 +185,7 @@ export function createPoints(): PointsObject {
     object,
     setPositions: (positions) => {
       count = positions.length / 3;
-      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      write("position", positions, 3);
     },
     setStyle: (style) => {
       const perPoint = [style.sizes, style.shapes, style.marks];

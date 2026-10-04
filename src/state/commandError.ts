@@ -34,6 +34,7 @@ const FIELDS = {
   unknownColumn: { column: isColumnIdField },
   notCategory: { column: isColumnIdField },
   notNumber: { column: isColumnIdField },
+  notRole: { column: isColumnIdField, role: isRole },
   windowFailed: { label: isText, message: isText },
   roleNotPossible: { column: isColumnIdField, storage: isStorageType, role: isRole },
   valueNotFor: { column: isColumnIdField, role: isRole, row: isRowIndexField },

@@ -73,3 +73,90 @@ fn the_table_is_sorted_with_no_name_twice_and_every_name_in_lower_case() {
         assert_eq!(name.trim().to_lowercase(), *name);
     }
 }
+
+#[test]
+fn a_country_shown_by_its_code_has_its_iso_name_and_numeric_code() {
+    assert_eq!(
+        country_of("ESP"),
+        Some(Country {
+            name: "Spain",
+            numeric: Some("724")
+        })
+    );
+    // A numeric code keeps its leading zeros, as the map's shapes are named.
+    assert_eq!(
+        country_of("AFG"),
+        Some(Country {
+            name: "Afghanistan",
+            numeric: Some("004")
+        })
+    );
+    // A territory the map draws inside another country still has its own.
+    assert_eq!(
+        country_of("GUF"),
+        Some(Country {
+            name: "French Guiana",
+            numeric: Some("254")
+        })
+    );
+}
+
+#[test]
+fn a_former_country_has_its_name_and_no_numeric_code() {
+    assert_eq!(
+        country_of("SUN"),
+        Some(Country {
+            name: "Soviet Union",
+            numeric: None
+        })
+    );
+    assert_eq!(
+        country_of("FQHH"),
+        Some(Country {
+            name: "French Southern and Antarctic Territories",
+            numeric: None
+        })
+    );
+}
+
+#[test]
+fn a_code_of_no_country_or_not_as_shown_has_none() {
+    for code in ["", "XXX", "esp", "ES", "Spain", " ESP"] {
+        assert_eq!(country_of(code), None, "{code:?}");
+    }
+}
+
+#[test]
+fn every_code_a_name_gives_is_a_country_and_the_countries_are_sorted() {
+    for pair in table::COUNTRIES.windows(2) {
+        assert!(pair[0].0 < pair[1].0, "{:?} before {:?}", pair[0], pair[1]);
+    }
+    for (_, code) in table::NAMES {
+        assert!(country_of(code).is_some(), "{code}");
+    }
+}
+
+#[test]
+fn a_country_is_shown_by_its_common_name_and_no_name_shown_has_a_comma() {
+    // The common name of iso-codes, and the generator's own where ISO's
+    // name is not the common one (decided by the owner on 4 October 2026).
+    for (code, name) in [
+        ("BOL", "Bolivia"),
+        ("KOR", "South Korea"),
+        ("RUS", "Russia"),
+        ("COD", "Democratic Republic of the Congo"),
+        ("COG", "Republic of the Congo"),
+        ("VGB", "British Virgin Islands"),
+        ("YUG", "Yugoslavia"),
+        ("ESP", "Spain"),
+    ] {
+        assert_eq!(
+            country_of(code).map(|country| country.name),
+            Some(name),
+            "{code}"
+        );
+    }
+    for (code, name, _) in table::COUNTRIES {
+        assert!(!name.contains(','), "{code}: {name}");
+    }
+}

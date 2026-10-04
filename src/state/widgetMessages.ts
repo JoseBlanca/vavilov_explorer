@@ -1,11 +1,13 @@
 // The words the information bar of the main window shows when a 3D
-// scatter cannot be opened, written from what the window knows or from the
+// scatter or a map cannot be opened, written from what the window knows or from the
 // backend's refusal (.claude/skills/writing/SKILL.md, "The text of the
 // app"). No window was opened.
 
 import type { BarMessage } from "./barMessages.ts";
 import type { CommandError } from "./commandError.ts";
+import type { Role } from "./description.ts";
 import type { ColumnId } from "./ids.ts";
+import type { WidgetKind } from "./widget.ts";
 
 /** The error shown when the table has no column a 3D scatter can put on an axis. */
 export function noNumbersMessage(): BarMessage {
@@ -23,38 +25,94 @@ export function noWebGlMessage(): BarMessage {
   return { kind: "error", text: NO_WEBGL_WORDS };
 }
 
+/** The roles a map needs of a column: a latitude and a longitude, or the countries. */
+export type MapRole = Extract<Role, "latitude" | "longitude" | "country">;
+
+/**
+ * The error shown when the table has no column of `role`, which a map
+ * needs, and no window was opened.
+ */
+export function noColumnMessage(role: MapRole): BarMessage {
+  switch (role) {
+    case "latitude":
+      return {
+        kind: "error",
+        text: "No map was opened: the table has no latitude column. A column of numbers from −90 to 90 becomes one when “latitude” is chosen as its role.",
+      };
+    case "longitude":
+      return {
+        kind: "error",
+        text: "No map was opened: the table has no longitude column. A column of numbers from −180 to 180 becomes one when “longitude” is chosen as its role.",
+      };
+    case "country":
+      return {
+        kind: "error",
+        text: "No map of countries was opened: the table has no column of countries. A column of text that names countries by their ISO codes or names becomes one when “country” is chosen as its role.",
+      };
+  }
+}
+
 /** A refusal of open_widget the window shows. */
-export type WidgetRefused = Extract<CommandError, { readonly kind: "notNumber" | "windowFailed" }>;
+export type WidgetRefused = Extract<
+  CommandError,
+  { readonly kind: "notNumber" | "notRole" | "windowFailed" }
+>;
 
 /** Whether `error` is a refusal of open_widget the window shows. */
 export function isWidgetRefused(error: CommandError): error is WidgetRefused {
-  return error.kind === "notNumber" || error.kind === "windowFailed";
+  return error.kind === "notNumber" || error.kind === "notRole" || error.kind === "windowFailed";
+}
+
+/** The name of each kind of widget, as a sentence says it. */
+const WIDGET_WORDS: Readonly<Record<WidgetKind, string>> = {
+  scatter3d: "3D scatter",
+  map: "map",
+  countryMap: "map of countries",
+};
+
+/** A column of `role`, as a sentence says it. */
+function roleWords(role: Role): string {
+  switch (role) {
+    case "latitude":
+      return "a latitude column";
+    case "longitude":
+      return "a longitude column";
+    case "country":
+      return "a column of countries";
+    case "number":
+      return "a column of numbers";
+    case "category":
+      return "a category";
+    case "text":
+      return "a column of text";
+  }
 }
 
 /**
- * The error shown for a 3D scatter the backend refused to open, with
+ * The error shown for a widget of `kind` the backend refused to open, with
  * `columnName` the name of a column of the window's copy, or `null` when
  * the copy does not have it.
  */
 export function widgetRefusalMessage(
+  kind: WidgetKind,
   error: WidgetRefused,
   columnName: (column: ColumnId) => string | null,
 ): BarMessage {
+  const opened = `No ${WIDGET_WORDS[kind]} was opened`;
+  const noLonger = (column: ColumnId, role: Role): BarMessage => {
+    const name = columnName(column);
+    const which = name === null ? "one of its columns" : `“${name}”`;
+    return { kind: "error", text: `${opened}: ${which} is no longer ${roleWords(role)}.` };
+  };
   switch (error.kind) {
-    case "notNumber": {
-      const name = columnName(error.column);
-      return {
-        kind: "error",
-        text:
-          name === null
-            ? "No 3D scatter was opened: one of its columns is no longer a column of numbers."
-            : `No 3D scatter was opened: “${name}” is no longer a column of numbers.`,
-      };
-    }
+    case "notNumber":
+      return noLonger(error.column, "number");
+    case "notRole":
+      return noLonger(error.column, error.role);
     case "windowFailed":
       return {
         kind: "error",
-        text: "No 3D scatter was opened: the system could not open its window. Closing other windows may let it open.",
+        text: `${opened}: the system could not open its window. Closing other windows may let it open.`,
       };
   }
 }

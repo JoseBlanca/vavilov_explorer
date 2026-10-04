@@ -5,7 +5,7 @@ use vavilov_core::{
     Table, WidgetSpec, WindowHost, WindowLabel,
 };
 
-use super::open_widget_window;
+use super::{accepts_first_mouse, open_widget_window};
 
 const HEIGHT: u32 = 1;
 
@@ -141,4 +141,19 @@ fn a_widget_whose_window_could_not_be_made_is_taken_out_of_the_session() {
         })
     );
     assert_eq!(session.lock().unwrap().widget(&label), None);
+}
+
+#[test]
+fn the_point_views_take_the_first_click_and_the_map_of_countries_does_not() {
+    let column = ColumnId::new(HEIGHT);
+    assert!(accepts_first_mouse(&WidgetSpec::Scatter3d {
+        axes: [column, column, column]
+    }));
+    assert!(accepts_first_mouse(&WidgetSpec::Map {
+        latitude: column,
+        longitude: column,
+    }));
+    assert!(!accepts_first_mouse(&WidgetSpec::CountryMap {
+        country: column
+    }));
 }

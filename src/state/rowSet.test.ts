@@ -1,6 +1,14 @@
 import { describe, expect, test } from "vitest";
 
-import { hasRow, intersection, onlyRow, rangeBits, rowsWhere, toggledRow } from "./rowSet.ts";
+import {
+  hasRow,
+  intersection,
+  onlyRow,
+  rangeBits,
+  rowsWhere,
+  toggledRow,
+  toggledRows,
+} from "./rowSet.ts";
 
 describe("a set of rows", () => {
   test("of one row has its bit alone, in a byte per 8 rows", () => {
@@ -51,5 +59,23 @@ describe("rowsWhere, onlyRow and toggledRow", () => {
   test("a row past the set is a defect", () => {
     expect(() => onlyRow(8, 8)).toThrow(/row 8 in a set of 8 rows/);
     expect(() => toggledRow(new Uint8Array(1), 8)).toThrow(/row 8 in a set of 1 bytes/);
+  });
+});
+
+describe("toggledRows", () => {
+  test("adds the rows to the set unless all of them are in it", () => {
+    const bits = new Uint8Array([0b0000_0011, 0]);
+    expect([...toggledRows(bits, new Uint8Array([0b0000_0110, 0b1]))]).toEqual([0b0000_0111, 0b1]);
+  });
+
+  test("takes the rows away when all of them are in the set", () => {
+    const bits = new Uint8Array([0b0000_0111, 0b1]);
+    expect([...toggledRows(bits, new Uint8Array([0b0000_0110, 0b1]))]).toEqual([0b0000_0001, 0]);
+  });
+
+  test("of sets of another length is a defect", () => {
+    expect(() => toggledRows(new Uint8Array(2), new Uint8Array(1))).toThrow(
+      /defect: the rows of a set of 1 bytes toggled in one of 2/,
+    );
   });
 });

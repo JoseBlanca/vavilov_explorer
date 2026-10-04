@@ -44,8 +44,20 @@ export type GroupForm =
  */
 export type GroupClick = "alone" | "toggle" | "range";
 
+/**
+ * What the groups panel offers: every tool, + and − on the selected
+ * group and Add, Edit and Delete group, as in the main window; choosing
+ * the classification and the groups, and + and −, as in the 3D scatter and
+ * the map of the individuals, whose lasso they arm (decided by the owner
+ * on 4 October 2026); or only choosing, as in the map of countries
+ * (decided by the owner on 3 October 2026, to try).
+ */
+export type PanelTools = "all" | "assigning" | "choosing";
+
 /** What the groups panel shows, and what the user can do there. */
 export interface GroupsPanelProps {
+  /** The tools it offers. */
+  readonly tools: PanelTools;
   /** The classifications, the active one, and its rows. */
   readonly model: GroupsModel;
   /** The form of a group added or edited. */
@@ -187,7 +199,7 @@ function rowView(props: GroupsPanelProps, row: GroupRow): TemplateResult {
       <span class=${classOf(styles, "count")}>${COUNT.format(row.count)}</span>
     </button>
     ${
-      row.showsPlus
+      props.tools !== "choosing" && row.showsPlus
         ? actionButton(
             addAction(row, props.model.mode),
             ["edit", "add"],
@@ -199,7 +211,7 @@ function rowView(props: GroupsPanelProps, row: GroupRow): TemplateResult {
           )
         : nothing
     }${
-      row.showsMinus
+      props.tools !== "choosing" && row.showsMinus
         ? actionButton(
             removeAction(props.model),
             ["edit", "remove"],
@@ -368,7 +380,7 @@ function belowGroupsView(props: GroupsPanelProps): TemplateResult {
   }
 }
 
-/** The groups panel of the main window (docs/design.md, section 2.1). */
+/** The groups panel of the main window and the plot windows (docs/design.md, sections 2.1 and 2.2). */
 export function groupsPanelView(props: GroupsPanelProps): TemplateResult {
   const { model } = props;
   return html`<section class=${classOf(styles, "panel")} aria-labelledby="groups-heading">
@@ -411,6 +423,6 @@ export function groupsPanelView(props: GroupsPanelProps): TemplateResult {
             )}
           </ul>`
     }
-    ${model.active === null ? nothing : belowGroupsView(props)}
+    ${model.active === null || props.tools !== "all" ? nothing : belowGroupsView(props)}
   </section>`;
 }

@@ -28,4 +28,12 @@ const WIDGET_STARTS: Readonly<Record<WidgetKind, (root: HTMLElement) => Promise<
     const { startScatter3dWindow } = await import("./scatter3d/scatter3dWindow.controller.ts");
     await startScatter3dWindow(root);
   },
+  map: async (root) => {
+    const { startMapWindow } = await import("./map/mapWindow.controller.ts");
+    await startMapWindow(root);
+  },
+  countryMap: async (root) => {
+    const { startCountryMapWindow } = await import("./countryMap/countryMapWindow.controller.ts");
+    await startCountryMapWindow(root);
+  },
 };

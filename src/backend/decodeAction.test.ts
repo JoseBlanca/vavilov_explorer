@@ -23,10 +23,12 @@ describe("a message of an action", () => {
     expect(decodeAction(message(4))).toBe("undo");
     expect(decodeAction(message(5))).toBe("redo");
     expect(decodeAction(message(6))).toBe("scatter3d");
+    expect(decodeAction(message(7))).toBe("map");
+    expect(decodeAction(message(8))).toBe("countryMap");
   });
 
   test("with an unknown code, or a byte that should be zero, is a defect", () => {
-    expect(() => decodeAction(message(7))).toThrow(/defect: an action of code 7/);
+    expect(() => decodeAction(message(9))).toThrow(/defect: an action of code 9/);
     expect(() => decodeAction(message(0))).toThrow(/defect: an action of code 0/);
     expect(() => decodeAction(message(1, 1))).toThrow(/defect: bytes 2 to 7 of an action part/);
   });

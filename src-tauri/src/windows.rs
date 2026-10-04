@@ -87,12 +87,14 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
 }
 
 /// Whether the widget's window takes the first click while it is inactive:
-/// the point views do, so that a lasso or a rotation starts on the first
-/// press; the others do not, since there a click changes the selection
-/// (`docs/design.md`, section 10).
+/// the point views do, the 3D scatter and the map, so that a lasso, a
+/// rotation or a pan starts on the first press; the others do not, the map
+/// of countries among them, since there a click on a country selects its
+/// individuals (`docs/design.md`, section 10).
 const fn accepts_first_mouse(widget: &WidgetSpec) -> bool {
     match widget {
-        WidgetSpec::Scatter3d { .. } => true,
+        WidgetSpec::Scatter3d { .. } | WidgetSpec::Map { .. } => true,
+        WidgetSpec::CountryMap { .. } => false,
     }
 }
 

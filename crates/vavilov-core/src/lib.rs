@@ -36,9 +36,10 @@ mod widgets;
 
 pub use action::MenuAction;
 pub use command::{Command, Request};
-pub use countries::country_code;
+pub use countries::{Country, country_code, country_of};
 pub use description::{
-    ColumnDescription, LevelDescription, LevelValue, NamesDescription, TableDescription,
+    ColumnDescription, CountryDescription, LevelDescription, LevelValue, NamesDescription,
+    TableDescription,
 };
 pub use dispatch::{Changed, Dropped, Outcome};
 pub use error::{CellRefusal, CommandError, ExportRefusal, GroupRefusal, ImportRefusal, IoFailure};

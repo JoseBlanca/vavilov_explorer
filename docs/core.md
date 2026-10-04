@@ -519,6 +519,12 @@ command, rather than receives on its channel, the description of the
 table and each column it draws, comes with the revision it was read at,
 so the window can tell which of two copies is newer.
 
+The description gives, with each level of a column whose role is
+country, the country it is, `{ "name": "Spain", "numeric": "724" }`: its
+common name and its ISO numeric code, three digits, `null` for a former
+country, from the core's list of countries (`design.md`, section 6). A
+level of a column of countries that is no country's code is a defect.
+
 ### The layout
 
 Every message has a header of 24 bytes and then a list of parts. All
@@ -840,32 +846,37 @@ text, and a poisoned lock is a `Defect`.
 Some rules about windows are rules about the data, and belong in the
 core: removing a column closes every widget that shows it (`design.md`,
 section 2.2). The session keeps the open widgets, each with its label,
-its kind and its columns, a `WidgetSpec` such as `Scatter3d { axes: [x,
-y, z] }`, and gives the labels, `scatter3d-1` and on, from a counter that
-only grows, so that a label is never given twice. The widgets are part of
+its kind and its columns, a `WidgetSpec`: `Scatter3d { axes: [x, y, z]
+}`, `Map { latitude, longitude }` or `CountryMap { country }`, and gives
+the labels, `scatter3d-1`, `map-2`, `countryMap-3` and on, from one
+counter that only grows, so that a label is never given twice. The widgets are part of
 the open project, since they show its columns, so a load closes them all;
 the counter is the session's, so that a label is not given again in the
 next project.
 
 `Session::open_widget(spec, based_on)` adds a widget and returns its
 label; it is refused as a command made before the load, as `NoProject`,
-and as `UnknownColumn` or `NotNumber` for a column it cannot show, and it
+and as `UnknownColumn`, `NotNumber`, or `NotRole` with the role it
+needs, for a column it cannot show, and it
 takes no revision and sends no message, since no window's copy holds the
 widgets: the main window does not list them, and each widget's window
 learns only its own. It asks for it with `describe_widget`, which takes
 no argument and which the app answers from the label of the window that
 calls it, so that a page cannot ask for another window's: the widget's
 `WidgetSpec` as JSON, `{ "kind": "scatter3d", "axes": [4, 5, 6] }`, the
-ids of the columns on the x, y and z axes, or `UnknownWindow` for a
+ids of the columns on the x, y and z axes, `{ "kind": "map", "latitude":
+2, "longitude": 3 }` or `{ "kind": "countryMap", "country": 1 }`, or `UnknownWindow` for a
 window that is no open widget. When a window is closed, by the
 user or by the app, `Session::window_closed(label)` forgets its
 subscriber and its widget.
 
 A command that leaves a widget with a column it can no longer show closes
-it: after a load, every widget; after a change of role, a widget with the
-column on an axis when the column is no longer a number, a latitude or a
-longitude (decided by the assistant on 3 October 2026, to be confirmed by
-the owner). The dispatcher drops such widgets and their subscribers
+it: after a load, every widget; after a change of role, a 3D scatter with
+the column on an axis when the column is no longer a number, a latitude or
+a longitude, a map when its latitude or its longitude column has any other
+role, a plain number among them, and a map of countries when its column is
+no longer of countries (decided by the assistant on 3 October 2026, to be
+confirmed by the owner). The dispatcher drops such widgets and their subscribers
 before it sends the command's message, so that their windows receive
 nothing more, and returns their labels in `Outcome::closed`. Undoing the
 change brings the column back as it was but does not reopen the widget,

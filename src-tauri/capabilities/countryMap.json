@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "countryMap",
+  "description": "What the windows of the maps of countries may call: the table, the selection and their groups panel, and nothing of the individuals' points",
+  "windows": ["countryMap-*"],
+  "permissions": [
+    "allow-subscribe",
+    "allow-describe-table",
+    "allow-describe-widget",
+    "allow-region-decimal-mark",
+    "allow-set-selection",
+    "allow-set-active-classification",
+    "allow-select-groups",
+    "allow-set-edit-mode"
+  ]
+}

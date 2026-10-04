@@ -7,6 +7,7 @@ import type { TableDescription } from "../../state/description.ts";
 import { hoverLabel, labelColumns } from "../../state/hoverLabel.ts";
 import type { HoverLabel } from "../../state/hoverLabel.ts";
 import type { RowIndex } from "../../state/ids.ts";
+import { besidePointer } from "./besidePointer.ts";
 import { hoverLabelView } from "./hoverLabel.view.ts";
 
 /** The label of the individual under the pointer, in its element. */
@@ -20,9 +21,6 @@ export interface HoverLabelComponent {
   /** Empties the element. */
   readonly destroy: () => void;
 }
-
-/** The gap between the pointer and the label, in CSS pixels. */
-const GAP_PX = 14;
 
 /**
  * The label in `element`: it fetches the row under the pointer with the
@@ -45,17 +43,17 @@ export function createHoverLabel(
   const draw = (): void => {
     const label = shown?.label ?? null;
     const place = shown?.place ?? { x: 0, y: 0 };
-    render(hoverLabelView({ label, x: place.x + GAP_PX, y: place.y + GAP_PX }), element);
+    render(hoverLabelView({ label, x: place.x, y: place.y }), element);
     const box = element.firstElementChild;
     if (label === null || !(box instanceof HTMLElement)) {
       return;
     }
-    // Beside the pointer, on its other side near the window's edges.
     const { width, height } = box.getBoundingClientRect();
-    const x =
-      place.x + GAP_PX + width > window.innerWidth ? place.x - GAP_PX - width : place.x + GAP_PX;
-    const y = Math.max(0, Math.min(place.y + GAP_PX, window.innerHeight - height));
-    render(hoverLabelView({ label, x, y }), element);
+    const beside = besidePointer(place, width, height, {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    render(hoverLabelView({ label, x: beside.x, y: beside.y }), element);
   };
 
   // Each fetch is told from a later one, which can be of the same row.

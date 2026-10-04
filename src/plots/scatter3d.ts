@@ -114,6 +114,7 @@ export function createScatter3d(
         axes.setColours(token("--color-control-border"), token("--color-border"));
       },
       onKey: (key) => made.onKey(key),
+      pick: null,
     },
     labels,
     events,

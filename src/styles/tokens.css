@@ -26,6 +26,11 @@
      while there is no active classification. */
   --color-point-unassigned: #7c7c84;
   --color-point: #1d4ed8;
+  /* The map of countries: a country of no individual, and the ends of the
+     scale of the counts, from one individual to the most in a country. */
+  --color-country-empty: #e4e4e9;
+  --color-count-low: #a6cbe8;
+  --color-count-high: #08306b;
   --color-backdrop: rgb(0 0 0 / 30%);
 
   --space-1: 0.25rem;
@@ -73,6 +78,9 @@
     --color-remove-text: #1d0b0b;
     --color-point-unassigned: #8b8b94;
     --color-point: #8fb0ff;
+    --color-country-empty: #303036;
+    --color-count-low: #1f4f80;
+    --color-count-high: #b3d7ff;
     --color-backdrop: rgb(0 0 0 / 55%);
   }
 }
@@ -97,6 +105,9 @@
   --color-remove-text: #1d0b0b;
   --color-point-unassigned: #8b8b94;
   --color-point: #8fb0ff;
+  --color-country-empty: #303036;
+  --color-count-low: #1f4f80;
+  --color-count-high: #b3d7ff;
   --color-backdrop: rgb(0 0 0 / 55%);
 }
 

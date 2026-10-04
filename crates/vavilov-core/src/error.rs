@@ -89,6 +89,17 @@ pub enum CommandError {
         column: ColumnId,
     },
 
+    /// The command needs a column of one role, such as the latitude of a
+    /// map or the countries of a map of countries, and the column has
+    /// another.
+    #[error("column {column} is not of the role {role:?}")]
+    NotRole {
+        /// The column the command gave.
+        column: ColumnId,
+        /// The role the command needs.
+        role: Role,
+    },
+
     /// A window could not be opened or closed by the system.
     #[error("window {label} could not be opened or closed: {message}")]
     WindowFailed {

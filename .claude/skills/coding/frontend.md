@@ -265,7 +265,10 @@ background.
 - **A change of style writes into the buffers the points have**, with
   `needsUpdate`; a new `BufferAttribute` for each hover leaves the old
   buffer on the GPU until the browser collects it, since the geometry's
-  `dispose` frees only the buffers it still holds.
+  `dispose` frees only the buffers it still holds. Three.js's
+  `LineSegmentsGeometry.setPositions` makes a new buffer on every call,
+  so the map of countries gives each outline a geometry of its own and
+  disposes of the one before (found by the review of 3 October 2026).
 - **The pixel ratio** is `Math.min(devicePixelRatio, 2)`, read again on
   every resize, since a window moved to another screen changes it; and
   `renderer.setSize(width, height, false)`, so that Three.js does not write
@@ -285,7 +288,22 @@ background.
   with the Natural Earth borders of `world-atlas` as line segments, skipping
   segments that jump more than 180° in longitude; draw order on the flat
   map is an explicit priority lifted along z: highlighted over selected
-  over the rest (`prototype-lessons.md`, "Map").
+  over the rest (`prototype-lessons.md`, "Map"). Both maps are built on
+  `src/plots/flatMap.ts`, the camera, its pan and zoom and the borders,
+  on the base of the point views; the map of countries gives the base a
+  `pick` of its own, the country under the pointer by a test of its
+  rings in the scene, in place of the nearest point. A ring of a country
+  that crosses 180° is run on past it and cut at the map's edge, the part
+  beyond moved to the other edge; one that goes round the world, as
+  Antarctica's coast, is closed along the edge at its pole
+  (`src/plots/worldShapes.ts`).
+- **A colour given to a material of Three.js** is managed by it: a CSS
+  colour set with `material.color.set(…)` is right, but the colours of a
+  geometry's vertices, as the map of countries fills its countries, are
+  taken as linear and turned into sRGB when drawn, so a CSS colour is
+  first converted with `Color.setRGB(r, g, b, SRGBColorSpace)`; the
+  points' own shader writes its colours as given. The map's test of
+  pixels checks the fills against the tokens.
 - **`destroy`** disconnects the observer, removes the listeners, disposes
   the controls, every geometry, material and texture it made (kept in a
   list as they are made), and the renderer, then calls

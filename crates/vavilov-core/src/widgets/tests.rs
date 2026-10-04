@@ -261,3 +261,170 @@ fn a_widget_crosses_to_a_window_as_its_kind_and_its_axes() {
         .is_err()
     );
 }
+
+/// The table of `loaded()` with `height` a latitude, `seeds` a longitude
+/// and `origin` a country, as a map shows them.
+fn with_places() -> Session {
+    let mut session = loaded();
+    for (column, role) in [
+        (HEIGHT, Role::Latitude),
+        (SEEDS, Role::Longitude),
+        (ORIGIN, Role::Country),
+    ] {
+        dispatch(&mut session, Command::SetRole { column, role });
+    }
+    session
+}
+
+fn map(latitude: ColumnId, longitude: ColumnId) -> WidgetSpec {
+    WidgetSpec::Map {
+        latitude,
+        longitude,
+    }
+}
+
+fn country_map(country: ColumnId) -> WidgetSpec {
+    WidgetSpec::CountryMap { country }
+}
+
+#[test]
+fn the_maps_take_labels_of_their_kind_from_the_same_counter() {
+    let mut session = with_places();
+    let labels: Vec<WindowLabel> = [
+        map(HEIGHT, SEEDS),
+        country_map(ORIGIN),
+        scatter(HEIGHT, SEEDS, HEIGHT),
+    ]
+    .into_iter()
+    .map(|spec| open(&mut session, spec))
+    .collect();
+    assert_eq!(
+        labels.iter().map(WindowLabel::as_str).collect::<Vec<_>>(),
+        ["map-1", "countryMap-2", "scatter3d-3"]
+    );
+    assert_eq!(session.widget(&labels[0]), Some(&map(HEIGHT, SEEDS)));
+    assert_eq!(session.widget(&labels[1]), Some(&country_map(ORIGIN)));
+}
+
+#[test]
+fn a_map_needs_a_latitude_and_a_longitude_and_a_number_of_neither_is_refused() {
+    let mut session = loaded();
+    let at = session.revision();
+    let before = session.state.clone();
+    // height and seeds are numbers, not yet a latitude and a longitude.
+    assert_eq!(
+        session.open_widget(map(HEIGHT, SEEDS), at),
+        Err(CommandError::NotRole {
+            column: HEIGHT,
+            role: Role::Latitude
+        })
+    );
+    assert_eq!(session.state, before);
+    let mut session = with_places();
+    let at = session.revision();
+    let before = session.state.clone();
+    // The two columns swapped: the latitude is no longitude.
+    assert_eq!(
+        session.open_widget(map(SEEDS, HEIGHT), at),
+        Err(CommandError::NotRole {
+            column: SEEDS,
+            role: Role::Latitude
+        })
+    );
+    assert_eq!(
+        session.open_widget(map(HEIGHT, HEIGHT), at),
+        Err(CommandError::NotRole {
+            column: HEIGHT,
+            role: Role::Longitude
+        })
+    );
+    assert_eq!(
+        session.open_widget(map(HEIGHT, ColumnId::new(9)), at),
+        Err(CommandError::UnknownColumn {
+            column: ColumnId::new(9)
+        })
+    );
+    assert_eq!(session.state, before);
+}
+
+#[test]
+fn a_map_of_countries_needs_a_column_of_countries_and_a_category_is_refused() {
+    let mut session = loaded();
+    let at = session.revision();
+    assert_eq!(
+        session.open_widget(country_map(ORIGIN), at),
+        Err(CommandError::NotRole {
+            column: ORIGIN,
+            role: Role::Country
+        })
+    );
+    let mut session = with_places();
+    let at = session.revision();
+    assert_eq!(
+        session.open_widget(country_map(HEIGHT), at),
+        Err(CommandError::NotRole {
+            column: HEIGHT,
+            role: Role::Country
+        })
+    );
+    assert!(session.open_widget(country_map(ORIGIN), at).is_ok());
+}
+
+#[test]
+fn a_map_closes_when_its_latitude_becomes_a_plain_number_and_undo_does_not_reopen_it() {
+    let mut session = with_places();
+    let shown = open(&mut session, map(HEIGHT, SEEDS));
+    let scattered = open(&mut session, scatter(HEIGHT, SEEDS, HEIGHT));
+    let outcome = dispatch(
+        &mut session,
+        Command::SetRole {
+            column: HEIGHT,
+            role: Role::Number,
+        },
+    );
+    // The 3D scatter keeps a number on its axis.
+    assert_eq!(outcome.closed, vec![shown.clone()]);
+    assert_eq!(
+        session.widget(&scattered),
+        Some(&scatter(HEIGHT, SEEDS, HEIGHT))
+    );
+    let undone = dispatch(&mut session, Command::Undo);
+    assert_eq!(undone.closed, Vec::<WindowLabel>::new());
+    assert_eq!(session.widget(&shown), None);
+}
+
+#[test]
+fn a_map_of_countries_closes_when_its_column_becomes_a_category() {
+    let mut session = with_places();
+    let shown = open(&mut session, country_map(ORIGIN));
+    let outcome = dispatch(
+        &mut session,
+        Command::SetRole {
+            column: ORIGIN,
+            role: Role::Category,
+        },
+    );
+    assert_eq!(outcome.closed, vec![shown.clone()]);
+    assert_eq!(session.widget(&shown), None);
+}
+
+#[test]
+fn the_maps_cross_to_a_window_as_their_kind_and_their_columns() {
+    for (spec, json) in [
+        (
+            map(HEIGHT, SEEDS),
+            serde_json::json!({ "kind": "map", "latitude": 1, "longitude": 4 }),
+        ),
+        (
+            country_map(ORIGIN),
+            serde_json::json!({ "kind": "countryMap", "country": 2 }),
+        ),
+    ] {
+        assert_eq!(serde_json::to_value(&spec).unwrap(), json);
+        assert_eq!(serde_json::from_value::<WidgetSpec>(json).unwrap(), spec);
+    }
+    assert!(
+        serde_json::from_value::<WidgetSpec>(serde_json::json!({ "kind": "map", "latitude": 1 }))
+            .is_err()
+    );
+}

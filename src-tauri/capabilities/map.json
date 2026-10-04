@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "map",
+  "description": "What the windows of the maps of individuals may call: those of a 3D scatter but adding, editing and deleting a group, which their groups panel does not offer",
+  "windows": ["map-*"],
+  "permissions": [
+    "allow-subscribe",
+    "allow-describe-table",
+    "allow-describe-widget",
+    "allow-fetch-column",
+    "allow-fetch-row",
+    "allow-set-hover",
+    "allow-set-selection",
+    "allow-assign-rows",
+    "allow-unassign-rows",
+    "allow-region-decimal-mark",
+    "allow-set-active-classification",
+    "allow-select-groups",
+    "allow-set-edit-mode"
+  ]
+}

@@ -16,9 +16,15 @@ function isAxes(value: unknown): value is Axes {
 /** The fields of each kind of widget, and the check of each. */
 const FIELDS = {
   scatter3d: { axes: isAxes },
+  map: { latitude: isColumnIdField, longitude: isColumnIdField },
+  countryMap: { country: isColumnIdField },
 };
 
-/** What a widget shows: a 3D scatter of three numeric columns. */
+/**
+ * What a widget shows: a 3D scatter of three numeric columns, a map of the
+ * individuals by a latitude and a longitude column, or a map of the
+ * countries of a country column.
+ */
 export type WidgetSpec = Tagged<typeof FIELDS>;
 
 /** Whether `value` is what a widget shows, with exactly the fields of its kind. */
@@ -28,11 +34,12 @@ export const isWidgetSpec: (value: unknown) => value is WidgetSpec = taggedDecod
 export type WidgetKind = WidgetSpec["kind"];
 
 /**
- * The kind of widget of the window labelled `label`, such as `scatter3d-1`,
- * or `null` for a label of no widget, the main window's among them.
+ * The kind of widget of the window labelled `label`, such as `scatter3d-1`
+ * or `countryMap-2`, or `null` for a label of no widget, the main window's
+ * among them.
  */
 export function widgetKindOf(label: string): WidgetKind | null {
-  const kind = /^([a-z0-9]+)-[1-9][0-9]*$/.exec(label)?.[1];
+  const kind = /^([a-z][a-zA-Z0-9]*)-[1-9][0-9]*$/.exec(label)?.[1];
   return WIDGET_KINDS.find((each) => each === kind) ?? null;
 }
 

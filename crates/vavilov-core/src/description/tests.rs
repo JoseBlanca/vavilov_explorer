@@ -131,3 +131,67 @@ fn the_levels_of_whole_numbers_are_texts_so_that_none_is_rounded_and_decimal_one
         ])
     );
 }
+
+#[test]
+fn the_levels_of_a_country_column_name_their_country_and_its_numeric_code() {
+    use crate::fixtures::{column, names};
+    use crate::table::{Categorical, ColumnValues, Role, Stored, Table};
+    let origins = Stored::Text(vec![
+        Some("Spain".to_owned()),
+        Some("SU".to_owned()),
+        Some("guf".to_owned()),
+    ]);
+    let table = Table::new(
+        "IndividualID",
+        names(&["p1", "p2", "p3"]),
+        vec![column(
+            "origin",
+            ColumnValues::Category(Categorical::from_stored(&origins, "origin").unwrap()),
+        )],
+    )
+    .unwrap();
+    let mut session = Session::new();
+    session
+        .dispatch(Request {
+            command: Command::LoadTable {
+                table,
+                active_classification: None,
+            },
+            based_on: Revision::ZERO,
+            sent_at: None,
+        })
+        .unwrap();
+    // A category of the same names is not of countries, and its levels say none.
+    let before = serde_json::to_value(session.describe().unwrap()).unwrap();
+    assert_eq!(before["columns"][0]["levels"][0].get("country"), None);
+    session
+        .dispatch(Request {
+            command: Command::SetRole {
+                column: ColumnId::new(1),
+                role: Role::Country,
+            },
+            based_on: Revision::new(1),
+            sent_at: None,
+        })
+        .unwrap();
+    let description = serde_json::to_value(session.describe().unwrap()).unwrap();
+    let levels = description["columns"][0]["levels"].as_array().unwrap();
+    let countries: Vec<_> = levels
+        .iter()
+        .map(|level| (level["value"].clone(), level["country"].clone()))
+        .collect();
+    assert_eq!(
+        countries,
+        vec![
+            (json!("ESP"), json!({ "name": "Spain", "numeric": "724" })),
+            (
+                json!("GUF"),
+                json!({ "name": "French Guiana", "numeric": "254" })
+            ),
+            (
+                json!("SUN"),
+                json!({ "name": "Soviet Union", "numeric": null })
+            ),
+        ]
+    );
+}

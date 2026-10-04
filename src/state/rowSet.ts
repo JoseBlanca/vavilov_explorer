@@ -2,6 +2,7 @@
 // `i` in bit `i % 8` of byte `i / 8`, the bits beyond the last row zero
 // (crates/vavilov-core/src/row_set.rs).
 
+import { at } from "./at.ts";
 import { defect } from "./defect.ts";
 
 /** The rows from `from` to `to`, both included and in either order, of a table of `numRows`. */
@@ -50,6 +51,22 @@ export function toggledRow(bits: Uint8Array, row: number): Uint8Array {
     throw defect(`row ${String(row)} in a set of ${String(bits.length)} bytes`);
   }
   return bits.map((byte, index) => (index === at ? byte ^ (1 << (row % 8)) : byte));
+}
+
+/**
+ * A copy of `bits` with the rows of `rows` added, or taken away when all of
+ * them were in it, as a Cmd-click on a country of the map does.
+ *
+ * @throws A defect when the two sets are not of the same length.
+ */
+export function toggledRows(bits: Uint8Array, rows: Uint8Array): Uint8Array {
+  if (rows.length !== bits.length) {
+    throw defect(
+      `the rows of a set of ${String(rows.length)} bytes toggled in one of ${String(bits.length)}`,
+    );
+  }
+  const allIn = rows.every((byte, index) => (byte & at(bits, index)) === byte);
+  return bits.map((byte, index) => (allIn ? byte & ~at(rows, index) : byte | at(rows, index)));
 }
 
 /**

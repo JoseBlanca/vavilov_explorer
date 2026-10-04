@@ -1,4 +1,4 @@
-// What the point views share, the 3D scatter and later the map: the
+// What the point views share, the 3D scatter and the maps: the
 // renderer, the points, drawing on demand, the size of the canvas, the
 // colours of the theme, the place of each point on the screen, and what the
 // pointer does over them, hover, click and lasso (frontend.md, "The point
@@ -20,7 +20,11 @@ import { createPoints } from "./points.ts";
 import { pickPoint, pointsInPolygon, projectPoints } from "./projection.ts";
 import type { ScreenPoints } from "./projection.ts";
 
-/** What the user does with the pointer over a point view. */
+/**
+ * What the user does with the pointer over a point view. What the pointer
+ * is over is the point of a row, or, in a view that picks something else,
+ * as the map of countries picks a country, the number the view gives it.
+ */
 export interface PointViewEvents {
   /**
    * The pointer moved, over the point of `row` or over none, at `x`, `y` in
@@ -59,6 +63,12 @@ export interface PointViewHooks {
   readonly onTheme: (token: (name: string) => string) => void;
   /** Moves the camera for a key pressed with no modifier, and says whether the key was one. */
   readonly onKey: (key: string) => boolean;
+  /**
+   * What is under `x`, `y`, in CSS pixels of the canvas, for a kind that
+   * picks something other than the points, or `null` for the point nearest
+   * the camera.
+   */
+  readonly pick: ((x: number, y: number) => number | null) | null;
 }
 
 /** The base of a point view, for the kind of view built on it. */
@@ -291,7 +301,7 @@ export function createPointView(
   };
 
   const pick = (x: number, y: number): number | null =>
-    pickPoint(project(), sizes, x, y, PICK_SLOP_PX);
+    hooks.pick === null ? pickPoint(project(), sizes, x, y, PICK_SLOP_PX) : hooks.pick(x, y);
 
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) {

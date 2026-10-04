@@ -5,6 +5,7 @@
 
 use serde::Serialize;
 
+use crate::countries::country_of;
 use crate::error::CommandError;
 use crate::ids::{ColumnId, Revision};
 use crate::session::Session;
@@ -70,6 +71,21 @@ pub struct LevelDescription {
     pub value: LevelValue,
     /// Its colour, as CSS writes it, `#rrggbb`.
     pub colour: String,
+    /// The country it is, in a column whose role is country; absent in
+    /// any other.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub country: Option<CountryDescription>,
+}
+
+/// The country a level of a country column is, as a map names and draws it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CountryDescription {
+    /// Its common name in English.
+    pub name: String,
+    /// Its ISO numeric code, three digits, which names its shape on the
+    /// map; `null` for a former country, which the map does not draw.
+    pub numeric: Option<String>,
 }
 
 /// The value of a level in JSON: a whole number as text, since a JSON
@@ -92,7 +108,9 @@ impl Session {
     ///
     /// # Errors
     ///
-    /// `NoProject` when no project is open.
+    /// `NoProject` when no project is open; a `Defect` for a level of a
+    /// column of countries that is no country's code, which the core never
+    /// lets in.
     pub fn describe(&self) -> Result<TableDescription, CommandError> {
         let open = self.state.project.open()?;
         let table = &open.table;
@@ -109,7 +127,10 @@ impl Session {
                     storage: values.storage_type(),
                     role: values.role(),
                     roles: values.possible_roles()?,
-                    levels: values.categorical().map(levels_of),
+                    levels: values
+                        .categorical()
+                        .map(|categorical| levels_of(categorical, values.role()))
+                        .transpose()?,
                 })
             })
             .collect::<Result<Vec<_>, CommandError>>()?;
@@ -126,7 +147,13 @@ impl Session {
     }
 }
 
-fn levels_of(categorical: &Categorical) -> Vec<LevelDescription> {
+/// The levels of a category, each with its country when `role` is country.
+///
+/// # Errors
+///
+/// A `Defect` for a level of a country column that is no country's code,
+/// which the change of role to country never leaves.
+fn levels_of(categorical: &Categorical, role: Role) -> Result<Vec<LevelDescription>, CommandError> {
     let values: Vec<LevelValue> = match categorical.levels() {
         LevelValues::Integer(values) => values
             .iter()
@@ -139,11 +166,38 @@ fn levels_of(categorical: &Categorical) -> Vec<LevelDescription> {
     values
         .into_iter()
         .zip(categorical.colours())
-        .map(|(value, colour)| LevelDescription {
-            value,
-            colour: css(*colour),
+        .map(|(value, colour)| {
+            let country = match (role, &value) {
+                (Role::Country, LevelValue::Text(code)) => Some(
+                    country_description(code).ok_or_else(|| CommandError::Defect {
+                        what: format!("a level {code} of a country column that is no country"),
+                    })?,
+                ),
+                (Role::Country, LevelValue::Float(_) | LevelValue::Boolean(_)) => {
+                    return Err(CommandError::Defect {
+                        what: "a country column whose levels are not text".to_owned(),
+                    });
+                }
+                (
+                    Role::Number | Role::Latitude | Role::Longitude | Role::Category | Role::Text,
+                    _,
+                ) => None,
+            };
+            Ok(LevelDescription {
+                value,
+                colour: css(*colour),
+                country,
+            })
         })
         .collect()
+}
+
+/// The country shown by `code`, as a level describes it.
+fn country_description(code: &str) -> Option<CountryDescription> {
+    country_of(code).map(|country| CountryDescription {
+        name: country.name.to_owned(),
+        numeric: country.numeric.map(str::to_owned),
+    })
 }
 
 /// A colour as CSS writes it.

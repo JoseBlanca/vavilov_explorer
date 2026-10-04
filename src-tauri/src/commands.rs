@@ -167,7 +167,7 @@ pub fn fetch_row(
 ///
 /// # Errors
 ///
-/// `MadeBeforeLoad`, `NoProject`, `UnknownColumn`, `NotNumber`,
+/// `MadeBeforeLoad`, `NoProject`, `UnknownColumn`, `NotNumber`, `NotRole`,
 /// `WindowFailed`, or the refusals of [`calls::call`].
 #[tauri::command]
 pub async fn open_widget<R: Runtime>(
@@ -190,7 +190,9 @@ pub async fn open_widget<R: Runtime>(
 }
 
 /// What the calling window's widget shows, as `{ kind, ... }`: a 3D
-/// scatter's `{ kind: "scatter3d", axes: [x, y, z] }`. Takes no arguments.
+/// scatter's `{ kind: "scatter3d", axes: [x, y, z] }`, a map's `{ kind:
+/// "map", latitude, longitude }`, or a map of countries' `{ kind:
+/// "countryMap", country }`. Takes no arguments.
 ///
 /// # Errors
 ///

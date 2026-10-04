@@ -23,7 +23,7 @@ import type { GroupRow, GroupsModel } from "../../state/groups.ts";
 import { answered } from "./answered.ts";
 import { countText } from "./numbers.ts";
 import { groupsPanelView } from "./groupsPanel.view.ts";
-import type { GroupClick, GroupForm } from "./groupsPanel.view.ts";
+import type { GroupClick, GroupForm, PanelTools } from "./groupsPanel.view.ts";
 
 /** The groups panel in its element. */
 export interface GroupsPanel {
@@ -61,7 +61,10 @@ interface Pressed {
  * group's name, read with the region's decimal `mark`, and Edit group one
  * for the selected group's name and colour; the bar says why a name was
  * refused. Delete group deletes the selected group at once, and the bar
- * says how to undo it (docs/design.md, section 2.1).
+ * says how to undo it (docs/design.md, section 2.1). With `tools`
+ * "assigning" it offers + and − but no Add, Edit or Delete group, and with
+ * "choosing" none of these, only the classification and the groups
+ * selected; Escape still releases + or − pressed in another window.
  */
 export function createGroupsPanel(
   element: HTMLElement,
@@ -70,6 +73,7 @@ export function createGroupsPanel(
   mark: string,
   tell: (message: BarMessage) => void,
   report: (error: unknown) => void,
+  tools: PanelTools,
 ): GroupsPanel {
   const { state } = connection;
   let form: GroupForm = { kind: "closed" };
@@ -347,6 +351,7 @@ export function createGroupsPanel(
     const hadFocus = element.contains(document.activeElement);
     render(
       groupsPanelView({
+        tools,
         model,
         form,
         onChooseClassification: (column) => {

@@ -363,9 +363,12 @@ slice, built the same day:
 - Plot > 3D scatter… opens a dialog, "3D scatter", with a dropdown for
   each axis, "X axis", "Y axis" and "Z axis", which offers the columns
   whose role is a number, a latitude or a longitude, in the order of the
-  table, and Cancel and Open. It starts from the first three such
-  columns; with two, from the first, the second and the first, and with
-  one, from it on every axis. Starting from the columns selected in the
+  table, and Cancel and Open. It starts from the first three columns
+  whose role is a number; with two, from the first, the second and the
+  first, and with one, from it on every axis. A latitude or a longitude is
+  rarely plotted against other numbers, so the dialog starts from them only
+  when the table has no plain number, in the same way (decided by the owner
+  on 4 October 2026). Starting from the columns selected in the
   table comes with the selection of columns, which does not exist yet,
   and so does "Create 3D plot" in the menu of a right-click on the
   headers. With no such column, the information bar of the main window
@@ -445,10 +448,13 @@ slice, built the same day:
   takes it out, as a click in the table does.
 - Each plot window has the groups panel of the main window, the same
   component doing the same things, in a panel at its right that can be
-  collapsed, so that the user edits the groups without going back to the
-  main window; the panels of every window show one state, the backend's,
-  so a group selected or + pressed in one shows in all (decided by the
-  owner on 3 October 2026; section 12 had deferred a compact key).
+  collapsed, so that the user puts individuals in groups without going
+  back to the main window; the panels of every window show one state, the
+  backend's, so a group selected or + pressed in one shows in all (decided
+  by the owner on 3 October 2026; section 12 had deferred a compact key).
+  The 3D scatter's panel has + and − on the group selected, but no Add,
+  Edit and Delete group, which the main window has (decided by the owner
+  on 4 October 2026).
 - The values of a column are sent to the plot window as their distance
   from the middle of the column's range, so that values far from zero and
   close together, positions on a genome or coordinates in metres, are not
@@ -457,6 +463,130 @@ slice, built the same day:
 - A refused command of the window, a lasso whose group was deselected in
   another window meanwhile, is written to the console, as in the main
   window, until section 12 decides how a window tells it.
+
+The two maps, decided by the owner on 3 October 2026:
+
+- Plot > Map… opens a dialog, "Map", with "Latitude column" and
+  "Longitude column", each offering the columns of its role and starting
+  from the first; Plot > Map of countries… opens "Map of countries", with
+  "Country column", which offers the columns whose role is country. The
+  3D scatter's dialog is the same dialog with its three axes. With no
+  column of a role a map needs, no dialog opens, and the information bar
+  of the main window says so as an error: "No map was opened: the table
+  has no latitude column. A column of numbers from −90 to 90 becomes one
+  when “latitude” is chosen as its role.", the same for a longitude, from
+  −180 to 180, and "No map of countries was opened: the table has no
+  column of countries. A column of text that names countries by their ISO
+  codes or names becomes one when “country” is chosen as its role."
+- Each map window has the groups panel without Add, Edit and Delete
+  group, as the 3D scatter's. The panel of the map of the individuals has + and − on the group selected, which arm its lasso
+  (decided by the owner on 4 October 2026); that of the map of countries,
+  which has no lasso, has the classification and the groups alone. Escape
+  in a map window still releases + or − pressed in another window.
+- The map of the individuals, "Map of lat and lon", draws a point for each
+  individual with a latitude and a longitude, as the 3D scatter does. The
+  world is drawn flat, as web maps draw it (the Web Mercator projection,
+  which stretches the land towards the poles and ends at 85.05° north and
+  south), with the borders of the countries from Natural Earth, a public
+  map of the world (section 12). A place beyond 85.05° is drawn on the
+  map's edge, and the map does not wrap around at 180°. It opens showing
+  the individuals, and shows at least about 9° of longitude, so that one
+  individual alone is shown with the land around it. Its information bar
+  says "Drawing 1,688 of 2,000 individuals: 312 have no coordinates."
+- Where points overlap, the individual under the pointer is drawn on top,
+  then those selected or inside a lasso, then those of the groups
+  selected in the panel, and the rest below.
+- A drag pans, the wheel zooms where the pointer is, and a double click
+  shows all the individuals again; with the keyboard's focus on the map
+  the arrows pan, + and − zoom, and Home shows them all again. The label
+  of the individual under the pointer, the clicks that select, and the
+  lasso are the 3D scatter's. To draw a lasso, the user presses + or − in
+  the map's groups panel, or in any other window's, then drags on the
+  map, which no longer pans meanwhile, and presses Enter to apply the
+  lasso or Escape to drop it, as in the 3D scatter. While + or − is
+  pressed, the map's cursor is a cross.
+- The map of countries, "Map of countries in origin", fills each country
+  by how many individuals the column puts in it, whatever the find bar
+  shows. With no group selected in the groups panel it counts every
+  individual; with groups selected, only the individuals in them, in the
+  active classification, and "Unassigned" selected counts those in no
+  group (decided by the owner on 4 October 2026). When the active
+  classification is the column of countries itself, selecting ESP leaves
+  Spain alone coloured. The scale's dark end is the most in a country
+  among those counted, so one blue means different counts as the groups
+  change, and the legend's top number says which. A country with none in one
+  grey, both one the column never names and one that is a group of the
+  column with no individual left in it, and the others on a scale of
+  blue, linear, from a light blue at one individual to a dark blue at the
+  most in a country; in the dark appearance the scale runs from a dark
+  blue to a light one. A legend over the map's lower left corner shows the
+  grey, "No individuals", and the scale with its two ends, "1" and the
+  most; a screen reader is given the scale as a sentence, "From 1 to 5
+  individuals" (decided by the owner on 4 October 2026). With groups
+  selected, a line under the legend's heading names them, "in ESP and
+  PER", and the sentence ends with it, "From 1 to 5 individuals in ESP
+  and PER". The information bar says whose individuals are counted:
+  "Counting the 312 individuals in ESP and PER, of 2,000.", or "Counting
+  300 of the 312 individuals in ESP and PER: 12 have no country."; the
+  unassigned individuals are named "in no group", and past three groups
+  the others are counted, "in ESP, PER, MEX and 4 other groups". The
+  words are the assistant's, for the owner to review.
+- Some places have no shape of their own in Natural Earth's map: it draws
+  French Guiana, Guadeloupe, Martinique, Réunion and Mayotte as part of
+  France and Svalbard as part of Norway, and has nothing for Gibraltar,
+  Tuvalu, Tokelau, Bouvet Island, Christmas Island, the Cocos Islands,
+  Bonaire and the United States Minor Outlying Islands; nor does it draw
+  former countries, such as the USSR. The individuals of such a place are
+  not added to any country of the map: France is not coloured by French
+  Guiana's. They are left out of the map, and its information bar says how
+  many and where: "Counting 1,920 of 2,000 individuals: 60 have no
+  country, and 20 are in French Guiana, which the map has no shape for."
+  It names the three such places with the most individuals, and counts
+  the others. Somaliland, Kosovo, N. Cyprus, the Siachen Glacier and the
+  Indian Ocean Territories, which Natural Earth draws and ISO gives no
+  code, are drawn in the grey of none: no individual can be in them, and
+  those of Somalia and Cyprus are not drawn in Somaliland and N. Cyprus
+  (decided by the owner on 4 October 2026).
+- A country is named by its common name, "Russia", "Bolivia", "South
+  Korea", "Democratic Republic of the Congo", "Soviet Union", and not by
+  ISO's longer official one, which a list in the bar would split at its
+  comma (decided by the owner on 4 October 2026). It is the common name
+  of iso-codes where it has one, else a name the core's generator
+  (`scripts/countries.mjs`) writes for the countries whose ISO name is
+  not the common one, 24 of them, else ISO's name. A file may still name
+  a country only by its ISO codes or names (section 6).
+- The pointer over a country shows "Spain (ESP): 312 individuals", by its
+  common name and the code the table shows, or "Morocco: no individuals", by
+  Natural Earth's name; it shows only in the map's window, since the
+  hover the windows share is of one individual. A click on a country
+  selects its individuals alone, those the map counts there when groups
+  are selected (chosen by the assistant on 4 October 2026, so that a click
+  selects what the colour shows; for the owner to confirm), and
+  Cmd-click or Ctrl-click adds them to
+  the selection, or takes them away when all of them were in it; a click
+  on a country with none, or on the sea, does nothing. Each country that
+  holds an individual selected has a line in the text's colour around it,
+  drawn over a wider line in the background's colour so that it shows on
+  the darkest blue as on the lightest.
+- On macOS, when a map window is not the active window, a click on the
+  map of the individuals already acts, so that a drag that pans or draws
+  a lasso starts on the first press, as in the 3D scatter; a click on the
+  map of countries only brings its window to the front, since a click
+  there would change the selection. On Windows and Linux the first click
+  always acts (section 10), and there it selects the country's
+  individuals.
+- A change of role that leaves a map a column it cannot show closes it,
+  as a column removed would: a latitude or a longitude made anything
+  else, a plain number among them, since a later edit could then put a
+  value off the globe, and a column of countries made a category or text.
+  Undoing it does not reopen the map. This rule was chosen by the
+  assistant and is for the owner to confirm. Opening another table closes
+  every map, as it closes every widget.
+- WCAG asks 3 to 1 between the marks of a plot and what is beside them.
+  The dark blue of the most individuals meets it against the grey of none,
+  at 10.1 to 1 in the light appearance and 8.8 in the dark. The light
+  blue of one individual does not, at 1.34 and 1.55 to 1: it differs from
+  the grey by its hue, and the label of a country gives its count.
 
 Histograms and bar plots select too: dragging across bins or clicking a
 bar selects the individuals in them, and the selected share of each bar
@@ -761,7 +891,10 @@ The list of countries is a table in the core, generated once from the
 data of Debian's `iso-codes` (ISO 3166-1 and 3166-3, their codes, names
 and official names), and committed with its source, its date and the
 SHA-256 of what was read; it is generated again when ISO changes a
-country. A name a current and a former country would share goes to the
+country. It holds, for each country by the code it is shown by, its
+common name (section 2.2) and, for a current one, its ISO numeric code, which names its shape
+on the map of countries (section 2.2); the description of a column of
+countries gives both with each level. A name a current and a former country would share goes to the
 current one, as the owner decided on 2 October 2026; one that two
 current or two former countries would share is left out.
 
@@ -1139,6 +1272,20 @@ Raised on 2 October 2026 while the skills of the project were written
 - Three.js is taken at 0.186.1, with its TypeScript types from the
   development package `@types/three` 0.186.0 (DefinitelyTyped), which add
   nothing to the app (approved by the owner on 3 October 2026).
+- The maps take two npm packages, approved by the owner on 3 October
+  2026, both by Mike Bostock under the ISC licence and last published in
+  June 2022: `world-atlas` 2.0.2, the Natural Earth borders in TopoJSON,
+  with no dependency, of which the app uses `countries-50m.json`, 756 kB,
+  read only by the map windows; and `topojson-client` 3.1.0, 68 kB, which
+  turns it into the borders, each shared border once, and the shapes of
+  the countries. Its one dependency, `commander` 2, is for its command
+  line tools and reaches no build. It ships no types: the two functions
+  the app calls are declared in `src/plots/topojson-client.d.ts`, with
+  their answers unknown and checked where they are read. world-atlas
+  names each country by its ISO numeric code; the core's list of
+  countries has them from the same iso-codes files (section 6). Of the
+  249 current countries of ISO, 235 have a shape on the map; the other
+  14 are the places listed in section 2.2.
 
 The builds are tried on the owner's machines: the Mac, a Windows
 machine, and a Linux virtual machine with both a Wayland and an X11

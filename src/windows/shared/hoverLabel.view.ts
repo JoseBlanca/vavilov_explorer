@@ -2,7 +2,7 @@ import { html, nothing } from "lit-html";
 import type { TemplateResult } from "lit-html";
 
 import type { HoverLabel } from "../../state/hoverLabel.ts";
-import { classOf } from "../shared/classOf.ts";
+import { classOf } from "./classOf.ts";
 import styles from "./hoverLabel.module.css";
 
 /** What the label of the individual under the pointer shows, and where. */

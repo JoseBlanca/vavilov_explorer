@@ -3,7 +3,6 @@ import { describe, expect, test } from "vitest";
 import type { TableDescription } from "./description.ts";
 import { isColumnId, isLevelCode, isRevision } from "./ids.ts";
 import type { ColumnId, LevelCode, Revision } from "./ids.ts";
-import { isCategoricalColumn } from "./description.ts";
 import { colourChoices, editTargetOf, groupsModel } from "./groups.ts";
 import type { GroupRow } from "./groups.ts";
 
@@ -250,7 +249,7 @@ describe("the groups panel's model", () => {
     const onlyTrue: TableDescription = {
       ...DESCRIPTION,
       columns: DESCRIPTION.columns.map((column) =>
-        column.id === FERTILE && isCategoricalColumn(column)
+        column.id === FERTILE && column.role === "category"
           ? { ...column, levels: column.levels.slice(1) }
           : column,
       ),

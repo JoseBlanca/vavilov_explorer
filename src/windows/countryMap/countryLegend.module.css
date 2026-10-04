@@ -1,0 +1,66 @@
+.legend {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  background: var(--color-panel);
+  font-size: var(--font-size-small);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-strong);
+}
+
+/* The groups counted, which wrap rather than widen the legend over the map. */
+.groups {
+  max-width: 18em;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty,
+.one {
+  width: var(--swatch-size);
+  height: var(--swatch-size);
+  border: 1px solid var(--color-control-border);
+}
+
+.empty {
+  background: var(--color-country-empty);
+}
+
+.one {
+  background: var(--color-count-high);
+}
+
+/* The scale of the map's colours: CSS mixes the two ends in red, green and
+   blue, as the map does (src/state/countryCounts.ts, countColour). */
+.scale {
+  width: calc(6 * var(--swatch-size));
+  height: var(--swatch-size);
+  border: 1px solid var(--color-control-border);
+  background: linear-gradient(to right, var(--color-count-low), var(--color-count-high));
+}
+
+/* Text for a screen reader alone, the standard way: 1 px, the least a
+   reader still finds, clipped away to nothing on screen. */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

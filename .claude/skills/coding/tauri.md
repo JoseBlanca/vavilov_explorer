@@ -190,9 +190,13 @@ backend never sends text meant for the user: the words are the window's.
   permissions that work: the `allow-` of each command of ours its windows
   call, and of Tauri's own functions only those they call, never a whole
   set such as `core:default` when one permission is used.
-  `capabilities/default.json` is the main window's, and
-  `capabilities/widgets.json` covers the widgets with a pattern of labels,
-  `"windows": ["scatter3d-*"]`, to which each new kind adds its pattern.
+  `capabilities/default.json` is the main window's, and each kind of
+  widget has its own, which covers its windows with a pattern of labels:
+  `capabilities/widgets.json`, `"windows": ["scatter3d-*"]`, for the 3D
+  scatter, `map.json` for the map of the individuals, which cannot add,
+  edit or delete a group, and `countryMap.json` for the map of countries,
+  which cannot fetch a column, a row or set the hover either (3 October
+  2026).
   One file for all windows, as this rule said before 3 October 2026,
   would let a widget call what only the main window needs, an import
   among them. The windows call none of Tauri's own today: the window's
@@ -216,8 +220,9 @@ backend never sends text meant for the user: the words are the window's.
   window recovers from a reload anyway, since Windows and Linux cannot
   turn it off.
 - **`accept_first_mouse(true)` on the point views only**, the 3D scatter
-  and the map; the histograms, the bar plots and the main window keep the
-  default (`docs/design.md`, section 10).
+  and the map of the individuals; the map of countries, the histograms,
+  the bar plots and the main window keep the default, since a click there
+  selects (`docs/design.md`, section 10).
 - **Widgets cannot go fullscreen**; they can be maximized. On macOS the
   builder's `maximizable(false)` disables the green button, which would
   take the window fullscreen (tao 0.37, `set_maximizable`); Window >

@@ -344,7 +344,9 @@ for (const engine of Object.keys(ENGINES)) {
     // The plot window has the groups panel too, and both panels show one
     // state: a classification or a group chosen in the plot window is chosen
     // in the main window, + pressed there is pressed in both, and the plot
-    // window's bar says what pressing it did. The panel can be hidden.
+    // window's bar says what pressing it did. The panel has + and − on the
+    // group selected, and no Add, Edit or Delete group, which the main
+    // window has. The panel can be hidden.
     const plotPanel = second.getByRole("region", { name: "Groups" });
     await plotPanel
       .getByRole("combobox", { name: "Classification column" })
@@ -352,6 +354,11 @@ for (const engine of Object.keys(ENGINES)) {
     await panel.getByRole("button", { name: /^Spain/ }).waitFor();
     await plotPanel.getByRole("button", { name: /^Spain/ }).click();
     await panel.getByRole("button", { name: /^Spain/, pressed: true }).waitFor();
+    await plotPanel.getByRole("button", { name: "Remove selected from Spain" }).waitFor();
+    for (const name of ["Add group", /^Edit group/, /^Delete group/]) {
+      assert.equal(await plotPanel.getByRole("button", { name }).count(), 0, String(name));
+    }
+    await panel.getByRole("button", { name: "Edit group Spain" }).waitFor();
     const plotPlus = plotPanel.getByRole("button", { name: "Add selected to Spain", exact: true });
     await plotPlus.click();
     await panel.getByRole("button", { name: "Add selected to Spain", pressed: true }).waitFor();
@@ -456,8 +463,7 @@ for (const engine of Object.keys(ENGINES)) {
  * fails after ten seconds, as when the point is never drawn.
  */
 async function steadyPlace(plot, row) {
-  const placeOf = () =>
-    plot.evaluate((r) => globalThis.__vavilovScatter3d?.placeOf(r) ?? null, row);
+  const placeOf = () => plot.evaluate((r) => globalThis.__vavilovPlot?.placeOf(r) ?? null, row);
   const deadline = Date.now() + 10_000;
   let last = null;
   for (;;) {

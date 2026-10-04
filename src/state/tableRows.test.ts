@@ -109,8 +109,8 @@ const PLANTS: TableDescription = {
       role: "country",
       roles: ["category", "country", "text"],
       levels: [
-        { value: "ESP", colour: "#e69f00" },
-        { value: "PER", colour: "#56b4e9" },
+        { value: "ESP", colour: "#e69f00", country: { name: "Spain", numeric: "724" } },
+        { value: "PER", colour: "#56b4e9", country: { name: "Peru", numeric: "604" } },
       ],
     },
     {
