@@ -32,7 +32,6 @@ mod rows;
 mod session;
 mod table;
 mod text;
-mod widgets;
 
 pub use action::MenuAction;
 pub use command::{Command, Request};
@@ -51,7 +50,7 @@ pub use formats::{
 };
 pub use ids::{
     ColumnId, HoverSeq, LevelCode, MAX_EXACT_IN_JAVASCRIPT, Position, Revision, RowIndex, SentAt,
-    WindowLabel,
+    WidgetId, WindowLabel,
 };
 pub use import::{Imported, MAX_GUESSED_LEVELS, MAX_IMPORT_BYTES, MAX_IMPORT_CELLS, import_table};
 pub use row_set::RowSet;
@@ -64,4 +63,3 @@ pub use table::{
     MAX_GROUP_NAME, MAX_LEVELS, MAX_ROWS, NameColumn, NewColumn, Numbers, PALETTE, Role,
     StorageType, Stored, Table, is_individual_id, palette,
 };
-pub use widgets::{WidgetSpec, WindowHost};

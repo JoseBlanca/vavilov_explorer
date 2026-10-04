@@ -10,12 +10,15 @@ pub mod example;
 pub mod menu;
 pub mod region;
 pub mod transfer;
+pub mod widgets;
 pub mod windows;
 
 use std::sync::Mutex;
 
 use tauri::{Manager, Runtime, WindowEvent};
 use vavilov_core::Session;
+
+use crate::widgets::Widgets;
 
 /// Starts the app and runs it until it quits.
 ///
@@ -43,21 +46,28 @@ pub fn run() -> tauri::Result<()> {
         .run(tauri::generate_context!())
 }
 
-/// The builder with the session, every command, and the window events the
-/// session follows; the app and the tests of the commands start from it.
+/// The builder with the session, the widgets, every command, and the
+/// window events they follow; the app and the tests of the commands start
+/// from it.
 pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder
         .manage(Mutex::new(Session::new()))
+        .manage(Mutex::new(Widgets::default()))
         // The system's dialogs of the import and the export; registered
         // here, so that the tests of the commands have them too, since a
         // command that asks for the dialogs without it panics.
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
-                match window.try_state::<Mutex<Session>>() {
-                    Some(session) => commands::window_closed(&session, window.label()),
-                    None => eprintln!(
-                        "Vavilov Explorer defect: no session to forget window {}",
+                match (
+                    window.try_state::<Mutex<Session>>(),
+                    window.try_state::<Mutex<Widgets>>(),
+                ) {
+                    (Some(session), Some(widgets)) => {
+                        commands::window_closed(&session, &widgets, window.label());
+                    }
+                    _ => eprintln!(
+                        "Vavilov Explorer defect: no session or widgets to forget window {}",
                         window.label()
                     ),
                 }
@@ -70,7 +80,8 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
             commands::fetch_column,
             commands::fetch_row,
             commands::open_widget,
-            commands::describe_widget,
+            commands::close_widget,
+            commands::window_widgets,
             commands::set_selection,
             commands::set_cells,
             commands::assign_rows,

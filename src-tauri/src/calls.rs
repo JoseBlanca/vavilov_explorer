@@ -13,17 +13,19 @@ use tauri::ipc::InvokeBody;
 use vavilov_core::{
     Colour, ColumnId, Command, CommandError, Condition, EditMode, Filter, LevelCode, Outcome,
     Position, Request, Revision, Role, RowIndex, RowsRequest, Selected, SelectedGroups, SentAt,
-    Session, Showing, TableDescription, WidgetSpec, WindowLabel,
+    Session, Showing, TableDescription, WidgetId, WindowLabel,
 };
 
+use crate::widgets::{Closed, Opened, WidgetSpec, Widgets};
+
 /// The commands `call` takes, every command of the app but `subscribe`
-/// and `describe_widget`, which need the caller's window.
+/// and those of the widgets, `open_widget`, `close_widget` and
+/// `window_widgets`, which are the app layer's.
 pub const COMMANDS: &[&str] = &[
     "describe_table",
     "fetch_rows",
     "fetch_column",
     "fetch_row",
-    "open_widget",
     "set_selection",
     "assign_rows",
     "unassign_rows",
@@ -93,14 +95,6 @@ pub fn call(
                 Revision::new(args.based_on),
             )
             .map(Reply::Bytes);
-    }
-    if command == "open_widget" {
-        let args: WidgetArgs = json_args(command, body)?;
-        let label = session.open_widget(args.spec.clone(), Revision::new(args.based_on))?;
-        return Ok(Reply::Opened {
-            label,
-            spec: args.spec,
-        });
     }
     let request = match command {
         "set_selection" => {
@@ -271,8 +265,7 @@ pub fn call(
 /// What a call gives back.
 #[derive(Debug)]
 pub enum Reply {
-    /// A command applied, with the windows whose channel failed and the
-    /// widgets whose windows the caller closes.
+    /// A command applied, with the windows whose channel failed.
     Applied(Outcome),
     /// The description of the table, for `describe_table`.
     Description(TableDescription),
@@ -280,36 +273,74 @@ pub enum Reply {
     /// `fetch_rows` and `fetch_row`, or the values of a numeric column, for
     /// `fetch_column`.
     Bytes(Vec<u8>),
-    /// A widget added, for `open_widget`, whose window the caller opens
-    /// once it has released the session's lock, and reports to the session
-    /// with `window_closed` when it cannot.
-    Opened {
-        /// The label of its window.
-        label: WindowLabel,
-        /// What it shows.
-        spec: WidgetSpec,
-    },
 }
 
-/// What the widget of the calling window, `label`, shows, for
-/// `describe_widget`, which takes no arguments.
+/// Adds a widget, for `open_widget`: `{ spec, basedOn }`, `spec` being
+/// what it shows, made from the main window's copy at `basedOn`. A widget
+/// asked for from a copy of a table replaced since is refused, since its
+/// column ids may name other columns now; whether its columns fit is the
+/// window's rule, which closes a widget it cannot show (`docs/design.md`,
+/// section 2.2). The caller then opens its window, or brings the open one
+/// to the front, once it has released the locks.
 ///
 /// # Errors
 ///
-/// `UnknownWindow` when no widget of that label is open, as for the main
-/// window; or a `Defect` for an argument given.
-pub fn describe_widget(
+/// `NoProject`, `MadeBeforeLoad`, or a `Defect` for an argument missing,
+/// unknown or of the wrong type, or a counter that would pass its type.
+pub fn open_widget(
     session: &Session,
+    widgets: &mut Widgets,
+    body: &InvokeBody,
+) -> Result<(Opened, WidgetSpec), CommandError> {
+    let args: WidgetArgs = json_args("open_widget", body)?;
+    if session.table().is_none() {
+        return Err(CommandError::NoProject);
+    }
+    session.check_based_on(Revision::new(args.based_on))?;
+    let opened = widgets.open(args.spec.clone())?;
+    Ok((opened, args.spec))
+}
+
+/// Forgets a widget of the calling window, `label`, for `close_widget`:
+/// `{ widget }`, the widget's number, whose tile was closed or which the
+/// window cannot show. The window is sent the widgets it has left, or,
+/// when it was the last, the caller closes it.
+///
+/// # Errors
+///
+/// `UnknownWidget` when the window holds no such widget, or a `Defect` for
+/// an argument missing, unknown or of the wrong type.
+pub fn close_widget(
+    widgets: &mut Widgets,
     label: &WindowLabel,
     body: &InvokeBody,
-) -> Result<WidgetSpec, CommandError> {
-    json_args::<Nothing>("describe_widget", body)?;
-    session
-        .widget(label)
-        .cloned()
-        .ok_or_else(|| CommandError::UnknownWindow {
-            label: label.clone(),
-        })
+) -> Result<Closed, CommandError> {
+    let args: CloseWidgetArgs = json_args("close_widget", body)?;
+    widgets.close(label, WidgetId::new(args.widget))
+}
+
+/// The widgets of the calling window, `label`, for `window_widgets`, which
+/// takes no arguments, as the bytes of [`WidgetList::to_bytes`].
+///
+/// # Errors
+///
+/// `UnknownWindow` when no window of widgets has that label, or a `Defect`
+/// for an argument given.
+pub fn window_widgets(
+    widgets: &mut Widgets,
+    label: &WindowLabel,
+    body: &InvokeBody,
+) -> Result<Vec<u8>, CommandError> {
+    json_args::<Nothing>("window_widgets", body)?;
+    widgets.list(label)?.to_bytes()
+}
+
+/// The arguments of `close_widget`: the widget's number. It takes no
+/// revision, so it carries no time.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CloseWidgetArgs {
+    widget: u32,
 }
 
 /// The arguments of a command that takes none.

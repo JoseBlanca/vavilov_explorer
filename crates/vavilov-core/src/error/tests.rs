@@ -48,6 +48,14 @@ fn revisions_rows_and_labels_cross_as_plain_values() {
         .unwrap(),
         json!({ "kind": "unknownWindow", "label": "scatter3d-1" })
     );
+    assert_eq!(
+        serde_json::to_value(CommandError::UnknownWidget {
+            label: WindowLabel::new("plots-1"),
+            widget: WidgetId::new(2),
+        })
+        .unwrap(),
+        json!({ "kind": "unknownWidget", "label": "plots-1", "widget": 2 })
+    );
 }
 
 #[test]

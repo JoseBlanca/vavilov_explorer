@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import type { ColumnDescription, TableDescription } from "./description.ts";
 import { isColumnId, isRevision } from "./ids.ts";
 import type { ColumnId, Revision } from "./ids.ts";
-import { axisColumns, columnsOfRole, startingAxes } from "./plotColumns.ts";
+import { axisColumns, columnsOfRole, startingAxes, widgetFits } from "./plotColumns.ts";
 
 function id(value: number): ColumnId {
   if (!isColumnId(value)) throw new Error("not a column");
@@ -108,5 +108,40 @@ describe("columnsOfRole", () => {
     expect(columnsOfRole(places, "longitude")).toEqual([{ id: 6, name: "lon" }]);
     expect(columnsOfRole(TABLE, "country")).toEqual([{ id: 5, name: "country" }]);
     expect(columnsOfRole(places, "country")).toEqual([]);
+  });
+});
+
+describe("widgetFits", () => {
+  // height a number, lat a latitude, lon a longitude, origin a country,
+  // cluster a category.
+  const places = table([
+    column(1, "height", "number"),
+    column(2, "lat", "latitude"),
+    column(3, "lon", "longitude"),
+    column(4, "origin", "country"),
+    column(5, "cluster", "category"),
+  ]);
+
+  test("a histogram or a 3D scatter shows a number, a latitude or a longitude", () => {
+    expect(widgetFits({ kind: "histogram", column: id(1) }, places)).toBe(true);
+    expect(widgetFits({ kind: "histogram", column: id(2) }, places)).toBe(true);
+    expect(widgetFits({ kind: "scatter3d", axes: [id(1), id(2), id(3)] }, places)).toBe(true);
+    expect(widgetFits({ kind: "histogram", column: id(5) }, places)).toBe(false);
+    expect(widgetFits({ kind: "scatter3d", axes: [id(1), id(5), id(3)] }, places)).toBe(false);
+  });
+
+  test("a map shows a latitude and a longitude, each in its place", () => {
+    expect(widgetFits({ kind: "map", latitude: id(2), longitude: id(3) }, places)).toBe(true);
+    expect(widgetFits({ kind: "map", latitude: id(3), longitude: id(2) }, places)).toBe(false);
+    expect(widgetFits({ kind: "map", latitude: id(1), longitude: id(3) }, places)).toBe(false);
+  });
+
+  test("a map of countries shows a column of countries alone", () => {
+    expect(widgetFits({ kind: "countryMap", country: id(4) }, places)).toBe(true);
+    expect(widgetFits({ kind: "countryMap", country: id(5) }, places)).toBe(false);
+  });
+
+  test("a column the table does not have fits nothing", () => {
+    expect(widgetFits({ kind: "histogram", column: id(9) }, places)).toBe(false);
   });
 });

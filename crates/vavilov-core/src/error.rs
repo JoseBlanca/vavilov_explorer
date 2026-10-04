@@ -11,7 +11,7 @@ pub use group::GroupRefusal;
 
 use serde::Serialize;
 
-use crate::ids::{ColumnId, LevelCode, Position, Revision, RowIndex, WindowLabel};
+use crate::ids::{ColumnId, LevelCode, Position, Revision, RowIndex, WidgetId, WindowLabel};
 use crate::table::{Role, StorageType};
 
 /// Why a command was refused, or a table could not be built.
@@ -65,6 +65,16 @@ pub enum CommandError {
     UnknownWindow {
         /// The label the window gave.
         label: WindowLabel,
+    },
+
+    /// A window asked to close a widget it does not hold: one a command
+    /// dropped meanwhile, or another window's.
+    #[error("window {label} holds no widget {widget}")]
+    UnknownWidget {
+        /// The window that asked.
+        label: WindowLabel,
+        /// The widget it gave.
+        widget: WidgetId,
     },
 
     /// No column of the table has this id.

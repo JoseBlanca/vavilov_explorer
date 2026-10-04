@@ -1,14 +1,15 @@
-// The windows of the two maps against the real core, in each engine. Plot >
-// Map of countries… asks for a column of countries and opens a map that
-// fills each country by how many individuals it holds, says in its
-// information bar those it cannot draw, names a country under the pointer,
-// and selects a country's individuals on a click; with groups selected it
-// counts only theirs. Plot > Map… asks for a latitude and a longitude column
-// and opens a map of the individuals, each point drawn where it is placed,
-// whose lasso + pressed in its groups panel arms. Both panels have + and −
-// but no Add, Edit and Delete group; a change of role that leaves a map a
-// column it cannot show closes it; and with no fitting column the main
-// window says so.
+// The maps of the Maps window against the real core, in each engine. Plot >
+// Map of countries… asks for a column of countries and opens, as a tile of
+// the Maps window, a map that fills each country by how many individuals it
+// holds, says in its count those it cannot draw, names a country under the
+// pointer, and selects a country's individuals on a click; with groups
+// selected it counts only theirs. Plot > Map… asks for a latitude and a
+// longitude column and opens a map of the individuals as another tile, each
+// point drawn where it is placed, whose lasso + pressed in the groups panel
+// arms, and which stays in its tile. The panel has + and − but no Add,
+// Edit and Delete group; a tile's button closes it; a change of role that
+// leaves a map a column it cannot show closes its tile, and the window with
+// its last; and with no fitting column the main window says so.
 //
 // Run with `npm run test:e2e`.
 import assert from "node:assert/strict";
@@ -45,6 +46,11 @@ const NO_PLACES = {
   activeClassification: null,
 };
 
+/** The widgets, by their numbers: the map of countries, then two maps of the individuals. */
+const COUNTRIES = 1;
+const POINTS = 2;
+const OTHER_POINTS = 3;
+
 /** The colours of the map of countries in the light appearance (src/styles/tokens.css). */
 const COUNTRY_EMPTY = [228, 228, 233];
 const COUNT_LOW = [166, 203, 232];
@@ -66,7 +72,8 @@ for (const engine of Object.keys(ENGINES)) {
     };
 
     // Map of countries… offers the columns of countries, and opens the map
-    // of the one chosen, named after it.
+    // of the one chosen, named after it, as the first tile of the Maps
+    // window.
     await choose("countryMap");
     const countryDialog = page.getByRole("dialog", { name: "Map of countries" });
     await countryDialog.waitFor();
@@ -74,19 +81,19 @@ for (const engine of Object.keys(ENGINES)) {
     assert.deepEqual(await countryField.locator("option").allTextContents(), ["origin"]);
     await shoot(page, engine, "maps-country-dialog");
     await countryDialog.getByRole("button", { name: "Open" }).click();
-    const countries = await app.window("countryMap-1");
-    await countries.setViewportSize({ width: 1000, height: 640 });
-    await countries.waitForFunction(
-      () => globalThis.document.title === "Map of countries in origin",
-    );
-    await countries.getByRole("application", { name: "Map of countries in origin" }).waitFor();
+    const maps = await app.window("maps-1");
+    await maps.setViewportSize({ width: 1000, height: 800 });
+    await maps.waitForFunction(() => globalThis.document.title === "Maps");
+    const countriesTile = tile(maps, "Map of countries in origin");
+    await countriesTile.getByRole("application", { name: "Map of countries in origin" }).waitFor();
+    const countryStatus = countriesTile.getByRole("status");
 
-    // The bar counts those it cannot draw, and the legend its scale.
+    // The tile's count says those it cannot draw, and the legend its scale.
     await waitForText(
-      countries.getByRole("status"),
+      countryStatus,
       "Counting 4 of 7 individuals: 2 have no country, and 1 is in French Guiana, which the map has no shape for.",
     );
-    const legend = countries.getByRole("region", { name: "Individuals per country" });
+    const legend = countriesTile.getByRole("region", { name: "Individuals per country" });
     await legend.getByText("No individuals").waitFor();
     assert.match(await legend.textContent(), /No individuals\s*1\s*3/);
     // A screen reader is given the scale as a sentence, not two numbers.
@@ -97,7 +104,7 @@ for (const engine of Object.keys(ENGINES)) {
     // zooms and picks a country there too.
     const legendBox = await legend.boundingBox();
     assert.equal(
-      await countries.evaluate(
+      await maps.evaluate(
         ([x, y]) => globalThis.document.elementFromPoint(x, y)?.tagName,
         [legendBox.x + legendBox.width / 2, legendBox.y + legendBox.height / 2],
       ),
@@ -107,26 +114,26 @@ for (const engine of Object.keys(ENGINES)) {
     // The groups panel chooses the classification and the groups, and
     // offers + and − on the group selected, but no Add, Edit or Delete
     // group.
-    const countryPanel = countries.getByRole("region", { name: "Groups" });
-    await countryPanel.getByRole("combobox", { name: "Classification column" }).waitFor();
-    await countryPanel.getByRole("button", { name: /^ESP/ }).click();
-    await countryPanel.getByRole("button", { name: "Add selected to ESP", exact: true }).waitFor();
-    await countryPanel.getByRole("button", { name: "Remove selected from ESP" }).waitFor();
-    await assertNoGroupForms(countryPanel);
-    await countryPanel.getByRole("button", { name: /^ESP/ }).click();
+    const mapsPanel = maps.getByRole("region", { name: "Groups" });
+    await mapsPanel.getByRole("combobox", { name: "Classification column" }).waitFor();
+    await mapsPanel.getByRole("button", { name: /^ESP/ }).click();
+    await mapsPanel.getByRole("button", { name: "Add selected to ESP", exact: true }).waitFor();
+    await mapsPanel.getByRole("button", { name: "Remove selected from ESP" }).waitFor();
+    await assertNoGroupForms(mapsPanel);
+    await mapsPanel.getByRole("button", { name: /^ESP/ }).click();
 
     // Spain holds the most, Peru one, Morocco none: each is filled with its
     // colour on the scale, as drawn on the GPU.
-    const madrid = await steadyDegrees(countries, 40, -3.7);
-    const lima = await steadyDegrees(countries, -10, -75);
-    const morocco = await steadyDegrees(countries, 32, -6);
-    assertColour(await pixelAt(countries, madrid.x, madrid.y), COUNT_HIGH, "Spain");
-    assertColour(await pixelAt(countries, lima.x, lima.y), COUNT_LOW, "Peru");
-    assertColour(await pixelAt(countries, morocco.x, morocco.y), COUNTRY_EMPTY, "Morocco");
+    const madrid = await steadyDegrees(maps, COUNTRIES, 40, -3.7);
+    const lima = await steadyDegrees(maps, COUNTRIES, -10, -75);
+    const morocco = await steadyDegrees(maps, COUNTRIES, 32, -6);
+    assertColour(await pixelAt(maps, madrid.x, madrid.y), COUNT_HIGH, "Spain");
+    assertColour(await pixelAt(maps, lima.x, lima.y), COUNT_LOW, "Peru");
+    assertColour(await pixelAt(maps, morocco.x, morocco.y), COUNTRY_EMPTY, "Morocco");
     // A shape ISO has no code for, as Somaliland, is land of no individual,
     // not sea.
-    const somaliland = await steadyDegrees(countries, 9.5, 46);
-    assertColour(await pixelAt(countries, somaliland.x, somaliland.y), COUNTRY_EMPTY, "Somaliland");
+    const somaliland = await steadyDegrees(maps, COUNTRIES, 9.5, 46);
+    assertColour(await pixelAt(maps, somaliland.x, somaliland.y), COUNTRY_EMPTY, "Somaliland");
 
     // The map counts every individual, whatever the find bar of the main
     // window shows.
@@ -136,98 +143,97 @@ for (const engine of Object.keys(ENGINES)) {
     await find.fill("Peru");
     await grid.getByRole("gridcell", { name: "p1", exact: true }).waitFor({ state: "detached" });
     await waitForText(
-      countries.getByRole("status"),
+      countryStatus,
       "Counting 4 of 7 individuals: 2 have no country, and 1 is in French Guiana, which the map has no shape for.",
     );
-    assertColour(await pixelAt(countries, madrid.x, madrid.y), COUNT_HIGH, "Spain, filtered");
+    assertColour(await pixelAt(maps, madrid.x, madrid.y), COUNT_HIGH, "Spain, filtered");
     await find.fill("");
     await grid.getByRole("gridcell", { name: "p1", exact: true }).waitFor();
-    await shoot(countries, engine, "maps-countries");
+    await shoot(maps, engine, "maps-countries");
 
     // The pointer over a country names it and counts its individuals.
-    await countries.mouse.move(madrid.x, madrid.y);
-    const countryLabel = countries.locator('[aria-hidden="true"]').filter({ hasText: "Spain" });
+    await maps.mouse.move(madrid.x, madrid.y);
+    const countryLabel = maps.locator('[aria-hidden="true"]').filter({ hasText: "Spain" });
     await waitForText(countryLabel, "Spain (ESP): 3 individuals");
-    await countries.mouse.move(morocco.x, morocco.y);
+    await maps.mouse.move(morocco.x, morocco.y);
     await waitForText(
-      countries.locator('[aria-hidden="true"]').filter({ hasText: "Morocco" }),
+      maps.locator('[aria-hidden="true"]').filter({ hasText: "Morocco" }),
       "Morocco: no individuals",
     );
-    await shoot(countries, engine, "maps-country-label");
+    await shoot(maps, engine, "maps-country-label");
 
     // A click on a country selects its individuals alone; a Cmd-click or a
     // Ctrl-click adds another's, and takes them away when all are selected.
     // A click on a country of none changes nothing.
-    await countries.mouse.click(madrid.x, madrid.y);
+    await maps.mouse.click(madrid.x, madrid.y);
     await selectedAre(page, ["p1", "p2", "p6"]);
     // Spain, which holds them, has a line in the text's colour round it.
-    const spainCoast = await steadyDegrees(countries, 43.45, -5);
-    const peruCoast = await steadyDegrees(countries, -12, -77.15);
-    await waitForColourNear(countries, spainCoast, TEXT, "the line round Spain");
+    const spainCoast = await steadyDegrees(maps, COUNTRIES, 43.45, -5);
+    const peruCoast = await steadyDegrees(maps, COUNTRIES, -12, -77.15);
+    await waitForColourNear(maps, spainCoast, TEXT, "the line round Spain");
     // A second click on the country whose individuals are the selection
     // clears it. The map decides a click from its own copy of the
     // selection, so each click waits for the line to show what the map
     // has: the main window's table can show a change first.
-    await countries.mouse.click(madrid.x, madrid.y);
+    await maps.mouse.click(madrid.x, madrid.y);
     await selectedAre(page, []);
-    await waitForNoColourNear(countries, spainCoast, TEXT, "the line round Spain");
-    await countries.mouse.click(madrid.x, madrid.y);
+    await waitForNoColourNear(maps, spainCoast, TEXT, "the line round Spain");
+    await maps.mouse.click(madrid.x, madrid.y);
     await selectedAre(page, ["p1", "p2", "p6"]);
-    await waitForColourNear(countries, spainCoast, TEXT, "the line round Spain");
-    await countries.keyboard.down("ControlOrMeta");
-    await countries.mouse.click(lima.x, lima.y);
-    await countries.keyboard.up("ControlOrMeta");
+    await waitForColourNear(maps, spainCoast, TEXT, "the line round Spain");
+    await maps.keyboard.down("ControlOrMeta");
+    await maps.mouse.click(lima.x, lima.y);
+    await maps.keyboard.up("ControlOrMeta");
     await selectedAre(page, ["p1", "p2", "p3", "p6"]);
-    await waitForColourNear(countries, peruCoast, TEXT, "the line round Peru");
-    await countries.keyboard.down("ControlOrMeta");
-    await countries.mouse.click(madrid.x, madrid.y);
-    await countries.keyboard.up("ControlOrMeta");
+    await waitForColourNear(maps, peruCoast, TEXT, "the line round Peru");
+    await maps.keyboard.down("ControlOrMeta");
+    await maps.mouse.click(madrid.x, madrid.y);
+    await maps.keyboard.up("ControlOrMeta");
     await selectedAre(page, ["p3"]);
-    await countries.mouse.click(morocco.x, morocco.y);
+    await maps.mouse.click(morocco.x, morocco.y);
     // Nor does a click on the sea.
-    const atlantic = await steadyDegrees(countries, 30, -40);
-    await countries.mouse.click(atlantic.x, atlantic.y);
-    await countries.mouse.move(lima.x, lima.y);
+    const atlantic = await steadyDegrees(maps, COUNTRIES, 30, -40);
+    await maps.mouse.click(atlantic.x, atlantic.y);
+    await maps.mouse.move(lima.x, lima.y);
     await selectedAre(page, ["p3"]);
     // The line goes round Peru now, and no longer round Spain.
-    await waitForColourNear(countries, peruCoast, TEXT, "the line round Peru");
+    await waitForColourNear(maps, peruCoast, TEXT, "the line round Peru");
     assert.equal(
-      await centreOfColour(countries, spainCoast.x, spainCoast.y, TEXT, 8),
+      await centreOfColour(maps, spainCoast.x, spainCoast.y, TEXT, 8),
       null,
       "a line round Spain, which holds no individual selected",
     );
-    await shoot(countries, engine, "maps-country-selected");
+    await shoot(maps, engine, "maps-country-selected");
 
     // With groups selected, the map counts their individuals alone, and the
-    // bar and the legend say whose. The classification is the column of
+    // count and the legend say whose. The classification is the column of
     // countries itself, so ESP leaves Spain alone coloured.
-    const countryStatus = countries.getByRole("status");
-    await countryPanel.getByRole("button", { name: /^ESP/ }).click();
+    await mapsPanel.getByRole("button", { name: /^ESP/ }).click();
     await waitForText(countryStatus, "Counting the 3 individuals in ESP, of 7.");
-    await waitForColour(countries, lima, COUNTRY_EMPTY, "Peru, ESP alone selected");
-    assertColour(await pixelAt(countries, madrid.x, madrid.y), COUNT_HIGH, "Spain, ESP selected");
+    await waitForColour(maps, lima, COUNTRY_EMPTY, "Peru, ESP alone selected");
+    assertColour(await pixelAt(maps, madrid.x, madrid.y), COUNT_HIGH, "Spain, ESP selected");
     await legend.getByText("in ESP", { exact: true }).waitFor();
     assert.match(await legend.ariaSnapshot(), /From 1 to 3 individuals in ESP/);
-    await shoot(countries, engine, "maps-countries-groups");
+    await shoot(maps, engine, "maps-countries-groups");
     // The unassigned individuals, added with a Cmd-click or a Ctrl-click,
     // are those with no country.
-    await countries.keyboard.down("ControlOrMeta");
-    await countryPanel.getByRole("button", { name: /^Unassigned/ }).click();
-    await countries.keyboard.up("ControlOrMeta");
+    await maps.keyboard.down("ControlOrMeta");
+    await mapsPanel.getByRole("button", { name: /^Unassigned/ }).click();
+    await maps.keyboard.up("ControlOrMeta");
     await waitForText(
       countryStatus,
       "Counting 3 of the 5 individuals in ESP and in no group: 2 have no country.",
     );
     // A click on the group selected alone selects it alone, and a second
     // click selects nothing: every individual is counted again.
-    await countryPanel.getByRole("button", { name: /^ESP/ }).click();
+    await mapsPanel.getByRole("button", { name: /^ESP/ }).click();
     await waitForText(countryStatus, "Counting the 3 individuals in ESP, of 7.");
-    await countryPanel.getByRole("button", { name: /^ESP/ }).click();
+    await mapsPanel.getByRole("button", { name: /^ESP/ }).click();
     await waitForText(
       countryStatus,
       "Counting 4 of 7 individuals: 2 have no country, and 1 is in French Guiana, which the map has no shape for.",
     );
-    await waitForColour(countries, lima, COUNT_LOW, "Peru, no group selected");
+    await waitForColour(maps, lima, COUNT_LOW, "Peru, no group selected");
     assert.equal(await legend.getByText("in ESP", { exact: true }).count(), 0);
 
     // Deleting the group of Peru in the main window leaves Peru with none,
@@ -236,19 +242,20 @@ for (const engine of Object.keys(ENGINES)) {
     await panel.getByRole("button", { name: /^PER/ }).click();
     await panel.getByRole("button", { name: "Delete group PER" }).click();
     await waitForText(
-      countries.getByRole("status"),
+      countryStatus,
       "Counting 3 of 7 individuals: 3 have no country, and 1 is in French Guiana, which the map has no shape for.",
     );
-    await waitForColour(countries, lima, COUNTRY_EMPTY, "Peru, its group deleted");
+    await waitForColour(maps, lima, COUNTRY_EMPTY, "Peru, its group deleted");
     await choose("undo");
     await waitForText(
-      countries.getByRole("status"),
+      countryStatus,
       "Counting 4 of 7 individuals: 2 have no country, and 1 is in French Guiana, which the map has no shape for.",
     );
-    await waitForColour(countries, lima, COUNT_LOW, "Peru, its group back");
+    await waitForColour(maps, lima, COUNT_LOW, "Peru, its group back");
 
     // Map… offers the latitude and the longitude columns, and opens the map
-    // of the individuals, named after them.
+    // of the individuals, named after them, as a second tile of the same
+    // window, which comes to the front.
     await choose("map");
     const mapDialog = page.getByRole("dialog", { name: "Map" });
     await mapDialog.waitFor();
@@ -258,106 +265,145 @@ for (const engine of Object.keys(ENGINES)) {
     assert.deepEqual(await longitudeField.locator("option").allTextContents(), ["lon"]);
     await shoot(page, engine, "maps-dialog");
     await mapDialog.getByRole("button", { name: "Open" }).click();
-    const map = await app.window("map-2");
-    await map.setViewportSize({ width: 1000, height: 640 });
-    await map.waitForFunction(() => globalThis.document.title === "Map of lat and lon");
-    await waitForText(map.getByRole("status"), "Drawing 6 of 7 individuals: 1 has no coordinates.");
-    const mapPanel = map.getByRole("region", { name: "Groups" });
-    await mapPanel.getByRole("button", { name: /^ESP/ }).waitFor();
-    await assertNoGroupForms(mapPanel);
+    const mapTile = tile(maps, "Map of lat and lon");
+    await waitForText(
+      mapTile.getByRole("status"),
+      "Drawing 6 of 7 individuals: 1 has no coordinates.",
+    );
+    assert.deepEqual(app.raised(), ["maps-1"]);
+    assert.deepEqual(app.windows(), ["main", "maps-1"]);
+    await assertNoGroupForms(mapsPanel);
 
     // Each point is drawn where its coordinates are on the map, in its
     // group's colour.
     const colours = await levelColours(backend);
-    const p1 = await steadyPlace(map, 0);
-    const p2 = await steadyPlace(map, 1);
-    const p3 = await steadyPlace(map, 2);
-    const atMadrid = await map.evaluate(() => globalThis.__vavilovPlot?.placeOfDegrees(40.4, -3.7));
+    const p1 = await steadyPlace(maps, POINTS, 0);
+    const p2 = await steadyPlace(maps, POINTS, 1);
+    const p3 = await steadyPlace(maps, POINTS, 2);
+    const atMadrid = await steadyDegrees(maps, POINTS, 40.4, -3.7);
     assert.ok(Math.hypot(atMadrid.x - p1.x, atMadrid.y - p1.y) < 0.5, "p1 is not at Madrid");
-    await shoot(map, engine, "maps-points");
-    await assertDrawnAt(map, p2, colours.get("ESP"), "p2");
-    await assertDrawnAt(map, p3, colours.get("PER"), "p3");
+    await shoot(maps, engine, "maps-points");
+    await assertDrawnAt(maps, p2, colours.get("ESP"), "p2");
+    await assertDrawnAt(maps, p3, colours.get("PER"), "p3");
 
     // The pointer over a point shows its label, as in the 3D scatter.
-    await map.mouse.move(p3.x, p3.y);
-    const pointLabel = map.locator('[aria-hidden="true"]').filter({ hasText: "p3" });
+    await maps.mouse.move(p3.x, p3.y);
+    const pointLabel = maps.locator('[aria-hidden="true"]').filter({ hasText: "p3" });
     await pointLabel.waitFor();
     assert.match(await pointLabel.textContent(), /p3\s*origin\s*PER/);
-    await shoot(map, engine, "maps-label");
+    await shoot(maps, engine, "maps-label");
 
     // A click on a point selects it alone, and the individual selected is
     // drawn over p7, of no group, at the same place.
-    await map.mouse.click(p1.x, p1.y);
+    await maps.mouse.click(p1.x, p1.y);
     await selectedAre(page, ["p1"]);
-    await waitForColour(map, p1, colours.get("ESP"), "p1 selected, over p7");
+    await waitForColour(maps, p1, colours.get("ESP"), "p1 selected, over p7");
 
-    // With the keyboard's focus, an arrow pans, + zooms and Home shows all
-    // the individuals again, and so does a double click.
-    const mapPlot = map.getByRole("application", { name: "Map of lat and lon" });
+    // With the keyboard's focus on the map, an arrow pans, + zooms and
+    // Home shows all the individuals again, and so does a double click.
+    const mapPlot = mapTile.getByRole("application", { name: "Map of lat and lon" });
+    // Where the map of countries, now half the window, has Madrid.
+    const madridBefore = await steadyDegrees(maps, COUNTRIES, 40, -3.7);
     await mapPlot.focus();
-    await map.keyboard.press("ArrowRight");
-    const panned = await steadyDegrees(map, 40.4, -3.7);
+    await maps.keyboard.press("ArrowRight");
+    const panned = await steadyDegrees(maps, POINTS, 40.4, -3.7);
     assert.ok(panned.x < p1.x - 50, `ArrowRight did not pan: ${p1.x} to ${panned.x}`);
-    await map.keyboard.press("Home");
-    // The window was made larger after the map first framed itself, and
-    // Home frames the individuals again at its size now: Madrid moves back
-    // right of where the arrow took it.
-    const home = await steadyDegrees(map, 40.4, -3.7);
+    // The keys act on the tile that has the focus alone: the map of
+    // countries has not moved.
+    const madridStill = await steadyDegrees(maps, COUNTRIES, 40, -3.7);
+    assert.ok(
+      Math.hypot(madridStill.x - madridBefore.x, madridStill.y - madridBefore.y) < 1,
+      "the arrow moved the map of countries",
+    );
+    await maps.keyboard.press("Home");
+    const home = await steadyDegrees(maps, POINTS, 40.4, -3.7);
     assert.ok(home.x > panned.x + 50, `Home did not pan back: ${panned.x} to ${home.x}`);
-    await map.keyboard.press("+");
-    const zoomed = await steadyPlace(map, 2);
+    await maps.keyboard.press("+");
+    const zoomed = await steadyPlace(maps, POINTS, 2);
     assert.ok(
       Math.hypot(zoomed.x - home.x, zoomed.y - home.y) > Math.hypot(p3.x - p1.x, p3.y - p1.y),
       "+ did not zoom in",
     );
-    const sea = await steadyDegrees(map, 20, -40);
-    await map.mouse.dblclick(sea.x, sea.y);
-    const framed = await steadyDegrees(map, 40.4, -3.7);
+    const sea = await steadyDegrees(maps, POINTS, 20, -40);
+    await maps.mouse.dblclick(sea.x, sea.y);
+    const framed = await steadyDegrees(maps, POINTS, 40.4, -3.7);
     assert.ok(Math.hypot(framed.x - home.x, framed.y - home.y) < 1, "a double click did not frame");
     await selectedAre(page, ["p1"]);
+    await shoot(maps, engine, "maps-two");
 
-    // The map's panel has + and − on the group selected, and still no
-    // Add, Edit or Delete group. + pressed there arms the map's lasso, and
-    // shows pressed in the main window too: a lasso drawn around p3 and
-    // applied with Enter puts it in Spain.
-    await mapPanel.getByRole("button", { name: /^ESP/ }).click();
-    await mapPanel.getByRole("button", { name: "Remove selected from ESP" }).waitFor();
-    await assertNoGroupForms(mapPanel);
-    await mapPanel.getByRole("button", { name: "Add selected to ESP", exact: true }).click();
-    await mapPanel.getByRole("button", { name: "Add selected to ESP", pressed: true }).waitFor();
+    // A second map of the individuals is a third tile. + pressed in the
+    // panel arms the lasso of both maps, and shows pressed in the main
+    // window too.
+    await choose("map");
+    await mapDialog.waitFor();
+    await mapDialog.getByRole("button", { name: "Open" }).click();
+    await maps.waitForFunction(
+      () => globalThis.document.querySelectorAll("[data-tile]").length === 3,
+    );
+    await waitForText(
+      maps.getByRole("group", { name: "Map of lat and lon" }).nth(1).getByRole("status"),
+      "Drawing 6 of 7 individuals",
+    );
+    await mapsPanel.getByRole("button", { name: /^ESP/ }).click();
+    await mapsPanel.getByRole("button", { name: "Remove selected from ESP" }).waitFor();
+    await mapsPanel.getByRole("button", { name: "Add selected to ESP", exact: true }).click();
+    await mapsPanel.getByRole("button", { name: "Add selected to ESP", pressed: true }).waitFor();
     await panel.getByRole("button", { name: "Add selected to ESP", pressed: true }).waitFor();
-    // The map's cursor shows the lasso armed, once the message of the
+    // The maps' cursor shows the lasso armed, once the message of the
     // button pressed has come back: a drag before it pans.
-    await map.locator(".plot-lasso-armed").waitFor();
-    // The keys and the double click moved the map since p3 was found.
-    await lassoAround(map, await steadyPlace(map, 2));
-    await shoot(map, engine, "maps-lasso");
-    await map.keyboard.press("Enter");
+    await maps.locator(".plot-lasso-armed").first().waitFor();
+    // A lasso stays in its tile, and one drawn in the third drops the one
+    // waiting in the second: Enter applies the last alone, putting p4, of
+    // no group, in Spain, and not p3.
+    await lassoAround(maps, await steadyPlace(maps, POINTS, 2));
+    await lassoAround(maps, await steadyPlace(maps, OTHER_POINTS, 3));
+    await shoot(maps, engine, "maps-lasso");
+    await maps.keyboard.press("Enter");
+    await originSays(grid, "p4", "ESP");
+    await originSays(grid, "p3", "PER");
+    // A lasso drawn around p3 in the second map, applied with Enter, puts
+    // it in Spain.
+    await lassoAround(maps, await steadyPlace(maps, POINTS, 2));
+    await maps.keyboard.press("Enter");
     await originSays(grid, "p3", "ESP");
-    // Escape in the map's window releases +, in every window, and keeps
-    // the selection; a second Escape clears it.
-    await map.keyboard.press("Escape");
+    // Escape releases +, in every window, and keeps the selection; a second
+    // Escape clears it.
+    await maps.keyboard.press("Escape");
     await panel.getByRole("button", { name: "Add selected to ESP", pressed: false }).waitFor();
-    await mapPanel.getByRole("button", { name: "Add selected to ESP", pressed: false }).waitFor();
+    await mapsPanel.getByRole("button", { name: "Add selected to ESP", pressed: false }).waitFor();
     await selectedAre(page, ["p1"]);
-    await map.keyboard.press("Escape");
+    await maps.keyboard.press("Escape");
     await selectedAre(page, []);
-    // The map of countries counts p3 in Spain now: Spain holds 4, and Peru
-    // none.
-    await legend.filter({ hasText: /No individuals\s*1\s*4/ }).waitFor();
-    // The bar's message of the release took a line from the map's height,
-    // and the map with it: Peru is found again.
-    const peru = await steadyDegrees(countries, -10, -75);
-    await waitForColour(countries, peru, COUNTRY_EMPTY, "Peru with none");
+    // The map of countries counts p3 and p4 in Spain now: Spain holds 5,
+    // and Peru none.
+    await legend.filter({ hasText: /No individuals\s*1\s*5/ }).waitFor();
 
-    // A change of role that leaves the map a column it cannot show closes
-    // it: a latitude made a plain number, and the countries a category.
+    // A tile's button closes it alone.
+    await maps.getByRole("button", { name: "Close Map of lat and lon" }).nth(1).click();
+    await maps.waitForFunction(
+      () => globalThis.document.querySelectorAll("[data-tile]").length === 2,
+    );
+    // With two tiles, the map of countries has half the window, where Peru
+    // is large enough to find a pixel of: it holds none now.
+    const peru = await steadyDegrees(maps, COUNTRIES, -10, -75);
+    await waitForColour(maps, peru, COUNTRY_EMPTY, "Peru with none");
+
+    // A change of role that leaves a map a column it cannot show closes its
+    // tile: a latitude made a plain number closes the map of the
+    // individuals, and the window keeps the map of countries; the
+    // countries made a category close the last, and the window with it.
     await grid.getByRole("combobox", { name: "Role of lat", exact: true }).selectOption("number");
-    await map.waitForEvent("close");
+    await maps.waitForFunction(
+      () => globalThis.document.querySelectorAll("[data-tile]").length === 1,
+    );
+    await countriesTile.getByRole("application", { name: "Map of countries in origin" }).waitFor();
+    // Waited for before the change, which can close the page before the
+    // select's own promise resolves.
+    const closed = maps.waitForEvent("close");
     await grid
       .getByRole("combobox", { name: "Role of origin", exact: true })
       .selectOption("category");
-    await countries.waitForEvent("close");
+    await closed;
     assert.deepEqual(app.windows(), ["main"]);
 
     // With no column of a role a map needs, the bar says which, and how to
@@ -404,22 +450,36 @@ async function levelColours(backend) {
   );
 }
 
+/** The tile named `name`, by its title. */
+function tile(page, name) {
+  return page.getByRole("group", { name, exact: true });
+}
+
 /**
- * The place of `latitude`, `longitude` in the window of `map`, once the map
- * has stopped moving after its framing.
+ * The place of `latitude`, `longitude` on the map of the widget `id`, in
+ * the window `page`, once the map has stopped moving after its framing.
  */
-async function steadyDegrees(map, latitude, longitude) {
-  return steady(map, () =>
-    map.evaluate(
-      ([lat, lon]) => globalThis.__vavilovPlot?.placeOfDegrees(lat, lon) ?? null,
-      [latitude, longitude],
+async function steadyDegrees(page, id, latitude, longitude) {
+  return steady(page, () =>
+    page.evaluate(
+      ([widget, lat, lon]) =>
+        globalThis.__vavilovPlotOf?.(widget)?.placeOfDegrees(lat, lon) ?? null,
+      [id, latitude, longitude],
     ),
   );
 }
 
-/** The place of the point of `row` in the window of `map`, once the map has stopped moving. */
-async function steadyPlace(map, row) {
-  return steady(map, () => map.evaluate((r) => globalThis.__vavilovPlot?.placeOf(r) ?? null, row));
+/**
+ * The place of the point of `row` on the map of the widget `id`, in the
+ * window `page`, once the map has stopped moving.
+ */
+async function steadyPlace(page, id, row) {
+  return steady(page, () =>
+    page.evaluate(
+      ([widget, r]) => globalThis.__vavilovPlotOf?.(widget)?.placeOf(r) ?? null,
+      [id, row],
+    ),
+  );
 }
 
 /** The place `placeOf` gives once it is the same twice in a row, within ten seconds. */

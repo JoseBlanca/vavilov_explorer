@@ -47,7 +47,8 @@ const WIDGET_VIEWPORT = { width: 800, height: 640 };
  * widget's window once the program has asked for it, and fails when it has
  * not within 10 seconds; and `closeWindow(label)`
  * closes a page as the user closes a window; `windows()` gives the labels of
- * the pages open.
+ * the pages open, and `raised()` those the program brought to the front, in
+ * the order it asked, as when a widget is added to an open window.
  */
 export async function launch({
   engine,
@@ -105,6 +106,7 @@ export async function launch({
     window: (label) => windows.page(label),
     closeWindow: (label) => windows.close(label),
     windows: () => windows.labels(),
+    raised: () => windows.raised(),
     async close() {
       await browser.close();
       await server.close();
@@ -117,8 +119,8 @@ export async function launch({
  * Builds and starts the test program. `send` writes one line and resolves
  * with its answer; `onChannel` is called with each channel message, in the
  * order the program sent them; `onWindow` with each page of a window the
- * program asks to open, `{ open: label, widget }`, or to close, `{ close:
- * label }`, in the order it asked.
+ * program asks to open, `{ open: label, widget }`, to bring to the front,
+ * `{ raise: label }`, or to close, `{ close: label }`, in the order it asked.
  */
 async function startBackend() {
   const child = spawn(buildBackend(), [], { stdio: ["pipe", "pipe", "inherit"] });
@@ -132,7 +134,7 @@ async function startBackend() {
       for (const listener of listeners) listener(line.window, line.message);
       return;
     }
-    if ("open" in line || "close" in line) {
+    if ("open" in line || "raise" in line || "close" in line) {
       for (const listener of windowListeners) listener(line);
       return;
     }
@@ -206,6 +208,8 @@ function connectWindows(context, backend, errors, watch) {
   const waiting = new Map();
   /** The opening and closing of pages, one after the other, in the order asked. */
   let changes = Promise.resolve();
+  /** The labels of the windows the program brought to the front, in order. */
+  const raised = [];
 
   const add = async (label, page) => {
     const window = { page, index: 0, delivery: Promise.resolve() };
@@ -223,6 +227,9 @@ function connectWindows(context, backend, errors, watch) {
     const window = pages.get(label);
     if (window === undefined) return;
     pages.delete(label);
+    // The messages sent before the window was closed are delivered first,
+    // as Tauri's are; none is sent after.
+    await window.delivery;
     await window.page.close();
     // As Tauri tells the app that a window was destroyed.
     const closed = await backend.send({ command: "e2e:closed", window: label });
@@ -256,6 +263,11 @@ function connectWindows(context, backend, errors, watch) {
           await close(line.close);
           return;
         }
+        if ("raise" in line) {
+          raised.push(line.raise);
+          await pages.get(line.raise)?.page.bringToFront();
+          return;
+        }
         const page = await context.newPage();
         await page.setViewportSize(WIDGET_VIEWPORT);
         watch(page);
@@ -286,6 +298,7 @@ function connectWindows(context, backend, errors, watch) {
       });
     },
     labels: () => [...pages.keys()],
+    raised: () => [...raised],
   };
 }
 

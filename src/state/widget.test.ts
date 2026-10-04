@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import { isWidgetSpec, widgetKindOf } from "./widget.ts";
+import { isColumnId, isWidgetId } from "./ids.ts";
+import type { ColumnId, WidgetId } from "./ids.ts";
+import type { Widget } from "./widget.ts";
+import { isWidgetSpec, onlyWidget, windowKindOf } from "./widget.ts";
 
 describe("isWidgetSpec", () => {
   test("a 3D scatter of three columns is one", () => {
@@ -25,24 +28,49 @@ describe("isWidgetSpec", () => {
   });
 });
 
-describe("widgetKindOf", () => {
+describe("windowKindOf", () => {
   test("the label of a 3D scatter's window names its kind", () => {
-    expect(widgetKindOf("scatter3d-1")).toBe("scatter3d");
-    expect(widgetKindOf("scatter3d-27")).toBe("scatter3d");
+    expect(windowKindOf("scatter3d-1")).toBe("scatter3d");
+    expect(windowKindOf("scatter3d-27")).toBe("scatter3d");
   });
 
-  test("the labels of the maps' windows name theirs", () => {
-    expect(widgetKindOf("map-2")).toBe("map");
-    expect(widgetKindOf("countryMap-3")).toBe("countryMap");
-    expect(widgetKindOf("histogram-4")).toBe("histogram");
-    expect(widgetKindOf("countrymap-3")).toBe(null);
-    expect(widgetKindOf("Map-3")).toBe(null);
+  test("the labels of the Plots and the Maps windows name theirs", () => {
+    expect(windowKindOf("plots-4")).toBe("plots");
+    expect(windowKindOf("maps-2")).toBe("maps");
+    expect(windowKindOf("Maps-3")).toBe(null);
+  });
+
+  test("a histogram and a map have no window of their own", () => {
+    expect(windowKindOf("histogram-4")).toBe(null);
+    expect(windowKindOf("map-2")).toBe(null);
+    expect(windowKindOf("countryMap-3")).toBe(null);
   });
 
   test("the main window and a label of no widget have none", () => {
-    expect(widgetKindOf("main")).toBe(null);
-    expect(widgetKindOf("scatter3d-")).toBe(null);
-    expect(widgetKindOf("scatter3d-01")).toBe(null);
-    expect(widgetKindOf("xscatter3d-1")).toBe(null);
+    expect(windowKindOf("main")).toBe(null);
+    expect(windowKindOf("scatter3d-")).toBe(null);
+    expect(windowKindOf("scatter3d-01")).toBe(null);
+    expect(windowKindOf("xscatter3d-1")).toBe(null);
+  });
+});
+
+describe("onlyWidget", () => {
+  const id = (value: number): WidgetId => {
+    if (!isWidgetId(value)) throw new Error(`not a widget: ${String(value)}`);
+    return value;
+  };
+  const column = (value: number): ColumnId => {
+    if (!isColumnId(value)) throw new Error(`not a column: ${String(value)}`);
+    return value;
+  };
+  const histogram: Widget = { id: id(3), spec: { kind: "histogram", column: column(1) } };
+
+  test("gives the window's one widget", () => {
+    expect(onlyWidget([histogram])).toEqual(histogram);
+  });
+
+  test("none, or two, is a defect", () => {
+    expect(() => onlyWidget([])).toThrow(/holds 0/);
+    expect(() => onlyWidget([histogram, { ...histogram, id: id(4) }])).toThrow(/holds 2/);
   });
 });

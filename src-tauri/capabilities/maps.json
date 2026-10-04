@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "map",
-  "description": "What the windows of the maps of individuals may call: those of a 3D scatter but adding, editing and deleting a group, which their groups panel does not offer",
-  "windows": ["map-*"],
+  "identifier": "maps",
+  "description": "What the Maps windows, of the maps of individuals and of countries, may call: those of a 3D scatter but adding, editing and deleting a group, which their groups panel does not offer",
+  "windows": ["maps-*"],
   "permissions": [
     "allow-subscribe",
     "allow-describe-table",
-    "allow-describe-widget",
+    "allow-window-widgets",
+    "allow-close-widget",
     "allow-fetch-column",
     "allow-fetch-row",
     "allow-set-hover",

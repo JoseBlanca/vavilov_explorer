@@ -11,16 +11,16 @@ import type { Filter } from "../state/filter.ts";
 import type { EditMode, Selected } from "../state/message.ts";
 import type { SelectedGroups } from "../state/selectedGroups.ts";
 import { defect } from "../state/defect.ts";
-import type { ColumnId, LevelCode, Position, RowIndex } from "../state/ids.ts";
+import type { ColumnId, LevelCode, Position, RowIndex, WidgetId } from "../state/ids.ts";
 import type { Result } from "../state/result.ts";
 import type { RowPage } from "../state/rowPage.ts";
 import { exportAnswerOf, importAnswerOf } from "../state/transfer.ts";
 import type { ExportAnswer, ExportFormat, ImportAnswer, MenuAction } from "../state/transfer.ts";
-import { isWidgetSpec } from "../state/widget.ts";
-import type { WidgetSpec } from "../state/widget.ts";
+import type { WidgetList, WidgetSpec } from "../state/widget.ts";
 import { createWindowState } from "../state/windowState.ts";
 import type { WindowState } from "../state/windowState.ts";
 import { decodeAction, isActionMessage } from "./decodeAction.ts";
+import { decodeWidgetList, isWidgetsMessage } from "./decodeWidgets.ts";
 import { decodeMessage } from "./decodeMessage.ts";
 import { decodeNumbers } from "./decodeNumbers.ts";
 import { decodeRows } from "./decodeRows.ts";
@@ -151,12 +151,27 @@ export interface Connection {
    */
   readonly openWidget: (spec: WidgetSpec) => Promise<Answer>;
   /**
-   * What this window's widget shows.
-   *
-   * @throws A defect when the window is no open widget's, or the answer does
-   * not fit.
+   * Closes the tile of the widget `widget` of this window: the backend sends
+   * the window the widgets it has left, or closes it when it was the last.
+   * The refusal `unknownWidget` says the widget was gone already, as when a
+   * command dropped it meanwhile.
    */
-  readonly describeWidget: () => Promise<WidgetSpec>;
+  readonly closeWidget: (widget: WidgetId) => Promise<Answer>;
+  /**
+   * Asks the app layer for this window's widgets, keeps them unless a newer
+   * list came on the channel meanwhile, and gives the newer.
+   *
+   * @throws A defect when the window is no window of widgets, or the answer
+   * does not decode.
+   */
+  readonly fetchWidgets: () => Promise<WidgetList>;
+  /** This window's widgets, the newest list kept, or `null` before the first. */
+  readonly widgets: () => WidgetList | null;
+  /**
+   * Calls `listener` with each newer list of widgets the channel brings;
+   * returns the function that stops it.
+   */
+  readonly onWidgets: (listener: (list: WidgetList) => void) => () => void;
   /**
    * Imports a table: the backend asks the user for the file with the
    * system's dialog, and loads its table, or gives the refusal.
@@ -210,12 +225,36 @@ export async function connect(
 ): Promise<Connection> {
   const early: ArrayBuffer[] = [];
   const actionListeners = new Set<(action: MenuAction) => void>();
+  const widgetListeners = new Set<(list: WidgetList) => void>();
+  /** The newest list of the window's widgets, of the channel or asked for. */
+  let widgetList: WidgetList | null = null;
+  /** Keeps `list` when it is newer than the one kept, and says whether it was. */
+  const keepNewer = (list: WidgetList): boolean => {
+    if (widgetList !== null && list.seq <= widgetList.seq) {
+      return false;
+    }
+    widgetList = list;
+    return true;
+  };
   /** Actions that came before the window listened for them, as while it starts. */
   const waitingActions: MenuAction[] = [];
   let state: WindowState | null = null;
   let broken = false;
-  /** A message of the channel: an action goes to its listeners, the rest to the copy. */
+  /**
+   * A message of the channel: an action goes to its listeners, a list of
+   * widgets is kept when newer and goes to its listeners, the rest to the
+   * copy.
+   */
   const take = (ready: WindowState, message: ArrayBuffer): void => {
+    if (isWidgetsMessage(message)) {
+      const list = decodeWidgetList(message);
+      if (keepNewer(list)) {
+        for (const listener of widgetListeners) {
+          listener(list);
+        }
+      }
+      return;
+    }
     if (isActionMessage(message)) {
       const action = decodeAction(message);
       if (actionListeners.size === 0) {
@@ -474,17 +513,34 @@ export async function connect(
         transport.invoke("open_widget", { spec, basedOn: ready.revision() }),
       );
     },
-    describeWidget: async () => {
-      let spec: unknown;
+    closeWidget: async (widget) => {
+      checkSound("close_widget");
+      return answer("close_widget", transport.invoke("close_widget", { widget }));
+    },
+    fetchWidgets: async () => {
+      let bytes: unknown;
       try {
-        spec = await transport.invoke("describe_widget", {});
+        bytes = await transport.invoke("window_widgets", {});
       } catch (error: unknown) {
-        throw defect(`describe_widget failed with ${describe(error)}`);
+        throw defect(`window_widgets failed with ${describe(error)}`);
       }
-      if (!isWidgetSpec(spec)) {
-        throw defect(`a widget described as ${describe(spec)}`);
+      if (!(bytes instanceof ArrayBuffer)) {
+        throw defect(
+          `a list of widgets that is not bytes, as after Tauri's fallback to postMessage: ${describe(bytes)}`,
+        );
       }
-      return spec;
+      keepNewer(decodeWidgetList(bytes));
+      if (widgetList === null) {
+        throw defect("no list of widgets kept after one was decoded");
+      }
+      return widgetList;
+    },
+    widgets: () => widgetList,
+    onWidgets: (listener) => {
+      widgetListeners.add(listener);
+      return () => {
+        widgetListeners.delete(listener);
+      };
     },
     setRole: (column, role) => command("set_role", { column, role }),
     setFilter: (filter, decimalMark) =>

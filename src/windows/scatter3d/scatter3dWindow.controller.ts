@@ -2,7 +2,7 @@ import { at } from "../../state/at.ts";
 import { defect } from "../../state/defect.ts";
 import { createScatter3d } from "../../plots/scatter3d.ts";
 import { startPointWindow } from "../shared/pointWindow.controller.ts";
-import type { PointPlot } from "../shared/pointWindow.controller.ts";
+import type { PointPlot } from "../shared/pointView.controller.ts";
 
 /**
  * Starts the window of a 3D scatter in `root`, a point window
@@ -45,6 +45,7 @@ export async function startScatter3dWindow(root: HTMLElement): Promise<void> {
           placeOf: scatter.placeOf,
           placeOfDegrees: null,
           focus: scatter.focus,
+          destroy: scatter.destroy,
         };
       },
     };

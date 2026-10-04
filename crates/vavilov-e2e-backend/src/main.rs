@@ -29,8 +29,9 @@
 //!   was destroyed;
 //! - `{"window", "message": [...]}` is a message of the window's channel;
 //! - `{"open": label, "widget": {...}}` asks the harness for the page of a
-//!   widget's window, and `{"close": label}` to close one; each comes
-//!   before the answer of the call that opened or closed it.
+//!   window of widgets, with its first widget, `{"raise": label}` to bring
+//!   an open one to the front, and `{"close": label}` to close one; each
+//!   comes before the answer of the call that opened, raised or closed it.
 
 mod load;
 mod wire;
@@ -38,12 +39,12 @@ mod wire;
 use std::io::{BufRead, Write};
 use std::process::ExitCode;
 
-use vavilov_core::{
-    CommandError, SendFailed, Session, Subscriber, WidgetSpec, WindowHost, WindowLabel,
-};
+use vavilov_core::{CommandError, SendFailed, Session, Subscriber, WindowLabel};
+use vavilov_explorer_lib::widgets::{WidgetSpec, Widgets, WindowHost};
 
 fn main() -> ExitCode {
     let mut session = Session::new();
+    let mut widgets = Widgets::default();
     let mut stand_ins = wire::StandIns::default();
     let mut host = Pages;
     for line in std::io::stdin().lock().lines() {
@@ -56,6 +57,7 @@ fn main() -> ExitCode {
         };
         let answer = wire::answer(
             &mut session,
+            &mut widgets,
             &mut stand_ins,
             &line,
             |label| Box::new(Stdout { label }),
@@ -84,12 +86,18 @@ impl Subscriber for Stdout {
     }
 }
 
-/// The windows of the widgets, as pages the harness opens and closes.
+/// The windows of the widgets, as pages the harness opens, brings to the
+/// front and closes.
 struct Pages;
 
 impl WindowHost for Pages {
     fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), CommandError> {
         let line = serde_json::json!({ "open": label.as_str(), "widget": widget });
+        write_line(&line).map_err(|error| failed(label, &error))
+    }
+
+    fn raise(&mut self, label: &WindowLabel) -> Result<(), CommandError> {
+        let line = serde_json::json!({ "raise": label.as_str() });
         write_line(&line).map_err(|error| failed(label, &error))
     }
 

@@ -6,8 +6,8 @@
 // decoder and the TypeScript type are both made from that table, so that
 // the table is the one list of the kinds on this side.
 
-import { isColumnId, isLevelCode, isPosition, isRevision, isRowIndex } from "./ids.ts";
-import type { ColumnId, LevelCode, Position, Revision, RowIndex } from "./ids.ts";
+import { isColumnId, isLevelCode, isPosition, isRevision, isRowIndex, isWidgetId } from "./ids.ts";
+import type { ColumnId, LevelCode, Position, Revision, RowIndex, WidgetId } from "./ids.ts";
 
 /** The check of a field, which tells its TypeScript type. */
 export type FieldCheck<T> = (value: unknown) => value is T;
@@ -72,6 +72,11 @@ export function isCount(value: unknown): value is number {
 /** The id of a column. */
 export function isColumnIdField(value: unknown): value is ColumnId {
   return typeof value === "number" && isColumnId(value);
+}
+
+/** The number of a widget. */
+export function isWidgetIdField(value: unknown): value is WidgetId {
+  return typeof value === "number" && isWidgetId(value);
 }
 
 /** The code of a level. */

@@ -1,0 +1,80 @@
+.window {
+  display: grid;
+  /* The defect bar, the tiles and the groups, then the information bar. */
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+
+/* The tiles in their columns, then the groups panel in a column of its own
+   at their right, across every row. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(var(--tile-columns), minmax(0, 1fr)) auto;
+  grid-template-rows: repeat(var(--tile-rows), minmax(0, 1fr));
+  min-height: 0;
+}
+
+/* The tiles across the whole width, the groups panel in the empty place at
+   the end of the last row, where it falls after them. */
+.tilesWithPanel {
+  display: grid;
+  grid-template-columns: repeat(var(--tile-columns), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--tile-rows), minmax(0, 1fr));
+  min-height: 0;
+}
+
+.tile {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.side,
+.sideHidden {
+  grid-column: -2 / -1;
+  grid-row: 1 / -1;
+  min-height: 0;
+}
+
+.side {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: var(--panel-width);
+}
+
+/* Hidden, the groups leave their button alone, in a narrow column. */
+.sideHidden {
+  display: grid;
+  align-content: start;
+}
+
+.sideInGrid {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Hidden in its place in the grid, the place stays empty but for the
+   button. */
+.sideInGridHidden {
+  display: grid;
+  align-content: start;
+  justify-content: end;
+}
+
+.toggle {
+  margin: var(--space-1);
+  justify-self: end;
+}
+
+.panel {
+  display: grid;
+  min-height: 0;
+}
+
+.hidden {
+  display: none;
+}

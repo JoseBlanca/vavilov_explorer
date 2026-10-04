@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 
-import { isColumnId, isLevelCode, isPosition, isRowIndex } from "../state/ids.ts";
-import type { ColumnId, LevelCode, Position, RowIndex } from "../state/ids.ts";
+import { isColumnId, isLevelCode, isPosition, isRowIndex, isWidgetId } from "../state/ids.ts";
+import type { ColumnId, LevelCode, Position, RowIndex, WidgetId } from "../state/ids.ts";
 import { connect } from "./connection.ts";
 import { tauriTransport } from "./transport.ts";
 import type { Transport } from "./transport.ts";
@@ -98,6 +98,11 @@ function position(value: number): Position {
   if (!isPosition(value)) throw new Error("not a position");
   return value;
 }
+function widget(value: number): WidgetId {
+  if (!isWidgetId(value)) throw new Error(`not a widget: ${String(value)}`);
+  return value;
+}
+
 function column(value: number): ColumnId {
   if (!isColumnId(value)) throw new Error("not a column");
   return value;
@@ -418,6 +423,20 @@ describe("a command", () => {
     });
     const other = await connect(garbled.transport, failOnDefect);
     await expect(other.undo()).rejects.toThrow(/^Vavilov Explorer defect: .*undo/);
+  });
+});
+
+describe("closing the tile of a widget", () => {
+  test("sends the widget's number, and gives a widget gone already as a refusal", async () => {
+    const refusal = { kind: "unknownWidget", label: "plots-1", widget: 2 };
+    const { transport, calls } = fakeTransport({ answer: () => refusedWith(refusal) });
+    const connection = await connect(transport, failOnDefect);
+    expect(await connection.closeWidget(widget(2))).toEqual({ ok: false, error: refusal });
+    expect(calls.at(-1)).toEqual({
+      command: "close_widget",
+      args: { widget: 2 },
+      headers: undefined,
+    });
   });
 });
 
@@ -834,6 +853,47 @@ describe("an item of the menu", () => {
     const actions: string[] = [];
     connection.onAction((action) => actions.push(action));
     expect(actions).toEqual(["exportCsv", "importTable"]);
+  });
+});
+
+/** A list of widgets at `seq`, of one histogram of column 1, numbered `id`, as the app layer writes it (src-tauri/src/widgets/tests.rs). */
+function widgetsAt(seq: number, id: number): ArrayBuffer {
+  // prettier-ignore
+  return buffer(
+    6, 0, 0, 0, 0, 0, 0, 0,
+    seq, 0, 0, 0, 0, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0,
+    id, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255,
+    255, 255, 255, 255, 0, 0, 0, 0,
+  );
+}
+
+describe("the widgets of the window", () => {
+  test("asked for, come back decoded, and the window keeps them", async () => {
+    const { transport, calls } = fakeTransport({
+      answer: () => Promise.resolve(widgetsAt(2, 5)),
+    });
+    const connection = await connect(transport, failOnDefect);
+    const list = await connection.fetchWidgets();
+    expect(list).toEqual({ seq: 2, widgets: [{ id: 5, spec: { kind: "histogram", column: 1 } }] });
+    expect(connection.widgets()).toEqual(list);
+    expect(calls.at(-1)?.command).toBe("window_widgets");
+  });
+
+  test("of the channel go to the listeners, and the newer of two lists wins", async () => {
+    const { transport, deliver } = fakeTransport({
+      early: [widgetsAt(3, 7)],
+      answer: () => Promise.resolve(widgetsAt(2, 5)),
+    });
+    const connection = await connect(transport, failOnDefect);
+    const told: number[] = [];
+    connection.onWidgets((list) => told.push(list.seq));
+    // The answer, older than the list the channel brought, is not kept.
+    expect((await connection.fetchWidgets()).seq).toBe(3);
+    deliver(widgetsAt(4, 8));
+    expect(connection.widgets()?.seq).toBe(4);
+    expect(told).toEqual([4]);
+    expect(connection.state.revision()).toBe(1);
   });
 });
 

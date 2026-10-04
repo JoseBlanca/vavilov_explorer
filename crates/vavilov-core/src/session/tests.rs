@@ -969,28 +969,9 @@ fn a_window_that_subscribes_again_replaces_its_subscriber() {
 }
 
 #[test]
-fn a_window_the_session_does_not_know_cannot_subscribe() {
-    let (mut session, _main) = loaded();
-    let stray = Recorder::default();
-    assert_eq!(
-        session.subscribe(WindowLabel::new("scatter3d-1"), Box::new(stray.clone())),
-        Err(CommandError::UnknownWindow {
-            label: WindowLabel::new("scatter3d-1")
-        })
-    );
-    apply(
-        &mut session,
-        Command::SetHover {
-            row: Some(RowIndex::new(0)),
-        },
-    );
-    assert!(stray.take().is_empty());
-}
-
-#[test]
 fn a_subscriber_that_fails_is_removed_and_reported_and_the_command_still_applies() {
     let (mut session, _main) = loaded();
-    session.window_closed(&WindowLabel::main());
+    session.unsubscribe(&WindowLabel::main());
     session
         .subscribe(WindowLabel::main(), Box::new(Failing))
         .unwrap();
@@ -1025,7 +1006,7 @@ fn a_subscriber_that_fails_is_removed_and_reported_and_the_command_still_applies
 #[test]
 fn an_unsubscribed_window_receives_nothing() {
     let (mut session, main) = loaded();
-    session.window_closed(&WindowLabel::main());
+    session.unsubscribe(&WindowLabel::main());
     apply(
         &mut session,
         Command::SetHover {

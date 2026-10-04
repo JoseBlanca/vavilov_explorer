@@ -15,6 +15,7 @@ import {
   isRevisionField,
   isRowIndexField,
   isText,
+  isWidgetIdField,
   oneOf,
   taggedDecoder,
 } from "./tagged.ts";
@@ -31,6 +32,7 @@ const FIELDS = {
   madeBeforeLoad: { basedOn: isRevisionField, loadedAt: isRevisionField },
   levelsChanged: { column: isColumnIdField, basedOn: isRevisionField, levelsAt: isRevisionField },
   unknownWindow: { label: isText },
+  unknownWidget: { label: isText, widget: isWidgetIdField },
   unknownColumn: { column: isColumnIdField },
   notCategory: { column: isColumnIdField },
   notNumber: { column: isColumnIdField },

@@ -34,7 +34,7 @@ struct ColumnSpec {
 }
 
 /// Loads the table into the session, as the import does, and gives what
-/// the load did, with the widgets it closed.
+/// the load did.
 pub(crate) fn load(session: &mut Session, spec: TableSpec) -> Result<Outcome, CommandError> {
     let columns = (1..=u32::MAX)
         .zip(spec.columns)

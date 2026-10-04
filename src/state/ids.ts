@@ -19,6 +19,12 @@ export type HoverSeq = number & { readonly __brand: "HoverSeq" };
  */
 export type Position = number & { readonly __brand: "Position" };
 
+/**
+ * The number of a widget, given when it is opened and never given again,
+ * `WidgetId` of the core.
+ */
+export type WidgetId = number & { readonly __brand: "WidgetId" };
+
 /** The `u32` that means no column. */
 export const NO_COLUMN = 0xffff_ffff;
 /** The `u32` that means no row in the hover. */
@@ -33,6 +39,11 @@ function isWhole(value: number, below: number): boolean {
 /** Whether `value` can be a column id: a `u32` other than {@link NO_COLUMN}. */
 export function isColumnId(value: number): value is ColumnId {
   return isWhole(value, NO_COLUMN);
+}
+
+/** Whether `value` can be a widget's number: a `u32`. */
+export function isWidgetId(value: number): value is WidgetId {
+  return isWhole(value, 2 ** 32);
 }
 
 /** Whether `value` can be a row: a `u32` other than {@link NO_ROW}. */

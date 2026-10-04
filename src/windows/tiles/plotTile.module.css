@@ -1,0 +1,77 @@
+.tile {
+  display: grid;
+  /* The title bar, the plot, then the count. */
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.titleBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-1) 0 var(--space-3);
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.close {
+  min-width: var(--target-size);
+  min-height: var(--target-size);
+  margin: var(--space-1) 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.close:hover {
+  border-color: var(--color-control-border);
+}
+
+.plotArea {
+  /* The plot, with the legend laid over its corner. */
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+
+.plot {
+  min-width: 0;
+  min-height: 0;
+  user-select: none;
+}
+
+/* Over the plot's lower left corner. It is read, not used, and lets the
+   pointer through to the plot under it (frontend.md, "Nothing laid over
+   the canvas takes the pointer from it"). */
+.legend {
+  position: absolute;
+  pointer-events: none;
+  bottom: var(--space-2);
+  left: var(--space-2);
+}
+
+.legend:empty {
+  display: none;
+}
+
+.cannotDraw {
+  align-self: center;
+  justify-self: center;
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-text);
+}

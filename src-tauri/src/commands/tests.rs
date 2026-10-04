@@ -6,10 +6,11 @@ use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use vavilov_core::{
     Categorical, Colour, ColumnId, ColumnValues, Command, LevelCode, LevelValues, NewColumn,
-    Numbers, Request, Role, RowIndex, Table, UndoRedo,
+    Numbers, Request, Role, RowIndex, Table, UndoRedo, WidgetId,
 };
 
 use super::*;
+use crate::widgets::{Widget, WidgetSpec, Widgets};
 use crate::with_session;
 
 const ORIGIN: u32 = 1;
@@ -218,6 +219,9 @@ fn every_command_is_registered_and_finds_the_session() {
     let widget = WebviewWindowBuilder::new(&app, "scatter3d-1", WebviewUrl::default())
         .build()
         .unwrap();
+    let plots = WebviewWindowBuilder::new(&app, "plots-2", WebviewUrl::default())
+        .build()
+        .unwrap();
     assert_eq!(
         json_command(
             &widget,
@@ -227,9 +231,10 @@ fn every_command_is_registered_and_finds_the_session() {
         .unwrap_err(),
         no_project
     );
+    // A window of widgets the app does not have holds none to close.
     assert_eq!(
-        json_command(&widget, "describe_widget", json!({})).unwrap_err(),
-        json!({ "kind": "unknownWindow", "label": "scatter3d-1" })
+        json_command(&plots, "close_widget", json!({ "widget": 1 })).unwrap_err(),
+        json!({ "kind": "unknownWidget", "label": "plots-2", "widget": 1 })
     );
     // The region's decimal mark needs no table.
     assert!(matches!(
@@ -482,7 +487,7 @@ fn not_allowed(answer: Result<InvokeResponseBody, Value>) -> bool {
 }
 
 #[test]
-fn a_widget_opened_from_the_main_window_subscribes_describes_itself_and_fetches_its_columns() {
+fn a_widget_opened_from_the_main_window_subscribes_learns_itself_and_fetches_its_columns() {
     let (app, main) = app();
     load_with_height(&app);
     let spec = json!({ "kind": "scatter3d", "axes": [2, 2, 2] });
@@ -492,12 +497,15 @@ fn a_widget_opened_from_the_main_window_subscribes_describes_itself_and_fetches_
         json_command(&widget, "subscribe", json!({ "onChange": "__CHANNEL__:2" })),
         Ok(InvokeResponseBody::Raw(_))
     ));
-    let InvokeResponseBody::Json(described) =
-        json_command(&widget, "describe_widget", json!({})).unwrap()
+    let Ok(InvokeResponseBody::Raw(list)) = json_command(&widget, "window_widgets", json!({}))
     else {
-        panic!("a widget described as raw bytes");
+        panic!("a list of widgets that is not raw bytes");
     };
-    assert_eq!(serde_json::from_str::<Value>(&described).unwrap(), spec);
+    // Its list ends with its widget: 1, a 3D scatter of column 2 on every
+    // axis.
+    assert!(list.ends_with(&[
+        1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
+    ]));
     assert!(matches!(
         json_command(&widget, "fetch_column", json!({ "column": 2, "basedOn": 1 })),
         Ok(InvokeResponseBody::Raw(bytes)) if bytes.first() == Some(&5)
@@ -514,13 +522,13 @@ fn a_widget_opened_from_the_main_window_subscribes_describes_itself_and_fetches_
 }
 
 #[test]
-fn a_widget_of_a_column_that_is_no_number_is_refused_and_opens_no_window() {
+fn a_widget_asked_for_from_a_copy_of_the_table_before_is_refused_and_opens_no_window() {
     let (app, main) = app();
     load_with_height(&app);
-    let spec = json!({ "kind": "scatter3d", "axes": [2, 1, 2] });
+    let spec = json!({ "kind": "scatter3d", "axes": [2, 2, 2] });
     assert_eq!(
-        json_command(&main, "open_widget", json!({ "spec": spec, "basedOn": 1 })).unwrap_err(),
-        json!({ "kind": "notNumber", "column": 1 })
+        json_command(&main, "open_widget", json!({ "spec": spec, "basedOn": 0 })).unwrap_err(),
+        json!({ "kind": "madeBeforeLoad", "basedOn": 0, "loadedAt": 1 })
     );
     assert!(app.get_webview_window("scatter3d-1").is_none());
 }
@@ -536,10 +544,6 @@ fn a_window_of_no_open_widget_cannot_subscribe() {
         json_command(&stray, "subscribe", json!({ "onChange": "__CHANNEL__:2" })).unwrap_err(),
         json!({ "kind": "unknownWindow", "label": "scatter3d-7" })
     );
-    assert_eq!(
-        json_command(&stray, "describe_widget", json!({})).unwrap_err(),
-        json!({ "kind": "unknownWindow", "label": "scatter3d-7" })
-    );
 }
 
 #[test]
@@ -549,7 +553,7 @@ fn each_window_is_refused_the_commands_it_does_not_use() {
     let widget = WebviewWindowBuilder::new(&app, "scatter3d-1", WebviewUrl::default())
         .build()
         .unwrap();
-    for cmd in ["describe_widget", "fetch_column", "fetch_row"] {
+    for cmd in ["close_widget", "fetch_column", "fetch_row"] {
         assert!(
             not_allowed(json_command(
                 &main,
@@ -587,7 +591,6 @@ fn a_widget_is_allowed_every_command_its_window_calls_and_not_to_edit_the_groups
     for (cmd, args) in [
         ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
         ("describe_table", json!({})),
-        ("describe_widget", json!({})),
         ("region_decimal_mark", json!({})),
         ("fetch_column", json!({ "column": 2, "basedOn": 1 })),
         (
@@ -723,17 +726,26 @@ fn refused(window: &WebviewWindow<MockRuntime>, commands: &[&str]) {
 }
 
 #[test]
-fn a_map_is_allowed_what_its_window_calls_and_not_to_edit_the_groups() {
+fn a_maps_window_is_allowed_what_its_maps_call_and_not_to_edit_the_groups() {
     let (app, main) = app();
     load_places(&app);
     let spec = json!({ "kind": "map", "latitude": 2, "longitude": 3 });
-    let map = open_widget(&app, &main, spec.clone(), "map-1");
+    let maps = open_widget(&app, &main, spec, "maps-1");
+    // The map of countries goes into the same window.
+    open_widget(
+        &app,
+        &main,
+        json!({ "kind": "countryMap", "country": 1 }),
+        "maps-1",
+    );
+    assert!(app.get_webview_window("maps-2").is_none());
     allowed(
-        &map,
+        &maps,
         &[
             ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
             ("describe_table", json!({})),
-            ("describe_widget", json!({})),
+            ("window_widgets", json!({})),
+            ("close_widget", json!({ "widget": 9 })),
             ("region_decimal_mark", json!({})),
             ("fetch_column", json!({ "column": 2, "basedOn": 4 })),
             (
@@ -753,14 +765,8 @@ fn a_map_is_allowed_what_its_window_calls_and_not_to_edit_the_groups() {
             ("set_edit_mode", json!({})),
         ],
     );
-    let InvokeResponseBody::Json(described) =
-        json_command(&map, "describe_widget", json!({})).unwrap()
-    else {
-        panic!("a map described as raw bytes");
-    };
-    assert_eq!(serde_json::from_str::<Value>(&described).unwrap(), spec);
     refused(
-        &map,
+        &maps,
         &[
             "add_group",
             "edit_group",
@@ -775,55 +781,17 @@ fn a_map_is_allowed_what_its_window_calls_and_not_to_edit_the_groups() {
 }
 
 #[test]
-fn a_map_of_countries_is_allowed_what_its_window_calls_and_nothing_of_the_points() {
-    let (app, main) = app();
-    load_places(&app);
-    let spec = json!({ "kind": "countryMap", "country": 1 });
-    let countries = open_widget(&app, &main, spec, "countryMap-1");
-    allowed(
-        &countries,
-        &[
-            ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
-            ("describe_table", json!({})),
-            ("describe_widget", json!({})),
-            ("region_decimal_mark", json!({})),
-            ("set_selection", json!({})),
-            (
-                "set_active_classification",
-                json!({ "column": 1, "basedOn": 4 }),
-            ),
-            ("select_groups", json!({})),
-            ("set_edit_mode", json!({})),
-        ],
-    );
-    refused(
-        &countries,
-        &[
-            "fetch_column",
-            "fetch_row",
-            "set_hover",
-            "assign_rows",
-            "unassign_rows",
-            "add_group",
-            "edit_group",
-            "delete_group",
-            "open_widget",
-        ],
-    );
-}
-
-#[test]
 fn a_histogram_is_allowed_what_its_window_calls_and_nothing_of_the_points() {
     let (app, main) = app();
     load_places(&app);
     let spec = json!({ "kind": "histogram", "column": 2 });
-    let histogram = open_widget(&app, &main, spec.clone(), "histogram-1");
+    let histogram = open_widget(&app, &main, spec, "plots-1");
     allowed(
         &histogram,
         &[
             ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
             ("describe_table", json!({})),
-            ("describe_widget", json!({})),
+            ("close_widget", json!({ "widget": 9 })),
             ("region_decimal_mark", json!({})),
             ("fetch_column", json!({ "column": 2, "basedOn": 4 })),
             ("set_selection", json!({})),
@@ -836,12 +804,6 @@ fn a_histogram_is_allowed_what_its_window_calls_and_nothing_of_the_points() {
             ("set_edit_mode", json!({})),
         ],
     );
-    let InvokeResponseBody::Json(described) =
-        json_command(&histogram, "describe_widget", json!({})).unwrap()
-    else {
-        panic!("a histogram described as raw bytes");
-    };
-    assert_eq!(serde_json::from_str::<Value>(&described).unwrap(), spec);
     refused(
         &histogram,
         &[
@@ -859,15 +821,63 @@ fn a_histogram_is_allowed_what_its_window_calls_and_nothing_of_the_points() {
 }
 
 #[test]
-fn a_map_of_columns_that_are_no_latitude_and_longitude_is_refused_as_such() {
+fn a_second_histogram_goes_into_the_plots_window_whose_tiles_close_one_by_one() {
     let (app, main) = app();
     load_places(&app);
-    let spec = json!({ "kind": "map", "latitude": 3, "longitude": 2 });
-    assert_eq!(
-        json_command(&main, "open_widget", json!({ "spec": spec, "basedOn": 4 })).unwrap_err(),
-        json!({ "kind": "notRole", "column": 3, "role": "latitude" })
+    let plots = open_widget(
+        &app,
+        &main,
+        json!({ "kind": "histogram", "column": 2 }),
+        "plots-1",
     );
-    assert!(app.get_webview_window("map-1").is_none());
+    open_widget(
+        &app,
+        &main,
+        json!({ "kind": "histogram", "column": 3 }),
+        "plots-1",
+    );
+    assert!(app.get_webview_window("plots-3").is_none());
+    // The window asks for its list: sequence 2, since the second histogram
+    // made the first for the window, and two widgets.
+    let Ok(InvokeResponseBody::Raw(list)) = json_command(&plots, "window_widgets", json!({}))
+    else {
+        panic!("a list of widgets that is not raw bytes");
+    };
+    assert_eq!(
+        list.get(..20),
+        Some(&[6, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0][..])
+    );
+    assert!(json_command(&plots, "close_widget", json!({ "widget": 1 })).is_ok());
+    assert_eq!(
+        json_command(&plots, "close_widget", json!({ "widget": 1 })).unwrap_err(),
+        json!({ "kind": "unknownWidget", "label": "plots-1", "widget": 1 })
+    );
+    let widgets = app.state::<Mutex<Widgets>>();
+    assert_eq!(
+        widgets
+            .lock()
+            .unwrap()
+            .widgets_of(&WindowLabel::new("plots-1")),
+        [Widget {
+            id: WidgetId::new(2),
+            spec: WidgetSpec::Histogram {
+                column: ColumnId::new(3)
+            }
+        }]
+    );
+}
+
+#[test]
+fn a_window_that_never_opened_cannot_ask_for_its_widgets() {
+    let (app, _main) = app();
+    load_places(&app);
+    let stray = WebviewWindowBuilder::new(&app, "plots-7", WebviewUrl::default())
+        .build()
+        .unwrap();
+    assert_eq!(
+        json_command(&stray, "window_widgets", json!({})).unwrap_err(),
+        json!({ "kind": "unknownWindow", "label": "plots-7" })
+    );
 }
 
 #[test]

@@ -3,7 +3,7 @@
 
 import type { Role, TableDescription } from "./description.ts";
 import type { ColumnId } from "./ids.ts";
-import type { Axes } from "./widget.ts";
+import type { Axes, WidgetSpec } from "./widget.ts";
 
 /** A column a plot can show, such as a number, a latitude or a longitude on an axis of a 3D scatter. */
 export interface PlotColumn {
@@ -13,13 +13,13 @@ export interface PlotColumn {
   readonly name: string;
 }
 
+/** The roles of the columns of numbers, which a histogram or an axis of a 3D scatter shows. */
+const NUMBER_ROLES: readonly Role[] = ["number", "latitude", "longitude"];
+
 /** The columns of the table a 3D scatter can put on an axis, in the order of the table. */
 export function axisColumns(description: TableDescription): readonly PlotColumn[] {
   return description.columns
-    .filter(
-      (column) =>
-        column.role === "number" || column.role === "latitude" || column.role === "longitude",
-    )
+    .filter((column) => NUMBER_ROLES.includes(column.role))
     .map(({ id, name }) => ({ id, name }));
 }
 
@@ -50,4 +50,30 @@ export function columnsOfRole(description: TableDescription, role: Role): readon
   return description.columns
     .filter((column) => column.role === role)
     .map(({ id, name }) => ({ id, name }));
+}
+
+/**
+ * Whether the table has every column `spec` shows, each of a role it can
+ * show: a number, a latitude or a longitude on a histogram or an axis of a
+ * 3D scatter, a latitude and a longitude in their places on a map, and a
+ * column of countries on a map of countries. A window closes a widget that
+ * does not fit, as after a change of role (docs/design.md, section 2.2).
+ */
+export function widgetFits(spec: WidgetSpec, description: TableDescription): boolean {
+  const roleOf = (column: ColumnId): Role | undefined =>
+    description.columns.find((each) => each.id === column)?.role;
+  const isNumber = (column: ColumnId): boolean => {
+    const role = roleOf(column);
+    return role !== undefined && NUMBER_ROLES.includes(role);
+  };
+  switch (spec.kind) {
+    case "histogram":
+      return isNumber(spec.column);
+    case "scatter3d":
+      return spec.axes.every(isNumber);
+    case "map":
+      return roleOf(spec.latitude) === "latitude" && roleOf(spec.longitude) === "longitude";
+    case "countryMap":
+      return roleOf(spec.country) === "country";
+  }
 }

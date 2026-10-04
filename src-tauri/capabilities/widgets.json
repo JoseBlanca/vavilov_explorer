@@ -6,7 +6,8 @@
   "permissions": [
     "allow-subscribe",
     "allow-describe-table",
-    "allow-describe-widget",
+    "allow-window-widgets",
+    "allow-close-widget",
     "allow-fetch-column",
     "allow-fetch-row",
     "allow-set-hover",

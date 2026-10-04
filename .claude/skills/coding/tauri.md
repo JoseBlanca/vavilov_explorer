@@ -86,12 +86,18 @@ follows:
   arrives as JSON and a raw response or channel message as a JSON array of
   numbers. The commands and the decoder then fail loudly, as defects whose
   message names the fallback; a reload restores the protocol.
-- **A window made outside the session's lock may be one the session has
-  closed meanwhile**: a load or a change of role that runs while it is
-  being built closes a label that has no window yet. So once the window
-  exists, the command checks under the lock that its widget is still open,
-  and closes the window when it is not (`windows::open_widget_window`,
-  found by the review of 3 October 2026).
+- **A window made outside the locks may be one the app has forgotten
+  meanwhile**: a load that runs while it is being built closes a label
+  that has no window yet. So once the window exists, the command checks
+  under the widgets' lock that the window is still open, and closes it
+  when it is not (`windows::open_widget_window`, found by the review of
+  3 October 2026).
+- **The windows of the widgets are the app layer's** (`docs/design.md`,
+  section 3): `src/widgets.rs` keeps which widgets are open in which
+  window, without Tauri, behind its own lock beside the session's; a
+  command that takes both takes the session's first. A window the app
+  forgets is unsubscribed from the session before it is closed, so that
+  it receives nothing more.
 - **A window is never destroyed from inside its own call**: the close is
   queued with `run_on_main_thread`, as creating one from a synchronous
   command deadlocks on Windows.
@@ -184,19 +190,21 @@ backend never sends text meant for the user: the words are the window's.
 
 ## Windows
 
-- **Labels**: `main`, and for widgets the kind and a number,
-  `scatter3d-1`, `histogram-2`. A label never contains a user's text.
+- **Labels**: `main`, and for the windows of the widgets their kind and
+  a number from a counter that only grows, `scatter3d-1`, `plots-2`, so
+  that a window being closed never shares its label with the next one
+  (`docs/design.md`, section 2.2). A label never contains a user's text.
 - **A capability for each kind of window**, each granting the fewest
   permissions that work: the `allow-` of each command of ours its windows
   call, and of Tauri's own functions only those they call, never a whole
   set such as `core:default` when one permission is used.
   `capabilities/default.json` is the main window's, and each kind of
-  widget has its own, which covers its windows with a pattern of labels:
-  `capabilities/widgets.json`, `"windows": ["scatter3d-*"]`, for the 3D
-  scatter, `map.json` for the map of the individuals, which cannot add,
-  edit or delete a group, and `countryMap.json` for the map of countries,
-  which cannot fetch a column, a row or set the hover either (3 October
-  2026).
+  window of widgets has its own, which covers its windows with a pattern
+  of labels: `capabilities/widgets.json`, `"windows": ["scatter3d-*"]`,
+  for the 3D scatter, `plots.json`, `"windows": ["plots-*"]`, for the
+  Plots window of the histograms, which cannot fetch a row or set the
+  hover, and `maps.json`, `"windows": ["maps-*"]`, for the Maps window of
+  both maps; none can add, edit or delete a group (4 October 2026).
   One file for all windows, as this rule said before 3 October 2026,
   would let a widget call what only the main window needs, an import
   among them. The windows call none of Tauri's own today: the window's
@@ -219,10 +227,10 @@ backend never sends text meant for the user: the words are the window's.
   (`BackgroundThrottlingPolicy::Disabled`, macOS 14 and later), and every
   window recovers from a reload anyway, since Windows and Linux cannot
   turn it off.
-- **`accept_first_mouse(true)` on the point views only**, the 3D scatter
-  and the map of the individuals; the map of countries, the histograms,
-  the bar plots and the main window keep the default, since a click there
-  selects (`docs/design.md`, section 10).
+- **`accept_first_mouse(true)` on the 3D scatter's window only**; the
+  Plots window, the Maps window and the main window keep the default,
+  since a click there selects, as the owner decided for the Maps window
+  on 4 October 2026 (`docs/design.md`, sections 2.2 and 10).
 - **Widgets cannot go fullscreen**; they can be maximized. On macOS the
   builder's `maximizable(false)` disables the green button, which would
   take the window fullscreen (tao 0.37, `set_maximizable`); Window >

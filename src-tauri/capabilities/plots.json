@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "plots",
+  "description": "What the Plots windows, of the histograms, may call: the table, a column of numbers, the selection, their groups panel, their widgets and the closing of a tile, and nothing of the individuals' points",
+  "windows": ["plots-*"],
+  "permissions": [
+    "allow-subscribe",
+    "allow-describe-table",
+    "allow-window-widgets",
+    "allow-close-widget",
+    "allow-fetch-column",
+    "allow-region-decimal-mark",
+    "allow-set-selection",
+    "allow-set-active-classification",
+    "allow-select-groups",
+    "allow-set-edit-mode"
+  ]
+}

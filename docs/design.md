@@ -71,10 +71,15 @@ library in Rust, and popnei_web its web applications.
 
 ## 2. Windows
 
-Each view is a window of its own. A single window with movable panels
-was considered and not taken. It would need a docking system, which
-neither the web views nor Tauri provide, and building one is a project
-of its own.
+The table is in the main window, and the plots in windows of their own:
+a window for each 3D scatter, one Plots window that holds every
+histogram and bar plot, and one Maps window that holds every map
+(section 2.2, decided by the owner on 4 October 2026). Inside the Plots
+and the Maps windows each plot is a tile, a rectangle of the window with
+its own title bar, and the window arranges the tiles by their number. A single window with panels the user moves and docks was
+considered and not taken. It would need a docking system, which neither
+the web views nor Tauri provide, and building one is a project of its
+own.
 
 ### 2.1 The main window
 
@@ -399,14 +404,15 @@ it.
 
 ### 2.2 Widgets
 
-A widget is a window with one view of some columns:
+A widget is one plot of some columns:
 
-| widget | columns |
-|---|---|
-| 3D scatter | three numeric columns |
-| histogram | one numeric column |
-| bar plot | one category |
-| map | a latitude and a longitude column |
+| widget | columns | where it is drawn |
+|---|---|---|
+| 3D scatter | three numeric columns | a window of its own |
+| histogram | one numeric column | a tile of the Plots window |
+| bar plot | one category | a tile of the Plots window |
+| map of the individuals | a latitude and a longitude column | a tile of the Maps window |
+| map of countries | a column of countries | a tile of the Maps window |
 
 The same kind of widget can be open more than once, for example two
 scatters of different principal components. A widget is created from a
@@ -421,6 +427,111 @@ the backend for the same thing.
 
 Removing a column closes every widget that shows it. Undoing the
 removal brings the column back but does not reopen those widgets.
+
+The windows of the widgets, decided by the owner on 4 October 2026,
+because a window for every plot left the user with too many windows to
+manage:
+
+- A 3D scatter has a window of its own, with its own groups panel, as
+  below.
+- The Plots window holds every plot drawn with D3: the histograms, and
+  the bar plots when they come. The Maps window holds every map, of the
+  individuals and of countries. Each opens with its first plot and
+  closes when its last plot is closed. A Plot item of the menu whose
+  window is open adds a tile to it and brings the window to the front.
+  The windows are named "Plots" and "Maps".
+- Inside each, the plots are tiles of one size, arranged by their
+  number: one fills the window; two or three are stacked one above
+  another; four make two rows of two; past four, two columns, with a row
+  for every two more, five or six in three rows, seven or eight in four.
+  The tiles are in the order they were opened, row by row. There is no
+  button to enlarge a tile.
+- The window has one groups panel, in a column at its right, which can
+  be collapsed as in the 3D scatter's window. With five or seven tiles,
+  the last row has one tile and an empty place at its right: the panel
+  moves into that place, no column is left at the window's right, and
+  the tiles take the whole width of the window. The panel can be
+  collapsed there too, and its place then stays empty. (The owner's
+  idea; the panel moving between its two places is the assistant's
+  reading, for the owner to judge on screen.)
+- Each tile has a title bar with its name, "Histogram of height", and a
+  button that closes it, and under its plot its own count line, "Drawing
+  1,688 of 2,000 individuals: 312 have no value." The window has one
+  information bar, across its bottom, for its messages, what the groups
+  panel did and what was refused; it takes no space while it has no
+  message.
+- The keys act on the tile whose plot has the keyboard's focus: the
+  arrows, + and −, and Home. A lasso stays in its tile. Escape and Edit >
+  Select None act as in every window.
+- A change of role that leaves a widget a column it cannot show closes
+  its tile, and its window only when it was the last tile. Opening
+  another table closes every window of widgets.
+- Each map draws with a WebGL context of its own, the drawing surface a
+  page gets from the graphics card. Chromium, and so WebView2, and WebKit
+  are known to keep about 16 at once in a page and to take one away from
+  the oldest past that; the figure was neither looked up in their
+  sources nor measured here. A Maps window of eight maps holds eight.
+  Sharing one context between the tiles is not done now.
+- A lasso stays in the tile it is drawn in, and a window has one lasso
+  waiting at a time: a lasso drawn in one tile drops the one waiting in
+  another, so that Enter applies the one the user drew last and Escape
+  drops it, as in a window of one plot (the assistant's reading of the
+  owner's "a lasso stays in its tile", confirmed by the owner on
+  4 October 2026).
+- Built in two steps on 4 October 2026, each shown to the owner before the
+  next: the Plots window with the histograms, then the Maps window with
+  both maps.
+
+How the app layer and the windows keep them, decided by the assistant
+on 4 October 2026 within the boundary of section 3:
+
+- The app layer keeps, for each window of widgets, its label, its kind
+  and its widgets, each with a number of its own and what it shows, in
+  the order they were opened. A widget closed by its tile's button, or
+  dropped by its window, is forgotten.
+- Every window has a label, the name by which the backend and Tauri
+  address it, never shown to the user: `scatter3d-1`, `plots-2`,
+  `maps-3`, numbered from a counter that only grows. A Plots window
+  closed and opened again gets a new number. Closing a window takes
+  Tauri a moment after the app asks for it, and Tauri refuses to make a
+  window whose label one of its windows still has; with one fixed label,
+  a histogram opened right after the last tile was closed would find
+  the old window still there, and fail to open.
+- A window asks the app layer for its widgets when it starts, and again
+  after a reload, and is sent the whole list on its channel, the stream
+  through which the backend sends it every change, whenever a widget is
+  added to it. Each list has a sequence number that only grows, and the
+  window keeps the newest, since an answer to its request and a message
+  of its channel travel separately and can arrive in either order.
+- A window draws the widgets its copy of the table can show, and asks
+  the app layer to forget the others: a change of role that leaves a
+  histogram's column no number drops its tile in the window that shows
+  it, as it applies the change, so the tile never draws from a column
+  the change left unfit. The rule of which column each kind of widget
+  can show is the window's alone. The main window's dialogs offer only
+  the columns that fit, and a widget asked for from a copy of a table
+  replaced since is refused by the core, which knows when the table was
+  loaded.
+- The app layer closes a window whose last widget is forgotten, and
+  every window of widgets when another table is loaded.
+- The button of a tile asks the app layer to forget its widget, which
+  only the widget's own window may ask. Closing the window forgets all
+  of its widgets.
+- Each kind of window has its capability, the list of the backend's
+  commands its windows may call: `plots-*` and `maps-*` beside
+  `scatter3d-*`.
+- On macOS a click on a window that is not the active one only brings it
+  to the front, unless the window is made to take that first click
+  (section 10). The Plots window does not take it, as the histograms'
+  windows did not, so that a click meant to bring the window forward
+  does not replace the selection. The Maps window holds the map of the
+  individuals, whose window took it, so that a pan or a lasso starts on
+  the first press, and the map of countries, whose window did not, since
+  there a click selects a country's individuals. Tauri sets it for a
+  whole window, and the owner decided on 4 October 2026 that the Maps
+  window does not take it: a first click on an inactive Maps window only
+  brings it to the front, so on the map of the individuals a pan or a
+  lasso starts on the second press.
 
 The 3D scatter, decided by the owner on 3 October 2026, and its first
 slice, built the same day:
@@ -545,12 +656,12 @@ The two maps, decided by the owner on 3 October 2026:
   −180 to 180, and "No map of countries was opened: the table has no
   column of countries. A column of text that names countries by their ISO
   codes or names becomes one when “country” is chosen as its role."
-- Each map window has the groups panel without Add, Edit and Delete
-  group, as the 3D scatter's, and with + and − on the group selected
-  (decided by the owner on 4 October 2026). On the map of the
-  individuals they arm its lasso; on the map of countries, while + or −
-  is pressed, a click on a country puts its individuals in the group or
-  takes them out, as a click selects them. Escape in a map window
+- Both maps are tiles of the Maps window (above), whose groups panel has
+  no Add, Edit and Delete group, as the 3D scatter's, and has + and − on
+  the group selected (decided by the owner on 4 October 2026). On a map
+  of the individuals they arm its lasso; on a map of countries, while + or
+  − is pressed, a click on a country puts its individuals in the group or
+  takes them out, as a click selects them. Escape in the Maps window
   releases + or − pressed in any window.
 - The map of the individuals, "Map of lat and lon", draws a point for each
   individual with a latitude and a longitude, as the 3D scatter does. The
@@ -560,7 +671,7 @@ The two maps, decided by the owner on 3 October 2026:
   map of the world (section 12). A place beyond 85.05° is drawn on the
   map's edge, and the map does not wrap around at 180°. It opens showing
   the individuals, and shows at least about 9° of longitude, so that one
-  individual alone is shown with the land around it. Its information bar
+  individual alone is shown with the land around it. Its tile's count line
   says "Drawing 1,688 of 2,000 individuals: 312 have no coordinates."
 - Where points overlap, the individual under the pointer is drawn on top,
   then those selected or inside a lasso, then those of the groups
@@ -594,7 +705,7 @@ The two maps, decided by the owner on 3 October 2026:
   individuals" (decided by the owner on 4 October 2026). With groups
   selected, a line under the legend's heading names them, "in ESP and
   PER", and the sentence ends with it, "From 1 to 5 individuals in ESP
-  and PER". The information bar says whose individuals are counted:
+  and PER". The tile's count line says whose individuals are counted:
   "Counting the 312 individuals in ESP and PER, of 2,000.", or "Counting
   300 of the 312 individuals in ESP and PER: 12 have no country."; the
   unassigned individuals are named "in no group", and past three groups
@@ -607,7 +718,7 @@ The two maps, decided by the owner on 3 October 2026:
   Bonaire and the United States Minor Outlying Islands; nor does it draw
   former countries, such as the USSR. The individuals of such a place are
   not added to any country of the map: France is not coloured by French
-  Guiana's. They are left out of the map, and its information bar says how
+  Guiana's. They are left out of the map, and its count line says how
   many and where: "Counting 1,920 of 2,000 individuals: 60 have no
   country, and 20 are in French Guiana, which the map has no shape for."
   It names the three such places with the most individuals, and counts
@@ -637,14 +748,16 @@ The two maps, decided by the owner on 3 October 2026:
   holds an individual selected has a line in the text's colour around it,
   drawn over a wider line in the background's colour so that it shows on
   the darkest blue as on the lightest.
-- On macOS, when a map window is not the active window, a click on the
-  map of the individuals already acts, so that a drag that pans or draws
-  a lasso starts on the first press, as in the 3D scatter; a click on the
-  map of countries only brings its window to the front, since a click
-  there would change the selection. On Windows and Linux the first click
-  always acts (section 10), and there it selects the country's
-  individuals.
-- A change of role that leaves a map a column it cannot show closes it,
+- On macOS, when the Maps window is not the active window, a first click
+  on either map only brings it to the front, so that a click meant to
+  bring the window forward does not change the selection; a pan or a
+  lasso on the map of the individuals starts on the second press
+  (decided by the owner on 4 October 2026; before, the map of the
+  individuals had a window of its own that took the first click). On
+  Windows and Linux the first click always acts (section 10), and there
+  it selects a country's individuals.
+- A change of role that leaves a map a column it cannot show closes its
+  tile, and the Maps window with its last,
   as a column removed would: a latitude or a longitude made anything
   else, a plain number among them, since a later edit could then put a
   value off the globe, and a column of countries made a category or text.
@@ -668,13 +781,13 @@ bins.
   no such column, the information bar of the main window says so as an
   error: "No histogram was opened: the table has no column of numbers. A
   column of numbers shown as a category becomes one when “number” is
-  chosen as its role." The window is named after its column, "Histogram
-  of height".
+  chosen as its role." The histogram is a tile of the Plots window
+  (above), named after its column, "Histogram of height".
 - The values are cut into 20 bins of equal width, from the lowest value
   to the highest (the number chosen by the owner; a field to change it
   comes in the second step). The vertical axis counts individuals, and is
   named "Individuals"; the axis of the values is named after the column
-  (the assistant's, for the owner to judge). The information bar says
+  (the assistant's, for the owner to judge). The tile's count line says
   how many it draws, "Drawing 1,688 of 2,000
   individuals: 312 have no value."
 - Each bar is stacked by the groups of the active classification. With no
@@ -710,14 +823,14 @@ bins.
   to 2" for the grey one; the words are the assistant's. Escape hides the
   label, which can cover the groups panel, until the pointer moves
   (decided by the owner on 4 October 2026).
-- The window has the groups panel with + and − on the group selected and
+- The Plots window has the groups panel with + and − on the group selected and
   no Add, Edit or Delete group; while + is pressed a click on a segment
   puts its individuals in the group, as a click selects them. On macOS a
   click does not act while the window is inactive, as on the map of
   countries; on Windows and Linux the first click always acts (section
   10), and there it selects the segment's individuals.
-- A change of role that leaves the column no number closes the window, as
-  for the 3D scatter.
+- A change of role that leaves the column no number closes the tile, as
+  it closes a 3D scatter's window.
 - In the second step, the individual under the pointer in another window
   is shown by a line around its bin.
 
@@ -726,24 +839,28 @@ the selected share of each bar is drawn inside it. Each widget shows how
 many rows it cannot place, for example "312 without coordinates". Those
 rows are still in every other view.
 
-Widgets are independent top-level windows, not child windows. In Tauri a
-window can be given a parent. On macOS that attaches it to the parent,
-so it moves with it. On Windows it makes the widget always sit above the
-main window and hide when the main window is minimized. Both get in the
-way of a layout spread over two monitors.
+The windows of the widgets, a 3D scatter's, the Plots and the Maps
+windows, are top-level windows, not child windows of the main window. In
+Tauri a window can be given a parent. On macOS that attaches it to the
+parent, so it moves with it. On Windows it makes the child always sit
+above the main window and hide when the main window is minimized. Both
+get in the way of a layout spread over two monitors.
 
 ### 2.3 Closing and quitting
 
-Closing a widget closes it. Closing the main window ends the session: if
-there are unsaved changes the app asks to save them, then quits and every
-widget closes with it. Quitting from the menu or with Cmd-Q goes through
+Closing a 3D scatter's window closes the scatter; the button of a tile
+closes the tile, and closing the Plots or the Maps window closes every
+tile in it. Closing the main window ends the session: if there are
+unsaved changes the app asks to save them, then quits and every other
+window closes with it. Quitting from the menu or with Cmd-Q goes through
 the same question. On macOS, clicking the app in the Dock with no window
 open shows the main window again.
 
 ### 2.4 Layouts
 
 The project saves which widgets are open, the columns each one shows,
-and the size and position of each window. Opening the project restores
+the window each is in and its order there, and the size and position of
+each window. Opening the project restores
 them. Positions are checked against the monitors present, which may not
 be the ones the project was saved with. Windows are created hidden, given
 their size and position, and then shown, so they do not flash in the wrong place.
@@ -803,6 +920,29 @@ All of this lives in a Rust core that does not depend on Tauri: a
 session, which holds the state, and a dispatcher, which applies commands
 to it. The Tauri commands are thin wrappers around the dispatcher. This
 is what lets the tests of section 11 run the real backend without Tauri.
+
+The core knows the data and the calculations on the data, and nothing of
+the windows (decided by the owner on 4 October 2026). What the windows
+show, which plots are open, in which window, and where the windows are,
+belongs to the app layer, the Rust of `src-tauri` that makes the windows,
+and to the windows themselves:
+
+- the core sends its changes to subscribers it knows by a name it does
+  not read, and never opens, closes or names a window;
+- the app layer keeps the list of the open plots of each window, opens,
+  brings forward and closes the windows, and tells a window when a plot
+  is added to it; it keeps this in a module that does not depend on
+  Tauri, so that the test program of section 11 runs the same code;
+- a window decides from its copy of the table which of its plots it can
+  still draw, and closes the others itself, as after a change of role;
+- the core reads and writes the project file, and stores in it the data
+  of the windows that the app layer gives it at a save, and gives it
+  back at a load, without reading it (section 8).
+
+Two parts of the core still name windows and are to move to the app
+layer: the items of the menu, which the core encodes for the main window
+(`core.md`, section 8), and the refusals about windows, `UnknownWindow`,
+`UnknownWidget` and `WindowFailed`, which share the core's error type.
 
 Making the main window's JavaScript the owner of the state was
 considered and not taken. Reloading or closing that window would lose
@@ -1103,7 +1243,7 @@ the app, and its Rust API changes between releases.
 
 ## 8. The project file
 
-A `.vav` file is a zip archive, as an xlsx is, with two files in it:
+A `.vav` file is a zip archive, as an xlsx is, with three files in it:
 
 - `table.parquet`: the data. Parquet is a standard binary format for
   tables that stores each column's type, its missing values and exact
@@ -1114,8 +1254,20 @@ A `.vav` file is a zip archive, as an xlsx is, with two files in it:
   told apart without an escaping of our own.
 - `project.json`: what Parquet cannot hold, which is a version of the
   format, each column's id, the role of each column, and for a category or a
-  classification the order of its levels and their colours, the active
-  classification, and the layout of the windows (section 2.4).
+  classification the order of its levels and their colours, and the active
+  classification.
+- `layout.json`: the layout of the windows (section 2.4), the plots open
+  in each window and the size and position of each, written by the app
+  layer. The core stores it as the app layer gives it at a save and gives
+  it back at a load, and never reads it (section 3); its format and its
+  version are the app layer's. A layout the app layer cannot read, as one
+  of a newer version of the app, is said so to the user, and the table
+  opens without its windows.
+
+A change of the layout alone, a plot opened or closed or a window moved,
+is no unsaved change: quitting after it asks nothing, and the layout is
+saved with the next save of the data (decided by the owner on 4 October
+2026).
 
 No fact is stored in both files. The storage types are read from
 Parquet, and `project.json` does not repeat them.
@@ -1256,12 +1408,14 @@ facts, taken from the Tauri 2.12 documentation and source and from tao
   a window that is not active only activates it, and the window never
   sees the click, unless the window sets `acceptFirstMouse`. On Windows
   and Linux the click always goes through. Tauri sets this for a whole
-  window, not for each gesture. The point views, the 3D scatter and the
-  map, set it, so that a lasso, a rotation or a pan starts on the first
-  press, as on the other platforms. The histograms, the bar plots and the
-  main window do not, because there a single click changes the shared
-  selection, which cannot be undone, and a click meant only to bring the
-  window forward would replace it.
+  window, not for each gesture. The 3D scatter's window sets it, so that a
+  lasso or a rotation starts on the first press, as on the other
+  platforms. The Plots window, the Maps window and the main window do not,
+  because there a single click changes the shared selection, which cannot
+  be undone, and a click meant only to bring the window forward would
+  replace it; in the Maps window this delays a pan or a lasso on the map
+  of the individuals to the second press (decided by the owner on
+  4 October 2026).
 - **Fullscreen on macOS.** A window in fullscreen moves to a Space of its
   own, a separate desktop, and the other windows of the app are no longer
   visible beside it, which defeats views meant to be seen together. So
@@ -1273,9 +1427,9 @@ facts, taken from the Tauri 2.12 documentation and source and from tao
   single-instance plugin passes it to the instance already running, so
   that there is still only one project open.
 - **Permissions by window.** A Tauri capability, the list of what a
-  window may call, names windows by their label, so the widgets get
-  labels such as `scatter3d-1` and one capability covers them all with a
-  pattern.
+  window may call, names windows by their label, so the windows of the
+  widgets get labels such as `scatter3d-1` and `plots-2`, and one
+  capability covers each kind with a pattern.
 
 Each window is a separate web view, with its own process and its own
 WebGL context, so memory grows with every window open. It has not been
@@ -1410,7 +1564,7 @@ Raised on 2 October 2026 while the skills of the project were written
   2026, both by Mike Bostock under the ISC licence and last published in
   June 2022: `world-atlas` 2.0.2, the Natural Earth borders in TopoJSON,
   with no dependency, of which the app uses `countries-50m.json`, 756 kB,
-  read only by the map windows; and `topojson-client` 3.1.0, 68 kB, which
+  read only by the Maps window; and `topojson-client` 3.1.0, 68 kB, which
   turns it into the borders, each shared border once, and the shapes of
   the countries. Its one dependency, `commander` 2, is for its command
   line tools and reaches no build. It ships no types: the two functions

@@ -22,6 +22,9 @@ describe("a refusal of the backend", () => {
     expect(
       isCommandError({ kind: "duplicateIndividual", name: "p2", firstRow: 1, secondRow: 3 }),
     ).toBe(true);
+    // The JSON of UnknownWidget in crates/vavilov-core/src/error/tests.rs.
+    expect(isCommandError({ kind: "unknownWidget", label: "plots-1", widget: 2 })).toBe(true);
+    expect(isCommandError({ kind: "unknownWidget", label: "plots-1", widget: -2 })).toBe(false);
   });
 
   test("of a page past the rows shown has the number of rows shown", () => {

@@ -19,8 +19,10 @@ classification** is the categorical column that colours every view, a
 **group** is one of its values, the **selected groups** are those the
 user chose in the groups panel, none, one or several, and a **lasso** is
 the outline the user draws around points in a plot to add them to the
-one group selected or to remove them from those selected. A **widget** is a window with one plot, a 3D
-scatter, a map, a histogram or a bar plot. `table_io` is the owner's
+one group selected or to remove them from those selected. A **widget** is one plot, a 3D
+scatter, a map, a histogram or a bar plot, in a window of its own or a
+tile of a window that holds several; the core knows none of them
+(section 7). `table_io` is the owner's
 library that reads and writes CSV and xlsx files, being built in its own
 repository. The **e2e harness** is the program that runs the windows of
 the app in a test browser, with the backend behind them
@@ -192,8 +194,8 @@ it and whether it is undone. `OpenProject` holds the first two:
   colours, and the undo and redo history of edits to it. It is what the
   project file saves, the history apart.
 - **The interaction**: the active classification, the selected
-  groups, the button + or − pressed on them, the selection, the hover,
-  and the open widgets (section 7). The active classification, the
+  groups, the button + or − pressed on them, the selection and the
+  hover. The active classification, the
   selected groups and the button are one value, `Option<Active { column,
   selected: SelectedGroups, mode: Option<EditMode> }>`, so that a
   selected group cannot exist without the classification it belongs
@@ -500,9 +502,9 @@ the tests of the core by recording what they receive.
   been applied and is not failed for it. The window then receives
   nothing more until it subscribes again, so the app reports the failure
   as a defect and reloads the window if it is still open.
-- **A label must be one the session knows**: `main`, or an open widget
-  (section 7). A window that subscribes with another label is refused,
-  and the app closes it.
+- **Which windows may subscribe is the app layer's** (section 7): the
+  main window, and a window of widgets the app layer keeps open. It
+  refuses another before it reaches the session, and closes it.
 
 The snapshot comes back as the response of the subscribe command, and the
 channel can deliver a message before the window has read that response.
@@ -532,7 +534,7 @@ numbers are little-endian, the order of every platform the app targets.
 
 | bytes | field |
 |---|---|
-| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows, 4 action, 5 numbers (below) |
+| 0 | the kind of message: 0 snapshot, 1 change, 2 hover, 3 rows, 4 action, 5 numbers (below); 6 is the app layer's list of a window's widgets (section 7), whose layout is the app layer's (`src-tauri/src/widgets.rs`, `WidgetList::to_bytes`) |
 | 1 | flags: bit 0 set when the time below was given, the other bits zero |
 | 2 to 7 | zero |
 | 8 to 15 | the revision, `u64` |
@@ -861,87 +863,39 @@ text, and a poisoned lock is a `Defect`.
   state our code makes impossible, such as a revision that would pass
   2^53 − 1.
 
-## 7. Opening and closing windows
+## 7. The windows are not the core's
 
-Some rules about windows are rules about the data, and belong in the
-core: removing a column closes every widget that shows it (`design.md`,
-section 2.2). The session keeps the open widgets, each with its label,
-its kind and its columns, a `WidgetSpec`: `Scatter3d { axes: [x, y, z]
-}`, `Map { latitude, longitude }`, `CountryMap { country }` or
-`Histogram { column }`, and gives the labels, `scatter3d-1`, `map-2`,
-`countryMap-3`, `histogram-4` and on, from one
-counter that only grows, so that a label is never given twice. The widgets are part of
-the open project, since they show its columns, so a load closes them all;
-the counter is the session's, so that a label is not given again in the
-next project.
+The core knows the data and the calculations on it, and nothing of the
+windows (`design.md`, section 3, decided by the owner on 4 October 2026).
+It sends its changes to subscribers it knows by a name it does not read,
+`Session::subscribe(label, subscriber)`, and forgets one with
+`Session::unsubscribe(label)` when the app tells it the window is gone.
+Which plots are open, in which window, which windows may subscribe, and
+when a window opens or closes, are the app layer's:
+`src-tauri/src/widgets.rs` keeps them without Tauri, so that the test
+program of the e2e harness runs the same code, and `windows.rs` makes the
+windows with Tauri. Which column a plot can show is the windows' rule
+(`src/state/plotColumns.ts`, `widgetFits`): a window closes a plot it
+cannot show, as after a change of role.
 
-`Session::open_widget(spec, based_on)` adds a widget and returns its
-label; it is refused as a command made before the load, as `NoProject`,
-and as `UnknownColumn`, `NotNumber`, or `NotRole` with the role it
-needs, for a column it cannot show, and it
-takes no revision and sends no message, since no window's copy holds the
-widgets: the main window does not list them, and each widget's window
-learns only its own. It asks for it with `describe_widget`, which takes
-no argument and which the app answers from the label of the window that
-calls it, so that a page cannot ask for another window's: the widget's
-`WidgetSpec` as JSON, `{ "kind": "scatter3d", "axes": [4, 5, 6] }`, the
-ids of the columns on the x, y and z axes, `{ "kind": "map", "latitude":
-2, "longitude": 3 }`, `{ "kind": "countryMap", "country": 1 }` or `{
-"kind": "histogram", "column": 4 }`, or `UnknownWindow` for a
-window that is no open widget. When a window is closed, by the
-user or by the app, `Session::window_closed(label)` forgets its
-subscriber and its widget.
+The one question the app asks the core about a plot is whether the
+window that asked for it did so from a copy of the table now loaded:
+`Session::check_based_on(based_on)` refuses one made before the load as
+`MadeBeforeLoad`, since its column ids may name other columns now.
 
-A command that leaves a widget with a column it can no longer show closes
-it: after a load, every widget; after a change of role, a 3D scatter with
-the column on an axis when the column is no longer a number, a latitude or
-a longitude, a map when its latitude or its longitude column has any other
-role, a plain number among them, and a map of countries when its column is
-no longer of countries (decided by the assistant on 3 October 2026, to be
-confirmed by the owner). The dispatcher drops such widgets and their subscribers
-before it sends the command's message, so that their windows receive
-nothing more, and returns their labels in `Outcome::closed`. Undoing the
-change brings the column back as it was but does not reopen the widget,
-as `design.md`, section 2.2, has it for a column removed.
+The app opens, brings forward and closes the windows through its trait
+`WindowHost`, once its locks are released, since a new window subscribes
+as it starts, which takes them, and in Tauri a window created from a
+synchronous command deadlocks on Windows (`tauri.md`). When it forgets a
+window, after a load or with its last plot, it first unsubscribes it from
+the session, so that the window receives nothing more. A command that
+takes both the session's lock and the widgets' takes the session's
+first.
 
-A command does not open or close a window itself. It returns, with its
-outcome, the windows to open and close, and the caller does it once it
-has released the lock, through the core's trait:
-
-```rust
-pub trait WindowHost {
-    fn open(&mut self, label: &WindowLabel, widget: &WidgetSpec) -> Result<(), CommandError>;
-    fn close(&mut self, label: &WindowLabel) -> Result<(), CommandError>;
-}
-```
-
-Each returns `CommandError::WindowFailed`, with the window's label and
-the system's message, when the window could not be opened or closed. The
-app implements it with Tauri windows (`src-tauri/src/windows.rs`) and the
-e2e test program by asking the harness to open and close pages
-(`design.md`, section 11). The app's `open_widget` and the test program
-both take the label from the call's reply, open the window once the lock
-is released, and tell the session with `window_closed` when it failed;
-both close the windows of `Outcome::closed` after every command, and a
-window that cannot be closed is written to the log, since the session has
-forgotten it already.
-The windows are opened outside the lock for two reasons: a new window
-subscribes as it starts, which takes the lock, and in Tauri a window
-created from a synchronous command deadlocks on Windows (`tauri.md`).
-
-Because the lock is released before the windows are opened, two
-commands can interleave there: one adds widget W and releases the lock,
-a second removes W's column and asks to close W before W's window
-exists, and then the first opens it. The session is what settles it.
-Once the window exists, the app's `open_widget` checks under the lock
-that W is still open, and closes the window when it is not
-(`windows::open_widget_window`), before its page can show anything. And
-a window subscribes with its label as it starts, and the session refuses
-a label that is not an open widget (section 5), so the app closes a
-window the session no longer has however it came to be open. A window that fails to open is reported to
-the session with `window_closed`, which removes it from the widgets, so
-that the session does not keep a widget no window shows; the user sees
-the error the main window writes from `WindowFailed`.
+Two parts of the core still name windows and are to move to the app
+layer: the items of the menu, which the core encodes for the main window
+(section 8), and the refusals about windows, `UnknownWindow`,
+`UnknownWidget` and `WindowFailed`, which share the core's error type.
 
 ## 8. The import and the export
 
@@ -1055,7 +1009,8 @@ Later, each in its own slice:
   their layouts (built: the description, the pages of rows, and a
   numeric column whole, section 5);
 - the widgets and `WindowHost`, with the e2e test program (built on
-  3 October 2026, section 7), and the layouts of `design.md`, section 2.4;
+  3 October 2026, and moved to the app layer on 4 October 2026, section
+  7), and the layouts of `design.md`, section 2.4;
 - the project file, a zip of Parquet and JSON (`design.md`, section 8),
   whose two crates the owner has not approved, and the flag of unsaved
   changes;

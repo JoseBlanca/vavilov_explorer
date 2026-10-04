@@ -101,14 +101,18 @@ The harness opens one page, in one of two modes:
 With the test program, each window is a page of one browser, with its
 window's label (`docs/design.md`, section 11), and each channel message
 goes to the page of its window. The test program opens and closes a
-widget's window through the core's `WindowHost` by writing a line that
-asks the harness for a page, or to close one, before the answer of the
-call; `app.window(label)` resolves with the page once it is open, and
+window of widgets through the app layer's `WindowHost` by writing a line that
+asks the harness for a page, to bring one to the front, or to close one,
+before the answer of the call; `app.window(label)` resolves with the page once it is open, and
 fails when none has opened within 10 seconds, so that a window that never
 opens fails the test instead of hanging it,
 `app.closeWindow(label)` closes one as the user closes a window and tells
-the session with `e2e:closed`, as Tauri tells the app, and
-`app.windows()` gives the labels of the pages open (`e2e/widgets.mjs`).
+the program with `e2e:closed`, as Tauri tells the app, a page closed by
+the program receives the messages sent before first, as Tauri's window
+does, and
+`app.windows()` gives the labels of the pages open (`e2e/widgets.mjs`),
+and `app.raised()` those brought to the front, in order, as when a
+histogram joins the open Plots window (`e2e/histogram.mjs`).
 Playwright's `context.newPage()` takes no options, so each page sets its
 size with `setViewportSize`. Tauri's own `mockIPC` is not used: it
 replaces the backend rather than the transport, and its event mocking
@@ -153,10 +157,16 @@ once:
   right click;
 - a lost WebGL context gives no `WEBGL_lose_context` extension, so the
   test of a loss keeps the one it fetched before, to restore with it;
-- the dev server's build exposes the plot of a plot window as
-  `__vavilovPlot`, behind `import.meta.env.DEV`, which a build for users
-  does not have: `placeOf(row)` of a point, and on a map
-  `placeOfDegrees(latitude, longitude)` of a place;
+- the dev server's build exposes the plot of a window of one plot as
+  `__vavilovPlot`, and those of a window of tiles, the Plots or the Maps
+  window, by their widget's number as `__vavilovPlotOf(id)`, behind `import.meta.env.DEV`, which a build
+  for users does not have: `placeOf(row)` of a point, on a map
+  `placeOfDegrees(latitude, longitude)` of a place, and on a histogram
+  `placeOf(segment)`;
+- a page that may close as soon as a click is made, as the Plots window
+  with its last tile, is waited for with `waitForEvent("close")` started
+  before the click: Chromium closed it before the click's promise
+  resolved, and a wait started after never ended (4 October 2026);
 - a point is checked where the centre of the pixels of its colour is,
   within 1 px of its place, not by one pixel at its place, which passed
   with the place 2 px off;

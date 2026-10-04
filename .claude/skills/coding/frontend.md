@@ -50,8 +50,10 @@ of truth: no controller, view or plot keeps its own copy of a part of it.
   unsubscribes.
 - **Aspects** are what changes together: `table` (the project and the
   revisions of the columns), `classification` (the active classification
-  and the selected group), `codes`, `selection`, `hover` and `undo`
-  (`src/state/windowState.ts`), and later the layout. A change of
+  and the selected group), `codes`, `selection`, `hover`, `undoRedo` and
+  `filter` (`src/state/windowState.ts`). The widgets of a window are not
+  the core's: the connection keeps the newest list the app layer gave
+  (`fetchWidgets`, `onWidgets`, `docs/design.md`, section 2.2). A change of
   several aspects calls each listener once, after the whole message is
   applied; a message whose part does not fit leaves the copy as it was.
   A component
@@ -184,7 +186,18 @@ The table draws only the rows on screen (`docs/design.md`, section 2.1):
 ## The D3 plots
 
 The histograms and the bar plots, in `src/plots/`, from popnei_web's
-`charts.md`:
+`charts.md`. In the Plots window each is a tile, as each map is in the
+Maps window (`docs/design.md`, section 2.2): the controller of a window
+of tiles (`src/windows/tiles/`) keeps one tile controller per widget of
+its newest list that the table can show, made and destroyed as the list
+and the description change, the tiles the table cannot show destroyed
+before the others take the new description; and it keeps for all of
+them the groups panel, the information bar of messages, the labels
+beside the pointer, the one lasso waiting, and the bar of a defect. A
+tile's controller draws its title bar and its count, and joins its plot
+to the state. A tile closed while one of its columns was on its way draws
+nothing when the column arrives. A point view, of a 3D scatter's window
+or a map's tile, is one component (`src/windows/shared/pointView.controller.ts`).
 
 - **A plot is a function**, `createHistogram(element, data, events)`, that
   returns a handle `{ update(data), destroy() }`. A closure, not a class.
