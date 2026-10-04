@@ -17,7 +17,7 @@ use vavilov_core::{
 };
 
 use crate::error::{AppError, WindowError};
-use crate::widgets::{Closed, WidgetId, WidgetList, WidgetSpec, Widgets};
+use crate::widgets::{Closed, Placed, WidgetId, WidgetList, WidgetSpec, Widgets};
 
 /// The commands `call` takes, every command of the app but `subscribe`
 /// and those of the widgets, `open_widget`, `close_widget` and
@@ -303,12 +303,19 @@ pub struct OpenedWidget {
     pub window: WindowLabel,
     /// What it shows.
     pub spec: WidgetSpec,
-    /// Whether its window is new, for the caller to open, rather than the
-    /// open window of its kind, which was sent its new list, for the caller
-    /// to bring to the front.
-    pub new_window: bool,
-    /// The open window, when its channel failed as it was sent its list.
-    pub dropped: Option<Dropped>,
+    /// Whether its window is new or the open one of its kind.
+    pub opened_in: OpenedIn,
+}
+
+/// The window a widget added by [`open_widget`] went into.
+#[derive(Debug)]
+pub enum OpenedIn {
+    /// A new window, for the caller to open.
+    NewWindow,
+    /// The open window of its kind, which was sent its new list, for the
+    /// caller to bring to the front; with the window, when its channel
+    /// failed as it was sent the list.
+    Open(Option<Dropped>),
 }
 
 /// Adds a widget, for `open_widget`: `{ spec, basedOn }`, `spec` being
@@ -335,15 +342,14 @@ pub fn open_widget(
     }
     session.check_based_on(Revision::new(args.based_on))?;
     let opened = widgets.open(args.spec.clone())?;
-    let dropped = match &opened.list {
-        Some(list) => send_list(session, &opened.window, list)?,
-        None => None,
+    let opened_in = match &opened.placed {
+        Placed::Added(list) => OpenedIn::Open(send_list(session, &opened.window, list)?),
+        Placed::NewWindow => OpenedIn::NewWindow,
     };
     Ok(OpenedWidget {
         window: opened.window,
         spec: args.spec,
-        new_window: opened.list.is_none(),
-        dropped,
+        opened_in,
     })
 }
 

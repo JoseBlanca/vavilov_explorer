@@ -3,7 +3,6 @@ import { render } from "lit-html";
 import { connect } from "../../backend/connection.ts";
 import { tauriTransport } from "../../backend/transport.ts";
 import { defect } from "../../state/defect.ts";
-import type { TableDescription } from "../../state/description.ts";
 import type { WidgetId } from "../../state/ids.ts";
 import { widgetFits } from "../../state/plotColumns.ts";
 import { tileGrid } from "../../state/tileGrid.ts";
@@ -98,8 +97,6 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
     };
     /** The tile whose button was pressed, and its place, so that the focus goes to the next. */
     let closing: { readonly id: WidgetId; readonly index: number } | null = null;
-    /** The description of the table last fetched, which says which widgets the window can show. */
-    let description: TableDescription | null = null;
     /** The widgets the window asked to forget, since it cannot show them, asked once each. */
     const unfit = new Set<WidgetId>();
 
@@ -124,16 +121,19 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
      * longer has or can no longer show, and asks the app layer to forget
      * the second, as after a change of role (docs/design.md, section 2.2);
      * then gives the focus to the tile that took the place of one the user
-     * closed. Nothing is drawn before the table is described. Returns the
-     * tiles it made, which have the description already.
+     * closed. It judges by the description of the copy alone, and does
+     * nothing while the one fetched is behind or ahead of it: a list can
+     * come before the description of the change of role that lets it be
+     * drawn, which is asked for and calls it again. Returns the tiles it
+     * made, which have the description already.
      */
     const syncTiles = (): ReadonlySet<WidgetId> => {
       const made = new Set<WidgetId>();
       const list = connection.widgets();
-      if (list === null || description === null) {
+      const now = table.current();
+      if (list === null || now === null) {
         return made;
       }
-      const now = description;
       widgets = list.widgets.filter((widget) => widgetFits(widget.spec, now));
       for (const widget of list.widgets) {
         if (!widgetFits(widget.spec, now) && !unfit.has(widget.id)) {
@@ -180,8 +180,13 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
     };
 
     const describe = async (): Promise<void> => {
-      const described = await table.fetch();
-      description = described;
+      await table.fetch();
+      // A description of another shape than the copy's is followed by
+      // another, asked for as the copy's table changes.
+      const described = table.current();
+      if (described === null) {
+        return;
+      }
       // The tiles the table can no longer show go first: a map of countries
       // given a column that is no longer of countries cannot draw it.
       const made = syncTiles();
@@ -250,7 +255,7 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
         return undefined;
       });
     }
-    await connection.fetchWidgets();
+    await connection.windowWidgets();
     await describe();
   } catch (error: unknown) {
     defectBar.show(error);

@@ -146,6 +146,8 @@ export function createPointView(
   let placed: { from: readonly ColumnNumbers[]; placed: Placed } | null = null;
   /** Whether the view was destroyed: a column that arrives after is not drawn. */
   let destroyed = false;
+  /** Whether the pointer is over a point, whose hover and label the view set. */
+  let hovering = false;
 
   const dropLasso = (): void => {
     if (lasso !== null) {
@@ -194,6 +196,7 @@ export function createPointView(
     {
       onHover: (point, place) => {
         const row = point === null ? null : rowOf(point);
+        hovering = row !== null;
         context.hover.send(row);
         if (row === null || place === null) {
           context.hoverLabel.hide();
@@ -295,6 +298,12 @@ export function createPointView(
       destroyed = true;
       for (const unsubscribe of unsubscribes) {
         unsubscribe();
+      }
+      // A view closed under the pointer, as a tile after a change of role,
+      // gets no event that the pointer left it.
+      if (hovering) {
+        context.hover.send(null);
+        context.hoverLabel.hide();
       }
       plot.destroy();
     },

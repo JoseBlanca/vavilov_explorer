@@ -487,6 +487,46 @@ for (const engine of Object.keys(ENGINES)) {
     const blind = await app.window("scatter3d-5");
     await blind.getByText("WebGL plots are not supported on this computer.").waitFor();
 
+    // A tile that cannot draw takes the focus as one that can: the button
+    // that closes the tile before it, pressed with the keyboard, leaves the
+    // focus on the tile that took its place, not on the page.
+    const described = await backend.send({ command: "describe_table", window: "main", json: {} });
+    const loadedAt = described.ok.loadedAt;
+    for (const [column, role] of [
+      [2, "latitude"],
+      [4, "longitude"],
+    ]) {
+      const set = await backend.send({
+        command: "set_role",
+        window: "main",
+        json: { column, role, basedOn: loadedAt },
+      });
+      assert.equal(set.ok, null, JSON.stringify(set));
+    }
+    for (let map = 0; map < 2; map += 1) {
+      const opened = await backend.send({
+        command: "open_widget",
+        window: "main",
+        json: { spec: { kind: "map", latitude: 2, longitude: 4 }, basedOn: loadedAt },
+      });
+      assert.equal(opened.ok, null, JSON.stringify(opened));
+    }
+    const blindMaps = await app.window("maps-6");
+    const closeMap = blindMaps.getByRole("button", { name: "Close Map of height and PC1" });
+    await blindMaps.waitForFunction(
+      () => globalThis.document.querySelectorAll("[data-tile]").length === 2,
+    );
+    await closeMap.first().focus();
+    await blindMaps.keyboard.press("Enter");
+    await blindMaps.waitForFunction(
+      () => globalThis.document.querySelectorAll("[data-tile]").length === 1,
+    );
+    await blindMaps.waitForFunction(
+      () =>
+        globalThis.document.activeElement?.getAttribute("aria-label") ===
+        "Close Map of height and PC1",
+    );
+
     assert.deepEqual(errors, [], "no page errors");
     console.log(`e2e widgets, ${engine}: passed`);
   } finally {

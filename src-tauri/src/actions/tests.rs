@@ -122,3 +122,33 @@ fn a_main_window_whose_channel_failed_is_removed_and_returned_with_its_failure()
     );
     assert!(send_action(&mut session, MenuAction::Redo).is_err());
 }
+
+#[test]
+fn the_kinds_of_an_action_are_those_the_core_keeps_for_the_app_layer() {
+    assert!(vavilov_core::APP_MESSAGE_KINDS.contains(&ACTION_MESSAGE));
+    assert!(vavilov_core::APP_PART_KINDS.contains(&ACTION_PART));
+}
+
+#[test]
+fn the_items_with_a_dialog_or_a_message_show_in_the_main_window() {
+    let shown = [
+        MenuAction::ImportTable,
+        MenuAction::ExportCsv,
+        MenuAction::ExportXlsx,
+        MenuAction::Undo,
+        MenuAction::Redo,
+        MenuAction::Scatter3d,
+        MenuAction::Map,
+        MenuAction::CountryMap,
+        MenuAction::Histogram,
+        MenuAction::SelectNone,
+        MenuAction::OpenExample,
+    ]
+    .map(MenuAction::shows_in_main_window);
+    assert_eq!(
+        shown,
+        [
+            true, true, true, false, false, true, true, true, true, false, true
+        ]
+    );
+}

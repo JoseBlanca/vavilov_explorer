@@ -36,7 +36,7 @@ export async function startPointWindow(
   try {
     const connection = await connect(tauriTransport(), defectBar.show);
     const { state } = connection;
-    const widget = onlyWidget((await connection.fetchWidgets()).widgets);
+    const widget = onlyWidget((await connection.windowWidgets()).widgets);
     const kind = kindOf(widget.spec);
     const decimalMark = await connection.regionDecimalMark();
     const table = createDescribedTable(connection);
@@ -74,7 +74,13 @@ export async function startPointWindow(
     );
 
     const describe = async (): Promise<void> => {
-      const described = await table.fetch();
+      await table.fetch();
+      // A description of another shape than the copy's is followed by
+      // another, asked for as the copy's table changes.
+      const described = table.current();
+      if (described === null) {
+        return;
+      }
       // A change of role that leaves the plot a column it cannot show
       // closes it, and with it the window.
       if (!widgetFits(widget.spec, described)) {

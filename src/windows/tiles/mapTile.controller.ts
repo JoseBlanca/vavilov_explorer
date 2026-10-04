@@ -132,12 +132,19 @@ export function createMapTile(
 
 /**
  * A tile whose plot cannot be drawn: it takes the description for its name
- * alone, and has nothing to focus, no lasso and no plot.
+ * alone, gives the focus to its button, the one control it has, and has no
+ * lasso and no plot.
  */
 export function cannotDrawTile(element: HTMLElement, described: PlotTile["described"]): PlotTile {
   return {
     described,
-    focus: () => undefined,
+    focus: () => {
+      const close = element.querySelector("button");
+      if (close === null) {
+        throw defect("a tile with no button to close it");
+      }
+      close.focus();
+    },
     forgetPointer: () => undefined,
     lassoWaiting: () => false,
     applyLasso: () => undefined,

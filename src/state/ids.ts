@@ -21,7 +21,7 @@ export type Position = number & { readonly __brand: "Position" };
 
 /**
  * The number of a widget, given when it is opened and never given again,
- * `WidgetId` of the core.
+ * from 1, `WidgetId` of the app layer.
  */
 export type WidgetId = number & { readonly __brand: "WidgetId" };
 
@@ -41,9 +41,9 @@ export function isColumnId(value: number): value is ColumnId {
   return isWhole(value, NO_COLUMN);
 }
 
-/** Whether `value` can be a widget's number: a `u32`. */
+/** Whether `value` can be a widget's number: a `u32` other than 0, which is never given. */
 export function isWidgetId(value: number): value is WidgetId {
-  return isWhole(value, 2 ** 32);
+  return value !== 0 && isWhole(value, 2 ** 32);
 }
 
 /** Whether `value` can be a row: a `u32` other than {@link NO_ROW}. */

@@ -500,7 +500,7 @@ on 4 October 2026 within the boundary of section 3:
 - A window asks the app layer for its widgets when it starts, and again
   after a reload, and is sent the whole list on its channel, the stream
   through which the backend sends it every change, whenever a widget is
-  added to it. Each list has a sequence number that only grows, and the
+  added to it or closed and it keeps others. Each list has a sequence number that only grows, and the
   window keeps the newest, since an answer to its request and a message
   of its channel travel separately and can arrive in either order.
 - A window draws the widgets its copy of the table can show, and asks

@@ -378,10 +378,15 @@ for (const engine of Object.keys(ENGINES)) {
     // and Peru none.
     await legend.filter({ hasText: /No individuals\s*1\s*5/ }).waitFor();
 
-    // A tile's button closes it alone.
+    // A tile's button closes it alone; the last tile closed gives the focus
+    // to the tile before it.
     await maps.getByRole("button", { name: "Close Map of lat and lon" }).nth(1).click();
     await maps.waitForFunction(
       () => globalThis.document.querySelectorAll("[data-tile]").length === 2,
+    );
+    await maps.waitForFunction(
+      (id) => globalThis.document.activeElement?.closest("[data-tile]")?.dataset.tile === id,
+      String(POINTS),
     );
     // With two tiles, the map of countries has half the window, where Peru
     // is large enough to find a pixel of: it holds none now.
@@ -391,11 +396,16 @@ for (const engine of Object.keys(ENGINES)) {
     // A change of role that leaves a map a column it cannot show closes its
     // tile: a latitude made a plain number closes the map of the
     // individuals, and the window keeps the map of countries; the
-    // countries made a category close the last, and the window with it.
+    // countries made a category close the last, and the window with it. A
+    // map closed under the pointer takes the label of its point with it.
+    const hovered = await steadyPlace(maps, POINTS, 2);
+    await maps.mouse.move(hovered.x, hovered.y);
+    await pointLabel.waitFor();
     await grid.getByRole("combobox", { name: "Role of lat", exact: true }).selectOption("number");
     await maps.waitForFunction(
       () => globalThis.document.querySelectorAll("[data-tile]").length === 1,
     );
+    await pointLabel.waitFor({ state: "hidden" });
     await countriesTile.getByRole("application", { name: "Map of countries in origin" }).waitFor();
     // Waited for before the change, which can close the page before the
     // select's own promise resolves.

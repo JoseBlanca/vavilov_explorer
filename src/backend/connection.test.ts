@@ -822,7 +822,7 @@ describe("setting a role", () => {
   });
 });
 
-/** The message of an action of `code`, as the core writes it (crates/vavilov-core/src/action/tests.rs). */
+/** The message of an action of `code`, as the app layer writes it (src-tauri/src/actions/tests.rs). */
 function actionAt(code: number): ArrayBuffer {
   // prettier-ignore
   return buffer(
@@ -874,7 +874,7 @@ describe("the widgets of the window", () => {
       answer: () => Promise.resolve(widgetsAt(2, 5)),
     });
     const connection = await connect(transport, failOnDefect);
-    const list = await connection.fetchWidgets();
+    const list = await connection.windowWidgets();
     expect(list).toEqual({ seq: 2, widgets: [{ id: 5, spec: { kind: "histogram", column: 1 } }] });
     expect(connection.widgets()).toEqual(list);
     expect(calls.at(-1)?.command).toBe("window_widgets");
@@ -889,8 +889,12 @@ describe("the widgets of the window", () => {
     const told: number[] = [];
     connection.onWidgets((list) => told.push(list.seq));
     // The answer, older than the list the channel brought, is not kept.
-    expect((await connection.fetchWidgets()).seq).toBe(3);
+    expect((await connection.windowWidgets()).seq).toBe(3);
     deliver(widgetsAt(4, 8));
+    expect(connection.widgets()?.seq).toBe(4);
+    expect(told).toEqual([4]);
+    // A list older than the one kept, on the channel too, is not told.
+    deliver(widgetsAt(3, 9));
     expect(connection.widgets()?.seq).toBe(4);
     expect(told).toEqual([4]);
     expect(connection.state.revision()).toBe(1);

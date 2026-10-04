@@ -261,3 +261,33 @@ fn a_button_that_cannot_act_on_what_is_selected_is_not_written() {
         );
     }
 }
+
+#[test]
+fn no_kind_of_message_or_part_of_the_core_takes_a_number_kept_for_the_app_layer() {
+    for kind in [
+        MessageKind::Snapshot,
+        MessageKind::Change,
+        MessageKind::Hover,
+        MessageKind::Rows,
+        MessageKind::Numbers,
+    ] {
+        assert!(!APP_MESSAGE_KINDS.contains(&kind.byte()), "{kind:?}");
+    }
+    for kind in [
+        PartKind::Project,
+        PartKind::Active,
+        PartKind::Selection,
+        PartKind::Codes,
+        PartKind::Undo,
+        PartKind::Columns,
+        PartKind::Hover,
+        PartKind::Page,
+        PartKind::Names,
+        PartKind::Values,
+        PartKind::Shape,
+        PartKind::Filter,
+        PartKind::Numbers,
+    ] {
+        assert!(!APP_PART_KINDS.contains(&kind.code()), "{kind:?}");
+    }
+}

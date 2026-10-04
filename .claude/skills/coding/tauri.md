@@ -100,7 +100,12 @@ follows:
   it receives nothing more.
 - **A window is never destroyed from inside its own call**: the close is
   queued with `run_on_main_thread`, as creating one from a synchronous
-  command deadlocks on Windows.
+  command deadlocks on Windows, and a command that closes a window runs
+  off the main thread, `#[tauri::command(async)]`: called from the main
+  thread, `run_on_main_thread` runs the task at once instead of queuing
+  it (`tauri-runtime-wry` 2.12.1, `send_user_message`; found by the
+  review of 4 October 2026). Tauri's mock runtime always queues, so the
+  tests of the commands cannot see it.
 - **Bulk data is returned as raw bytes**: a command returns
   `tauri::ipc::Response::new(bytes)`, which the window receives as an
   `ArrayBuffer`, with no JSON. A column of 50,000 `f32` is 200 kB; the

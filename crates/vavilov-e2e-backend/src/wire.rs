@@ -215,16 +215,19 @@ fn outcome(
         "open_widget" => {
             window(line.window)?;
             let opened = calls::open_widget(session, widgets, &json_body(line.json)?)?;
-            if let Some(dropped) = opened.dropped {
-                return Err(Failure::Harness(format!(
-                    "open_widget was applied, and a channel failed: {dropped:?}"
-                )));
-            }
-            if !opened.new_window {
-                host.raise(&opened.window)?;
-            } else if let Err(error) = host.open(&opened.window, &opened.spec) {
-                widgets.window_closed(&opened.window);
-                return Err(Failure::Refused(error));
+            match opened.opened_in {
+                calls::OpenedIn::Open(Some(dropped)) => {
+                    return Err(Failure::Harness(format!(
+                        "open_widget was applied, and a channel failed: {dropped:?}"
+                    )));
+                }
+                calls::OpenedIn::Open(None) => host.raise(&opened.window)?,
+                calls::OpenedIn::NewWindow => {
+                    if let Err(error) = host.open(&opened.window, &opened.spec) {
+                        widgets.window_closed(&opened.window);
+                        return Err(Failure::Refused(error));
+                    }
+                }
             }
             Ok(Answer::Done)
         }

@@ -325,6 +325,31 @@ for (const engine of Object.keys(ENGINES)) {
     await tile(plots, "Histogram of lat").getByRole("img", { name: "Histogram of lat" }).waitFor();
     assert.deepEqual(app.windows(), ["main", "plots-1"]);
 
+    // A histogram opened as soon as its column is a number again is drawn,
+    // although its list can reach the window before the new description:
+    // a window judges a widget only by the description of its copy.
+    const [renumbered, reopened] = await Promise.all([
+      backend.send({
+        command: "set_role",
+        window: "main",
+        json: { column: 3, role: "number", basedOn: 1 },
+      }),
+      backend.send({
+        command: "open_widget",
+        window: "main",
+        json: { spec: { kind: "histogram", column: 3 }, basedOn: 1 },
+      }),
+    ]);
+    assert.equal(renumbered.ok, null, JSON.stringify(renumbered));
+    assert.equal(reopened.ok, null, JSON.stringify(reopened));
+    await tile(plots, "Histogram of height")
+      .getByRole("img", { name: "Histogram of height" })
+      .waitFor();
+    await plots.getByRole("button", { name: "Close Histogram of height" }).click();
+    await plots.waitForFunction(
+      () => globalThis.document.querySelectorAll("[data-tile]").length === 1,
+    );
+
     // Closing the last tile closes the window, and the next histogram
     // opens a new one.
     // Waited for before the click, which can close the page before the

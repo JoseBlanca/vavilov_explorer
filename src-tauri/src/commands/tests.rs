@@ -591,6 +591,9 @@ fn a_widget_is_allowed_every_command_its_window_calls_and_not_to_edit_the_groups
     for (cmd, args) in [
         ("subscribe", json!({ "onChange": "__CHANNEL__:2" })),
         ("describe_table", json!({})),
+        ("window_widgets", json!({})),
+        // A change of role that leaves it a column it cannot show.
+        ("close_widget", json!({ "widget": 9 })),
         ("region_decimal_mark", json!({})),
         ("fetch_column", json!({ "column": 2, "basedOn": 1 })),
         (
@@ -1395,4 +1398,148 @@ fn the_main_window_cannot_call_tauri_s_own_functions_it_does_not_use() {
             "{cmd}: {refusal}"
         );
     }
+}
+
+/// Every command of the app, as `build.rs` gives them to Tauri to check
+/// against the capabilities.
+const EVERY_COMMAND: [&str; 27] = [
+    "subscribe",
+    "describe_table",
+    "fetch_rows",
+    "fetch_column",
+    "fetch_row",
+    "open_widget",
+    "close_widget",
+    "window_widgets",
+    "set_selection",
+    "assign_rows",
+    "unassign_rows",
+    "set_hover",
+    "set_active_classification",
+    "select_groups",
+    "add_group",
+    "delete_group",
+    "edit_group",
+    "set_edit_mode",
+    "set_role",
+    "set_filter",
+    "set_cells",
+    "undo",
+    "redo",
+    "import_table",
+    "open_example",
+    "export_table",
+    "region_decimal_mark",
+];
+
+#[test]
+fn every_command_of_the_app_is_listed_in_build_rs() {
+    let build = include_str!("../../build.rs");
+    let listed: Vec<&str> = build
+        .split("const COMMANDS: &[&str] = &[")
+        .nth(1)
+        .and_then(|rest| rest.split("];").next())
+        .unwrap()
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| line.trim_end_matches(',').trim_matches('"'))
+        .collect();
+    assert_eq!(listed, EVERY_COMMAND);
+}
+
+/// Each command of the app but `allowed` is refused to `window`, so that a
+/// permission added to its capability by mistake fails here.
+fn refused_but(window: &WebviewWindow<MockRuntime>, allowed: &[&str]) {
+    let others: Vec<&str> = EVERY_COMMAND
+        .into_iter()
+        .filter(|cmd| !allowed.contains(cmd))
+        .collect();
+    refused(window, &others);
+}
+
+#[test]
+fn each_kind_of_window_is_refused_every_command_it_does_not_call() {
+    let (app, main) = app();
+    load_places(&app);
+    let scatter = open_widget(
+        &app,
+        &main,
+        json!({ "kind": "scatter3d", "axes": [2, 3, 2] }),
+        "scatter3d-1",
+    );
+    let plots = open_widget(
+        &app,
+        &main,
+        json!({ "kind": "histogram", "column": 2 }),
+        "plots-2",
+    );
+    let maps = open_widget(
+        &app,
+        &main,
+        json!({ "kind": "map", "latitude": 2, "longitude": 3 }),
+        "maps-3",
+    );
+    // The windows of points: the 3D scatter's and the Maps window.
+    let points = [
+        "subscribe",
+        "describe_table",
+        "window_widgets",
+        "close_widget",
+        "fetch_column",
+        "fetch_row",
+        "set_hover",
+        "set_selection",
+        "assign_rows",
+        "unassign_rows",
+        "region_decimal_mark",
+        "set_active_classification",
+        "select_groups",
+        "set_edit_mode",
+    ];
+    refused_but(&scatter, &points);
+    refused_but(&maps, &points);
+    refused_but(
+        &plots,
+        &[
+            "subscribe",
+            "describe_table",
+            "window_widgets",
+            "close_widget",
+            "fetch_column",
+            "region_decimal_mark",
+            "set_selection",
+            "set_active_classification",
+            "select_groups",
+            "set_edit_mode",
+        ],
+    );
+    refused_but(
+        &main,
+        &[
+            "subscribe",
+            "describe_table",
+            "fetch_rows",
+            "open_widget",
+            "set_selection",
+            "set_cells",
+            "assign_rows",
+            "unassign_rows",
+            "set_hover",
+            "set_active_classification",
+            "select_groups",
+            "add_group",
+            "delete_group",
+            "edit_group",
+            "set_edit_mode",
+            "set_role",
+            "set_filter",
+            "undo",
+            "redo",
+            "import_table",
+            "open_example",
+            "export_table",
+            "region_decimal_mark",
+        ],
+    );
 }

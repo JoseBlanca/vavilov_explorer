@@ -145,16 +145,16 @@ export interface Connection {
     columns: readonly ColumnId[],
   ) => Promise<Result<RowPage | "stale", Refusal>>;
   /**
-   * Opens a widget's window that shows `spec`, or gives the backend's
-   * refusal; "stale" when the copy it was chosen from is of a table replaced
-   * since.
+   * Opens a widget that shows `spec`, in a window of its own or as a tile
+   * of the open window of its kind, or gives the backend's refusal; "stale"
+   * when the copy it was chosen from is of a table replaced since.
    */
   readonly openWidget: (spec: WidgetSpec) => Promise<Answer>;
   /**
    * Closes the tile of the widget `widget` of this window: the backend sends
    * the window the widgets it has left, or closes it when it was the last.
-   * The refusal `unknownWidget` says the widget was gone already, as when a
-   * command dropped it meanwhile.
+   * The refusal `unknownWidget` says the widget was gone already, as when
+   * the window asked twice.
    */
   readonly closeWidget: (widget: WidgetId) => Promise<Answer>;
   /**
@@ -164,7 +164,7 @@ export interface Connection {
    * @throws A defect when the window is no window of widgets, or the answer
    * does not decode.
    */
-  readonly fetchWidgets: () => Promise<WidgetList>;
+  readonly windowWidgets: () => Promise<WidgetList>;
   /** This window's widgets, the newest list kept, or `null` before the first. */
   readonly widgets: () => WidgetList | null;
   /**
@@ -316,7 +316,6 @@ export async function connect(
     return time;
   };
 
-  /** Throws a defect for a command made from a copy that met a defect. */
   /**
    * Sends `name`, an import of a table, `import_table` or `open_example`,
    * and gives its answer, or its refusal.
@@ -338,6 +337,7 @@ export async function connect(
     return { ok: true, value };
   };
 
+  /** Throws a defect for a command made from a copy that met a defect. */
   const checkSound = (name: CommandName): void => {
     if (broken) {
       throw defect(`the command ${name}, from a copy of the state that met a defect`);
@@ -517,7 +517,7 @@ export async function connect(
       checkSound("close_widget");
       return answer("close_widget", transport.invoke("close_widget", { widget }));
     },
-    fetchWidgets: async () => {
+    windowWidgets: async () => {
       let bytes: unknown;
       try {
         bytes = await transport.invoke("window_widgets", {});

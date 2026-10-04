@@ -53,7 +53,7 @@ of truth: no controller, view or plot keeps its own copy of a part of it.
   and the selected group), `codes`, `selection`, `hover`, `undoRedo` and
   `filter` (`src/state/windowState.ts`). The widgets of a window are not
   the core's: the connection keeps the newest list the app layer gave
-  (`fetchWidgets`, `onWidgets`, `docs/design.md`, section 2.2). A change of
+  (`windowWidgets`, `onWidgets`, `docs/design.md`, section 2.2). A change of
   several aspects calls each listener once, after the whole message is
   applied; a message whose part does not fit leaves the copy as it was.
   A component

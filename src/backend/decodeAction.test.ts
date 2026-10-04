@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { decodeAction, isActionMessage } from "./decodeAction.ts";
 
-// The bytes the core writes in crates/vavilov-core/src/action/tests.rs.
+// The bytes the app layer writes in src-tauri/src/actions/tests.rs.
 function message(code: number, zero = 0): ArrayBuffer {
   // prettier-ignore
   return new Uint8Array([

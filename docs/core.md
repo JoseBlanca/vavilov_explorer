@@ -833,7 +833,11 @@ layer's (section 7), in its own enum, `WindowError`, with `UnknownWindow`,
 crosses to a window as this one does, untagged, so that the window reads
 both kinds in one table (`src/state/commandError.ts`). A Tauri command
 that touches no window returns `Result<T, CommandError>`, one that does
-`Result<T, AppError>`, and a poisoned lock is a `Defect`.
+`Result<T, AppError>`, and a poisoned lock is a `Defect`. An import,
+`import_table` or `open_example`, closes the windows of widgets after
+its table is loaded, and returns `CommandError`: a window it cannot
+close is written to the log, since the table is loaded and the window
+receives nothing more.
 
 - `rename_all` names the kinds in camelCase; `rename_all_fields` does the
   same for the fields, which `rename_all` alone leaves in snake_case.
@@ -860,7 +864,7 @@ that touches no window returns `Result<T, CommandError>`, one that does
   classification; an unknown level; no group selected; a group
   that is not the selected one; a row set or a row index that does not
   fit the table; nothing to undo or to redo; a command made before the
-  current table was loaded; a label the session does not know; the
+  current table was loaded; the
   refusals of the table's constructor (section 2); and `Defect`, for a
   state our code makes impossible, such as a revision that would pass
   2^53 − 1.
@@ -957,7 +961,11 @@ bar, as it would for a control of its own. The app layer
 4, whose header has the current revision, which takes no part in the
 order, and whose one part, kind 12, holds the item's code as a `u16`,
 1 Import table…, 2 Export as CSV…, 3 Export as Excel…, 4 Undo, 5 Redo,
-and six zero bytes. An action changes no state. Undo and Redo
+6 3D scatter…, 7 Map…, 8 Map of countries…, 9 Histogram…, 10 Select
+none, 11 Open Example Table, and six zero bytes. The core keeps the
+kinds 4 and 6 of message and 12 of part for the app layer,
+`APP_MESSAGE_KINDS` and `APP_PART_KINDS`, and a test checks that none of
+its own takes them. An action changes no state. Undo and Redo
 are carried out by the window, with the revision of its copy, like any
 command it sends, so that an undo made from a stale copy is refused. The
 backend enables them while the session has something to undo and to
@@ -999,7 +1007,6 @@ Its tests include:
   relies on, that the snapshot's revision and the first message's agree;
 - undoing a lasso on a column that is no longer the active
   classification sends its codes and its revision;
-- a label the session does not know is refused;
 - the boundaries: a table of zero rows; a selection of 8 and of 9 rows,
   whose last byte has unused bits; a `RowSet` with an unused bit set; a
   column of 65,535 levels and one of 65,536; a revision at 2^53 − 1.

@@ -20,6 +20,15 @@ pub(crate) const NO_CODE: u16 = u16::MAX;
 /// The row that means no row, in the hover part.
 pub(crate) const NO_ROW: u32 = u32::MAX;
 
+/// The kinds of message, byte 0, that the app layer sends a window
+/// through [`crate::Session::send_to`], which the core never uses: 4, an
+/// item of the menu, and 6, a window's list of widgets (`docs/core.md`,
+/// section 5). A window tells them from the core's by that byte alone.
+pub const APP_MESSAGE_KINDS: [u8; 2] = [4, 6];
+/// The kinds of part that the app layer writes, which the core never
+/// uses: 12, an item of the menu.
+pub const APP_PART_KINDS: [u16; 1] = [12];
+
 /// The kind of a message, its byte 0.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MessageKind {

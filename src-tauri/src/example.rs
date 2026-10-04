@@ -17,8 +17,9 @@ pub const FILE: &str = "resources/example-plants.csv";
 ///
 /// # Errors
 ///
-/// A `Defect` when the app's resources cannot be found, which an app
-/// installed whole never meets.
+/// A `Defect` when the system gives no folder of the app's resources.
+/// The file itself is not checked here: a file missing from it is
+/// refused by the import as a file not read.
 pub fn path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, CommandError> {
     app.path()
         .resolve(FILE, BaseDirectory::Resource)

@@ -51,6 +51,7 @@ pub use ids::{
     WindowLabel,
 };
 pub use import::{Imported, MAX_GUESSED_LEVELS, MAX_IMPORT_BYTES, MAX_IMPORT_CELLS, import_table};
+pub use message::{APP_MESSAGE_KINDS, APP_PART_KINDS};
 pub use row_set::RowSet;
 pub use rows::RowsRequest;
 pub use session::{

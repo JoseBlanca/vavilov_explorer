@@ -74,10 +74,12 @@ impl MenuAction {
     }
 }
 
-/// The kind of a message of an action, its byte 0, after the core's
-/// kinds of message 0 to 3 and 5 (`docs/core.md`, section 5).
+/// The kind of a message of an action, its byte 0, one of those the core
+/// keeps for the app layer, `vavilov_core::APP_MESSAGE_KINDS`
+/// (`docs/core.md`, section 5).
 const ACTION_MESSAGE: u8 = 4;
-/// The kind of its one part.
+/// The kind of its one part, one the core keeps for the app layer,
+/// `vavilov_core::APP_PART_KINDS`.
 const ACTION_PART: u16 = 12;
 
 /// The message of `action`, with the core's header of 24 bytes, the

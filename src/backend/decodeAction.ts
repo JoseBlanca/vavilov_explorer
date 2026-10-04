@@ -1,5 +1,5 @@
 // The decoder of a message of the kind action, an item of the menu the
-// backend hands to the main window (crates/vavilov-core/src/action.rs): the
+// app layer hands to the main window (src-tauri/src/actions.rs): the
 // header, then one part of 8 bytes with the item's code and six zeros.
 
 import { defect } from "../state/defect.ts";

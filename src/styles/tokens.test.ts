@@ -72,8 +72,10 @@ const PAIRS: readonly (readonly [string, string, number])[] = [
   ["--color-control-border", "--color-country-empty", 3],
   ["--color-count-high", "--color-country-empty", 3],
   // The histogram: the edge of every segment against the paler grey of the
-  // groups not selected, so that it parts them from the unassigned grey.
+  // groups not selected, which it outlines, and the grey of the unassigned
+  // against that paler grey, so that the two segments differ.
   ["--color-control-border", "--color-other-groups", 3],
+  ["--color-point-unassigned", "--color-other-groups", 3],
 ];
 
 describe("the tokens", () => {

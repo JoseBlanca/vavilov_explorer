@@ -11,7 +11,7 @@ describe("isWidgetSpec", () => {
   });
 
   test("a map of a latitude and a longitude, and a map of countries, are ones", () => {
-    // The JSON of crates/vavilov-core/src/widgets/tests.rs.
+    // The JSON of src-tauri/src/widgets/tests.rs.
     expect(isWidgetSpec({ kind: "map", latitude: 1, longitude: 4 })).toBe(true);
     expect(isWidgetSpec({ kind: "countryMap", country: 2 })).toBe(true);
     expect(isWidgetSpec({ kind: "histogram", column: 1 })).toBe(true);

@@ -1,7 +1,7 @@
-// What a widget shows, its kind and its columns, as the core's WidgetSpec
-// crosses to a window (crates/vavilov-core/src/widgets.rs): the argument of
-// open_widget, and with its number, in the list of a window's widgets; and
-// the kinds of window the widgets are drawn in.
+// What a widget shows, its kind and its columns, the app layer's WidgetSpec
+// (src-tauri/src/widgets.rs): the argument of open_widget, and with its
+// number, in the list of a window's widgets; and the kinds of window the
+// widgets are drawn in.
 
 import { defect } from "./defect.ts";
 import type { ColumnId, WidgetId } from "./ids.ts";
@@ -66,8 +66,8 @@ export function windowKindOf(label: string): WindowKind | null {
 }
 
 /**
- * The one widget of a window of a kind that holds one, a 3D scatter's or a
- * map's window.
+ * The one widget of a window of a kind that holds one, a 3D scatter's
+ * window.
  *
  * @throws A defect when the window holds none, or more than one.
  */

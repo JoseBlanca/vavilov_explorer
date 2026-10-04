@@ -13,7 +13,7 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
-use vavilov_core::{ColumnId, WindowLabel};
+use vavilov_core::{ColumnId, MAX_EXACT_IN_JAVASCRIPT, WindowLabel};
 
 use crate::error::{AppError, WindowError, defect};
 
@@ -46,10 +46,12 @@ impl fmt::Display for WidgetId {
 
 /// What a widget shows: its kind and its columns.
 ///
-/// It crosses to a window as `{"kind": "scatter3d", "axes": [4, 5, 6]}`,
+/// The main window asks for it in `open_widget` as
+/// `{"kind": "scatter3d", "axes": [4, 5, 6]}`,
 /// `{"kind": "map", "latitude": 4, "longitude": 5}`,
 /// `{"kind": "countryMap", "country": 3}` or
-/// `{"kind": "histogram", "column": 4}`.
+/// `{"kind": "histogram", "column": 4}`; a window receives it in its list,
+/// in binary ([`WidgetList::to_bytes`]).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -165,7 +167,8 @@ pub struct WidgetList {
 }
 
 /// The first byte of a message of a window's list of widgets on its channel,
-/// the kind of message after those of the core (`docs/core.md`, section 5).
+/// one of the kinds the core keeps for the app layer,
+/// `vavilov_core::APP_MESSAGE_KINDS` (`docs/core.md`, section 5).
 pub const WIDGETS_MESSAGE: u8 = 6;
 
 /// A window of widgets: its label, its kind and its widgets.
@@ -182,10 +185,19 @@ pub struct Opened {
     pub window: WindowLabel,
     /// Its number.
     pub widget: WidgetId,
-    /// The new list of the open window the widget went into, for the
-    /// caller to send it and bring it to the front; `None` for a new window,
-    /// for the caller to open, which asks for its list as it starts.
-    pub list: Option<WidgetList>,
+    /// Whether it went into a new window or the open one of its kind.
+    pub placed: Placed,
+}
+
+/// Where [`Widgets::open`] put a widget.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Placed {
+    /// Into a new window, for the caller to open, which asks for its list
+    /// as it starts.
+    NewWindow,
+    /// Into the open window of its kind, whose new list it gives, for the
+    /// caller to send it and bring the window to the front.
+    Added(WidgetList),
 }
 
 /// What closing a widget left.
@@ -219,8 +231,16 @@ impl Widgets {
     ///
     /// # Errors
     ///
-    /// A `Defect` when a counter would pass its type.
+    /// A `Defect` for a column `u32::MAX`, which a list sends for "no
+    /// column", or when a counter would pass its type.
     pub fn open(&mut self, spec: WidgetSpec) -> Result<Opened, AppError> {
+        let (_, columns) = spec.wire();
+        if columns.contains(&Some(ColumnId::new(u32::MAX))) {
+            return Err(defect(&format!(
+                "a widget {spec:?} of the column {}, which means none",
+                u32::MAX
+            )));
+        }
         let kind = spec.window_kind();
         let id = self
             .widgets_given
@@ -246,7 +266,7 @@ impl Widgets {
             Opened {
                 window: window.label.clone(),
                 widget: WidgetId::new(id),
-                list: Some(WidgetList {
+                placed: Placed::Added(WidgetList {
                     seq,
                     widgets: window.widgets.clone(),
                 }),
@@ -267,7 +287,7 @@ impl Widgets {
             Opened {
                 window: label,
                 widget: WidgetId::new(id),
-                list: None,
+                placed: Placed::NewWindow,
             }
         };
         Ok(opened)
@@ -282,7 +302,7 @@ impl Widgets {
     ///
     /// `UnknownWidget` when the window holds no such widget, as one closed
     /// a moment before, or a `Defect` when the sequence number would pass
-    /// its type.
+    /// the largest integer a window reads exactly.
     pub fn close(&mut self, label: &WindowLabel, widget: WidgetId) -> Result<Closed, AppError> {
         let unknown = || {
             AppError::from(WindowError::UnknownWidget {
@@ -317,7 +337,8 @@ impl Widgets {
     /// # Errors
     ///
     /// `UnknownWindow` when no window of widgets has that label, or a
-    /// `Defect` when the sequence number would pass its type.
+    /// `Defect` when the sequence number would pass the largest integer a
+    /// window reads exactly.
     pub fn list(&mut self, label: &WindowLabel) -> Result<WidgetList, AppError> {
         if !self.is_open(label) {
             return Err(WindowError::UnknownWindow {
@@ -360,12 +381,18 @@ impl Widgets {
         self.windows.drain(..).map(|window| window.label).collect()
     }
 
-    /// The next sequence number of a list.
+    /// The next sequence number of a list, at most the largest integer a
+    /// window reads exactly, as the core's revisions.
     fn next_list(&mut self) -> Result<u64, AppError> {
         let seq = self
             .lists_given
             .checked_add(1)
-            .ok_or_else(|| defect("more lists of widgets than a u64 counts"))?;
+            .filter(|next| *next <= MAX_EXACT_IN_JAVASCRIPT)
+            .ok_or_else(|| {
+                defect(&format!(
+                    "more lists of widgets than {MAX_EXACT_IN_JAVASCRIPT}"
+                ))
+            })?;
         self.lists_given = seq;
         Ok(seq)
     }

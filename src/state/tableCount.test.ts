@@ -56,6 +56,13 @@ describe("the count of the table", () => {
         ",",
       ),
     ).toBe("2.000 individuals · “1.5” is not a number: the decimal mark here is “,” · 45 selected");
+    expect(
+      tableCountText(
+        { numShown: 2000, numRows: 2000, filtered: false, numSelected: 0, unreadable: "1,5" },
+        count,
+        ".",
+      ),
+    ).toBe("2.000 individuals · “1,5” is not a number: the decimal mark here is “.”");
   });
 
   test("adds the rows selected", () => {

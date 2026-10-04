@@ -86,7 +86,8 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
 
     /// Closes the window once the call that asked for it has returned, as
     /// a window is never destroyed from inside a call (tauri.md); a window
-    /// already gone is closed.
+    /// already gone is closed. The caller runs off the main thread, from
+    /// which Tauri runs a task it is given at once.
     fn close(&mut self, label: &WindowLabel) -> Result<(), AppError> {
         let Some(window) = self.0.get_webview_window(label.as_str()) else {
             return Ok(());

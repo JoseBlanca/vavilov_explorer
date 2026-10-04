@@ -30,9 +30,10 @@ export interface FetchedColumnsSource {
  * held; `onChange` is called when new values arrive. The backend answers at
  * its own revision, which can be ahead of the copy's until the message of
  * the change arrives: those values are kept, and become current with it.
- * A refusal because the column is gone or no longer a number, and an answer
- * for a table replaced since the copy, are not shown: the backend closes the
- * window then.
+ * A refusal because the column is gone or no longer a number is not shown:
+ * the window closes the plot then, as its description says it cannot show
+ * it (`widgetFits`); nor is an answer for a table replaced since the copy,
+ * whose load closes the window.
  */
 export function createFetchedColumns(
   source: FetchedColumnsSource,

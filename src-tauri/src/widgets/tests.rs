@@ -1,5 +1,6 @@
 use super::*;
 use crate::error::WindowError;
+use vavilov_core::{CommandError, MAX_EXACT_IN_JAVASCRIPT};
 
 const HEIGHT: ColumnId = ColumnId::new(1);
 const SEEDS: ColumnId = ColumnId::new(4);
@@ -14,6 +15,14 @@ fn histogram(column: ColumnId) -> WidgetSpec {
 
 fn scatter(x: ColumnId, y: ColumnId, z: ColumnId) -> WidgetSpec {
     WidgetSpec::Scatter3d { axes: [x, y, z] }
+}
+
+/// The list of the open window `opened` went into.
+fn added(opened: Opened) -> WidgetList {
+    match opened.placed {
+        Placed::Added(list) => list,
+        Placed::NewWindow => panic!("{opened:?} went into a new window"),
+    }
 }
 
 fn ids_in(widgets: &Widgets, window: &str) -> Vec<u32> {
@@ -51,7 +60,7 @@ fn the_histograms_share_one_plots_window_and_each_takes_a_number_of_its_own() {
         opened.map(|each| (
             each.window.as_str().to_owned(),
             each.widget.get(),
-            each.list.is_none()
+            each.placed == Placed::NewWindow
         )),
         [
             ("plots-1".to_owned(), 1, true),
@@ -78,8 +87,11 @@ fn the_histograms_share_one_plots_window_and_each_takes_a_number_of_its_own() {
 #[test]
 fn a_widget_added_to_an_open_window_gives_its_new_list_to_send_it() {
     let mut widgets = Widgets::default();
-    assert_eq!(widgets.open(histogram(HEIGHT)).unwrap().list, None);
-    let list = widgets.open(histogram(SEEDS)).unwrap().list.unwrap();
+    assert_eq!(
+        widgets.open(histogram(HEIGHT)).unwrap().placed,
+        Placed::NewWindow
+    );
+    let list = added(widgets.open(histogram(SEEDS)).unwrap());
     assert_eq!(list.to_bytes().unwrap(), TWO_HISTOGRAMS);
 }
 
@@ -229,7 +241,10 @@ fn the_two_maps_share_one_maps_window_apart_from_the_plots() {
             .unwrap(),
     ];
     assert_eq!(
-        opened.map(|each| (each.window.as_str().to_owned(), each.list.is_none())),
+        opened.map(|each| (
+            each.window.as_str().to_owned(),
+            each.placed == Placed::NewWindow
+        )),
         [
             ("maps-1".to_owned(), true),
             ("plots-2".to_owned(), true),
@@ -237,4 +252,83 @@ fn the_two_maps_share_one_maps_window_apart_from_the_plots() {
         ]
     );
     assert_eq!(ids_in(&widgets, "maps-1"), [1, 3]);
+}
+
+#[test]
+fn a_widget_of_the_column_that_means_none_is_a_defect_and_opens_no_window() {
+    let none = ColumnId::new(u32::MAX);
+    let mut widgets = Widgets::default();
+    for spec in [
+        histogram(none),
+        WidgetSpec::Map {
+            latitude: HEIGHT,
+            longitude: none,
+        },
+        scatter(HEIGHT, SEEDS, none),
+    ] {
+        assert!(matches!(
+            widgets.open(spec),
+            Err(AppError::Core(CommandError::Defect { .. }))
+        ));
+    }
+    assert!(!widgets.is_open(&label("plots-1")));
+    assert!(!widgets.is_open(&label("maps-1")));
+    // The numbers go on from where they were: the next widget is the first.
+    assert_eq!(
+        widgets.open(histogram(HEIGHT)).unwrap().widget,
+        WidgetId::new(1)
+    );
+}
+
+#[test]
+fn a_sequence_number_past_what_a_window_reads_exactly_is_a_defect() {
+    let mut widgets = Widgets::default();
+    widgets.open(histogram(HEIGHT)).unwrap();
+    widgets.lists_given = MAX_EXACT_IN_JAVASCRIPT - 1;
+    assert_eq!(
+        widgets.list(&label("plots-1")).unwrap().seq,
+        MAX_EXACT_IN_JAVASCRIPT
+    );
+    assert!(matches!(
+        widgets.list(&label("plots-1")),
+        Err(AppError::Core(CommandError::Defect { .. }))
+    ));
+}
+
+#[test]
+fn the_kind_of_a_list_is_one_the_core_keeps_for_the_app_layer() {
+    assert!(vavilov_core::APP_MESSAGE_KINDS.contains(&WIDGETS_MESSAGE));
+}
+
+/// The list of the map 1 of height and seeds and the map of countries 2
+/// of column 2, at sequence 1. The same bytes are decoded in
+/// src/backend/decodeWidgets.test.ts.
+#[rustfmt::skip]
+const TWO_MAPS: [u8; 72] = [
+    6, 0, 0, 0, 0, 0, 0, 0, // a list of widgets
+    1, 0, 0, 0, 0, 0, 0, 0, // sequence 1
+    2, 0, 0, 0, 0, 0, 0, 0, // two widgets
+    1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, // 1, a map of height and seeds
+    255, 255, 255, 255, 0, 0, 0, 0,
+    2, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0, 255, 255, 255, 255, // 2, a map of countries
+    255, 255, 255, 255, 0, 0, 0, 0,
+];
+
+#[test]
+fn the_two_maps_cross_in_a_list_as_their_kinds_and_their_columns() {
+    let mut widgets = Widgets::default();
+    widgets
+        .open(WidgetSpec::Map {
+            latitude: HEIGHT,
+            longitude: SEEDS,
+        })
+        .unwrap();
+    let list = added(
+        widgets
+            .open(WidgetSpec::CountryMap {
+                country: ColumnId::new(2),
+            })
+            .unwrap(),
+    );
+    assert_eq!(list.to_bytes().unwrap(), TWO_MAPS);
 }

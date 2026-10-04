@@ -242,3 +242,100 @@ fn a_text_that_is_not_percent_encoded_utf8_is_a_defect() {
         assert_eq!(session.table().unwrap(), &before);
     }
 }
+
+/// A subscriber that keeps the messages it is sent.
+#[derive(Clone, Default)]
+struct Recorder(std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>);
+
+impl Subscriber for Recorder {
+    fn send(&self, message: Vec<u8>) -> Result<(), vavilov_core::SendFailed> {
+        self.0.lock().unwrap().push(message);
+        Ok(())
+    }
+}
+
+fn open_histogram(session: &mut Session, widgets: &mut Widgets) -> OpenedWidget {
+    let body = InvokeBody::Json(json!({
+        "spec": { "kind": "histogram", "column": 1 },
+        "basedOn": 1,
+    }));
+    open_widget(session, widgets, &body).unwrap()
+}
+
+#[test]
+fn a_widget_added_to_an_open_window_sends_it_its_new_list() {
+    let mut session = loaded();
+    let mut widgets = Widgets::default();
+    let first = open_histogram(&mut session, &mut widgets);
+    assert!(matches!(first.opened_in, OpenedIn::NewWindow));
+    let recorder = Recorder::default();
+    subscribe(
+        &mut session,
+        &widgets,
+        first.window.clone(),
+        Box::new(recorder.clone()),
+    )
+    .unwrap();
+    let second = open_histogram(&mut session, &mut widgets);
+    assert_eq!(second.window, first.window);
+    assert!(matches!(second.opened_in, OpenedIn::Open(None)));
+    #[rustfmt::skip]
+    let list: Vec<u8> = vec![
+        6, 0, 0, 0, 0, 0, 0, 0, // a list of widgets
+        1, 0, 0, 0, 0, 0, 0, 0, // sequence 1
+        2, 0, 0, 0, 0, 0, 0, 0, // two widgets
+        1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, // 1, a histogram of origin
+        255, 255, 255, 255, 0, 0, 0, 0,
+        2, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, // 2, a histogram of origin
+        255, 255, 255, 255, 0, 0, 0, 0,
+    ];
+    assert_eq!(*recorder.0.lock().unwrap(), vec![list]);
+}
+
+#[test]
+fn closing_the_last_widget_unsubscribes_its_window_before_the_caller_closes_it() {
+    let mut session = loaded();
+    let mut widgets = Widgets::default();
+    let opened = open_histogram(&mut session, &mut widgets);
+    subscribe(
+        &mut session,
+        &widgets,
+        opened.window.clone(),
+        Box::new(Recorder::default()),
+    )
+    .unwrap();
+    let body = InvokeBody::Json(json!({ "widget": 1 }));
+    assert_eq!(
+        close_widget(&mut session, &mut widgets, &opened.window, &body).unwrap(),
+        ClosedWidget::Window
+    );
+    assert_eq!(
+        session.send_to(&opened.window, vec![6]),
+        Delivery::NoSubscriber
+    );
+}
+
+#[test]
+fn a_load_unsubscribes_every_window_of_widgets_before_the_caller_closes_it() {
+    let mut session = loaded();
+    let mut widgets = Widgets::default();
+    let plots = widgets
+        .open(WidgetSpec::Histogram {
+            column: ColumnId::new(1),
+        })
+        .unwrap()
+        .window;
+    subscribe(
+        &mut session,
+        &widgets,
+        plots.clone(),
+        Box::new(Recorder::default()),
+    )
+    .unwrap();
+    assert_eq!(session.send_to(&plots, vec![6]), Delivery::Sent);
+    assert_eq!(
+        forget_every_widget_window(&mut session, &mut widgets),
+        vec![plots.clone()]
+    );
+    assert_eq!(session.send_to(&plots, vec![6]), Delivery::NoSubscriber);
+}

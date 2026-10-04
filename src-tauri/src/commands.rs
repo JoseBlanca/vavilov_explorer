@@ -32,14 +32,16 @@ pub type WidgetsState<'a> = State<'a, Mutex<Widgets>>;
 
 /// Registers the window's channel and returns the snapshot of the shared
 /// state, as raw bytes; the channel then carries every change after it,
-/// and for a window of widgets its list of widgets when one is added. A
+/// and for a window of widgets its list of widgets when one is added or
+/// closed. A
 /// window that is neither the main window nor an open window of widgets
-/// is closed.
+/// is closed. It runs off the main thread, so that the close is queued
+/// and runs after the call (`close_later`).
 ///
 /// # Errors
 ///
 /// `UnknownWindow`, or a `Defect`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn subscribe<R: Runtime>(
     window: WebviewWindow<R>,
     on_change: Channel<InvokeResponseBody>,
@@ -190,28 +192,31 @@ pub async fn open_widget<R: Runtime>(
         let mut session = lock(&session)?;
         calls::open_widget(&mut session, &mut *lock_widgets(&widgets)?, request.body())?
     };
-    report_dropped(&app, opened.dropped.into_iter().collect());
-    if opened.new_window {
-        windows::open_widget_window(
+    match opened.opened_in {
+        calls::OpenedIn::NewWindow => windows::open_widget_window(
             &widgets,
             &mut TauriWindows(&app),
             &opened.window,
             &opened.spec,
-        )
-    } else {
-        TauriWindows(&app).raise(&opened.window)
+        ),
+        calls::OpenedIn::Open(dropped) => {
+            report_dropped(&app, dropped.into_iter().collect());
+            TauriWindows(&app).raise(&opened.window)
+        }
     }
 }
 
 /// Forgets one of the calling window's widgets, whose tile was closed or
 /// which the window cannot show: `{ widget }`, its number. The window is
 /// sent the widgets it has left, or, when it was the last, is closed, its
-/// subscriber forgotten first, so that it receives nothing more.
+/// subscriber forgotten first, so that it receives nothing more. It runs
+/// off the main thread, so that the close is queued and runs after the
+/// call: from the main thread, Tauri runs a task it is given at once.
 ///
 /// # Errors
 ///
 /// `UnknownWidget` when the window holds no such widget, or a `Defect`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn close_widget<R: Runtime>(
     app: AppHandle<R>,
     window: WebviewWindow<R>,
@@ -670,7 +675,9 @@ pub(crate) fn report_dropped<R: Runtime>(app: &AppHandle<R>, dropped: Vec<Droppe
 
 /// Closes a window once the call it made has returned: destroying a web
 /// view from inside its own call may hang on Windows, as creating one from
-/// a synchronous command does (tauri.md).
+/// a synchronous command does (tauri.md). The caller runs off the main
+/// thread: from the main thread, `run_on_main_thread` runs the task at
+/// once (`tauri-runtime-wry` 2.12.1, `send_user_message`).
 fn close_later<R: Runtime>(window: &WebviewWindow<R>) {
     let closing = window.clone();
     let queued = window.run_on_main_thread(move || {

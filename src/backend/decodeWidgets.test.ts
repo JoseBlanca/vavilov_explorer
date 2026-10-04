@@ -21,6 +21,19 @@ const TWO_HISTOGRAMS = [
   255, 255, 255, 255, 0, 0, 0, 0,
 ];
 
+// TWO_MAPS: at sequence 1, the map 1 of height and seeds and the map of
+// countries 2 of column 2.
+// prettier-ignore
+const TWO_MAPS = [
+  6, 0, 0, 0, 0, 0, 0, 0, // a list of widgets
+  1, 0, 0, 0, 0, 0, 0, 0, // sequence 1
+  2, 0, 0, 0, 0, 0, 0, 0, // two widgets
+  1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, // 1, a map of height and seeds
+  255, 255, 255, 255, 0, 0, 0, 0,
+  2, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0, 255, 255, 255, 255, // 2, a map of countries
+  255, 255, 255, 255, 0, 0, 0, 0,
+];
+
 const NONE = 0xffff_ffff;
 
 /** A list at sequence 3 of one widget, 7, of the kind `kind` and the columns `columns`. */
@@ -55,6 +68,13 @@ describe("a list of widgets", () => {
     });
   });
 
+  test("the two maps decode to their kinds and their columns", () => {
+    expect(decodeWidgetList(buffer(TWO_MAPS)).widgets).toEqual([
+      { id: 1, spec: { kind: "map", latitude: 1, longitude: 4 } },
+      { id: 2, spec: { kind: "countryMap", country: 2 } },
+    ]);
+  });
+
   test("each kind of widget gives its columns", () => {
     expect(decodeWidgetList(buffer(one(1, [4, 5, 4]))).widgets).toEqual([
       { id: 7, spec: { kind: "scatter3d", axes: [4, 5, 4] } },
@@ -78,5 +98,11 @@ describe("a list of widgets", () => {
     const stray = [...TWO_HISTOGRAMS];
     stray[3] = 1;
     expect(() => decodeWidgetList(buffer(stray))).toThrow(/should be zero/);
+  });
+
+  test("a widget numbered 0, a number the app layer never gives, is a defect", () => {
+    const zero = [...TWO_HISTOGRAMS];
+    zero[24] = 0;
+    expect(() => decodeWidgetList(buffer(zero))).toThrow(/widget/);
   });
 });
