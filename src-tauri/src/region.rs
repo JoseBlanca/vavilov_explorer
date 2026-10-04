@@ -39,6 +39,10 @@ fn system_decimal_mark() -> Result<String, String> {
 }
 
 #[cfg(windows)]
+#[expect(
+    unsafe_code,
+    reason = "GetLocaleInfoEx is a call into Windows, which Rust cannot check"
+)]
 fn system_decimal_mark() -> Result<String, String> {
     use windows::Win32::Globalization::{GetLocaleInfoEx, LOCALE_SDECIMAL};
     use windows::core::PCWSTR;
@@ -60,6 +64,10 @@ fn system_decimal_mark() -> Result<String, String> {
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
+#[expect(
+    unsafe_code,
+    reason = "newlocale, nl_langinfo_l and freelocale are calls into the C library, which Rust cannot check"
+)]
 fn system_decimal_mark() -> Result<String, String> {
     // SAFETY: the name is a valid C string, empty to take the locale from
     // the environment, and the null base asks for a new locale object,
