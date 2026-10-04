@@ -169,7 +169,11 @@ for (const engine of Object.keys(ENGINES)) {
 
     // The rows whose note is not the whole of "tall": 0, 1, whose note is
     // missing and never matches, and 3.
-    const tall = { text: "tall", column: 5, cell: "whole", showing: "notMatching" };
+    const tall = {
+      column: 5,
+      condition: { kind: "is", text: "tall" },
+      showing: "notMatching",
+    };
     assert.deepEqual(await send("setFilter", tall, ","), applied);
     await stateAt(12);
     assert.deepEqual(

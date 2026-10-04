@@ -74,21 +74,39 @@ message names its column and its individual.
 
 ## Finding rows
 
-The bar above the table shows only the rows that match what you type in
-Find, as you type. Column chooses where to look: Any column, the first
-column included, or one column. A cell matches when what you typed is
-part of what the table shows in it, capital letters or not; accents
-count, so `cote` does not find `Côte`. Tick Whole cell to find only the
-cells that are exactly what you typed, so that `1` does not find `10`.
-Tick Show rows that don't match to see the others instead. Select shown
-rows selects the rows shown, in place of those selected before; with
-nothing typed in Find it selects every row. An empty cell
-never matches, so it shows among the rows that don't match.
+The bar above the table reads as a sentence, "Find height ≥ 1,5", and
+shows only the rows that match, as you type. First choose where to
+look: Any column, the first column included, or one column. Then choose
+how a cell must match, and type or choose the value:
 
-A decimal number is found as the table shows it, with your region's
-decimal mark: `1,5` in Spain. A country is found by any of its ISO names
-or codes, so `Spain`, `Kingdom of Spain`, `ES` and `ESP` all find the
-cells shown as `ESP`. The search hides rows of the table only; the
+- **contains** finds the cells where what you typed is part of what the
+  table shows, capital letters or not; accents count, so `cote` does not
+  find `Côte`.
+- **is** finds the cells that are exactly what you typed, so that `1`
+  does not find `10`. On a category or a column of countries, is gives
+  the list of its groups, the values the column holds, instead: choose
+  one, and the rows of its individuals are shown.
+- **=, <, ≤, > and ≥**, on a column of numbers, compare each number with
+  the one you type, written with your region's decimal mark: `1,5` in
+  Spain. A text that is not a number filters nothing: every row stays
+  shown, and the bar below the table says so, "“abc” is not a number".
+- **is missing** finds the empty cells; with Any column, the rows with
+  at least one.
+
+Tick Show rows that don't match, after the value, to see the others
+instead, so that is
+missing becomes is not missing. Apart from is missing, an empty cell
+never matches, so it shows among the rows that don't match: a plant with
+no height is neither ≤ 1,5 nor > 1,5. Select shown rows selects the
+rows shown, in place of those selected before; with nothing typed it
+selects every row. If you delete the group you chose, or a column's
+role changes so that the search no longer fits it, the search is
+cleared and the bar below the table says why.
+
+With contains or is on Any column, a decimal number is found as the
+table shows it, `1,5` in Spain, and a country by any of its ISO names or
+codes, so `Spain`, `Kingdom of Spain`, `ES` and `ESP` all find the cells
+shown as `ESP`. The search hides rows of the table only; the
 other views keep every individual. The bar below the table says how
 many rows are shown, "Showing 312 of 2,000 individuals", and how many
 are selected. Importing another table clears the search.

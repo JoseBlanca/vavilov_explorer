@@ -232,7 +232,7 @@ for (const engine of Object.keys(ENGINES)) {
     await page.keyboard.press("Escape");
     await name.waitFor({ state: "detached" });
     assert.equal(await addToChina.getAttribute("aria-pressed"), "true");
-    await page.getByRole("checkbox", { name: "Whole cell" }).focus();
+    await page.getByRole("checkbox", { name: "Show rows that don't match" }).focus();
     await page.keyboard.press("Escape");
     await says(page, "Rows you select no longer go to China.");
     await waitAttribute(addToChina, "aria-pressed", "false");

@@ -32,6 +32,13 @@
   width: var(--find-width);
 }
 
+/* "is missing" takes no value: its field is greyed out. */
+.text:disabled {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
 .check {
   display: flex;
   align-items: center;

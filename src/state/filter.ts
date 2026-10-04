@@ -5,10 +5,24 @@
 import { defect } from "./defect.ts";
 import { isRowIndex } from "./ids.ts";
 import { intersection, rangeBits } from "./rowSet.ts";
-import type { ColumnId, Position, Revision, RowIndex } from "./ids.ts";
+import type { ColumnId, LevelCode, Position, Revision, RowIndex } from "./ids.ts";
 
-/** How the text must match a cell: as part of it, or as its whole text. */
-export type CellMatch = "part" | "whole";
+/** How a number of a column compares with the one typed: "<", "≤", "=", "≥" or ">". */
+export type Comparison = "less" | "atMost" | "equal" | "atLeast" | "greater";
+
+/**
+ * What a cell must be to match, the operator of the find bar and its
+ * value: "contains" or "is" a text, "is" a group chosen from the list of a
+ * category or a column of countries, `null` before one is chosen, a
+ * comparison with a number as typed, or "is missing". An empty text, and a
+ * group not chosen, match every row.
+ */
+export type Condition =
+  | { readonly kind: "contains"; readonly text: string }
+  | { readonly kind: "is"; readonly text: string }
+  | { readonly kind: "group"; readonly code: LevelCode | null }
+  | { readonly kind: "compare"; readonly comparison: Comparison; readonly text: string }
+  | { readonly kind: "missing" };
 
 /** Whether the filter is showing the rows that match, or those that do not. */
 export type Showing = "matching" | "notMatching";
@@ -20,14 +34,12 @@ export type Showing = "matching" | "notMatching";
  */
 export const MAX_FILTER_TEXT = 1_000;
 
-/** The filter of the find bar. With no text it shows every row. */
+/** The filter of the find bar. With no text, number or group it shows every row. */
 export interface Filter {
-  /** The text searched for; empty for none. */
-  readonly text: string;
   /** The column searched, or `null` for any column, the first included. */
   readonly column: ColumnId | null;
-  /** How the text must match a cell. */
-  readonly cell: CellMatch;
+  /** What a cell must be to match. */
+  readonly condition: Condition;
   /** Whether it is showing the rows that match or the others. */
   readonly showing: Showing;
 }
@@ -44,16 +56,37 @@ export interface Shown {
    * sends while the filter has no text.
    */
   readonly bits: Uint8Array | null;
+  /**
+   * Whether the filter shows every row because its comparison's text is
+   * no number written with the decimal mark of the window that set it.
+   */
+  readonly unreadableNumber: boolean;
 }
 
 /** Whether two filters are the same filter. */
 export function sameFilter(one: Filter, other: Filter): boolean {
   return (
-    one.text === other.text &&
     one.column === other.column &&
-    one.cell === other.cell &&
-    one.showing === other.showing
+    one.showing === other.showing &&
+    sameCondition(one.condition, other.condition)
   );
+}
+
+/** Whether two conditions are the same. */
+function sameCondition(one: Condition, other: Condition): boolean {
+  switch (one.kind) {
+    case "contains":
+    case "is":
+      return other.kind === one.kind && other.text === one.text;
+    case "group":
+      return other.kind === "group" && other.code === one.code;
+    case "compare":
+      return (
+        other.kind === "compare" && other.comparison === one.comparison && other.text === one.text
+      );
+    case "missing":
+      return other.kind === "missing";
+  }
 }
 
 /**

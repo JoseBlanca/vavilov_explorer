@@ -1,14 +1,20 @@
 //! The filter of the find bar above the table (`docs/design.md`, section
-//! 2.1): a text searched for in one column or in any, and which rows of the
-//! table it shows. A cell matches by the text the table shows of it, case
-//! ignored and accents not; a cell of a country also by any of its ISO
-//! names and codes; a missing cell never matches. The filter hides rows of
-//! the table only, and is part of the interaction, not undone.
+//! 2.1): a condition on one column or on any, and which rows of the table
+//! it shows. "contains" and "is" match a cell by the text the table shows
+//! of it, case ignored and accents not, and a cell of a country also by
+//! any of its ISO names and codes; "is" a group matches the group's
+//! individuals; a comparison matches the numbers that compare so with the
+//! one typed; "is missing" matches the missing cells, and apart from it a
+//! missing cell never matches. The filter hides rows of the table only, and
+//! is part of the interaction, not undone.
 
 pub(crate) mod texts;
 
+use std::cmp::Ordering;
+
 use serde::Deserialize;
 
+use crate::cells::decimal_number;
 use crate::convert::usize_from;
 use crate::countries;
 use crate::error::CommandError;
@@ -16,14 +22,72 @@ use crate::ids::{ColumnId, LevelCode, RowIndex};
 use crate::table::{Categorical, Column, ColumnValues, LevelValues, Numbers, Table};
 use crate::text::nfc;
 
-/// How the text must match a cell.
+/// How a number of a column compares with the one typed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum CellMatch {
-    /// The text is part of the cell's.
-    Part,
-    /// The text is the cell's whole text: "Whole cell".
-    Whole,
+pub enum Comparison {
+    /// "<".
+    Less,
+    /// "≤".
+    AtMost,
+    /// "=".
+    Equal,
+    /// "≥".
+    AtLeast,
+    /// ">".
+    Greater,
+}
+
+impl Comparison {
+    /// Whether a cell whose number stands so to the one typed matches.
+    const fn holds(self, ordering: Ordering) -> bool {
+        match self {
+            Self::Less => matches!(ordering, Ordering::Less),
+            Self::AtMost => matches!(ordering, Ordering::Less | Ordering::Equal),
+            Self::Equal => matches!(ordering, Ordering::Equal),
+            Self::AtLeast => matches!(ordering, Ordering::Greater | Ordering::Equal),
+            Self::Greater => matches!(ordering, Ordering::Greater),
+        }
+    }
+}
+
+/// What a cell must be to match, the operator of the find bar and its
+/// value.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum Condition {
+    /// "contains": the text is part of the cell's.
+    Contains {
+        /// The text; empty for none, which matches every row.
+        text: String,
+    },
+    /// "is": the text is the cell's whole text.
+    Is {
+        /// The text; empty for none, which matches every row.
+        text: String,
+    },
+    /// "is" a group, chosen from the list of a category or a column of
+    /// countries.
+    Group {
+        /// The group's code, or `None` before one is chosen, which matches
+        /// every row.
+        code: Option<LevelCode>,
+    },
+    /// "=", "<", "≤", ">" or "≥" a number, on a column of numbers.
+    Compare {
+        /// How the cell's number must compare with the one typed.
+        comparison: Comparison,
+        /// The number as typed, with the window's decimal mark; empty for
+        /// none, and one that is no number, both of which match every row.
+        text: String,
+    },
+    /// "is missing".
+    Missing,
 }
 
 /// Which rows the filter shows.
@@ -36,16 +100,15 @@ pub enum Showing {
     NotMatching,
 }
 
-/// The filter of the find bar. With no text it shows every row, and keeps
-/// its column and its choices for when the user types.
+/// The filter of the find bar. With no text, no number and no group it
+/// shows every row, and keeps its column and its choices for when the user
+/// types.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Filter {
-    /// The text searched for; empty for none.
-    pub text: String,
     /// The column searched, or `None` for any column, the first included.
     pub column: Option<ColumnId>,
-    /// How the text must match a cell.
-    pub cell: CellMatch,
+    /// What a cell must be to match.
+    pub condition: Condition,
     /// Whether it shows the rows that match or those that do not.
     pub showing: Showing,
 }
@@ -58,16 +121,111 @@ pub struct Filter {
 pub const MAX_FILTER_TEXT: usize = 1_000;
 
 impl Filter {
-    /// The filter of a table just loaded: no text, any column, part of a
-    /// cell and the matching rows, the defaults of the find bar (decided by
-    /// the owner on 2 October 2026).
+    /// The filter of a table just loaded: any column, "contains" with no
+    /// text, and the matching rows, the defaults of the find bar.
     #[must_use]
     pub fn none() -> Self {
         Self {
-            text: String::new(),
             column: None,
-            cell: CellMatch::Part,
+            condition: Condition::Contains {
+                text: String::new(),
+            },
             showing: Showing::Matching,
+        }
+    }
+
+    /// The text of its condition, typed or a number, or `None` for a
+    /// condition with none.
+    #[must_use]
+    pub fn text(&self) -> Option<&str> {
+        match &self.condition {
+            Condition::Contains { text }
+            | Condition::Is { text }
+            | Condition::Compare { text, .. } => Some(text),
+            Condition::Group { .. } | Condition::Missing => None,
+        }
+    }
+
+    /// Whether it may read the texts of decimal numbers, with a text that
+    /// is part or the whole of a cell's.
+    pub(crate) fn reads_number_texts(&self) -> bool {
+        match &self.condition {
+            Condition::Contains { text } | Condition::Is { text } => !text.is_empty(),
+            Condition::Group { .. } | Condition::Compare { .. } | Condition::Missing => false,
+        }
+    }
+
+    /// Whether its condition is a comparison whose text, not empty, is no
+    /// number written with `decimal_mark`, so that it filters nothing and
+    /// the find bar says so.
+    #[must_use]
+    pub fn unreadable_number(&self, decimal_mark: Option<&str>) -> bool {
+        match (&self.condition, decimal_mark) {
+            (Condition::Compare { text, .. }, Some(mark)) => {
+                !text.is_empty() && decimal_number(text, mark).is_err()
+            }
+            (Condition::Compare { text, .. }, None) => !text.is_empty(),
+            _ => false,
+        }
+    }
+}
+
+/// What the values of a column searched are, which sets the conditions
+/// that fit it, as the find bar offers its operators.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Searched {
+    /// Texts: a column of text, or the IDs.
+    Texts,
+    /// The groups of a category or a column of countries, so many of them.
+    Groups(usize),
+    /// Numbers: a number, a latitude or a longitude.
+    Numbers,
+}
+
+impl Searched {
+    /// What `values` are.
+    pub(crate) fn of(values: &ColumnValues) -> Self {
+        match values {
+            ColumnValues::Number(_) | ColumnValues::Latitude(_) | ColumnValues::Longitude(_) => {
+                Self::Numbers
+            }
+            ColumnValues::Text(_) => Self::Texts,
+            ColumnValues::Category(categorical) | ColumnValues::Country(categorical) => {
+                Self::Groups(categorical.levels().len())
+            }
+        }
+    }
+}
+
+impl Condition {
+    /// Whether it fits a column of `searched`, or any column for `None`.
+    pub(crate) fn fits(&self, searched: Option<Searched>) -> bool {
+        match (self, searched) {
+            (Self::Missing, _)
+            | (Self::Contains { .. }, None | Some(Searched::Texts | Searched::Groups(_)))
+            | (Self::Is { .. }, None | Some(Searched::Texts))
+            | (Self::Compare { .. }, Some(Searched::Numbers)) => true,
+            (Self::Group { code }, Some(Searched::Groups(levels))) => {
+                code.is_none_or(|code| usize::from(code.get()) < levels)
+            }
+            (Self::Contains { .. } | Self::Is { .. }, Some(Searched::Numbers))
+            | (Self::Is { .. }, Some(Searched::Groups(_)))
+            | (Self::Group { .. }, None | Some(Searched::Texts | Searched::Numbers))
+            | (Self::Compare { .. }, None | Some(Searched::Texts | Searched::Groups(_))) => false,
+        }
+    }
+
+    /// The first operator of a column of `searched`, or of any column for
+    /// `None`, with no value: "=" for numbers, "contains" for the others.
+    pub(crate) fn first_of(searched: Option<Searched>) -> Self {
+        match searched {
+            Some(Searched::Numbers) => Self::Compare {
+                comparison: Comparison::Equal,
+                text: String::new(),
+            },
+            None | Some(Searched::Texts | Searched::Groups(_)) => Self::Contains {
+                text: String::new(),
+            },
         }
     }
 }
@@ -84,17 +242,98 @@ pub(crate) enum Replaced<'a> {
     Names(&'a [String]),
 }
 
-/// The rows `filter` shows of `table`, in order, with `replaced` in the
-/// place of what it replaces; `None` when the filter has no text and shows
-/// every row. A decimal number matches by its text with `decimal_mark`,
-/// the one the window that set the filter writes numbers with, read from
-/// `kept` where they are kept for the column as it is.
+/// What the column searched of `filter` is, with `replaced` in the place of
+/// what it replaces; `None` for any column.
 ///
 /// # Errors
 ///
-/// `UnknownColumn` for a column the table does not have, with a text or
-/// not; a `Defect` for a text with no decimal mark, and for a column whose
-/// length is not the table's.
+/// `UnknownColumn` for a column the table does not have.
+fn searched_of(
+    filter: &Filter,
+    table: &Table,
+    replaced: Option<Replaced<'_>>,
+) -> Result<Option<Searched>, CommandError> {
+    let Some(column) = filter.column else {
+        return Ok(None);
+    };
+    if column == table.names().id() {
+        return Ok(Some(Searched::Texts));
+    }
+    if let Some(Replaced::Values(replaced, values)) = replaced
+        && replaced == column
+    {
+        return Ok(Some(Searched::of(values)));
+    }
+    let found = table
+        .column(column)
+        .ok_or(CommandError::UnknownColumn { column })?;
+    Ok(Some(Searched::of(found.values())))
+}
+
+/// Whether `filter` fits its column of `table` as it is.
+///
+/// # Errors
+///
+/// `UnknownColumn` for a column the table does not have.
+pub(crate) fn fits(filter: &Filter, table: &Table) -> Result<bool, CommandError> {
+    Ok(filter.condition.fits(searched_of(filter, table, None)?))
+}
+
+/// A column whose groups are renumbered, and the new code of each, `None`
+/// for a group deleted.
+pub(crate) type MovedCodes<'a> = (ColumnId, &'a dyn Fn(LevelCode) -> Option<LevelCode>);
+
+/// `filter` as an edit with `replaced` leaves it: its group moved to its
+/// new code by `moved`, when the groups of `moved`'s column are renumbered,
+/// and cleared to the column's first operator with no value when it no
+/// longer fits its column, a group deleted or the column of another role
+/// (`docs/design.md`, section 2.1).
+///
+/// # Errors
+///
+/// `UnknownColumn` for a column the table does not have.
+pub(crate) fn fitted(
+    filter: &Filter,
+    table: &Table,
+    replaced: Option<Replaced<'_>>,
+    moved: Option<MovedCodes<'_>>,
+) -> Result<Filter, CommandError> {
+    let searched = searched_of(filter, table, replaced)?;
+    let condition = match (&filter.condition, moved) {
+        (Condition::Group { code: Some(code) }, Some((column, moved)))
+            if filter.column == Some(column) =>
+        {
+            match moved(*code) {
+                Some(code) => Condition::Group { code: Some(code) },
+                None => Condition::first_of(searched),
+            }
+        }
+        (condition, _) => condition.clone(),
+    };
+    let condition = if condition.fits(searched) {
+        condition
+    } else {
+        Condition::first_of(searched)
+    };
+    Ok(Filter {
+        column: filter.column,
+        condition,
+        showing: filter.showing,
+    })
+}
+
+/// The rows `filter` shows of `table`, in order, with `replaced` in the
+/// place of what it replaces; `None` when it shows every row, with no
+/// text, number or group, or a number it cannot read. A decimal number
+/// matches a text by its text with `decimal_mark`, the one the window that
+/// set the filter writes numbers with, read from `kept` where they are kept
+/// for the column as it is; a comparison reads its number with it.
+///
+/// # Errors
+///
+/// `UnknownColumn` for a column the table does not have; a `Defect` for a
+/// text with no decimal mark, a condition that does not fit its column, and
+/// a column whose length is not the table's.
 pub(crate) fn shown_rows(
     filter: &Filter,
     decimal_mark: Option<&str>,
@@ -102,51 +341,53 @@ pub(crate) fn shown_rows(
     replaced: Option<Replaced<'_>>,
     kept: &texts::NumberTexts,
 ) -> Result<Option<Vec<RowIndex>>, CommandError> {
-    let names = table.names();
-    if let Some(column) = filter.column
-        && column != names.id()
-        && table.column(column).is_none()
-    {
-        return Err(CommandError::UnknownColumn { column });
+    let searched = searched_of(filter, table, replaced)?;
+    if !filter.condition.fits(searched) {
+        return Err(CommandError::Defect {
+            what: format!(
+                "a filter {:?} on column {:?}, which does not fit it",
+                filter.condition, filter.column
+            ),
+        });
     }
-    if filter.text.is_empty() {
-        return Ok(None);
-    }
-    let decimal_mark = decimal_mark.ok_or_else(|| CommandError::Defect {
-        what: "a filter with a text and no decimal mark".to_owned(),
-    })?;
-    let search = Search {
-        // In the composed form of the table's texts (`crate::text`).
-        text: nfc(&filter.text).to_lowercase(),
-        cell: filter.cell,
-        decimal_mark,
-    };
     let num_rows = usize_from(table.num_rows());
-    let individuals = match replaced {
-        Some(Replaced::Names(new)) => new,
-        Some(Replaced::Values(..) | Replaced::Codes(..)) | None => names.names(),
-    };
-    let matches = match filter.column {
-        Some(column) if column == names.id() => texts(individuals.iter().map(Some), &search),
-        Some(column) => {
-            let found = table
-                .column(column)
-                .ok_or(CommandError::UnknownColumn { column })?;
-            column_matches(found, replaced, &search, kept)?
+    let matches = match &filter.condition {
+        Condition::Contains { text } | Condition::Is { text } if text.is_empty() => {
+            return Ok(None);
         }
-        None => {
-            let mut any = texts(individuals.iter().map(Some), &search);
-            for column in table.columns() {
-                let one = column_matches(column, replaced, &search, kept)?;
-                if one.len() != num_rows {
-                    return Err(length_defect(column.id(), one.len(), num_rows));
-                }
-                for (row, matched) in any.iter_mut().zip(one) {
-                    *row |= matched;
-                }
-            }
-            any
+        Condition::Contains { text } | Condition::Is { text } => {
+            let decimal_mark = decimal_mark.ok_or_else(|| CommandError::Defect {
+                what: "a filter with a text and no decimal mark".to_owned(),
+            })?;
+            let search = Search {
+                // In the composed form of the table's texts (`crate::text`).
+                text: nfc(text).to_lowercase(),
+                cell: if matches!(filter.condition, Condition::Is { .. }) {
+                    CellMatch::Whole
+                } else {
+                    CellMatch::Part
+                },
+                decimal_mark,
+            };
+            text_matches(filter.column, table, replaced, &search, kept)?
         }
+        Condition::Group { code: None } => return Ok(None),
+        Condition::Group { code: Some(code) } => {
+            let codes = codes_of(searched_column(filter, table)?, replaced)?;
+            codes.iter().map(|each| *each == Some(*code)).collect()
+        }
+        Condition::Compare { text, .. } if text.is_empty() => return Ok(None),
+        Condition::Compare { comparison, text } => {
+            let decimal_mark = decimal_mark.ok_or_else(|| CommandError::Defect {
+                what: "a filter with a number and no decimal mark".to_owned(),
+            })?;
+            let Ok(number) = decimal_number(text, decimal_mark) else {
+                return Ok(None);
+            };
+            let values = values_of(searched_column(filter, table)?, replaced);
+            compared(values, *comparison, number)?
+        }
+        Condition::Missing => missing_matches(filter.column, table, replaced)?,
     };
     if matches.len() != num_rows {
         return Err(CommandError::Defect {
@@ -167,6 +408,187 @@ pub(crate) fn shown_rows(
             .map(|(row, _)| RowIndex::new(row))
             .collect(),
     ))
+}
+
+/// The column of `filter`, which is one of the table's other than the IDs,
+/// as a group or a comparison asks.
+fn searched_column<'a>(filter: &Filter, table: &'a Table) -> Result<&'a Column, CommandError> {
+    let column = filter.column.ok_or_else(|| CommandError::Defect {
+        what: format!("a filter {:?} on any column", filter.condition),
+    })?;
+    table
+        .column(column)
+        .ok_or(CommandError::UnknownColumn { column })
+}
+
+/// The values of `column`, or those `replaced` gives it.
+fn values_of<'a>(column: &'a Column, replaced: Option<Replaced<'a>>) -> &'a ColumnValues {
+    match replaced {
+        Some(Replaced::Values(replaced, values)) if replaced == column.id() => values,
+        Some(Replaced::Values(..) | Replaced::Codes(..) | Replaced::Names(..)) | None => {
+            column.values()
+        }
+    }
+}
+
+/// The codes of the category `column`, or those `replaced` gives it.
+fn codes_of<'a>(
+    column: &'a Column,
+    replaced: Option<Replaced<'a>>,
+) -> Result<&'a [Option<LevelCode>], CommandError> {
+    if let Some(Replaced::Codes(replaced, codes)) = replaced
+        && replaced == column.id()
+    {
+        return Ok(codes);
+    }
+    values_of(column, replaced)
+        .categorical()
+        .map(Categorical::codes)
+        .ok_or_else(|| CommandError::Defect {
+            what: format!("a filter by a group of column {}, no category", column.id()),
+        })
+}
+
+/// Whether each row of `values`, a column of numbers, compares with
+/// `number` as `comparison` asks; a missing value never does.
+fn compared(
+    values: &ColumnValues,
+    comparison: Comparison,
+    number: f64,
+) -> Result<Vec<bool>, CommandError> {
+    let holds = |value: f64| {
+        value
+            .partial_cmp(&number)
+            .is_some_and(|ordering| comparison.holds(ordering))
+    };
+    match values {
+        ColumnValues::Number(numbers)
+        | ColumnValues::Latitude(numbers)
+        | ColumnValues::Longitude(numbers) => Ok(match numbers {
+            // A whole number of a column is far below 2^53, where every
+            // whole number is a float.
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the whole numbers of a table are far below 2^53"
+            )]
+            Numbers::Integer(values) => values
+                .iter()
+                .map(|value| value.is_some_and(|value| holds(value as f64)))
+                .collect(),
+            Numbers::Float(values) => values
+                .iter()
+                .map(|value| value.is_some_and(holds))
+                .collect(),
+        }),
+        ColumnValues::Text(_) | ColumnValues::Category(_) | ColumnValues::Country(_) => {
+            Err(CommandError::Defect {
+                what: "a comparison of a column that holds no numbers".to_owned(),
+            })
+        }
+    }
+}
+
+/// Whether each row of `values` is missing.
+fn missing_of(values: &ColumnValues, replaced_codes: Option<&[Option<LevelCode>]>) -> Vec<bool> {
+    match values {
+        ColumnValues::Number(numbers)
+        | ColumnValues::Latitude(numbers)
+        | ColumnValues::Longitude(numbers) => match numbers {
+            Numbers::Integer(values) => values.iter().map(Option::is_none).collect(),
+            Numbers::Float(values) => values.iter().map(Option::is_none).collect(),
+        },
+        ColumnValues::Text(values) => values.iter().map(Option::is_none).collect(),
+        ColumnValues::Category(categorical) | ColumnValues::Country(categorical) => replaced_codes
+            .unwrap_or(categorical.codes())
+            .iter()
+            .map(Option::is_none)
+            .collect(),
+    }
+}
+
+/// Whether each row is missing in the column `column`, or in any for
+/// `None`; the IDs are never missing.
+fn missing_matches(
+    column: Option<ColumnId>,
+    table: &Table,
+    replaced: Option<Replaced<'_>>,
+) -> Result<Vec<bool>, CommandError> {
+    let num_rows = usize_from(table.num_rows());
+    let missing_in = |found: &Column| -> Vec<bool> {
+        let codes = match replaced {
+            Some(Replaced::Codes(replaced, codes)) if replaced == found.id() => Some(codes),
+            Some(Replaced::Values(..) | Replaced::Codes(..) | Replaced::Names(..)) | None => None,
+        };
+        missing_of(values_of(found, replaced), codes)
+    };
+    match column {
+        Some(column) if column == table.names().id() => Ok(vec![false; num_rows]),
+        Some(column) => Ok(missing_in(
+            table
+                .column(column)
+                .ok_or(CommandError::UnknownColumn { column })?,
+        )),
+        None => {
+            let mut any = vec![false; num_rows];
+            for found in table.columns() {
+                let one = missing_in(found);
+                if one.len() != num_rows {
+                    return Err(length_defect(found.id(), one.len(), num_rows));
+                }
+                for (row, missing) in any.iter_mut().zip(one) {
+                    *row |= missing;
+                }
+            }
+            Ok(any)
+        }
+    }
+}
+
+/// Whether each row matches the text of `search` in the column `column`,
+/// or in any for `None`, the IDs included.
+fn text_matches(
+    column: Option<ColumnId>,
+    table: &Table,
+    replaced: Option<Replaced<'_>>,
+    search: &Search<'_>,
+    kept: &texts::NumberTexts,
+) -> Result<Vec<bool>, CommandError> {
+    let names = table.names();
+    let num_rows = usize_from(table.num_rows());
+    let individuals = match replaced {
+        Some(Replaced::Names(new)) => new,
+        Some(Replaced::Values(..) | Replaced::Codes(..)) | None => names.names(),
+    };
+    match column {
+        Some(column) if column == names.id() => Ok(texts(individuals.iter().map(Some), search)),
+        Some(column) => {
+            let found = table
+                .column(column)
+                .ok_or(CommandError::UnknownColumn { column })?;
+            column_matches(found, replaced, search, kept)
+        }
+        None => {
+            let mut any = texts(individuals.iter().map(Some), search);
+            for column in table.columns() {
+                let one = column_matches(column, replaced, search, kept)?;
+                if one.len() != num_rows {
+                    return Err(length_defect(column.id(), one.len(), num_rows));
+                }
+                for (row, matched) in any.iter_mut().zip(one) {
+                    *row |= matched;
+                }
+            }
+            Ok(any)
+        }
+    }
+}
+
+/// How the text must match a cell: as part of it, "contains", or as its
+/// whole text, "is".
+#[derive(Clone, Copy)]
+enum CellMatch {
+    Part,
+    Whole,
 }
 
 /// The text searched for, in lower case, and how it must match.

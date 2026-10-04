@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { isColumnId, isHoverSeq, isLevelCode, isRevision, isRowIndex } from "./ids.ts";
 import type { ColumnId, HoverSeq, LevelCode, Revision, RowIndex } from "./ids.ts";
+import type { Filter } from "./filter.ts";
 import type { Message, MessagePart } from "./message.ts";
 import { createWindowState } from "./windowState.ts";
 import type { Aspect } from "./windowState.ts";
@@ -32,7 +33,11 @@ const CLUSTER = column(3);
 const HEIGHT = column(1);
 
 /** The filter of a table just loaded, which shows every row. */
-const NO_FILTER = { text: "", column: null, cell: "part", showing: "matching" } as const;
+const NO_FILTER = {
+  column: null,
+  condition: { kind: "contains", text: "" },
+  showing: "matching",
+} as const;
 
 /** The parts of the plants of the core's tests, four rows, loaded at 1. */
 function plantParts(loadedAt: number): MessagePart[] {
@@ -45,7 +50,7 @@ function plantParts(loadedAt: number): MessagePart[] {
     {
       kind: "filter",
       filter: NO_FILTER,
-      shown: { at: revision(loadedAt), numShown: 4, bits: null },
+      shown: { at: revision(loadedAt), numShown: 4, bits: null, unreadableNumber: false },
     },
     {
       kind: "columns",
@@ -218,7 +223,7 @@ describe("applying a change", () => {
       {
         kind: "filter",
         filter: NO_FILTER,
-        shown: { at: revision(3), numShown: 9, bits: null },
+        shown: { at: revision(3), numShown: 9, bits: null, unreadableNumber: false },
       },
       { kind: "columns", columns: [{ column: HEIGHT, revision: revision(3) }] },
       { kind: "hover", seq: seq(2), row: null },
@@ -407,7 +412,11 @@ describe("a change of a column's role", () => {
 });
 
 describe("the filter of the copy", () => {
-  const spain = { text: "Spain", column: ORIGIN, cell: "whole", showing: "matching" } as const;
+  const spain: Filter = {
+    column: ORIGIN,
+    condition: { kind: "contains", text: "Spain" },
+    showing: "matching",
+  };
 
   test("is the one the backend sent, and its change calls the filter's listeners", () => {
     const state = createWindowState(snapshot(1));
@@ -416,10 +425,14 @@ describe("the filter of the copy", () => {
     const called = recordAspects(state);
     const bits = new Uint8Array([0b1001]);
     state.apply(
-      change(2, { kind: "filter", filter: spain, shown: { at: revision(2), numShown: 2, bits } }),
+      change(2, {
+        kind: "filter",
+        filter: spain,
+        shown: { at: revision(2), numShown: 2, bits, unreadableNumber: false },
+      }),
     );
     expect(state.filter()).toEqual(spain);
-    expect(state.shown()).toEqual({ at: 2, numShown: 2, bits });
+    expect(state.shown()).toEqual({ at: 2, numShown: 2, bits, unreadableNumber: false });
     expect(called).toEqual(["filter"]);
   });
 
@@ -428,7 +441,7 @@ describe("the filter of the copy", () => {
     const filterPart = (numShown: number, bits: Uint8Array | null): MessagePart => ({
       kind: "filter",
       filter: spain,
-      shown: { at: revision(2), numShown, bits },
+      shown: { at: revision(2), numShown, bits, unreadableNumber: false },
     });
     expect(() => {
       state.apply(change(2, filterPart(2, new Uint8Array([0b1001, 0]))));

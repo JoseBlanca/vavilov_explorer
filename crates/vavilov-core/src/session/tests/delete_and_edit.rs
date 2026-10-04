@@ -84,7 +84,9 @@ fn filter(session: &mut Session, text: &str) {
         session,
         Command::SetFilter {
             filter: Filter {
-                text: text.to_owned(),
+                condition: crate::filter::Condition::Contains {
+                    text: text.to_owned(),
+                },
                 ..Filter::none()
             },
             decimal_mark: ".".to_owned(),

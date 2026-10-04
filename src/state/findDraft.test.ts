@@ -13,9 +13,14 @@ function column(value: number): ColumnId {
 
 const ORIGIN = column(2);
 
-/** A filter of `text` in any column, part of a cell, the rows that match, and `rest`. */
+/** A filter that contains `text` in any column, the rows that match, and `rest`. */
 function filter(text: string, rest: Partial<Filter> = {}): Filter {
-  return { text, column: null, cell: "part", showing: "matching", ...rest };
+  return { column: null, condition: { kind: "contains", text }, showing: "matching", ...rest };
+}
+
+/** The change of the user who typed `text`. */
+function typing(text: string): Partial<Filter> {
+  return { condition: { kind: "contains", text } };
 }
 
 /** `filter(text, rest)` for the table loaded at `loadedAt`. */
@@ -32,17 +37,17 @@ function sent(step: FindStep): Filter | null {
 describe("the find bar's own filter", () => {
   test("is sent at once when nothing is on its way, and not when it is the backend's", () => {
     const backend = ofLoad("");
-    const typed = edited(NO_DRAFT, { text: "sp" }, backend);
+    const typed = edited(NO_DRAFT, typing("sp"), backend);
     expect(sent(typed)).toEqual(filter("sp"));
     expect(drawnFilter(typed.draft, backend)).toEqual(filter("sp"));
-    const same = edited(NO_DRAFT, { text: "" }, backend);
+    const same = edited(NO_DRAFT, typing(""), backend);
     expect(sent(same)).toBeNull();
     expect(same.draft).toEqual(NO_DRAFT);
   });
 
   test("keeps a column chosen while a filter is on its way, and sends it next", () => {
     const empty = ofLoad("");
-    const typed = edited(NO_DRAFT, { text: "sp" }, empty);
+    const typed = edited(NO_DRAFT, typing("sp"), empty);
     const chosen = edited(typed.draft, { column: ORIGIN }, empty);
     expect(sent(chosen)).toBeNull();
     expect(drawnFilter(chosen.draft, empty)).toEqual(filter("sp", { column: ORIGIN }));
@@ -60,8 +65,8 @@ describe("the find bar's own filter", () => {
   });
 
   test("is dropped by a load, and not sent to the table loaded", () => {
-    const typed = edited(NO_DRAFT, { text: "sp" }, ofLoad(""));
-    const waiting = edited(typed.draft, { text: "spa", column: ORIGIN }, ofLoad(""));
+    const typed = edited(NO_DRAFT, typing("sp"), ofLoad(""));
+    const waiting = edited(typed.draft, { ...typing("spa"), column: ORIGIN }, ofLoad(""));
     // Another table, loaded at 5, comes with no filter.
     const loaded = ofLoad("", 5);
     const heard = backendChanged(waiting.draft, loaded);
@@ -74,9 +79,9 @@ describe("the find bar's own filter", () => {
   });
 
   test("typed after a load, while a send of the table before is on its way, is sent after it", () => {
-    const typed = edited(NO_DRAFT, { text: "sp" }, ofLoad(""));
+    const typed = edited(NO_DRAFT, typing("sp"), ofLoad(""));
     const loaded = ofLoad("", 5);
-    const again = edited(backendChanged(typed.draft, loaded), { text: "pe" }, loaded);
+    const again = edited(backendChanged(typed.draft, loaded), typing("pe"), loaded);
     expect(sent(again)).toBeNull();
     const answered = sendAnswered(again.draft, "dropped", loaded);
     expect(answered.send).toEqual(ofLoad("pe", 5));
@@ -84,9 +89,9 @@ describe("the find bar's own filter", () => {
 
   test("is not taken back by a late message of an older filter", () => {
     const empty = ofLoad("");
-    const first = edited(NO_DRAFT, { text: "s" }, empty);
-    const more = edited(first.draft, { text: "sp" }, empty);
-    const most = edited(more.draft, { text: "spa" }, empty);
+    const first = edited(NO_DRAFT, typing("s"), empty);
+    const more = edited(first.draft, typing("sp"), empty);
+    const most = edited(more.draft, typing("spa"), empty);
     const older = ofLoad("s");
     const heard = backendChanged(most.draft, older);
     expect(drawnFilter(heard, older)).toEqual(filter("spa"));
@@ -95,8 +100,8 @@ describe("the find bar's own filter", () => {
 
   test("typed back to the backend's while another is on its way is sent after it", () => {
     const empty = ofLoad("");
-    const typed = edited(NO_DRAFT, { text: "s" }, empty);
-    const erased = edited(typed.draft, { text: "" }, empty);
+    const typed = edited(NO_DRAFT, typing("s"), empty);
+    const erased = edited(typed.draft, typing(""), empty);
     expect(drawnFilter(erased.draft, empty)).toEqual(filter(""));
     const held = ofLoad("s");
     const heard = backendChanged(erased.draft, held);
@@ -106,20 +111,20 @@ describe("the find bar's own filter", () => {
 
   test("is dropped when the send is refused, and no older filter is sent after a newer one", () => {
     const empty = ofLoad("");
-    const typed = edited(NO_DRAFT, { text: "s" }, empty);
-    const waiting = edited(typed.draft, { text: "sp" }, empty);
+    const typed = edited(NO_DRAFT, typing("s"), empty);
+    const waiting = edited(typed.draft, typing("sp"), empty);
     const refused = sendAnswered(waiting.draft, "dropped", empty);
     expect(sent(refused)).toBeNull();
     expect(refused.draft).toEqual(NO_DRAFT);
     expect(drawnFilter(refused.draft, empty)).toEqual(filter(""));
-    const newer = edited(refused.draft, { text: "spa" }, empty);
+    const newer = edited(refused.draft, typing("spa"), empty);
     expect(sent(newer)).toEqual(filter("spa"));
     expect(sent(sendAnswered(newer.draft, "applied", empty))).toBeNull();
   });
 
   test("is not sent again once applied, while the message of the change is on its way", () => {
     const empty = ofLoad("");
-    const typed = edited(NO_DRAFT, { text: "sp" }, empty);
+    const typed = edited(NO_DRAFT, typing("sp"), empty);
     const answered = sendAnswered(typed.draft, "applied", empty);
     expect(sent(answered)).toBeNull();
     expect(drawnFilter(answered.draft, empty)).toEqual(filter("sp"));
@@ -127,9 +132,9 @@ describe("the find bar's own filter", () => {
   });
 
   test("is nothing with no project open", () => {
-    const typed = edited(NO_DRAFT, { text: "sp" }, ofLoad(""));
+    const typed = edited(NO_DRAFT, typing("sp"), ofLoad(""));
     expect(drawnFilter(typed.draft, null)).toBeNull();
     expect(backendChanged(typed.draft, null).pending).toBeNull();
-    expect(sent(edited(NO_DRAFT, { text: "sp" }, null))).toBeNull();
+    expect(sent(edited(NO_DRAFT, typing("sp"), null))).toBeNull();
   });
 });

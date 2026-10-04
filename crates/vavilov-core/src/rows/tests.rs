@@ -379,9 +379,10 @@ fn a_row_asked_for_by_its_index_is_a_page_of_one_at_position_0_whatever_the_filt
         .dispatch(Request {
             command: Command::SetFilter {
                 filter: crate::filter::Filter {
-                    text: "Peru".to_owned(),
                     column: None,
-                    cell: crate::filter::CellMatch::Part,
+                    condition: crate::filter::Condition::Contains {
+                        text: "Peru".to_owned(),
+                    },
                     showing: crate::filter::Showing::Matching,
                 },
                 decimal_mark: ".".to_owned(),

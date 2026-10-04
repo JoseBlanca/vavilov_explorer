@@ -463,9 +463,8 @@ export async function connect(
     setRole: (column, role) => command("set_role", { column, role }),
     setFilter: (filter, decimalMark) =>
       command("set_filter", {
-        text: filter.text,
         column: filter.column,
-        cell: filter.cell,
+        condition: filter.condition,
         showing: filter.showing,
         decimalMark,
       }),

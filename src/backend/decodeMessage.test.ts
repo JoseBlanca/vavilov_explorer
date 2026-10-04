@@ -298,7 +298,7 @@ describe("the snapshot after edits that the core's tests write", () => {
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
     13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // filter part: rows shown since 1
-    4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, // 4 shown, any column, part, matching, every row
+    4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 255, 255, // 4 shown, any column, contains, matching, every row, no group
     0, 0, 0, 0, 0, 0, 0, 0, // no text: the offsets 0 and 0
     6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, // columns part: 7 columns
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // the names, at 1
@@ -356,8 +356,8 @@ describe("the snapshot after edits that the core's tests write", () => {
       { kind: "undo", canUndo: true, canRedo: false },
       {
         kind: "filter",
-        filter: { text: "", column: null, cell: "part", showing: "matching" },
-        shown: { at: 1, numShown: 4, bits: null },
+        filter: { column: null, condition: { kind: "contains", text: "" }, showing: "matching" },
+        shown: { at: 1, numShown: 4, bits: null, unreadableNumber: false },
       },
       {
         kind: "columns",
@@ -445,53 +445,111 @@ describe("a message that does not decode is a defect", () => {
 
 describe("a filter part", () => {
   // crates/vavilov-core/src/filter/tests.rs,
-  // the_filter_part_says_the_rows_shown_and_the_filter: origin whole cell
-  // "Spain", the rows that do not match, p2 and p3 of four.
+  // the_filter_part_says_the_rows_shown_and_the_filter: origin is the group
+  // Spain, the rows that do not match, p2 and p3 of four.
   // prettier-ignore
-  const FILTER_PART = [
-    13, 0, 0, 0, 41, 0, 0, 0,
+  const GROUP_PART = [
+    13, 0, 0, 0, 33, 0, 0, 0,
     2, 0, 0, 0, 0, 0, 0, 0, // rows shown since 2
     2, 0, 0, 0, 2, 0, 0, 0, // 2 shown, column 2
-    1, 1, 1, 0, 0, 0, 0, 0, // whole cell, not matching, rows below
+    2, 0, 1, 1, 0, 0, 0, 0, // a group, not matching, rows below, its code 0
+    0, 0, 0, 0, 0, 0, 0, 0, // no text: the offsets 0 and 0
+    0b0110, 0, 0, 0, 0, 0, 0, 0, // p2 and p3 shown, padded
+  ];
+
+  // the_filter_part_of_a_comparison_says_when_its_number_cannot_be_read:
+  // height > "2,5" with the point as the mark, which filters nothing.
+  // prettier-ignore
+  const COMPARE_PART = [
+    13, 0, 0, 0, 35, 0, 0, 0,
+    2, 0, 0, 0, 0, 0, 0, 0, // rows shown since 2
+    4, 0, 0, 0, 1, 0, 0, 0, // every row of 4 shown, column 1
+    3, 4, 0, 0, 1, 0, 255, 255, // a comparison, >, matching, every row, no number, no group
+    0, 0, 0, 0, 3, 0, 0, 0, // the text's offsets 0 and 3
+    50, 44, 53, 0, 0, 0, 0, 0, // 2,5, padded
+  ];
+
+  // Made here: any column contains "Spain", p2 and p3 of four shown.
+  // prettier-ignore
+  const CONTAINS_PART = [
+    13, 0, 0, 0, 41, 0, 0, 0,
+    2, 0, 0, 0, 0, 0, 0, 0, // rows shown since 2
+    2, 0, 0, 0, 255, 255, 255, 255, // 2 shown, any column
+    0, 0, 0, 1, 0, 0, 255, 255, // contains, matching, rows below, no group
     0, 0, 0, 0, 5, 0, 0, 0, // the text's offsets 0 and 5
     83, 112, 97, 105, 110, 0, 0, 0, // Spain, padded
     0b0110, 0, 0, 0, 0, 0, 0, 0, // p2 and p3 shown, padded
   ];
 
+  /** The one part of a change with `part`, its bits as an array. */
+  function decoded(part: readonly number[]): unknown {
+    const [first] = decodeMessage(buffer(...CHANGE_AT_5, ...part)).parts;
+    return first?.kind === "filter"
+      ? { ...first, shown: { ...first.shown, bits: first.shown.bits && [...first.shown.bits] } }
+      : first;
+  }
+
   test("decodes to the filter and the rows it shows", () => {
-    const [part] = decodeMessage(buffer(...CHANGE_AT_5, ...FILTER_PART)).parts;
-    expect(
-      part?.kind === "filter"
-        ? { ...part, shown: { ...part.shown, bits: [...(part.shown.bits ?? [])] } }
-        : part,
-    ).toEqual({
+    expect(decoded(GROUP_PART)).toEqual({
       kind: "filter",
-      filter: { text: "Spain", column: 2, cell: "whole", showing: "notMatching" },
-      shown: { at: 2, numShown: 2, bits: [0b0110] },
+      filter: { column: 2, condition: { kind: "group", code: 0 }, showing: "notMatching" },
+      shown: { at: 2, numShown: 2, bits: [0b0110], unreadableNumber: false },
+    });
+    expect(decoded(CONTAINS_PART)).toEqual({
+      kind: "filter",
+      filter: { column: null, condition: { kind: "contains", text: "Spain" }, showing: "matching" },
+      shown: { at: 2, numShown: 2, bits: [0b0110], unreadableNumber: false },
     });
   });
 
+  test("of a comparison says when its number cannot be read", () => {
+    expect(decoded(COMPARE_PART)).toEqual({
+      kind: "filter",
+      filter: {
+        column: 1,
+        condition: { kind: "compare", comparison: "greater", text: "2,5" },
+        showing: "matching",
+      },
+      shown: { at: 2, numShown: 4, bits: null, unreadableNumber: true },
+    });
+  });
+
+  test("of a missing value, and of no group chosen, decode with no text", () => {
+    const missing = [...GROUP_PART];
+    missing[24] = 4;
+    missing[30] = 255;
+    missing[31] = 255;
+    expect(decoded(missing)).toMatchObject({ filter: { condition: { kind: "missing" } } });
+    const none = [...GROUP_PART];
+    none[30] = 255;
+    none[31] = 255;
+    expect(decoded(none)).toMatchObject({ filter: { condition: { kind: "group", code: null } } });
+  });
+
   test("whose bits do not hold the rows it says it shows is a defect", () => {
-    const wrong = [...FILTER_PART];
-    wrong[48] = 0b0111;
+    const wrong = [...GROUP_PART];
+    wrong[40] = 0b0111;
     expectDefect([...CHANGE_AT_5, ...wrong], /2 rows shown with 3 bits set/);
   });
 
-  test("of an unknown way to match is a defect", () => {
-    const wrong = [...FILTER_PART];
-    wrong[24] = 2;
-    expectDefect([...CHANGE_AT_5, ...wrong], /cell 2/);
+  test("of an unknown kind or comparison is a defect", () => {
+    const kind = [...GROUP_PART];
+    kind[24] = 5;
+    expectDefect([...CHANGE_AT_5, ...kind], /kind 5/);
+    const comparison = [...COMPARE_PART];
+    comparison[25] = 5;
+    expectDefect([...CHANGE_AT_5, ...comparison], /comparison 5/);
   });
 
   test("whose text is padded with bytes that are not zero is a defect", () => {
-    const wrong = [...FILTER_PART];
+    const wrong = [...CONTAINS_PART];
     wrong[45] = 1;
     expectDefect([...CHANGE_AT_5, ...wrong], /the padding of the filter's text/);
   });
 
   test("with bytes after its text and no rows is a defect", () => {
-    const wrong = [...FILTER_PART];
-    wrong[26] = 0;
+    const wrong = [...CONTAINS_PART];
+    wrong[27] = 0;
     expectDefect([...CHANGE_AT_5, ...wrong], /a filter part with bytes after its text and no rows/);
   });
 });

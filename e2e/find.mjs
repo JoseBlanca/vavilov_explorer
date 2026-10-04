@@ -1,7 +1,9 @@
 // The find bar above the table and the information bar below it, against
-// the real core, in each engine: a text found in any column or in one, a
-// whole cell, the rows that don't match, a number by the region's decimal
-// mark, a country by its ISO names, a shift-click over a filtered table,
+// the real core, in each engine: a column, an operator and a value, read
+// as a sentence; a text found in any column or in one, "is" a whole cell,
+// a group chosen from a list, "is missing", the rows that don't match,
+// numbers compared with one read by the region's decimal mark, a filter
+// the core clears when its group is deleted, a country by its ISO names, a shift-click over a filtered table,
 // "Select shown rows", the count of the rows, Undo and Redo in the field, by the keyboard and by the
 // menu, a load clearing the filter, and a filtered table of 250 rows
 // scrolled past its first page. Screenshots, light and dark, land in
@@ -85,7 +87,8 @@ for (const engine of Object.keys(ENGINES)) {
     const find = page.getByRole("search", { name: "Find in the table" });
     const field = find.getByRole("searchbox", { name: "Find" });
     const column = find.getByRole("combobox", { name: "Column" });
-    const whole = find.getByRole("checkbox", { name: "Whole cell" });
+    const operator = find.getByRole("combobox", { name: "Operator" });
+    const groups = find.getByRole("combobox", { name: "Group" });
     const notMatching = find.getByRole("checkbox", { name: "Show rows that don't match" });
     await countSays(page, "6 individuals");
 
@@ -95,6 +98,9 @@ for (const engine of Object.keys(ENGINES)) {
     await countSays(page, "Showing 3 of 6 individuals");
     await shoot(page, engine, "find-any");
 
+    // The operators of any column are words.
+    assert.deepEqual(await optionTexts(operator), ["contains", "is", "is missing"]);
+
     // In one column; a missing cell never matches, so the rows that don't
     // match show p3, whose origin is missing.
     await column.selectOption({ label: "origin" });
@@ -103,20 +109,97 @@ for (const engine of Object.keys(ENGINES)) {
     await rowsShown(grid, ["p2", "p3", "p5"]);
     await notMatching.uncheck();
 
-    // A whole cell: "spa" is part of Spain, not the whole of it.
-    await field.fill("spa");
-    await rowsShown(grid, ["p1", "p4", "p6"]);
-    await whole.check();
+    // "is" a whole cell of text: "tal" is part of tall, not the whole of it.
+    await column.selectOption({ label: "note" });
+    await field.fill("tal");
+    await rowsShown(grid, ["p3", "p4"]);
+    await operator.selectOption("is");
     await rowsShown(grid, []);
     await countSays(page, "Showing 0 of 6 individuals");
-    await whole.uncheck();
+    await field.fill("tall");
+    await rowsShown(grid, ["p3", "p4"]);
 
-    // A number by the text the table shows, with the region's comma.
+    // "is" on a category chooses a group from its list, and starts from the
+    // group the text names, or from none, which shows every row.
+    await column.selectOption({ label: "origin" });
+    await groups.waitFor();
+    await rowsShown(grid, ALL);
+    assert.equal((await groups.locator("option:checked").textContent()).trim(), "Choose a group…");
+    await groups.selectOption({ label: "Peru" });
+    await rowsShown(grid, ["p2", "p5"]);
+    await shoot(page, engine, "find-group");
+
+    // "is missing" greys out the field; with the rows that don't match, it
+    // is "is not missing".
+    await operator.selectOption({ label: "is missing" });
+    await rowsShown(grid, ["p3"]);
+    assert.equal(await field.isDisabled(), true);
+    await notMatching.check();
+    await rowsShown(grid, ["p1", "p2", "p4", "p5", "p6"]);
+    await notMatching.uncheck();
+
+    // The operators of numbers are symbols, and compare with a number read
+    // with the region's comma; a missing height never matches.
     await column.selectOption({ label: "height" });
+    assert.deepEqual(await optionTexts(operator), ["=", "<", "≤", ">", "≥", "is missing"]);
+    // "is missing" is kept from the column before.
+    await rowsShown(grid, ["p3"]);
+    await operator.selectOption({ label: "=" });
     await field.fill("1,5");
     await rowsShown(grid, ["p1"]);
-    await field.fill("2,5");
-    await rowsShown(grid, ["p4"]);
+    await operator.selectOption({ label: "≥" });
+    await field.fill("3");
+    await rowsShown(grid, ["p4", "p5"]);
+    await operator.selectOption({ label: "<" });
+    await field.fill("1,5");
+    await rowsShown(grid, ["p6"]);
+    await shoot(page, engine, "find-compare");
+    // A point where the region writes a comma is no number: the filter
+    // shows every row, and the information bar says why.
+    await field.fill("1.5");
+    await rowsShown(grid, ALL);
+    await countSays(page, "6 individuals · “1.5” is not a number");
+
+    // A group deleted while the filter chose it clears the filter; its undo
+    // does not bring the filter back.
+    await column.selectOption({ label: "origin" });
+    await operator.selectOption("is");
+    await groups.selectOption({ label: "Peru" });
+    await rowsShown(grid, ["p2", "p5"]);
+    const panel = page.getByRole("region", { name: "Groups" });
+    await panel.getByRole("button", { name: /^Peru/ }).click();
+    await panel.getByRole("button", { name: "Delete group Peru" }).click();
+    await rowsShown(grid, ALL, {
+      ...CELLS,
+      p2: ["p2", "2", "missing", "missing"],
+      p5: ["p5", "3,25", "missing", "missing"],
+    });
+    assert.equal(await operator.inputValue(), "contains");
+    assert.equal(await field.inputValue(), "");
+    const undeleted = await backend.send({ command: "e2e:action", action: "undo" });
+    assert.equal(undeleted.ok, null, JSON.stringify(undeleted));
+    await rowsShown(grid, ALL);
+    assert.equal(await field.inputValue(), "");
+
+    // A change of role that leaves the filter's condition unfit clears it,
+    // and the information bar says so: a comparison of height, made a
+    // category.
+    await column.selectOption({ label: "height" });
+    await operator.selectOption({ label: "≥" });
+    await field.fill("3");
+    await rowsShown(grid, ["p4", "p5"]);
+    const heightRole = grid.getByRole("combobox", { name: "Role of height", exact: true });
+    await heightRole.selectOption("category");
+    await page
+      .getByRole("status")
+      .filter({ hasText: "The filter on height was removed: its column changed role." })
+      .waitFor();
+    await rowsShown(grid, ALL);
+    assert.equal(await operator.inputValue(), "contains");
+    assert.equal(await field.inputValue(), "");
+    await heightRole.selectOption("number");
+    await column.selectOption({ label: "origin" });
+    await rowsShown(grid, ALL);
 
     // A country by its ISO name, once origin is a country.
     await field.fill("");
@@ -226,6 +309,11 @@ for (const engine of Object.keys(ENGINES)) {
   } finally {
     await app.close();
   }
+}
+
+/** The texts of the options of the dropdown `select`, in order. */
+async function optionTexts(select) {
+  return (await select.locator("option").allTextContents()).map((text) => text.trim());
 }
 
 /** The cells of the rows drawn, in order, skipping the header; `null` while a row waits for its page. */

@@ -5,8 +5,21 @@ use crate::table::{Role, Stored};
 
 fn filter(text: &str) -> Filter {
     Filter {
-        text: text.to_owned(),
+        condition: Condition::Contains {
+            text: text.to_owned(),
+        },
         ..Filter::none()
+    }
+}
+
+/// `filter` with "is" in the place of "contains", the whole cell.
+fn whole(filter: Filter) -> Filter {
+    let Condition::Contains { text } = filter.condition else {
+        panic!("no text to make whole");
+    };
+    Filter {
+        condition: Condition::Is { text },
+        ..filter
     }
 }
 
@@ -45,9 +58,8 @@ fn shown_with(table: &Table, filter: &Filter, decimal_mark: &str) -> Option<Vec<
 fn a_filter_with_no_text_shows_every_row_whatever_its_choices() {
     let table = plants();
     let choices = Filter {
-        cell: CellMatch::Whole,
         showing: Showing::NotMatching,
-        ..in_column("", 2)
+        ..whole(filter(""))
     };
     assert_eq!(shown(&table, &choices), None);
 }
@@ -63,8 +75,9 @@ fn a_text_is_found_in_any_column_the_first_included() {
 #[test]
 fn a_text_in_one_column_is_found_there_only() {
     let table = plants();
-    // seeds, column 4: 10 and 12; p1's name and height are elsewhere.
-    assert_eq!(shown(&table, &in_column("1", 4)).unwrap(), ["p1", "p2"]);
+    // note, column 6: NA, missing, missing, tall; "a" is in origin's Spain
+    // too.
+    assert_eq!(shown(&table, &in_column("a", 6)).unwrap(), ["p1", "p4"]);
     // The first column, the names, by its id 0.
     assert_eq!(shown(&table, &in_column("4", 0)).unwrap(), ["p4"]);
 }
@@ -73,10 +86,8 @@ fn a_text_in_one_column_is_found_there_only() {
 fn case_is_ignored_and_a_whole_cell_must_be_the_whole_text() {
     let table = plants();
     assert_eq!(shown(&table, &in_column("SPA", 2)).unwrap(), ["p1", "p4"]);
-    let whole = |text: &str| Filter {
-        cell: CellMatch::Whole,
-        ..in_column(text, 2)
-    };
+    // "is" of any column matches a category's whole text.
+    let whole = |text: &str| whole(filter(text));
     assert_eq!(shown(&table, &whole("spa")).unwrap(), Vec::<String>::new());
     assert_eq!(shown(&table, &whole("spain")).unwrap(), ["p1", "p4"]);
 }
@@ -96,8 +107,17 @@ fn a_missing_cell_never_matches_so_the_rows_that_do_not_match_show_it() {
 
 #[test]
 fn a_decimal_number_matches_by_its_text_with_the_region_s_mark() {
-    let table = plants();
-    let comma = |text: &str| shown_with(&table, &in_column(text, 1), ",").unwrap();
+    // A column of numbers is searched by its text in any column alone.
+    let table = Table::new(
+        "IndividualID",
+        names(&["p1", "p2", "p3", "p4"]),
+        vec![column(
+            "height",
+            float(vec![Some(1.5), None, Some(2.0), Some(3.25)]),
+        )],
+    )
+    .unwrap();
+    let comma = |text: &str| shown_with(&table, &filter(text), ",").unwrap();
     // height: 1.5, missing, 2, 3.25.
     assert_eq!(comma("1,5"), ["p1"]);
     assert_eq!(comma("1.5"), Vec::<String>::new());
@@ -109,10 +129,7 @@ fn a_decimal_number_matches_by_its_text_with_the_region_s_mark() {
 #[test]
 fn yes_and_no_match_as_the_table_writes_them() {
     let table = plants();
-    let whole = Filter {
-        cell: CellMatch::Whole,
-        ..in_column("true", 5)
-    };
+    let whole = whole(filter("true"));
     assert_eq!(shown(&table, &whole).unwrap(), ["p1", "p4"]);
 }
 
@@ -151,10 +168,7 @@ fn a_country_matches_by_its_shown_code_and_every_iso_name_and_code() {
         ["c1", "c2", "c4"]
     );
     assert_eq!(shown(&table, &in_column("pe", 1)).unwrap(), ["c3"]);
-    let whole = Filter {
-        cell: CellMatch::Whole,
-        ..in_column("peru", 1)
-    };
+    let whole = whole(filter("peru"));
     assert_eq!(shown(&table, &whole).unwrap(), ["c3"]);
 }
 
@@ -431,7 +445,7 @@ mod in_the_session {
         for mark in ["", "۔,,,", "abcd"] {
             assert!(
                 matches!(
-                    try_set(&mut session, in_column("1", 1), mark),
+                    try_set(&mut session, filter("1"), mark),
                     Err(CommandError::Defect { .. })
                 ),
                 "{mark:?}"
@@ -440,7 +454,7 @@ mod in_the_session {
         }
         // Three characters, as a region of Windows may have, the first of
         // two bytes.
-        try_set(&mut session, in_column("1", 1), "٫ab").unwrap();
+        try_set(&mut session, filter("1"), "٫ab").unwrap();
         assert_eq!(session.revision(), Revision::new(2));
     }
 
@@ -461,9 +475,9 @@ mod in_the_session {
     fn the_same_filter_with_another_decimal_mark_is_set_again() {
         let mut session = loaded();
         // height: 1.5, missing, 2, 3.25.
-        set(&mut session, in_column("1,5", 1));
+        set(&mut session, filter("1,5"));
         assert_eq!(page(&session, 0), (vec![], 2));
-        try_set(&mut session, in_column("1,5", 1), ",").unwrap();
+        try_set(&mut session, filter("1,5"), ",").unwrap();
         assert_eq!(session.revision(), Revision::new(3));
         assert_eq!(page(&session, 1), (vec![0], 3));
     }
@@ -625,9 +639,11 @@ mod in_the_session {
         set(
             &mut session,
             Filter {
-                cell: CellMatch::Whole,
+                column: Some(ColumnId::new(2)),
+                condition: Condition::Group {
+                    code: Some(LevelCode::new(0)),
+                },
                 showing: Showing::NotMatching,
-                ..in_column("Spain", 2)
             },
         );
         let snapshot = session
@@ -643,9 +659,8 @@ mod in_the_session {
         let expected: Vec<u8> = vec![
             2, 0, 0, 0, 0, 0, 0, 0, // rows shown since 2
             2, 0, 0, 0, 2, 0, 0, 0, // 2 shown, column 2
-            1, 1, 1, 0, 0, 0, 0, 0, // whole cell, not matching, rows below
-            0, 0, 0, 0, 5, 0, 0, 0, // the text's offsets 0 and 5
-            b'S', b'p', b'a', b'i', b'n', 0, 0, 0, // Spain, padded
+            2, 0, 1, 1, 0, 0, 0, 0, // a group, not matching, rows below, its code 0
+            0, 0, 0, 0, 0, 0, 0, 0, // no text: the offsets 0 and 0
             0b0110, // p2 and p3 shown
         ];
         assert_eq!(part, expected);
@@ -664,25 +679,228 @@ mod in_the_session {
         );
         assert_eq!(page(&session, 4), (vec![0, 1, 2, 3], 3));
     }
+
+    /// The filter the session holds.
+    fn held(session: &Session) -> Filter {
+        session
+            .state
+            .project
+            .as_open()
+            .unwrap()
+            .interaction
+            .filter
+            .clone()
+    }
+
+    fn group(code: u16) -> Filter {
+        Filter {
+            column: Some(ColumnId::new(2)),
+            condition: Condition::Group {
+                code: Some(LevelCode::new(code)),
+            },
+            showing: Showing::Matching,
+        }
+    }
+
+    #[test]
+    fn a_condition_that_does_not_fit_its_column_is_a_defect() {
+        let mut session = loaded();
+        let compare = |column: Option<u32>| Filter {
+            column: column.map(ColumnId::new),
+            condition: Condition::Compare {
+                comparison: Comparison::AtMost,
+                text: "2".to_owned(),
+            },
+            showing: Showing::Matching,
+        };
+        for unfit in [
+            // A comparison of a text, of a category and of any column.
+            compare(Some(6)),
+            compare(Some(2)),
+            compare(None),
+            // A group of a column of numbers, and of no column.
+            Filter {
+                column: Some(ColumnId::new(1)),
+                ..group(0)
+            },
+            Filter {
+                column: None,
+                ..group(0)
+            },
+            // A group the column does not have.
+            group(2),
+            // "is" a text of a category, which offers its groups, and
+            // "contains" of a column of numbers.
+            whole(in_column("spain", 2)),
+            in_column("1", 1),
+        ] {
+            assert!(
+                matches!(
+                    try_set(&mut session, unfit.clone(), "."),
+                    Err(CommandError::Defect { .. })
+                ),
+                "{unfit:?}"
+            );
+        }
+        assert_eq!(session.revision(), Revision::new(1));
+    }
+
+    #[test]
+    fn a_deleted_group_clears_the_filter_and_one_before_it_moves_it() {
+        let mut session = loaded();
+        // origin: Spain (0), Peru (1); Peru holds p2.
+        set(&mut session, group(1));
+        assert_eq!(page(&session, 1), (vec![1], 2));
+        dispatch(
+            &mut session,
+            Command::DeleteGroup {
+                column: ColumnId::new(2),
+                group: LevelCode::new(0),
+            },
+        );
+        // Peru is now code 0, and the filter follows it.
+        assert_eq!(held(&session), group(0));
+        assert_eq!(page(&session, 1).0, vec![1]);
+        // The undo gives Spain back at 0, and Peru its code 1.
+        dispatch(&mut session, Command::Undo);
+        assert_eq!(held(&session), group(1));
+        assert_eq!(page(&session, 1).0, vec![1]);
+        dispatch(
+            &mut session,
+            Command::DeleteGroup {
+                column: ColumnId::new(2),
+                group: LevelCode::new(1),
+            },
+        );
+        // Peru deleted: the filter is cleared to "contains" with no text,
+        // and shows every row.
+        assert_eq!(
+            held(&session),
+            Filter {
+                column: Some(ColumnId::new(2)),
+                ..Filter::none()
+            }
+        );
+        assert_eq!(page(&session, 4).0, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn a_change_of_role_clears_a_filter_that_no_longer_fits_and_keeps_one_that_does() {
+        let mut session = loaded();
+        let at_most = Filter {
+            column: Some(ColumnId::new(1)),
+            condition: Condition::Compare {
+                comparison: Comparison::AtMost,
+                text: "2".to_owned(),
+            },
+            showing: Showing::Matching,
+        };
+        set(&mut session, at_most.clone());
+        // height: 1.5, missing, 2, 3.25; a latitude is still a number.
+        dispatch(
+            &mut session,
+            Command::SetRole {
+                column: ColumnId::new(1),
+                role: Role::Latitude,
+            },
+        );
+        assert_eq!(held(&session), at_most);
+        assert_eq!(page(&session, 2).0, vec![0, 2]);
+        dispatch(
+            &mut session,
+            Command::SetRole {
+                column: ColumnId::new(1),
+                role: Role::Category,
+            },
+        );
+        assert_eq!(
+            held(&session),
+            Filter {
+                column: Some(ColumnId::new(1)),
+                ..Filter::none()
+            }
+        );
+        assert_eq!(page(&session, 4).0, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn a_category_made_text_clears_a_filter_by_its_group() {
+        let mut session = loaded();
+        // origin: Spain, Peru, missing, Spain.
+        set(&mut session, group(0));
+        dispatch(
+            &mut session,
+            Command::SetRole {
+                column: ColumnId::new(2),
+                role: Role::Text,
+            },
+        );
+        assert_eq!(
+            held(&session),
+            Filter {
+                column: Some(ColumnId::new(2)),
+                ..Filter::none()
+            }
+        );
+        assert_eq!(page(&session, 4).0, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn the_filter_part_of_a_comparison_says_when_its_number_cannot_be_read() {
+        let mut session = loaded();
+        set(
+            &mut session,
+            Filter {
+                column: Some(ColumnId::new(1)),
+                condition: Condition::Compare {
+                    comparison: Comparison::Greater,
+                    text: "2,5".to_owned(),
+                },
+                showing: Showing::Matching,
+            },
+        );
+        let snapshot = session
+            .subscribe(crate::ids::WindowLabel::main(), Box::new(Discard))
+            .unwrap();
+        let part = decode(&snapshot)
+            .parts
+            .into_iter()
+            .find(|(kind, _)| *kind == FILTER_PART)
+            .unwrap()
+            .1;
+        #[rustfmt::skip]
+        let expected: Vec<u8> = vec![
+            2, 0, 0, 0, 0, 0, 0, 0, // rows shown since 2
+            4, 0, 0, 0, 1, 0, 0, 0, // every row of 4 shown, column 1
+            3, 4, 0, 0, 1, 0, 255, 255, // a comparison, >, matching, every row, no number, no group
+            0, 0, 0, 0, 3, 0, 0, 0, // the text's offsets 0 and 3
+            b'2', b',', b'5', // 2,5, and no bits after it
+        ];
+        assert_eq!(part, expected);
+    }
 }
 
 #[test]
 fn a_number_is_found_by_every_character_its_text_can_have_and_by_no_other() {
-    let table = Table::new(
+    // Each column alone, searched by its text in any column.
+    let sizes = Table::new(
         "IndividualID",
         names(&["a", "b", "c"]),
-        vec![
-            column("size", float(vec![Some(1e21), Some(-1.5), None])),
-            column("count", integer(vec![Some(-12), None, Some(7)])),
-        ],
+        vec![column("size", float(vec![Some(1e21), Some(-1.5), None]))],
     )
     .unwrap();
-    let comma = |text: &str| shown_with(&table, &in_column(text, 1), ",").unwrap();
+    let counts = Table::new(
+        "IndividualID",
+        names(&["a", "b", "c"]),
+        vec![column("count", integer(vec![Some(-12), None, Some(7)]))],
+    )
+    .unwrap();
+    let comma = |text: &str| shown_with(&sizes, &filter(text), ",").unwrap();
     assert_eq!(comma("E+21"), ["a"]);
     assert_eq!(comma("-1,5"), ["b"]);
     assert_eq!(comma("1,5x"), Vec::<String>::new());
     assert_eq!(comma("1.5"), Vec::<String>::new());
-    let integers = |text: &str| shown_with(&table, &in_column(text, 2), ",").unwrap();
+    let integers = |text: &str| shown_with(&counts, &filter(text), ",").unwrap();
     assert_eq!(integers("-1"), ["a"]);
     assert_eq!(integers("7"), ["c"]);
     assert_eq!(integers("7 "), Vec::<String>::new());
@@ -747,11 +965,7 @@ mod kept_texts {
             let mut texts = NumberTexts::default();
             texts.refresh(&table, mark).unwrap();
             for text in ["1", "e+21", "-1,5", "-1.5", "0", "5", "1,5x"] {
-                for cell in [CellMatch::Part, CellMatch::Whole] {
-                    let filter = Filter {
-                        cell,
-                        ..filter(text)
-                    };
+                for filter in [filter(text), whole(filter(text))] {
                     assert_eq!(
                         rows_with(&table, &filter, mark, &texts),
                         rows_with(&table, &filter, mark, &NumberTexts::default()),
@@ -775,7 +989,7 @@ mod kept_texts {
         )
         .unwrap();
         after.set_revisions(Revision::new(5));
-        let shown = rows_with(&after, &in_column("7,5", 1), ",", &texts);
+        let shown = rows_with(&after, &filter("7,5"), ",", &texts);
         assert_eq!(shown, Some(vec![RowIndex::new(0)]));
     }
 }
@@ -792,4 +1006,113 @@ fn a_text_searched_with_an_accent_written_apart_finds_the_cells_that_have_it_com
         shown(&table, &filter("Jose\u{301}")),
         Some(vec!["Jos\u{e9}".to_owned()])
     );
+}
+
+#[test]
+fn is_matches_the_whole_text_of_a_cell() {
+    let table = plants();
+    // note: NA, missing, missing, tall.
+    assert_eq!(shown(&table, &whole(in_column("TALL", 6))).unwrap(), ["p4"]);
+    assert_eq!(
+        shown(&table, &whole(in_column("tal", 6))).unwrap(),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn a_group_matches_its_individuals_and_none_chosen_shows_every_row() {
+    let table = plants();
+    let group = |code: Option<u16>| Filter {
+        column: Some(ColumnId::new(2)),
+        condition: Condition::Group {
+            code: code.map(LevelCode::new),
+        },
+        showing: Showing::Matching,
+    };
+    // origin: Spain, Peru, missing, Spain.
+    assert_eq!(shown(&table, &group(Some(0))).unwrap(), ["p1", "p4"]);
+    assert_eq!(shown(&table, &group(Some(1))).unwrap(), ["p2"]);
+    assert_eq!(shown(&table, &group(None)), None);
+}
+
+#[test]
+fn a_comparison_matches_the_numbers_that_compare_so_and_never_a_missing_one() {
+    let table = plants();
+    let compare = |column: u32, comparison: Comparison, text: &str| Filter {
+        column: Some(ColumnId::new(column)),
+        condition: Condition::Compare {
+            comparison,
+            text: text.to_owned(),
+        },
+        showing: Showing::Matching,
+    };
+    // height: 1.5, missing, 2, 3.25.
+    let height = |comparison, text: &str| shown(&table, &compare(1, comparison, text)).unwrap();
+    assert_eq!(height(Comparison::Less, "2"), ["p1"]);
+    assert_eq!(height(Comparison::AtMost, "2"), ["p1", "p3"]);
+    assert_eq!(height(Comparison::Equal, "2"), ["p3"]);
+    assert_eq!(height(Comparison::Equal, "2.00"), ["p3"]);
+    assert_eq!(height(Comparison::AtLeast, "2"), ["p3", "p4"]);
+    assert_eq!(height(Comparison::Greater, "2"), ["p4"]);
+    // seeds, whole numbers: 10, 12, missing, 7.
+    assert_eq!(
+        shown(&table, &compare(4, Comparison::AtLeast, "10")).unwrap(),
+        ["p1", "p2"]
+    );
+    // The rows that do not match show the missing height.
+    let not = Filter {
+        showing: Showing::NotMatching,
+        ..compare(1, Comparison::AtMost, "2")
+    };
+    assert_eq!(shown(&table, &not).unwrap(), ["p2", "p4"]);
+    // Read with the region's decimal mark.
+    assert_eq!(
+        shown_with(&table, &compare(1, Comparison::Less, "1,6"), ",").unwrap(),
+        ["p1"]
+    );
+}
+
+#[test]
+fn a_comparison_with_no_number_or_one_it_cannot_read_shows_every_row_and_says_so() {
+    let table = plants();
+    let compare = |text: &str| Filter {
+        column: Some(ColumnId::new(1)),
+        condition: Condition::Compare {
+            comparison: Comparison::Less,
+            text: text.to_owned(),
+        },
+        showing: Showing::Matching,
+    };
+    assert_eq!(shown(&table, &compare("")), None);
+    assert!(!compare("").unreadable_number(Some(".")));
+    // A point where the region's mark is the comma is no number.
+    assert_eq!(shown_with(&table, &compare("1.5"), ","), None);
+    assert!(compare("1.5").unreadable_number(Some(",")));
+    assert!(compare("abc").unreadable_number(Some(".")));
+    assert!(!compare("1.5").unreadable_number(Some(".")));
+}
+
+#[test]
+fn is_missing_matches_the_missing_cells_of_a_column_or_of_any() {
+    let table = plants();
+    let missing = |column: Option<u32>| Filter {
+        column: column.map(ColumnId::new),
+        condition: Condition::Missing,
+        showing: Showing::Matching,
+    };
+    // height: 1.5, missing, 2, 3.25; origin: Spain, Peru, missing, Spain.
+    assert_eq!(shown(&table, &missing(Some(1))).unwrap(), ["p2"]);
+    assert_eq!(shown(&table, &missing(Some(2))).unwrap(), ["p3"]);
+    // The IDs are never missing.
+    assert_eq!(
+        shown(&table, &missing(Some(0))).unwrap(),
+        Vec::<String>::new()
+    );
+    // p4 has every cell; p1 has no cluster.
+    assert_eq!(shown(&table, &missing(None)).unwrap(), ["p1", "p2", "p3"]);
+    let not_missing = Filter {
+        showing: Showing::NotMatching,
+        ..missing(Some(1))
+    };
+    assert_eq!(shown(&table, &not_missing).unwrap(), ["p1", "p3", "p4"]);
 }

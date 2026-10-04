@@ -136,12 +136,17 @@ pub(super) fn plan_cells(
         },
     );
     let revision = state.revision.next()?;
-    let shown = refiltered(open, Replaced::Values(column, &values), revision)?;
+    let shown = refiltered(open, Replaced::Values(column, &values), revision, None)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.columns(&[(column, revision)])?;
     message.undo(open.history.after(&step))?;
-    if let Some(shown) = &shown {
-        message.filter(&open.interaction.filter, shown, num_rows)?;
+    if let Some(refiltered) = &shown {
+        message.filter(
+            &refiltered.filter,
+            open.interaction.decimal_mark.as_deref(),
+            &refiltered.shown,
+            num_rows,
+        )?;
     }
     Ok(Some(Plan {
         revision,
@@ -180,12 +185,17 @@ pub(super) fn plan_names(
     }
     let step = step_of(kind, Edit::SetNames { changes: reverse });
     let revision = state.revision.next()?;
-    let shown = refiltered(open, Replaced::Names(&names), revision)?;
+    let shown = refiltered(open, Replaced::Names(&names), revision, None)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.columns(&[(id, revision)])?;
     message.undo(open.history.after(&step))?;
-    if let Some(shown) = &shown {
-        message.filter(&open.interaction.filter, shown, num_rows)?;
+    if let Some(refiltered) = &shown {
+        message.filter(
+            &refiltered.filter,
+            open.interaction.decimal_mark.as_deref(),
+            &refiltered.shown,
+            num_rows,
+        )?;
     }
     Ok(Some(Plan {
         revision,

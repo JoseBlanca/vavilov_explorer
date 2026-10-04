@@ -8,7 +8,7 @@ import type { Position, RowIndex } from "./ids.ts";
 function shown(numShown: number, bits: Uint8Array | null): Shown {
   const at = 2;
   if (!isRevision(at)) throw new Error("not a revision");
-  return { at, numShown, bits };
+  return { at, numShown, bits, unreadableNumber: false };
 }
 function row(value: number): RowIndex {
   if (!isRowIndex(value)) throw new Error("not a row");

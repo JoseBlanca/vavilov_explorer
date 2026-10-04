@@ -1,7 +1,7 @@
 //! The writer of one message: its header, then its parts.
 
 use crate::error::CommandError;
-use crate::filter::{CellMatch, Filter, Showing};
+use crate::filter::{Comparison, Condition, Filter, Showing};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Position, Revision, RowIndex, SentAt};
 use crate::message::{MessageKind, NO_CODE, NO_COLUMN, NO_ROW, PartKind};
 use crate::row_set::RowSet;
@@ -170,13 +170,16 @@ impl MessageWriter {
     }
 
     /// The filter of the find bar and the rows it shows: the revision at
-    /// which they last changed, their number, the column searched, how a
-    /// cell matches, whether it is showing the rows that match or the
-    /// others, the text, and, when there is a text, one bit per row of the
-    /// table, set for a row shown.
+    /// which they last changed, their number, the column searched, the
+    /// kind of its condition, its comparison, whether it is showing the
+    /// rows that match or the others, whether bits follow, whether its
+    /// number cannot be read with `decimal_mark`, the code of its group,
+    /// its text, and, when it does not show every row, one bit per row of
+    /// the table, set for a row shown.
     pub(crate) fn filter(
         &mut self,
         filter: &Filter,
+        decimal_mark: Option<&str>,
         shown: &Shown,
         num_rows: u32,
     ) -> Result<(), CommandError> {
@@ -190,22 +193,39 @@ impl MessageWriter {
             .as_ref()
             .map(|rows| RowSet::from_rows(num_rows, rows.iter().copied()))
             .transpose()?;
+        let (kind, comparison, code) = match &filter.condition {
+            Condition::Contains { .. } => (0, 0, None),
+            Condition::Is { .. } => (1, 0, None),
+            Condition::Group { code } => (2, 0, *code),
+            Condition::Compare { comparison, .. } => (
+                3,
+                match comparison {
+                    Comparison::Less => 0,
+                    Comparison::AtMost => 1,
+                    Comparison::Equal => 2,
+                    Comparison::AtLeast => 3,
+                    Comparison::Greater => 4,
+                },
+                None,
+            ),
+            Condition::Missing => (4, 0, None),
+        };
         self.part(PartKind::Filter, |payload| {
             payload.extend_from_slice(&shown.at.get().to_le_bytes());
             payload.extend_from_slice(&num_shown.to_le_bytes());
             payload
                 .extend_from_slice(&filter.column.map_or(NO_COLUMN, ColumnId::get).to_le_bytes());
-            payload.push(match filter.cell {
-                CellMatch::Part => 0,
-                CellMatch::Whole => 1,
-            });
+            payload.push(kind);
+            payload.push(comparison);
             payload.push(match filter.showing {
                 Showing::Matching => 0,
                 Showing::NotMatching => 1,
             });
             payload.push(u8::from(bits.is_some()));
-            payload.extend_from_slice(&[0; 5]);
-            text_list(payload, std::iter::once(filter.text.as_str()))?;
+            payload.push(u8::from(filter.unreadable_number(decimal_mark)));
+            payload.push(0);
+            payload.extend_from_slice(&code.map_or(u16::MAX, LevelCode::get).to_le_bytes());
+            text_list(payload, std::iter::once(filter.text().unwrap_or_default()))?;
             if let Some(bits) = &bits {
                 pad(payload)?;
                 payload.extend_from_slice(bits.as_bytes());

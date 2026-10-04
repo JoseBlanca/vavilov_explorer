@@ -1,10 +1,23 @@
 import { nothing, render } from "lit-html";
 
 import type { Answer, Connection } from "../../backend/connection.ts";
+import type { BarMessage } from "../../state/barMessages.ts";
+import { levelText } from "../../state/cellText.ts";
 import { defect } from "../../state/defect.ts";
-import type { DescriptionNow } from "../../state/description.ts";
-import { everyShown } from "../../state/filter.ts";
+import { isCategoricalColumn } from "../../state/description.ts";
+import type { DescriptionNow, TableDescription } from "../../state/description.ts";
+import { everyShown, sameFilter } from "../../state/filter.ts";
 import type { Filter } from "../../state/filter.ts";
+import {
+  OPERATORS,
+  clearedFilterMessage,
+  conditionForColumn,
+  conditionOf,
+  conditionText,
+  operatorOf,
+  searchedOf,
+} from "../../state/findCondition.ts";
+import type { ColumnId } from "../../state/ids.ts";
 import {
   NO_DRAFT,
   backendChanged,
@@ -15,6 +28,7 @@ import {
 import type { FilterOfLoad, FindStep } from "../../state/findDraft.ts";
 import { answered } from "../shared/answered.ts";
 import { findBarView } from "./findBar.view.ts";
+import type { FindValue } from "./findBar.view.ts";
 
 /** The find bar in its element. */
 export interface FindBar {
@@ -38,18 +52,50 @@ const ignore = (): void => undefined;
  * its way to the backend, the newest sent once it is answered
  * (src/state/findDraft.ts); a load drops it, with the text of the field.
  * "Select shown rows" asks the backend to make the rows the table shows,
- * those of the backend's filter in the window's copy, the selection.
+ * those of the backend's filter in the window's copy, the selection. When
+ * the backend clears the filter, a group deleted or its column of another
+ * role, `tell` says so in the information bar.
  */
 export function createFindBar(
   element: HTMLElement,
   connection: Connection,
   description: () => DescriptionNow,
   decimalMark: string,
+  tell: (message: BarMessage) => void,
   report: (error: unknown) => void,
 ): FindBar {
   const { state } = connection;
   let draft = NO_DRAFT;
   let destroyed = false;
+  /**
+   * The text the field holds, as the user last typed it or the bar last
+   * drew it, and the number of the field: a text drawn that is not this one
+   * was set from outside, by the backend or a load, and takes a new field.
+   */
+  let field = { text: "", number: 0 };
+  /**
+   * The backend's filter as last heard, with the names of its column and of
+   * its group then, which the words of a filter it cleared need once the
+   * group is gone.
+   */
+  let lastHeard: {
+    readonly filter: Filter;
+    readonly names: { readonly column: string; readonly group: string | null };
+  } | null = null;
+
+  /** The names of the groups of `column` by their codes, as the table shows them; none for another column. */
+  const groupNamesOf = (table: TableDescription, column: ColumnId | null): readonly string[] => {
+    const found = table.columns.find((each) => each.id === column);
+    return found !== undefined && isCategoricalColumn(found)
+      ? found.levels.map((level) => levelText(level.value, found.storage, decimalMark))
+      : [];
+  };
+
+  /** The name of `column` in `table`, "any column" for none. */
+  const columnNameOf = (table: TableDescription, column: ColumnId | null): string =>
+    column === table.names.id
+      ? table.names.header
+      : (table.columns.find((each) => each.id === column)?.name ?? "any column");
 
   /** The backend's filter in the window's copy, and its load, or `null` with no project. */
   const backend = (): FilterOfLoad | null => {
@@ -128,24 +174,71 @@ export function createFindBar(
       throw defect("a find bar drawn for a table with no filter");
     }
     const table = now.description;
+    const heardNow = backend();
+    if (lastHeard !== null && heardNow !== null && sameFilter(lastHeard.filter, heardNow.filter)) {
+      // The names as the table now has them, which a filter cleared later
+      // names.
+      lastHeard = { filter: lastHeard.filter, names: namesOf(table, lastHeard.filter) };
+    }
+    const { condition } = filter;
+    const searched = searchedOf(table, filter.column);
+    const groupNames = groupNamesOf(table, filter.column);
+    const operator = operatorOf(condition);
+    const text = conditionText(condition, groupNames);
+    const fromOutside =
+      condition.kind !== "group" && condition.kind !== "missing" && text !== field.text;
+    if (fromOutside) {
+      field = { text, number: field.number + 1 };
+    }
+    const document = element.ownerDocument;
+    const typing =
+      document.activeElement instanceof HTMLInputElement &&
+      document.activeElement.type === "search" &&
+      element.contains(document.activeElement);
+    const value: FindValue =
+      condition.kind === "group"
+        ? { kind: "groups", names: groupNames, chosen: condition.code }
+        : condition.kind === "missing"
+          ? { kind: "none" }
+          : { kind: "text", text, field: field.number };
     render(
       findBarView({
-        text: filter.text,
         columns: [
           { id: table.names.id, name: table.names.header },
           ...table.columns.map((column) => ({ id: column.id, name: column.name })),
         ],
         column: filter.column,
-        whole: filter.cell === "whole",
+        operators: OPERATORS[searched],
+        operator,
+        value,
         notMatching: filter.showing === "notMatching",
-        onText: (text) => {
-          change({ text });
-        },
         onColumn: (column) => {
-          change({ column });
+          change({
+            column,
+            condition: conditionForColumn(
+              condition,
+              groupNames,
+              searchedOf(table, column),
+              groupNamesOf(table, column),
+            ),
+          });
         },
-        onWhole: (whole) => {
-          change({ cell: whole ? "whole" : "part" });
+        onOperator: (chosen) => {
+          change({ condition: conditionOf(chosen, searched, condition, groupNames) });
+        },
+        onText: (typed) => {
+          field = { text: typed, number: field.number };
+          change({
+            condition: conditionOf(
+              operator,
+              searched,
+              { kind: "contains", text: typed },
+              groupNames,
+            ),
+          });
+        },
+        onGroup: (code) => {
+          change({ condition: { kind: "group", code } });
         },
         onNotMatching: (notMatching) => {
           change({ showing: notMatching ? "notMatching" : "matching" });
@@ -154,11 +247,56 @@ export function createFindBar(
       }),
       element,
     );
+    if (fromOutside && typing) {
+      // The new field takes the focus the old one had.
+      element.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+    }
   };
 
-  /** The backend's filter, or the table, changed: the pending filter may be dropped. */
+  /** The names of the column and the group of `filter` in `table`. */
+  const namesOf = (
+    table: TableDescription,
+    filter: Filter,
+  ): { readonly column: string; readonly group: string | null } => {
+    const group =
+      filter.condition.kind === "group"
+        ? conditionText(filter.condition, groupNamesOf(table, filter.column))
+        : "";
+    return { column: columnNameOf(table, filter.column), group: group === "" ? null : group };
+  };
+
+  /**
+   * The backend's filter, or the table, changed: the pending filter may be
+   * dropped, and a filter the backend cleared, with nothing of the bar's
+   * own on its way, is told. Whether its column still holds groups comes
+   * from the window's copy of the codes, current with the filter, since the
+   * description of the table may still be on its way.
+   */
   const heard = (): void => {
-    draft = backendChanged(draft, backend());
+    const now = backend();
+    const quiet = draft.pending === null && draft.sending === null;
+    draft = backendChanged(draft, now);
+    if (now === null) {
+      lastHeard = null;
+      draw();
+      return;
+    }
+    const { filter } = now;
+    if (quiet && lastHeard !== null) {
+      const stillGroups = filter.column !== null && state.codes(filter.column) !== null;
+      const message = clearedFilterMessage(lastHeard.filter, filter, lastHeard.names, stillGroups);
+      if (message !== null) {
+        tell(message);
+      }
+    }
+    const described = description();
+    lastHeard = {
+      filter,
+      names:
+        described.kind === "current"
+          ? namesOf(described.description, filter)
+          : (lastHeard?.names ?? { column: "", group: null }),
+    };
     draw();
   };
 

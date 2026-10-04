@@ -111,6 +111,7 @@ pub(crate) fn whole_state(
         message.undo(open.history.undo_redo())?;
         message.filter(
             &open.interaction.filter,
+            open.interaction.decimal_mark.as_deref(),
             &open.interaction.shown,
             open.table.num_rows(),
         )?;

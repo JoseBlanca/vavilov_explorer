@@ -196,7 +196,7 @@ fn decimal(text: &str, decimal_mark: &str) -> Result<Option<f64>, CellRefusal> {
 
 /// A finite decimal number written with `decimal_mark`, from a text that
 /// is not empty.
-fn decimal_number(text: &str, decimal_mark: &str) -> Result<f64, CellRefusal> {
+pub(crate) fn decimal_number(text: &str, decimal_mark: &str) -> Result<f64, CellRefusal> {
     let refused = || CellRefusal::NotDecimalNumber {
         decimal_mark: decimal_mark.to_owned(),
     };

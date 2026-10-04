@@ -141,22 +141,54 @@ it.
     first click of a double-click would otherwise leave that row the only
     one selected, and "Apply to all selected rows" could not be used
     with the mouse.
-- Above the table, a find bar: a field for the text searched, a Column
-  dropdown, "Any column" first and then every column from IndividualID
-  on, a checkbox "Whole cell", off by default, and a checkbox "Show rows
-  that don't match". Typing shows only the rows that match, and an empty
-  field shows them all. A cell matches by the text the table shows,
-  case ignored and accents not; a cell of a country matches when the
-  text is part of any of its ISO names or equals one of its codes; a
-  missing cell never matches. The filter hides rows of the table only,
-  not of the other windows, and the backend holds it and finds the
-  rows. The filter by the selection or by one group planned here
-  before is left out: a group is a search of its column, whole
-  cell. Decided by the owner on 2 October 2026. A button "Select shown
-  rows" makes the rows the table shows the selection, in place of the
-  one there was (decided by the owner the same day). It sits in the
-  find bar, after the checkboxes, and with an empty field it selects
-  every row (confirmed by the owner on 3 October 2026).
+- Above the table, a find bar, which reads as a sentence, column first
+  (decided by the owner on 4 October 2026, in the place of the bar of
+  2 October): a Column dropdown, "Any column" first and then every column
+  from IndividualID on; an operator dropdown; the value; a checkbox "Show
+  rows that don't match"; and a button "Select shown rows". The operators
+  depend on the column:
+  - a column of text, the IDs, and "Any column": "contains", "is" and
+    "is missing";
+  - a category or a column of countries: "contains", "is" and "is
+    missing", where "is" offers a list of the column's groups in place of
+    a field, first "Choose a group…";
+  - a column of numbers, a latitude or a longitude: "=", "<", "≤", ">",
+    "≥" and "is missing", read by a screen reader as "equals", "less
+    than", "at most", "greater than" and "at least".
+
+  The value is a field for a text or a number, the list of groups, or
+  nothing for "is missing", whose field is greyed out. Typing shows only
+  the rows that match, and an empty field, or "Choose a group…", shows
+  them all. "contains" matches when the text is part of the cell, "is"
+  when it is the whole cell, as "Whole cell" did; a cell matches by the
+  text the table shows, case ignored and accents not, and a cell of a
+  country also when the text is part of any of its ISO names or equals
+  one of its codes. A group chosen in the list matches its individuals,
+  and follows the group when it is renamed or when the groups are
+  renumbered. A comparison reads the number with the decimal mark of the
+  system's region, as the import does; a text that is not a number
+  filters nothing, and the information bar says so: "“abc” is not a
+  number." "is missing" matches the missing cells, "Any column is
+  missing" a row with at least one. Apart from "is missing", a missing
+  cell never matches, so a missing height is neither ≤ 1.5 nor > 1.5.
+  "Show rows that don't match" shows the others, and turns "is missing"
+  into "is not missing".
+- When another column is chosen whose operators do not hold the one
+  chosen, the operator becomes the column's first, "contains" or "=",
+  and the text typed stays. When the column's role changes, or the
+  group chosen is deleted, so that the filter no longer fits, the filter
+  is cleared to the column's first operator with no value, and the
+  information bar says why: "The filter on ESP was removed: the group was
+  deleted." or "The filter on height was removed: its column changed
+  role." Undoing the change does not bring the filter back, since the
+  filter is not undone. The words are the assistant's, for the owner to
+  review. The filter hides rows of the table only, not of the other
+  windows, and the backend holds it and finds the rows. A button "Select
+  shown rows" makes the rows the table shows the selection, in place of
+  the one there was (decided by the owner on 2 October 2026); with no
+  filter it selects every row (confirmed by the owner on 3 October
+  2026). A list in which several groups are chosen, "is any of", is left
+  for later.
 - Below the table, an information bar, the one place for information,
   warnings and errors about the table: the count of the rows shown,
   "Showing 312 of 2,000 individuals", and above it the messages, each

@@ -97,7 +97,12 @@ describe("a page of rows against the window's copy", () => {
     })),
   });
   /** The copy's rows shown: `numShown` of them since `at`, every row. */
-  const shown = (at: number, numShown = 1): Shown => ({ at: revision(at), numShown, bits: null });
+  const shown = (at: number, numShown = 1): Shown => ({
+    at: revision(at),
+    numShown,
+    bits: null,
+    unreadableNumber: false,
+  });
   const wanted = [column(1), column(5)];
   const columns: [number, number][] = [
     [1, 4],

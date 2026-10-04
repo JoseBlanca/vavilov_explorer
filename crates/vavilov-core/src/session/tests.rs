@@ -234,8 +234,8 @@ fn loading_a_table_sends_every_part_of_the_state() {
     assert_eq!(
         decoded.parts[5].1,
         [
-            1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0
+            1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 255, 255, 0,
+            0, 0, 0, 0, 0, 0, 0
         ]
     );
     // The hover of the new table: a new sequence number and no row.
@@ -1111,7 +1111,7 @@ const SNAPSHOT_AFTER_EDITS: [u8; 416] = [
     4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4 rows, none selected
     5, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // undo part: can undo
     13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // filter part: rows shown since 1
-    4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, // 4 shown, any column, part, matching, every row
+    4, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 255, 255, // 4 shown, any column, contains, matching, every row, no group
     0, 0, 0, 0, 0, 0, 0, 0, // no text: the offsets 0 and 0
     6, 0, 0, 0, 120, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, // columns part: 7 columns
     0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, // the names, at 1
@@ -1744,7 +1744,9 @@ fn an_edit_that_changes_which_rows_a_filter_shows_sends_them() {
         &mut session,
         Command::SetFilter {
             filter: crate::filter::Filter {
-                text: "tall".to_owned(),
+                condition: crate::filter::Condition::Contains {
+                    text: "tall".to_owned(),
+                },
                 ..crate::filter::Filter::none()
             },
             decimal_mark: ",".to_owned(),
@@ -1822,7 +1824,9 @@ fn a_search_after_an_edit_reads_the_decimal_numbers_as_edited() {
             session,
             Command::SetFilter {
                 filter: crate::filter::Filter {
-                    text: text.to_owned(),
+                    condition: crate::filter::Condition::Contains {
+                        text: text.to_owned(),
+                    },
                     ..crate::filter::Filter::none()
                 },
                 decimal_mark: ",".to_owned(),

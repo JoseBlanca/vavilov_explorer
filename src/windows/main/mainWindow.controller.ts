@@ -56,6 +56,9 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
       connection,
       describedNow,
       decimalMark,
+      (message) => {
+        infoBar.tell(message);
+      },
       defectBar.show,
     );
     const dialog = createDialog(slot(root, "dialog"));
@@ -66,7 +69,12 @@ export async function startMainWindow(root: HTMLElement): Promise<void> {
         // The rows the filter shows, of the table and of the selection.
         aspects: ["table", "filter", "selection"],
         text: () => {
-          const counted = tableCountOf(state.project(), state.shown(), state.selection());
+          const counted = tableCountOf(
+            state.project(),
+            state.shown(),
+            state.selection(),
+            state.filter(),
+          );
           return counted === null ? null : tableCountText(counted, countText);
         },
       },

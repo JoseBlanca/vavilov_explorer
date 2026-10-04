@@ -45,7 +45,7 @@ pub use dispatch::{Changed, Dropped, Outcome};
 pub use error::{CellRefusal, CommandError, ExportRefusal, GroupRefusal, ImportRefusal, IoFailure};
 pub use export::export_table;
 pub use files::{file_name, read_for_import, write_export};
-pub use filter::{CellMatch, Filter, MAX_FILTER_TEXT, Showing};
+pub use filter::{Comparison, Condition, Filter, MAX_FILTER_TEXT, Showing};
 pub use formats::{
     CsvChoices, CsvEncoding, DecimalMark, ExportFormat, FileFormat, MissingText, Separator,
 };

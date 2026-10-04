@@ -11,7 +11,7 @@ use serde::Deserialize;
 use tauri::http::HeaderMap;
 use tauri::ipc::InvokeBody;
 use vavilov_core::{
-    CellMatch, Colour, ColumnId, Command, CommandError, EditMode, Filter, LevelCode, Outcome,
+    Colour, ColumnId, Command, CommandError, Condition, EditMode, Filter, LevelCode, Outcome,
     Position, Request, Revision, Role, RowIndex, RowsRequest, Selected, SelectedGroups, SentAt,
     Session, Showing, TableDescription, WidgetSpec, WindowLabel,
 };
@@ -241,9 +241,8 @@ pub fn call(
         "set_filter" => {
             let args: FilterArgs = json_args(command, body)?;
             let filter = Filter {
-                text: args.text,
                 column: args.column.map(ColumnId::new),
-                cell: args.cell,
+                condition: args.condition,
                 showing: args.showing,
             };
             let command = Command::SetFilter {
@@ -458,9 +457,8 @@ struct RoleArgs {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct FilterArgs {
-    text: String,
     column: Option<u32>,
-    cell: CellMatch,
+    condition: Condition,
     showing: Showing,
     decimal_mark: String,
     based_on: u64,

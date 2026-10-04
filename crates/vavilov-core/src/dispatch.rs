@@ -17,7 +17,7 @@ use crate::convert::{u64_from, usize_from};
 use crate::edit::Edit;
 use crate::error::CommandError;
 use crate::filter::texts::NumberTexts;
-use crate::filter::{Filter, MAX_FILTER_TEXT, Replaced, shown_rows};
+use crate::filter::{Filter, MAX_FILTER_TEXT, MovedCodes, Replaced, fits, fitted, shown_rows};
 use crate::ids::{ColumnId, HoverSeq, LevelCode, Revision, RowIndex, SentAt, WindowLabel};
 use crate::message::{MessageKind, MessageWriter, whole_state};
 use crate::row_set::RowSet;
@@ -118,7 +118,7 @@ impl Session {
             Command::SetFilter {
                 filter,
                 decimal_mark,
-            } => (!filter.text.is_empty()).then(|| decimal_mark.clone()),
+            } => filter.reads_number_texts().then(|| decimal_mark.clone()),
             Command::LoadTable { .. }
             | Command::SetHover { .. }
             | Command::SetActiveClassification { .. }
@@ -137,10 +137,10 @@ impl Session {
             | Command::SetCells { .. }
             | Command::Undo
             | Command::Redo => {
-                if open.interaction.filter.text.is_empty() {
-                    None
-                } else {
+                if open.interaction.filter.reads_number_texts() {
                     open.interaction.decimal_mark.clone()
+                } else {
+                    None
                 }
             }
         };
@@ -225,11 +225,19 @@ impl Session {
             } => {
                 let open = state.project.open()?;
                 check_decimal_mark(&decimal_mark, "a filter")?;
-                let length = filter.text.chars().count();
+                let length = filter.text().map_or(0, |text| text.chars().count());
                 if length > MAX_FILTER_TEXT {
                     return Err(CommandError::Defect {
                         what: format!(
                             "a filter's text of {length} characters, more than the find bar's {MAX_FILTER_TEXT}"
+                        ),
+                    });
+                }
+                if !fits(&filter, &open.table)? {
+                    return Err(CommandError::Defect {
+                        what: format!(
+                            "a filter {:?} on column {:?}, which does not fit it",
+                            filter.condition, filter.column
                         ),
                     });
                 }
@@ -248,7 +256,7 @@ impl Session {
                 let revision = state.revision.next()?;
                 let shown = Shown { rows, at: revision };
                 let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
-                message.filter(&filter, &shown, open.table.num_rows())?;
+                message.filter(&filter, Some(&decimal_mark), &shown, open.table.num_rows())?;
                 Ok(Some(Plan {
                     revision,
                     message: message.finish(),
@@ -560,7 +568,8 @@ impl Session {
                 };
                 categorical.codes = codes;
                 *column_revision = revision;
-                if let Some(shown) = shown {
+                if let Some(Refiltered { filter, shown }) = shown {
+                    open.interaction.filter = filter;
                     open.interaction.shown = shown;
                 }
                 if let Some(selection) = selection {
@@ -589,7 +598,8 @@ impl Session {
                     .ok_or_else(|| defect(column, "is gone"))?;
                 *slot = values;
                 *column_revision = revision;
-                if let Some(shown) = shown {
+                if let Some(Refiltered { filter, shown }) = shown {
+                    open.interaction.filter = filter;
                     open.interaction.shown = shown;
                 }
                 open.history.take(step);
@@ -598,7 +608,8 @@ impl Session {
             Change::Names { names, shown, step } => {
                 let open = open_for_commit(&mut self.state.project)?;
                 open.table.set_names(names, revision);
-                if let Some(shown) = shown {
+                if let Some(Refiltered { filter, shown }) = shown {
+                    open.interaction.filter = filter;
                     open.interaction.shown = shown;
                 }
                 open.history.take(step);
@@ -628,7 +639,8 @@ impl Session {
                 if let Some(active) = active {
                     open.interaction.active = active;
                 }
-                if let Some(shown) = shown {
+                if let Some(Refiltered { filter, shown }) = shown {
+                    open.interaction.filter = filter;
                     open.interaction.shown = shown;
                 }
                 open.history.take(step);
@@ -664,7 +676,8 @@ impl Session {
                 if let Some(active) = active {
                     open.interaction.active = active;
                 }
-                if let Some(shown) = shown {
+                if let Some(Refiltered { filter, shown }) = shown {
+                    open.interaction.filter = filter;
                     open.interaction.shown = shown;
                 }
                 open.history.take(step);
@@ -718,7 +731,7 @@ enum Change {
     Codes {
         column: ColumnId,
         codes: Vec<Option<LevelCode>>,
-        shown: Option<Shown>,
+        shown: Option<Refiltered>,
         selection: Option<RowSet>,
         active: Option<Option<Active>>,
         step: HistoryStep,
@@ -728,14 +741,14 @@ enum Change {
     Cells {
         column: ColumnId,
         values: ColumnValues,
-        shown: Option<Shown>,
+        shown: Option<Refiltered>,
         step: HistoryStep,
     },
     /// New names of some individuals, all of them as they leave them, with
     /// the rows shown when they change.
     Names {
         names: Vec<String>,
-        shown: Option<Shown>,
+        shown: Option<Refiltered>,
         step: HistoryStep,
     },
     /// New values of a column, with the active classification when the
@@ -744,7 +757,7 @@ enum Change {
         column: ColumnId,
         values: ColumnValues,
         active: Option<Option<Active>>,
-        shown: Option<Shown>,
+        shown: Option<Refiltered>,
         step: HistoryStep,
     },
     /// New levels of a category, and its codes, as values of its role,
@@ -756,7 +769,7 @@ enum Change {
         values: ColumnValues,
         levels_at: Option<Revision>,
         active: Option<Option<Active>>,
-        shown: Option<Shown>,
+        shown: Option<Refiltered>,
         step: HistoryStep,
     },
 }
@@ -932,14 +945,19 @@ fn plan_values(
             })
         });
     let revision = state.revision.next()?;
-    let shown = refiltered(open, Replaced::Values(column, &values), revision)?;
+    let shown = refiltered(open, Replaced::Values(column, &values), revision, None)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     message.shape(revision)?;
     if let Some(active) = &active {
         message.active(active.as_ref())?;
     }
-    if let Some(shown) = &shown {
-        message.filter(&open.interaction.filter, shown, open.table.num_rows())?;
+    if let Some(refiltered) = &shown {
+        message.filter(
+            &refiltered.filter,
+            open.interaction.decimal_mark.as_deref(),
+            &refiltered.shown,
+            open.table.num_rows(),
+        )?;
     }
     if let Some(categorical) = values.categorical() {
         message.codes(column, revision, categorical.codes())?;
@@ -1088,7 +1106,7 @@ fn plan_codes(
         },
     );
     let revision = state.revision.next()?;
-    let shown = refiltered(open, Replaced::Codes(column, &codes), revision)?;
+    let shown = refiltered(open, Replaced::Codes(column, &codes), revision, None)?;
     let mut message = MessageWriter::new(MessageKind::Change, revision, sent_at);
     if let Some(active) = &also.active {
         message.active(active.as_ref())?;
@@ -1099,8 +1117,13 @@ fn plan_codes(
     message.codes(column, revision, &codes)?;
     message.columns(&[(column, revision)])?;
     message.undo(open.history.after(&step))?;
-    if let Some(shown) = &shown {
-        message.filter(&open.interaction.filter, shown, num_rows)?;
+    if let Some(refiltered) = &shown {
+        message.filter(
+            &refiltered.filter,
+            open.interaction.decimal_mark.as_deref(),
+            &refiltered.shown,
+            num_rows,
+        )?;
     }
     Ok(Some(Plan {
         revision,
@@ -1116,22 +1139,39 @@ fn plan_codes(
     }))
 }
 
-/// The rows the filter shows once `replaced` is applied, taking the
-/// edit's `revision`, when they are not those shown now; `None` when they
-/// are, so that the pages a window holds stay good.
-fn refiltered(
+/// The filter as an edit leaves it, fitted to its column, and the rows it
+/// shows then.
+pub(super) struct Refiltered {
+    pub(super) filter: Filter,
+    pub(super) shown: Shown,
+}
+
+/// The filter once `replaced` is applied, its group moved by `moved` when
+/// the groups of `moved`'s column are renumbered and the whole fitted to its
+/// column (`filter::fitted`), and the rows it shows, taking the edit's
+/// `revision`; `None` when neither the filter nor the rows change, so that
+/// the pages a window holds stay good.
+pub(super) fn refiltered(
     open: &OpenProject,
     replaced: Replaced<'_>,
     revision: Revision,
-) -> Result<Option<Shown>, CommandError> {
+    moved: Option<MovedCodes<'_>>,
+) -> Result<Option<Refiltered>, CommandError> {
+    let filter = fitted(&open.interaction.filter, &open.table, Some(replaced), moved)?;
     let rows = shown_rows(
-        &open.interaction.filter,
+        &filter,
         open.interaction.decimal_mark.as_deref(),
         &open.table,
         Some(replaced),
         &open.number_texts,
     )?;
-    Ok((rows != open.interaction.shown.rows).then_some(Shown { rows, at: revision }))
+    if filter == open.interaction.filter && rows == open.interaction.shown.rows {
+        return Ok(None);
+    }
+    Ok(Some(Refiltered {
+        filter,
+        shown: Shown { rows, at: revision },
+    }))
 }
 
 /// The codes of the active classification, for a lasso made with

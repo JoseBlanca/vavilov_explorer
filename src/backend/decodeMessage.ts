@@ -5,7 +5,8 @@
 // a copy.
 
 import { defect } from "../state/defect.ts";
-import { MAX_ROWS, NO_COLUMN, NO_ROW } from "../state/ids.ts";
+import type { Comparison, Condition } from "../state/filter.ts";
+import { MAX_ROWS, NO_COLUMN, NO_ROW, isLevelCode } from "../state/ids.ts";
 import type { ColumnRevision, EditMode, Message, MessagePart, Selected } from "../state/message.ts";
 import { countRows } from "../state/rowSet.ts";
 import { removableGroups, singleOf } from "../state/selectedGroups.ts";
@@ -160,13 +161,20 @@ function selectionPart(
   return { kind: "selection", numRows, bits };
 }
 
+/** The comparisons of a filter part, by their byte. */
+const COMPARISONS: readonly Comparison[] = ["less", "atMost", "equal", "atLeast", "greater"];
+
+/** The code of a filter part that holds no group. */
+const NO_GROUP = 0xffff;
+
 /**
  * The filter part: the revision at which the rows shown last changed, their
- * number, the column searched, how a cell matches, whether it is showing
- * the rows that match or the others, whether bits follow, the text as a
- * text list of one, and, when there is a text, one bit per row after
- * padding to a multiple of 8. Its bits are checked against the rows of the
- * table by the window's copy.
+ * number, the column searched, the kind of the condition, its comparison,
+ * whether it is showing the rows that match or the others, whether bits
+ * follow, whether its number cannot be read, a zero byte, the code of its
+ * group, the text as a text list of one, and, when it does not show every
+ * row, one bit per row after padding to a multiple of 8. Its bits are
+ * checked against the rows of the table by the window's copy.
  */
 function filterPart(
   bytes: ArrayBuffer,
@@ -180,14 +188,16 @@ function filterPart(
   const at = revisionAt(view, start);
   const numShown = view.getUint32(start + 8, true);
   const column = view.getUint32(start + 12, true);
-  const cellByte = view.getUint8(start + 16);
-  const showingByte = view.getUint8(start + 17);
-  const filtered = booleanAt(view, start + 18, "filter");
-  expectZeros(view, start + 19, start + FILTER_HEADER_BYTES, "bytes 19 to 23 of the filter part");
-  const cell = cellByte === 0 ? "part" : cellByte === 1 ? "whole" : null;
+  const kindByte = view.getUint8(start + 16);
+  const comparisonByte = view.getUint8(start + 17);
+  const showingByte = view.getUint8(start + 18);
+  const filtered = booleanAt(view, start + 19, "filter");
+  const unreadableNumber = booleanAt(view, start + 20, "filter's number");
+  expectZeros(view, start + 21, start + 22, "byte 21 of the filter part");
+  const groupCode = view.getUint16(start + 22, true);
   const showing = showingByte === 0 ? "matching" : showingByte === 1 ? "notMatching" : null;
-  if (cell === null || showing === null) {
-    throw defect(`a filter part of cell ${String(cellByte)} and showing ${String(showingByte)}`);
+  if (showing === null) {
+    throw defect(`a filter part of showing ${String(showingByte)}`);
   }
   const textAt = start + FILTER_HEADER_BYTES;
   const textEnd = view.getUint32(textAt + 4, true);
@@ -199,6 +209,7 @@ function filterPart(
   if (text === undefined) {
     throw defect("a filter part with no text");
   }
+  const condition = conditionOf(kindByte, comparisonByte, groupCode, text);
   const bitsAt = start + alignUp(FILTER_HEADER_BYTES + textLength);
   const end = start + length;
   let bits: Uint8Array | null = null;
@@ -217,9 +228,44 @@ function filterPart(
   }
   return {
     kind: "filter",
-    filter: { text, column: column === NO_COLUMN ? null : columnId(column), cell, showing },
-    shown: { at, numShown, bits },
+    filter: { column: column === NO_COLUMN ? null : columnId(column), condition, showing },
+    shown: { at, numShown, bits, unreadableNumber },
   };
+}
+
+/** The condition of a filter part, from its kind, its comparison, its group's code and its text. */
+function conditionOf(
+  kindByte: number,
+  comparisonByte: number,
+  groupCode: number,
+  text: string,
+): Condition {
+  switch (kindByte) {
+    case 0:
+      return { kind: "contains", text };
+    case 1:
+      return { kind: "is", text };
+    case 2: {
+      if (groupCode === NO_GROUP) {
+        return { kind: "group", code: null };
+      }
+      if (!isLevelCode(groupCode)) {
+        throw defect(`a filter part of group ${String(groupCode)}`);
+      }
+      return { kind: "group", code: groupCode };
+    }
+    case 3: {
+      const comparison = COMPARISONS[comparisonByte];
+      if (comparison === undefined) {
+        throw defect(`a filter part of comparison ${String(comparisonByte)}`);
+      }
+      return { kind: "compare", comparison, text };
+    }
+    case 4:
+      return { kind: "missing" };
+    default:
+      throw defect(`a filter part of kind ${String(kindByte)}`);
+  }
 }
 
 function columnsPart(view: DataView, start: number, length: number): MessagePart {

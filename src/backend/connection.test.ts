@@ -28,7 +28,7 @@ const SNAPSHOT = buffer(
   ...[3, 0, 0, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[5, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[13, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 255, 255, 255, 255],
-  ...[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  ...[0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0],
   ...[
     6, 0, 0, 0, 24, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
   ],
@@ -760,18 +760,16 @@ describe("setting the filter", () => {
     const { transport, calls } = fakeTransport();
     const connection = await connect(transport, failOnDefect);
     const filter = {
-      text: "Spain",
       column: column(2),
-      cell: "whole",
+      condition: { kind: "compare", comparison: "atMost", text: "1,5" },
       showing: "notMatching",
     } as const;
     expect(await connection.setFilter(filter, ",")).toEqual({ ok: true, value: "applied" });
     expect(calls.at(-1)).toEqual({
       command: "set_filter",
       args: {
-        text: "Spain",
         column: 2,
-        cell: "whole",
+        condition: { kind: "compare", comparison: "atMost", text: "1,5" },
         showing: "notMatching",
         decimalMark: ",",
         basedOn: 1,

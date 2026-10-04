@@ -37,7 +37,37 @@ struct NewLevels {
     /// The active classification, when the change sets it.
     active: Option<Option<Active>>,
     meaning: Meaning,
+    /// How the codes of the column move, which a group of the filter
+    /// follows.
+    renumbering: Renumbering,
     step: HistoryStep,
+}
+
+/// How the codes of a category move when a level is inserted or deleted.
+#[derive(Clone, Copy)]
+enum Renumbering {
+    /// No code moves.
+    None,
+    /// A level was inserted at this code: it and those after it go up one.
+    Inserted(LevelCode),
+    /// The level of this code was deleted: those after it go down one.
+    Deleted(LevelCode),
+}
+
+impl Renumbering {
+    /// The new code of the level of `code`, or `None` for the one deleted.
+    fn moved(self, code: LevelCode) -> Option<LevelCode> {
+        match self {
+            Self::Inserted(at) if code.get() >= at.get() => {
+                code.get().checked_add(1).map(LevelCode::new)
+            }
+            Self::Deleted(at) if code == at => None,
+            Self::Deleted(at) if code.get() > at.get() => {
+                code.get().checked_sub(1).map(LevelCode::new)
+            }
+            Self::None | Self::Inserted(_) | Self::Deleted(_) => Some(code),
+        }
+    }
 }
 
 /// Plans a group named `name` added last to the active
@@ -240,6 +270,7 @@ pub(super) fn plan_insert_level(
         categorical,
         active,
         meaning,
+        renumbering: Renumbering::Inserted(code),
         step: step_of(kind, Edit::DeleteLevel { column, code }),
     };
     plan_levels(state, open, new, sent_at)
@@ -272,6 +303,7 @@ pub(super) fn plan_delete_level(
         categorical,
         active,
         meaning: Meaning::MayChange,
+        renumbering: Renumbering::Deleted(code),
         step: step_of(
             kind,
             Edit::InsertLevel {
@@ -305,6 +337,7 @@ pub(super) fn plan_set_level(
         categorical,
         active: None,
         meaning: Meaning::Kept,
+        renumbering: Renumbering::None,
         step: step_of(
             kind,
             Edit::SetLevel {
@@ -360,6 +393,7 @@ fn plan_levels(
         categorical,
         active,
         meaning,
+        renumbering,
         step,
     } = new;
     let revision = state.revision.next()?;
@@ -380,7 +414,13 @@ fn plan_levels(
     };
     // A name changed, a level gone or its rows given back can change
     // which rows the filter's text matches.
-    let shown = refiltered(open, Replaced::Values(column, &values), revision)?;
+    let moved = |code| renumbering.moved(code);
+    let shown = refiltered(
+        open,
+        Replaced::Values(column, &values),
+        revision,
+        Some((column, &moved)),
+    )?;
     let codes = values
         .categorical()
         .ok_or_else(|| CommandError::Defect {
@@ -395,8 +435,13 @@ fn plan_levels(
     message.codes(column, revision, codes)?;
     message.columns(&[(column, revision)])?;
     message.undo(open.history.after(&step))?;
-    if let Some(shown) = &shown {
-        message.filter(&open.interaction.filter, shown, open.table.num_rows())?;
+    if let Some(refiltered) = &shown {
+        message.filter(
+            &refiltered.filter,
+            open.interaction.decimal_mark.as_deref(),
+            &refiltered.shown,
+            open.table.num_rows(),
+        )?;
     }
     let levels_at = match meaning {
         Meaning::Kept => None,

@@ -209,9 +209,9 @@ it and whether it is undone. `OpenProject` holds the first two:
   same, the writer of the messages refuses it as a defect, so that it
   never reaches a window. The selection is a `RowSet` with as many bits as the table has
   rows. The hover is an `Option<RowIndex>`. The filter of the find bar
-  (`design.md`, section 2.1) is a `Filter`, its text, the column searched
-  or any, whole cell or part, and whether it is showing the rows that
-  match or those that do not. Beside it are the decimal mark the last
+  (`design.md`, section 2.1) is a `Filter`, the column searched or any,
+  its condition, and whether it is showing the rows that match or those
+  that do not. Beside it are the decimal mark the last
   `set_filter` gave, the one its window writes numbers with, which an
   edit finds the rows shown with, or none after a load; and the rows the
   filter shows, in order, or none for every row, with the revision at
@@ -555,7 +555,7 @@ parts of the first slice:
 | columns | the number of columns listed, `u32`; four zero bytes; then for each its id, `u32`, four zero bytes and its revision, `u64` |
 | hover | the hover's sequence number, `u64`; the row, `u32`, `u32::MAX` for none |
 | shape | the revision at which the columns, their names or their roles last changed, `u64`: the load, or a change of role. A window asks for the description of the table again when it grows |
-| filter, 13 | the revision at which the rows shown last changed, `u64`; the number of rows shown, `u32`; the column searched, `u32`, `u32::MAX` for any; a byte each for whole cell (0 part, 1 whole), the rows the filter is showing (0 those that match, 1 those that do not) and whether bits follow; five zero bytes; the text, as a text list of one; and while there is a text, padded to a multiple of 8, one bit per row, set for a row shown, in the order of the selection's bits |
+| filter, 13 | the revision at which the rows shown last changed, `u64`; the number of rows shown, `u32`; the column searched, `u32`, `u32::MAX` for any; a byte each for the kind of the condition (0 contains, 1 is, 2 a group, 3 a comparison, 4 is missing), its comparison (0 `<`, 1 `≤`, 2 `=`, 3 `≥`, 4 `>`, and 0 for the others), the rows the filter is showing (0 those that match, 1 those that do not), whether bits follow, and whether the comparison's text cannot be read as a number with the decimal mark kept; a zero byte; the group's code, `u16`, `u16::MAX` for none; the text, as a text list of one, empty for a group and for is missing; and while the filter does not show every row, padded to a multiple of 8, one bit per row, set for a row shown, in the order of the selection's bits |
 
 A snapshot carries every part, with every column in the columns part. A
 change carries the parts of what the command changed, by two rules that
@@ -678,9 +678,13 @@ copy's grows.
 ### The filter
 
 The command `set_filter` takes the filter of the find bar as JSON, `{
-text, column, cell, showing, decimalMark, basedOn, sentAt }`, with
-`column` an id or `null` for any column, `cell` `part` or `whole`,
-`showing` `matching` or `notMatching`, and `decimalMark` the decimal mark
+column, condition, showing, decimalMark, basedOn, sentAt }`, with
+`column` an id or `null` for any column, `condition` one of `{ kind:
+"contains", text }`, `{ kind: "is", text }`, `{ kind: "group", code }`
+with `code` a group's or `null` for none chosen, `{ kind: "compare",
+comparison, text }` with `comparison` `less`, `atMost`, `equal`,
+`atLeast` or `greater`, and `{ kind: "missing" }`, `showing` `matching`
+or `notMatching`, and `decimalMark` the decimal mark
 the window writes numbers with, its system's region's. The core keeps
 the decimal mark beside the filter, not in it, and finds the rows shown
 after an edit with it. It refuses as a defect a decimal mark that is not
@@ -688,7 +692,18 @@ one to three characters, since macOS gives one and Windows at most three,
 and a text of more than `MAX_FILTER_TEXT`, 1,000 characters, the limit
 of the find bar's field, since the text is sent back in every message
 that changes the filter, to every window. It refuses a column the table
-does not have as `UnknownColumn`, with a text or not. The core finds the
+does not have as `UnknownColumn`, with a text or not, and as a defect a
+condition that does not fit its column, the operators the find bar
+offers it: "contains", "is" and "is missing" for the IDs, a column of
+text and any column; "contains", a group and "is missing" for a category
+or a column of countries; a comparison and "is missing" for a number, a
+latitude or a longitude. An empty text, a group not chosen and a
+comparison's text that is no number show every row. An edit that leaves
+the filter unfit, a column of another role or the group deleted, clears
+it to the column's first operator with no value, "=" for numbers and
+"contains" for the others, in the same message; a group of the filter
+follows its code when the groups are renumbered, by a group deleted or
+its undo (`filter::fitted`). The core finds the
 rows in
 `crates/vavilov-core/src/filter.rs`: a cell matches by the text the
 table shows of it, a decimal number written as JavaScript's `String`
@@ -752,7 +767,12 @@ that no older filter is sent after a newer one. A message of an older
 filter, sent before the user's last change, does not take the field
 back. A shift-click
 over a filtered table selects the rows shown between the two rows
-clicked, and none the filter hides.
+clicked, and none the filter hides. When the field's text is set from
+outside, by a filter the core cleared or by a load, the bar draws a new
+field: WebKit and Chromium keep a field's history of typing after its
+value is set by code, and Undo and Redo then mix the old text in, so that
+`12` undone and redone gave `3312` (seen on 4 October 2026, in both
+engines).
 
 ### The hover's sequence number
 

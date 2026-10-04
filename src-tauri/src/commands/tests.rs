@@ -180,8 +180,8 @@ fn every_command_is_registered_and_finds_the_session() {
         (
             "set_filter",
             json!({
-                "text": "Spain", "column": null, "cell": "part", "showing": "matching",
-                "decimalMark": ",", "basedOn": 0
+                "column": null, "condition": { "kind": "contains", "text": "Spain" },
+                "showing": "matching", "decimalMark": ",", "basedOn": 0
             }),
         ),
         ("undo", json!({ "basedOn": 0 })),
@@ -1138,6 +1138,50 @@ fn a_colour_not_written_as_css_writes_one_is_a_defect() {
         .unwrap_err();
         assert_eq!(refused["kind"], "defect", "{colour}");
     }
+}
+
+#[test]
+fn every_condition_of_the_find_bar_crosses_as_its_kind_and_its_value() {
+    let (app, window) = app();
+    load_with_height(&app);
+    // origin is column 1, a category of Spain; height column 2, a number.
+    for (based_on, column, condition) in [
+        (
+            1,
+            json!(null),
+            json!({ "kind": "contains", "text": "Spain" }),
+        ),
+        (2, json!(null), json!({ "kind": "is", "text": "spain" })),
+        (3, json!(1), json!({ "kind": "group", "code": 0 })),
+        (4, json!(1), json!({ "kind": "group", "code": null })),
+        (
+            5,
+            json!(2),
+            json!({ "kind": "compare", "comparison": "atMost", "text": "1,5" }),
+        ),
+        (6, json!(null), json!({ "kind": "missing" })),
+    ] {
+        let answer = json_command(
+            &window,
+            "set_filter",
+            json!({
+                "column": column, "condition": condition, "showing": "notMatching",
+                "decimalMark": ",", "basedOn": based_on
+            }),
+        );
+        assert!(answer.is_ok(), "{condition}: {answer:?}");
+    }
+    // A comparison it does not know is refused as a defect.
+    let refused = json_command(
+        &window,
+        "set_filter",
+        json!({
+            "column": 2, "condition": { "kind": "compare", "comparison": "about", "text": "1" },
+            "showing": "matching", "decimalMark": ",", "basedOn": 7
+        }),
+    )
+    .unwrap_err();
+    assert_eq!(refused["kind"], "defect");
 }
 
 #[test]
