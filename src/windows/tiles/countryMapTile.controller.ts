@@ -12,6 +12,7 @@ import {
 } from "../../state/countryCounts.ts";
 import type { CountryCounts, Counting } from "../../state/countryCounts.ts";
 import { defect } from "../../state/defect.ts";
+import { copyName } from "../../state/tileCopy.ts";
 import type { CountryLevel, TableDescription } from "../../state/description.ts";
 import { groupsModel } from "../../state/groups.ts";
 import type { ColumnId } from "../../state/ids.ts";
@@ -60,6 +61,7 @@ interface Counted {
 export function createCountryMapTile(
   element: HTMLElement,
   widget: Widget,
+  copy: number,
   context: TileContext,
   onClose: () => void,
 ): PlotTile {
@@ -85,7 +87,7 @@ export function createCountryMapTile(
     );
   };
   const nameOf = (description: TableDescription): string =>
-    `Map of countries in ${columnOf(description, column).name}`;
+    copyName(`Map of countries in ${columnOf(description, column).name}`, copy);
   drawTile();
   if (cannotDraw !== null) {
     return cannotDrawTile(element, (description) => {

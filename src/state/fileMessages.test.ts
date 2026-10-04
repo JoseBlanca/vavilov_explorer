@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  exampleRefusalMessage,
   excelColumn,
   fileRefusalMessage,
   fileRefusalText,
@@ -245,5 +246,29 @@ describe("the messages of the information bar", () => {
       kind: "warning",
       text: "“damaged.csv” was imported, but line 1,203 has a character that could not be read, shown as �. Save the file as UTF-8 and import it again if the text matters.",
     });
+  });
+});
+
+describe("the words of an example table that was not imported", () => {
+  test("say the file installed with the app is missing, and how to get it back", () => {
+    expect(
+      exampleRefusalMessage(
+        { kind: "fileNotRead", fileName: "example-plants.csv", io: "notFound", message: "gone" },
+        count,
+      ),
+    ).toEqual({
+      kind: "error",
+      text: "The example table installed with Vavilov Explorer is missing. Reinstalling the app puts it back.",
+    });
+  });
+
+  test("of any other refusal are those of a file", () => {
+    const denied = {
+      kind: "fileNotRead",
+      fileName: "example-plants.csv",
+      io: "permissionDenied",
+      message: "denied",
+    } as const;
+    expect(exampleRefusalMessage(denied, count)).toEqual(fileRefusalMessage(denied, count));
   });
 });

@@ -512,11 +512,12 @@ for (const engine of Object.keys(ENGINES)) {
       assert.equal(opened.ok, null, JSON.stringify(opened));
     }
     const blindMaps = await app.window("maps-6");
-    const closeMap = blindMaps.getByRole("button", { name: "Close Map of height and PC1" });
     await blindMaps.waitForFunction(
       () => globalThis.document.querySelectorAll("[data-tile]").length === 2,
     );
-    await closeMap.first().focus();
+    await blindMaps
+      .getByRole("button", { name: "Close Map of height and PC1", exact: true })
+      .focus();
     await blindMaps.keyboard.press("Enter");
     await blindMaps.waitForFunction(
       () => globalThis.document.querySelectorAll("[data-tile]").length === 1,
@@ -524,7 +525,7 @@ for (const engine of Object.keys(ENGINES)) {
     await blindMaps.waitForFunction(
       () =>
         globalThis.document.activeElement?.getAttribute("aria-label") ===
-        "Close Map of height and PC1",
+        "Close Map of height and PC1 (2)",
     );
 
     assert.deepEqual(errors, [], "no page errors");

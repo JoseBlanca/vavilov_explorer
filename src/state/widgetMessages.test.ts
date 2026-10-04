@@ -69,6 +69,66 @@ describe("the words of a 3D scatter that was not opened", () => {
   });
 });
 
+describe("the words of a plot past the limits", () => {
+  test("say the window holds 6 at most, and how to open another", () => {
+    expect(
+      widgetRefusalMessage(
+        "histogram",
+        { kind: "tooManyTiles", label: "plots-1", most: 6 },
+        nameOf,
+      ),
+    ).toEqual({
+      kind: "error",
+      text: "No histogram was opened: the Plots window holds 6 plots at most. Close one to open another.",
+    });
+    expect(
+      widgetRefusalMessage("map", { kind: "tooManyTiles", label: "maps-2", most: 6 }, nameOf).text,
+    ).toBe("No map was opened: the Maps window holds 6 maps at most. Close one to open another.");
+    expect(
+      widgetRefusalMessage("countryMap", { kind: "tooManyTiles", label: "maps-2", most: 6 }, nameOf)
+        .text,
+    ).toBe(
+      "No map of countries was opened: the Maps window holds 6 maps at most. Close one to open another.",
+    );
+  });
+
+  test("say 16 3D scatters and maps are open, and how to open another", () => {
+    expect(
+      widgetRefusalMessage("scatter3d", { kind: "tooManyWebGlViews", most: 16 }, nameOf),
+    ).toEqual({
+      kind: "error",
+      text: "No 3D scatter was opened: 16 3D scatters and maps are open, as many as the graphics card is sure to draw at once. Close one to open another.",
+    });
+    expect(widgetRefusalMessage("map", { kind: "tooManyWebGlViews", most: 16 }, nameOf).text).toBe(
+      "No map was opened: 16 3D scatters and maps are open, as many as the graphics card is sure to draw at once. Close one to open another.",
+    );
+  });
+});
+
+describe("the words of a plot added to a window that did not come to the front", () => {
+  test("say it was added, as a warning, without the system's message", () => {
+    expect(
+      widgetRefusalMessage(
+        "histogram",
+        { kind: "windowNotRaised", label: "plots-1", message: "no focus" },
+        nameOf,
+      ),
+    ).toEqual({
+      kind: "warning",
+      text: "The histogram was added to the Plots window, which could not be brought to the front.",
+    });
+    expect(
+      widgetRefusalMessage(
+        "countryMap",
+        { kind: "windowNotRaised", label: "maps-1", message: "no focus" },
+        nameOf,
+      ).text,
+    ).toBe(
+      "The map of countries was added to the Maps window, which could not be brought to the front.",
+    );
+  });
+});
+
 describe("the words of a map that was not opened", () => {
   test("name the column that is no longer of its role", () => {
     expect(

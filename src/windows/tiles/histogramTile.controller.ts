@@ -4,6 +4,7 @@ import type { Click } from "../../state/pointClick.ts";
 import { numberText } from "../../state/cellText.ts";
 import type { ColumnNumbers } from "../../state/columnNumbers.ts";
 import { defect } from "../../state/defect.ts";
+import { copyName } from "../../state/tileCopy.ts";
 import { groupsModel } from "../../state/groups.ts";
 import {
   STARTING_BINS,
@@ -65,6 +66,7 @@ const PART_COLOURS = {
 export function createHistogramTile(
   element: HTMLElement,
   widget: Widget,
+  copy: number,
   context: TileContext,
   onClose: () => void,
 ): PlotTile {
@@ -85,7 +87,8 @@ export function createHistogramTile(
   /** Whether the tile was closed: a column that arrives after is not drawn. */
   let destroyed = false;
 
-  const name = (): string => (columnName === "" ? "" : `Histogram of ${columnName}`);
+  const name = (): string =>
+    columnName === "" ? "" : copyName(`Histogram of ${columnName}`, copy);
   const drawTile = (): void => {
     render(
       plotTileView({

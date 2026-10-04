@@ -389,7 +389,10 @@ it.
   `src-tauri/src/demo.rs`, the one `--features demo` loads, written by the
   core's export as a CSV with commas, the point and UTF-8, and a test
   checks that it still is. It is not a project: a change is kept by
-  exporting it, as for any table.
+  exporting it, as for any table. If the file is missing from the
+  install, the bar says: "The example table installed with Vavilov
+  Explorer is missing. Reinstalling the app puts it back." (decided by
+  the owner on 4 October 2026).
 - The Open and Save dialogs of an import and an export are the system's,
   opened by the backend, so that no window sends the backend the path of
   a file (decided by the owner on 2 October 2026). The dialog of Import
@@ -439,24 +442,35 @@ manage:
   individuals and of countries. Each opens with its first plot and
   closes when its last plot is closed. A Plot item of the menu whose
   window is open adds a tile to it and brings the window to the front.
-  The windows are named "Plots" and "Maps".
+  The windows are named "Plots" and "Maps". If the system cannot bring
+  the window to the front, the plot is added all the same, and the main
+  window says so: "The histogram was added to the Plots window, which
+  could not be brought to the front." (decided by the owner on 4 October
+  2026).
+- A window holds 6 tiles at most, and a plot past them is not opened:
+  "No histogram was opened: the Plots window holds 6 plots at most.
+  Close one to open another.", "the Maps window holds 6 maps at most"
+  for a map (decided by the owner on 4 October 2026).
 - Inside each, the plots are tiles of one size, arranged by their
   number: one fills the window; two or three are stacked one above
-  another; four make two rows of two; past four, two columns, with a row
-  for every two more, five or six in three rows, seven or eight in four.
-  The tiles are in the order they were opened, row by row. There is no
-  button to enlarge a tile.
+  another; four make two rows of two; five or six, two columns in three
+  rows. The tiles are in the order they were opened, row by row. There
+  is no button to enlarge a tile.
 - The window has one groups panel, in a column at its right, which can
-  be collapsed as in the 3D scatter's window. With five or seven tiles,
-  the last row has one tile and an empty place at its right: the panel
+  be collapsed as in the 3D scatter's window. With five tiles, the last
+  row has one tile and an empty place at its right: the panel
   moves into that place, no column is left at the window's right, and
   the tiles take the whole width of the window. The panel can be
   collapsed there too, and its place then stays empty. (The owner's
   idea; the panel moving between its two places is the assistant's
   reading, for the owner to judge on screen.)
 - Each tile has a title bar with its name, "Histogram of height", and a
-  button that closes it, and under its plot its own count line, "Drawing
-  1,688 of 2,000 individuals: 312 have no value." The window has one
+  button that closes it. Two tiles of the same plot, the same kind and
+  the same columns, are told apart by a number after the first,
+  "Histogram of height (2)": a new tile takes the smallest number no open
+  tile of its plot has, and keeps it while it is open (decided by the
+  owner on 4 October 2026). Under its plot each tile has its own count
+  line, "Drawing 1,688 of 2,000 individuals: 312 have no value." The window has one
   information bar, across its bottom, for its messages, what the groups
   panel did and what was refused; it takes no space while it has no
   message.
@@ -470,8 +484,13 @@ manage:
   page gets from the graphics card. Chromium, and so WebView2, and WebKit
   are known to keep about 16 at once in a page and to take one away from
   the oldest past that; the figure was neither looked up in their
-  sources nor measured here. A Maps window of eight maps holds eight.
-  Sharing one context between the tiles is not done now.
+  sources nor measured here, nor whether the windows of the app share
+  the limit. So the app keeps at most 16 plots drawn with WebGL open at
+  once, 3D scatters and maps together, and does not open another: "No
+  map was opened: 16 3D scatters and maps are open, as many as the
+  graphics card is sure to draw at once. Close one to open another."
+  (decided by the owner on 4 October 2026). Sharing one context between
+  the tiles is not done now.
 - A lasso stays in the tile it is drawn in, and a window has one lasso
   waiting at a time: a lasso drawn in one tile drops the one waiting in
   another, so that Enter applies the one the user drew last and Escape

@@ -341,7 +341,7 @@ for (const engine of Object.keys(ENGINES)) {
       () => globalThis.document.querySelectorAll("[data-tile]").length === 3,
     );
     await waitForText(
-      maps.getByRole("group", { name: "Map of lat and lon" }).nth(1).getByRole("status"),
+      tile(maps, "Map of lat and lon (2)").getByRole("status"),
       "Drawing 6 of 7 individuals",
     );
     await mapsPanel.getByRole("button", { name: /^ESP/ }).click();
@@ -380,7 +380,7 @@ for (const engine of Object.keys(ENGINES)) {
 
     // A tile's button closes it alone; the last tile closed gives the focus
     // to the tile before it.
-    await maps.getByRole("button", { name: "Close Map of lat and lon" }).nth(1).click();
+    await maps.getByRole("button", { name: "Close Map of lat and lon (2)", exact: true }).click();
     await maps.waitForFunction(
       () => globalThis.document.querySelectorAll("[data-tile]").length === 2,
     );

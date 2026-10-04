@@ -75,7 +75,7 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
             return Ok(());
         };
         let failed = |error: tauri::Error| {
-            AppError::from(WindowError::WindowFailed {
+            AppError::from(WindowError::WindowNotRaised {
                 label: label.clone(),
                 message: error.to_string(),
             })

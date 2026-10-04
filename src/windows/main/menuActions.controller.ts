@@ -1,7 +1,12 @@
 import type { Connection } from "../../backend/connection.ts";
 import type { Refusal } from "../../state/commandError.ts";
 import { defect } from "../../state/defect.ts";
-import { fileRefusalMessage, isFileRefusal, undecodedMessage } from "../../state/fileMessages.ts";
+import {
+  exampleRefusalMessage,
+  fileRefusalMessage,
+  isFileRefusal,
+  undecodedMessage,
+} from "../../state/fileMessages.ts";
 import { axisColumns, columnsOfRole, startingAxes, unfitColumn } from "../../state/plotColumns.ts";
 import type { ColumnId } from "../../state/ids.ts";
 import { csvDefaults } from "../../state/transfer.ts";
@@ -60,7 +65,7 @@ export function createMenuActions(
   const importTable = async (from: "file" | "example"): Promise<void> => {
     const answer = await (from === "file" ? connection.importTable() : connection.openExample());
     if (!answer.ok) {
-      refused(answer.error);
+      refused(answer.error, from === "file" ? fileRefusalMessage : exampleRefusalMessage);
       return;
     }
     const { value } = answer;
@@ -240,11 +245,12 @@ export function createMenuActions(
       .then(answered("selecting none", ignore));
   };
 
-  const refused = (error: Refusal): void => {
+  /** Says in the bar why an import or an export was refused, in the words of `message`. */
+  const refused = (error: Refusal, message = fileRefusalMessage): void => {
     if (!isFileRefusal(error)) {
       throw defect(`an import or an export refused as ${error.kind}`);
     }
-    infoBar.tell(fileRefusalMessage(error, countText));
+    infoBar.tell(message(error, countText));
   };
 
   const run = (action: MenuAction): Promise<void> => {

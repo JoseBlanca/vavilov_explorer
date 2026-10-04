@@ -178,7 +178,11 @@ pub fn fetch_row(
 ///
 /// # Errors
 ///
-/// `MadeBeforeLoad`, `WindowFailed`, or a `Defect`.
+/// `MadeBeforeLoad`; `TooManyTiles` or `TooManyWebGlViews`, past the
+/// limits, when nothing was opened; `WindowFailed` when its new window
+/// could not be made; `WindowNotRaised` when the widget went into the open
+/// window of its kind, which could not be brought to the front; or a
+/// `Defect`.
 #[tauri::command]
 pub async fn open_widget<R: Runtime>(
     app: AppHandle<R>,

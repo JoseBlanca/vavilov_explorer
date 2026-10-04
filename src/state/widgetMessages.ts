@@ -1,8 +1,9 @@
 // The words the information bar of the main window shows when a plot
 // cannot be opened, written from what the window knows, a column the table
-// can no longer show, or from the app's refusal of a window the system
-// could not open (.claude/skills/writing/SKILL.md, "The text of the app").
-// No window was opened.
+// can no longer show, or from the app's refusal: a window the system could
+// not open, or a plot past the limits (.claude/skills/writing/SKILL.md,
+// "The text of the app"); and when a plot was added to a window the system
+// could not bring to the front.
 
 import type { BarMessage } from "./barMessages.ts";
 import type { CommandError } from "./commandError.ts";
@@ -62,12 +63,40 @@ export function noColumnMessage(role: MapRole): BarMessage {
   }
 }
 
-/** A refusal of open_widget the window shows: a window the system could not open. */
-export type WidgetRefused = Extract<CommandError, { readonly kind: "windowFailed" }>;
+/**
+ * A refusal of open_widget the window shows: a window the system could not
+ * open, a window past the most tiles it holds, or past the most plots drawn
+ * with WebGL the app keeps open; or a plot added to a window that could not
+ * be brought to the front.
+ */
+export type WidgetRefused = Extract<
+  CommandError,
+  {
+    readonly kind: "windowFailed" | "windowNotRaised" | "tooManyTiles" | "tooManyWebGlViews";
+  }
+>;
 
 /** Whether `error` is a refusal of open_widget the window shows. */
 export function isWidgetRefused(error: CommandError): error is WidgetRefused {
-  return error.kind === "windowFailed";
+  return (
+    error.kind === "windowFailed" ||
+    error.kind === "windowNotRaised" ||
+    error.kind === "tooManyTiles" ||
+    error.kind === "tooManyWebGlViews"
+  );
+}
+
+/** The window of tiles a widget of `kind` is drawn in, and what it holds, as a sentence says them. */
+function tilesWindowWords(kind: WidgetKind): { readonly window: string; readonly plots: string } {
+  switch (kind) {
+    case "histogram":
+      return { window: "the Plots window", plots: "plots" };
+    case "map":
+    case "countryMap":
+      return { window: "the Maps window", plots: "maps" };
+    case "scatter3d":
+      return { window: "its window", plots: "plots" };
+  }
 }
 
 /**
@@ -118,6 +147,23 @@ export function widgetRefusalMessage(
       return {
         kind: "error",
         text: `${opened}: the system could not open its window. Closing other windows may let it open.`,
+      };
+    case "tooManyTiles": {
+      const { window, plots } = tilesWindowWords(kind);
+      return {
+        kind: "error",
+        text: `${opened}: ${window} holds ${String(why.most)} ${plots} at most. Close one to open another.`,
+      };
+    }
+    case "tooManyWebGlViews":
+      return {
+        kind: "error",
+        text: `${opened}: ${String(why.most)} 3D scatters and maps are open, as many as the graphics card is sure to draw at once. Close one to open another.`,
+      };
+    case "windowNotRaised":
+      return {
+        kind: "warning",
+        text: `The ${WIDGET_WORDS[kind]} was added to ${tilesWindowWords(kind).window}, which could not be brought to the front.`,
       };
   }
 }

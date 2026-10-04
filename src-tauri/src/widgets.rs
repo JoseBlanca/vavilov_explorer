@@ -87,6 +87,16 @@ pub enum WidgetSpec {
 }
 
 impl WidgetSpec {
+    /// Whether the widget is drawn with WebGL, which a web engine allows
+    /// only so many of at once: the 3D scatter and the maps.
+    #[must_use]
+    pub const fn draws_with_webgl(&self) -> bool {
+        match self {
+            Self::Scatter3d { .. } | Self::Map { .. } | Self::CountryMap { .. } => true,
+            Self::Histogram { .. } => false,
+        }
+    }
+
     /// The kind of window the widget is drawn in.
     #[must_use]
     pub const fn window_kind(&self) -> WindowKind {
@@ -166,6 +176,18 @@ pub struct WidgetList {
     pub widgets: Vec<Widget>,
 }
 
+/// The most tiles one window of tiles holds, the Plots or the Maps window:
+/// 6, decided by the owner on 4 October 2026, so that each stays large
+/// enough to read. A widget past it is refused.
+pub const MAX_TILES: usize = 6;
+
+/// The most widgets drawn with WebGL, 3D scatters and maps, open at once
+/// in the app: 16, decided by the owner on 4 October 2026, since a web
+/// engine keeps about 16 WebGL contexts and drops the oldest past that,
+/// whose plot goes blank (`docs/design.md`, section 2.2). A widget past it
+/// is refused.
+pub const MAX_WEBGL_VIEWS: usize = 16;
+
 /// The first byte of a message of a window's list of widgets on its channel,
 /// one of the kinds the core keeps for the app layer,
 /// `vavilov_core::APP_MESSAGE_KINDS` (`docs/core.md`, section 5).
@@ -231,8 +253,11 @@ impl Widgets {
     ///
     /// # Errors
     ///
-    /// A `Defect` for a column `u32::MAX`, which a list sends for "no
-    /// column", or when a counter would pass its type.
+    /// `TooManyTiles` when the open window of its kind holds
+    /// [`MAX_TILES`], `TooManyWebGlViews` for a widget drawn with WebGL when
+    /// [`MAX_WEBGL_VIEWS`] are open, and a `Defect` for a column
+    /// `u32::MAX`, which a list sends for "no column", or when a counter
+    /// would pass its type. A widget refused takes no number.
     pub fn open(&mut self, spec: WidgetSpec) -> Result<Opened, AppError> {
         let (_, columns) = spec.wire();
         if columns.contains(&Some(ColumnId::new(u32::MAX))) {
@@ -242,6 +267,20 @@ impl Widgets {
             )));
         }
         let kind = spec.window_kind();
+        if spec.draws_with_webgl() {
+            let drawn_with_webgl = self
+                .windows
+                .iter()
+                .flat_map(|window| &window.widgets)
+                .filter(|widget| widget.spec.draws_with_webgl())
+                .count();
+            if drawn_with_webgl >= MAX_WEBGL_VIEWS {
+                return Err(WindowError::TooManyWebGlViews {
+                    most: MAX_WEBGL_VIEWS,
+                }
+                .into());
+            }
+        }
         let id = self
             .widgets_given
             .checked_add(1)
@@ -255,6 +294,16 @@ impl Widgets {
             id: WidgetId::new(id),
             spec,
         };
+        if let Some(full) = shared
+            .and_then(|index| self.windows.get(index))
+            .filter(|window| window.widgets.len() >= MAX_TILES)
+        {
+            return Err(WindowError::TooManyTiles {
+                label: full.label.clone(),
+                most: MAX_TILES,
+            }
+            .into());
+        }
         let opened = if let Some(index) = shared {
             let seq = self.next_list()?;
             let window = self
@@ -456,8 +505,8 @@ pub trait WindowHost {
     ///
     /// # Errors
     ///
-    /// `WindowFailed`, with the system's message, when the window could not
-    /// be brought forward.
+    /// `WindowNotRaised`, with the system's message, when the window could
+    /// not be brought forward: the widget is open in it all the same.
     fn raise(&mut self, label: &WindowLabel) -> Result<(), AppError>;
 
     /// Closes the window `label`.

@@ -53,12 +53,14 @@ export interface PlotTile {
 }
 
 /**
- * Makes the tile of `widget` in `element`, which asks `onClose` to close it
- * when the user presses its button.
+ * Makes the tile of `widget` in `element`, the copy `copy` of its plot in
+ * the window, from 1, which it names after the first (tileCopy.ts), and
+ * which asks `onClose` to close it when the user presses its button.
  */
 export type TileMaker = (
   element: HTMLElement,
   widget: Widget,
+  copy: number,
   context: TileContext,
   onClose: () => void,
 ) => PlotTile;

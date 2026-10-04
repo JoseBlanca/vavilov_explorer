@@ -17,8 +17,8 @@ export interface TileGrid {
 /**
  * The grid of `count` tiles, in the order they were opened, row by row: one
  * fills the window, two or three are stacked, four make two rows of two,
- * and past four two columns, with a row for every two more. With an odd
- * number past four the last row has an empty place, which the groups panel
+ * and five or six, as many as a window holds, two columns in three rows. With
+ * five the last row has an empty place, which the groups panel
  * takes.
  */
 export function tileGrid(count: number): TileGrid {

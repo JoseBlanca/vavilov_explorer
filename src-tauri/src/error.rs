@@ -48,14 +48,39 @@ pub enum WindowError {
         /// The widget it gave.
         widget: WidgetId,
     },
-    /// A window could not be opened, brought forward or closed by the
-    /// system.
+    /// A window could not be opened or closed by the system.
     #[error("window {label} could not be opened or closed: {message}")]
     WindowFailed {
         /// The window's label.
         label: WindowLabel,
         /// The system's message, for the technical details.
         message: String,
+    },
+    /// A widget was added to the open window of its kind, which the system
+    /// could not bring to the front: the widget is open, as a tile.
+    #[error("window {label} could not be brought to the front: {message}")]
+    WindowNotRaised {
+        /// The window's label.
+        label: WindowLabel,
+        /// The system's message, for the technical details.
+        message: String,
+    },
+    /// The open window of the widget's kind holds as many tiles as a
+    /// window may, [`crate::widgets::MAX_TILES`]; nothing was opened.
+    #[error("window {label} holds {most} widgets, as many as it may")]
+    TooManyTiles {
+        /// The window's label.
+        label: WindowLabel,
+        /// The most tiles a window holds.
+        most: usize,
+    },
+    /// As many widgets drawn with WebGL are open, 3D scatters and maps, as
+    /// the app allows, [`crate::widgets::MAX_WEBGL_VIEWS`]; nothing was
+    /// opened.
+    #[error("{most} widgets drawn with WebGL are open, as many as the app allows")]
+    TooManyWebGlViews {
+        /// The most widgets drawn with WebGL open at once.
+        most: usize,
     },
 }
 

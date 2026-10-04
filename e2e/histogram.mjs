@@ -292,6 +292,38 @@ for (const engine of Object.keys(ENGINES)) {
       `${JSON.stringify(inPlace)} ${JSON.stringify(boxes)}`,
     );
     await shoot(plots, engine, "plots-five");
+    // Two tiles of one plot are told apart by a number after the first.
+    assert.deepEqual(await tileTitles(plots), [
+      "Histogram of height",
+      "Histogram of lat",
+      "Histogram of height (2)",
+      "Histogram of lat (2)",
+      "Histogram of height (3)",
+    ]);
+
+    // A window holds 6 tiles at most: a seventh is refused, and the bar
+    // says why and how to open it.
+    await openHistogram("height");
+    await plots.waitForFunction(
+      () => globalThis.document.querySelectorAll("[data-tile]").length === 6,
+    );
+    await choose("histogram");
+    const seventh = page.getByRole("dialog", { name: "Histogram" });
+    await seventh.waitFor();
+    await seventh.getByRole("button", { name: "Open" }).click();
+    await page
+      .getByRole("alert")
+      .filter({
+        hasText:
+          "No histogram was opened: the Plots window holds 6 plots at most. Close one to open another.",
+      })
+      .waitFor();
+    await page.getByRole("button", { name: "Dismiss" }).click();
+    assert.equal(await plots.locator("[data-tile]").count(), 6);
+    await plots.getByRole("button", { name: "Close Histogram of height (4)" }).click();
+    await plots.waitForFunction(
+      () => globalThis.document.querySelectorAll("[data-tile]").length === 5,
+    );
 
     // A tile's button closes it alone, and the focus goes to the tile that
     // took its place.
@@ -322,7 +354,10 @@ for (const engine of Object.keys(ENGINES)) {
     await plots.waitForFunction(
       () => globalThis.document.querySelectorAll("[data-tile]").length === 1,
     );
-    await tile(plots, "Histogram of lat").getByRole("img", { name: "Histogram of lat" }).waitFor();
+    // The tile left keeps its number, although the first copy is closed.
+    await tile(plots, "Histogram of lat (2)")
+      .getByRole("img", { name: "Histogram of lat (2)" })
+      .waitFor();
     assert.deepEqual(app.windows(), ["main", "plots-1"]);
 
     // A histogram opened as soon as its column is a number again is drawn,
@@ -355,7 +390,7 @@ for (const engine of Object.keys(ENGINES)) {
     // Waited for before the click, which can close the page before the
     // click's own promise resolves.
     const closed = plots.waitForEvent("close");
-    await plots.getByRole("button", { name: "Close Histogram of lat" }).click();
+    await plots.getByRole("button", { name: "Close Histogram of lat (2)" }).click();
     await closed;
     assert.deepEqual(app.windows(), ["main"]);
     await openHistogram("lat");
@@ -378,6 +413,13 @@ for (const engine of Object.keys(ENGINES)) {
   } finally {
     await app.close();
   }
+}
+
+/** The titles of the tiles of `page`, in their order. */
+function tileTitles(page) {
+  return page.evaluate(() =>
+    [...globalThis.document.querySelectorAll("[data-tile] h2")].map((title) => title.textContent),
+  );
 }
 
 /** The tile named `name`, by its title. */

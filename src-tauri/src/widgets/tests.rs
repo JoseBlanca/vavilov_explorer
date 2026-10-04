@@ -332,3 +332,62 @@ fn the_two_maps_cross_in_a_list_as_their_kinds_and_their_columns() {
     );
     assert_eq!(list.to_bytes().unwrap(), TWO_MAPS);
 }
+
+#[test]
+fn a_seventh_tile_is_refused_and_takes_no_number() {
+    let mut widgets = Widgets::default();
+    for _ in 0..6 {
+        widgets.open(histogram(HEIGHT)).unwrap();
+    }
+    assert_eq!(
+        widgets.open(histogram(SEEDS)),
+        Err(AppError::Window(WindowError::TooManyTiles {
+            label: label("plots-1"),
+            most: 6
+        }))
+    );
+    assert_eq!(ids_in(&widgets, "plots-1"), [1, 2, 3, 4, 5, 6]);
+    // The maps have a window and a limit of their own.
+    let map = widgets
+        .open(WidgetSpec::CountryMap {
+            country: ColumnId::new(2),
+        })
+        .unwrap();
+    assert_eq!(
+        (map.window, map.widget),
+        (label("maps-2"), WidgetId::new(7))
+    );
+}
+
+#[test]
+fn a_seventeenth_widget_drawn_with_webgl_is_refused_and_a_histogram_is_not() {
+    let mut widgets = Widgets::default();
+    for _ in 0..6 {
+        widgets
+            .open(WidgetSpec::Map {
+                latitude: HEIGHT,
+                longitude: SEEDS,
+            })
+            .unwrap();
+    }
+    for _ in 0..10 {
+        widgets.open(scatter(HEIGHT, SEEDS, HEIGHT)).unwrap();
+    }
+    let refused = Err(AppError::Window(WindowError::TooManyWebGlViews {
+        most: 16,
+    }));
+    assert_eq!(widgets.open(scatter(SEEDS, SEEDS, SEEDS)), refused);
+    assert!(widgets.close(&label("maps-1"), WidgetId::new(1)).is_ok());
+    // One closed makes room for one.
+    assert!(widgets.open(scatter(SEEDS, SEEDS, SEEDS)).is_ok());
+    assert_eq!(
+        widgets.open(WidgetSpec::CountryMap {
+            country: ColumnId::new(2)
+        }),
+        refused
+    );
+    assert_eq!(
+        widgets.open(histogram(HEIGHT)).unwrap().window,
+        label("plots-13")
+    );
+}

@@ -329,8 +329,10 @@ pub enum OpenedIn {
 ///
 /// # Errors
 ///
-/// `NoProject`, `MadeBeforeLoad`, or a `Defect` for an argument missing,
-/// unknown or of the wrong type, or a counter that would pass its type.
+/// `NoProject`, `MadeBeforeLoad`, `TooManyTiles` or `TooManyWebGlViews`
+/// past the limits of [`Widgets::open`], or a `Defect` for an argument
+/// missing, unknown or of the wrong type, or a counter that would pass its
+/// type.
 pub fn open_widget(
     session: &mut Session,
     widgets: &mut Widgets,

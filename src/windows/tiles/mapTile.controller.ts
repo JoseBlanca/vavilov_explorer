@@ -2,6 +2,7 @@ import { nothing, render } from "lit-html";
 
 import { at } from "../../state/at.ts";
 import { defect } from "../../state/defect.ts";
+import { copyName } from "../../state/tileCopy.ts";
 import type { Widget } from "../../state/widget.ts";
 import { NO_WEBGL_WORDS } from "../../state/widgetMessages.ts";
 import { createMap } from "../../plots/map.ts";
@@ -25,6 +26,7 @@ import type { PlotTile, TileContext } from "./tile.ts";
 export function createMapTile(
   element: HTMLElement,
   widget: Widget,
+  copy: number,
   context: TileContext,
   onClose: () => void,
 ): PlotTile {
@@ -34,7 +36,7 @@ export function createMapTile(
   }
   const kind: PointViewKind = {
     columns: [spec.latitude, spec.longitude],
-    title: (names) => `Map of ${at(names, 0)} and ${at(names, 1)}`,
+    title: (names) => copyName(`Map of ${at(names, 0)} and ${at(names, 1)}`, copy),
     lacking: "no coordinates",
     tools: "assigning",
     createPlot: (plotElement, events): PointPlot => {

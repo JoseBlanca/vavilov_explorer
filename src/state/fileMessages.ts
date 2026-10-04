@@ -58,6 +58,21 @@ export function fileRefusalMessage(error: FileRefusal, count: Count): BarMessage
 }
 
 /**
+ * The error the information bar shows for a refusal of File > Open
+ * Example Table: the file installed with the app not found, which the user
+ * never chose and cannot choose again, or the words of any file's refusal.
+ */
+export function exampleRefusalMessage(error: FileRefusal, count: Count): BarMessage {
+  if (error.kind === "fileNotRead" && error.io === "notFound") {
+    return {
+      kind: "error",
+      text: "The example table installed with Vavilov Explorer is missing. Reinstalling the app puts it back.",
+    };
+  }
+  return fileRefusalMessage(error, count);
+}
+
+/**
  * The warning the information bar shows for an import that read a
  * character it could not decode.
  */

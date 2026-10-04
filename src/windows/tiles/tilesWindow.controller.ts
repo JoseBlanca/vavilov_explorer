@@ -5,6 +5,8 @@ import { tauriTransport } from "../../backend/transport.ts";
 import { defect } from "../../state/defect.ts";
 import type { WidgetId } from "../../state/ids.ts";
 import { widgetFits } from "../../state/plotColumns.ts";
+import { nextCopy } from "../../state/tileCopy.ts";
+import type { OpenCopy } from "../../state/tileCopy.ts";
 import { tileGrid } from "../../state/tileGrid.ts";
 import type { Widget, WidgetKind } from "../../state/widget.ts";
 import { closeWidget } from "../shared/closeWidget.ts";
@@ -71,6 +73,8 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
     const decimalMark = await connection.regionDecimalMark();
     const table = createDescribedTable(connection);
     const tiles = new Map<WidgetId, PlotTile>();
+    /** What each tile shows, and its number among the copies of its plot, kept while it is open. */
+    const copies = new Map<WidgetId, OpenCopy>();
     const hoverLabel = createHoverLabel(
       slot(root, "hoverLabel"),
       connection,
@@ -146,6 +150,7 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
         if (!wanted.has(id)) {
           tile.destroy();
           tiles.delete(id);
+          copies.delete(id);
         }
       }
       drawFrame();
@@ -162,7 +167,9 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
           throw defect(`no tile drawn for widget ${String(widget.id)}`);
         }
         const { id } = widget;
-        const tile = make(element, widget, context, () => {
+        const copy = nextCopy(widget.spec, [...copies.values()]);
+        copies.set(id, { spec: widget.spec, copy });
+        const tile = make(element, widget, copy, context, () => {
           close(id);
         });
         tiles.set(id, tile);
