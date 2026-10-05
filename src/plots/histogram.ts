@@ -6,7 +6,8 @@
 import type { Click } from "../state/pointClick.ts";
 import { scaleLinear } from "d3-scale";
 
-import type { Segment } from "../state/histogram.ts";
+import { movedSegment, segmentNear } from "../state/histogram.ts";
+import type { Part, Segment, SegmentKey } from "../state/histogram.ts";
 import { pointClickOf } from "../state/pointClick.ts";
 import { platformOf } from "../state/undoKeys.ts";
 import "./plots.css";
@@ -23,6 +24,23 @@ const OUTLINE_WIDTH_PX = 2;
  * on one box inset by half the halo, which keeps the halo inside the bar.
  */
 const HALO_WIDTH_PX = 4;
+/** How far the ring of the segment the keyboard is on stands off it, in CSS pixels, as the focus ring's offset. */
+const CURSOR_OFFSET_PX = 2;
+/** The width of that ring, in CSS pixels, as the focus ring's (css.md, "Focus"). */
+const CURSOR_WIDTH_PX = 2;
+/** What a screen reader hears after the plot's name, of the keys it takes (decided by the owner on 5 October 2026). */
+const KEYS_HINT =
+  "Left and Right move between the bars, Up and Down between their groups, Enter selects.";
+
+/** The keys that move between the segments, by the key the browser names. */
+const MOVES: ReadonlyMap<string, SegmentKey> = new Map([
+  ["ArrowLeft", "left"],
+  ["ArrowRight", "right"],
+  ["ArrowUp", "up"],
+  ["ArrowDown", "down"],
+  ["Home", "first"],
+  ["End", "last"],
+]);
 
 /** What the histogram draws. */
 export interface HistogramData {
@@ -38,6 +56,8 @@ export interface HistogramData {
   readonly numBins: number;
   /** The segments, bar by bar, bottom to top in each, with their colours as CSS writes them. */
   readonly segments: readonly Segment[];
+  /** The words of each segment, as its label says them, which a screen reader hears as the keyboard reaches it. */
+  readonly segmentWords: readonly string[];
   /** The most individuals in one bar. */
   readonly tallest: number;
   /** Writes a value of the axis of the values, with the decimal mark of the system's region. */
@@ -59,6 +79,12 @@ export interface HistogramEvents {
    * individuals or take them away, or with Shift to select a run of bins.
    */
   readonly onClick: (segment: number, click: Click) => void;
+  /**
+   * The keyboard reached the segment at `segment`, whose label goes at
+   * `place` in CSS pixels of the window; or, with `null` and no place, it
+   * left the plot, or Escape hid the label.
+   */
+  readonly onCursor: (segment: number | null, place: { x: number; y: number } | null) => void;
 }
 
 /** A histogram drawn in its element. */
@@ -83,18 +109,37 @@ export interface Histogram {
  * A histogram in `element`, which it fills, drawn again at each `update`
  * and when the element changes size. A click on a segment and the pointer
  * over one go to `events`; a click on Ctrl on macOS, the system's
- * secondary click, does nothing.
+ * secondary click, does nothing. With the keyboard's focus on it, the
+ * arrows, Home and End move a ring between the segments, and Enter or
+ * Space selects the segment's individuals as a click does, with Cmd or
+ * Ctrl and Shift as a click takes them (issue #1).
  */
 export function createHistogram(element: HTMLElement, events: HistogramEvents): Histogram {
   const platform = platformOf(navigator.userAgent);
   const frame = document.createElement("div");
   frame.className = "plot-frame";
-  const svg = svgElement("svg", { class: "plot-canvas plot-histogram", role: "img" });
-  // Focused by the window when the information bar gives the focus back;
-  // not in the order of Tab, since its bars have no keys yet.
-  svg.setAttribute("tabindex", "-1");
-  frame.append(svg);
+  // One control to the keyboard and to a screen reader, as the point
+  // views' canvas, which passes it the arrows.
+  const svg = svgElement("svg", { class: "plot-canvas plot-histogram", role: "application" });
+  svg.setAttribute("tabindex", "0");
+  const hintId = `plot-histogram-hint-${String(Math.random()).slice(2)}`;
+  const hint = document.createElement("p");
+  hint.className = "plot-hidden";
+  hint.id = hintId;
+  hint.textContent = KEYS_HINT;
+  svg.setAttribute("aria-describedby", hintId);
+  // The words of the segment the keyboard reaches.
+  const announced = document.createElement("p");
+  announced.className = "plot-hidden";
+  announced.setAttribute("role", "status");
+  frame.append(svg, hint, announced);
   element.replaceChildren(frame);
+  /** The bin and the part of the segment the keyboard is on, or `null` before any. */
+  let cursor: { readonly bin: number; readonly part: Part } | null = null;
+  /** Whether the keyboard is in use on the plot, which shows the ring and the label. */
+  let keyboard = false;
+  /** Whether Escape hid the keyboard's label, which a drawing does not show again until a key. */
+  let labelHidden = false;
   let shown: HistogramData | null = null;
   /** Where the pointer last was over the plot, in CSS pixels of the window, or `null` once it left. */
   let pointer: { x: number; y: number } | null = null;
@@ -125,6 +170,11 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
     if (segment === null) {
       return;
     }
+    // The keyboard goes on from the segment clicked.
+    const clicked = shown?.segments[segment];
+    if (clicked !== undefined) {
+      cursor = { bin: clicked.bin, part: clicked.part };
+    }
     if (event.shiftKey) {
       events.onClick(segment, "range");
       return;
@@ -140,10 +190,103 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
       event.preventDefault();
     }
   };
+
+  /** The segment the keyboard is on, by its place in the segments drawn, or `null`. */
+  const cursorIndex = (): number | null =>
+    shown === null || cursor === null ? null : segmentNear(shown.segments, cursor);
+
+  /** Draws the ring round the segment the keyboard is on, tells its label, and says its words. */
+  const showCursor = (announce: boolean): void => {
+    svg.querySelector(".plot-histogram-cursor")?.remove();
+    const index = keyboard ? cursorIndex() : null;
+    const segment = index === null ? undefined : shown?.segments[index];
+    const rect = index === null ? null : svg.querySelector(`[data-segment="${String(index)}"]`);
+    if (index === null || segment === undefined || !(rect instanceof SVGRectElement)) {
+      return;
+    }
+    cursor = { bin: segment.bin, part: segment.part };
+    const ring = svgElement("rect", {
+      class: "plot-histogram-cursor",
+      x: rect.x.baseVal.value - CURSOR_OFFSET_PX,
+      y: rect.y.baseVal.value - CURSOR_OFFSET_PX,
+      width: rect.width.baseVal.value + 2 * CURSOR_OFFSET_PX,
+      height: rect.height.baseVal.value + 2 * CURSOR_OFFSET_PX,
+      "stroke-width": CURSOR_WIDTH_PX,
+    });
+    svg.append(ring);
+    if (!labelHidden) {
+      const box = rect.getBoundingClientRect();
+      events.onCursor(index, { x: box.right, y: box.top });
+    }
+    if (announce) {
+      announced.textContent = shown?.segmentWords[index] ?? "";
+    }
+  };
+
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (shown === null || shown.segments.length === 0 || event.altKey) {
+      return;
+    }
+    const move = MOVES.get(event.key);
+    if (move !== undefined && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      const from = cursorIndex();
+      const to =
+        from === null || !keyboard ? (from ?? 0) : movedSegment(shown.segments, from, move);
+      const segment = shown.segments[to];
+      if (segment !== undefined) {
+        cursor = { bin: segment.bin, part: segment.part };
+      }
+      keyboard = true;
+      labelHidden = false;
+      showCursor(true);
+      return;
+    }
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+    const first = cursor === null;
+    cursor ??= shown.segments[0] ?? null;
+    const index = cursorIndex() ?? 0;
+    keyboard = true;
+    labelHidden = false;
+    showCursor(first);
+    if (event.shiftKey) {
+      events.onClick(index, "range");
+      return;
+    }
+    const click = pointClickOf(event, platform);
+    if (click !== "none") {
+      events.onClick(index, click);
+    }
+  };
+  // Reached with Tab, the keyboard starts on the first segment, the bottom
+  // of the leftmost bar; a click leaves the ring and the label to the
+  // pointer, and the keys after it go on from the segment clicked.
+  const onFocus = (): void => {
+    if (svg.matches(":focus-visible") && shown !== null && shown.segments.length > 0) {
+      cursor = shown.segments[0] ?? null;
+      keyboard = true;
+      labelHidden = false;
+      showCursor(true);
+    }
+  };
+  const leaveKeyboard = (): void => {
+    if (keyboard) {
+      keyboard = false;
+      showCursor(false);
+      events.onCursor(null, null);
+    }
+  };
   svg.addEventListener("pointermove", onPointerMove);
   svg.addEventListener("pointerleave", onPointerLeave);
   svg.addEventListener("click", onClick);
   svg.addEventListener("mousedown", onMouseDown);
+  svg.addEventListener("pointerdown", leaveKeyboard);
+  svg.addEventListener("keydown", onKeyDown);
+  svg.addEventListener("focus", onFocus);
+  svg.addEventListener("blur", leaveKeyboard);
 
   const draw = (): void => {
     if (shown === null) {
@@ -251,6 +394,9 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
     if (pointer !== null) {
       hoverAt(pointer);
     }
+    // And under the keyboard, which stays on its bin and part, or goes to
+    // the nearest bar.
+    showCursor(false);
   };
 
   const resized = new ResizeObserver(draw);
@@ -276,6 +422,9 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
     forgetPointer: () => {
       pointer = null;
       events.onHover(null, null);
+      // Escape hides the keyboard's label too, until the next key.
+      labelHidden = true;
+      events.onCursor(null, null);
     },
     destroy: () => {
       if (destroyed) {
@@ -287,6 +436,10 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
       svg.removeEventListener("pointerleave", onPointerLeave);
       svg.removeEventListener("click", onClick);
       svg.removeEventListener("mousedown", onMouseDown);
+      svg.removeEventListener("pointerdown", leaveKeyboard);
+      svg.removeEventListener("keydown", onKeyDown);
+      svg.removeEventListener("focus", onFocus);
+      svg.removeEventListener("blur", leaveKeyboard);
       element.replaceChildren();
     },
   };

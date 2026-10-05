@@ -353,3 +353,79 @@ export function segmentText(
     }
   }
 }
+
+/** A key that moves the keyboard between the segments of a histogram. */
+export type SegmentKey = "left" | "right" | "up" | "down" | "first" | "last";
+
+/**
+ * The segment `key` moves the keyboard to from the segment at `from` of
+ * `segments`, which are bar by bar, bottom to top in each: Left and Right
+ * the previous or next bar with individuals, Home and End the first or the
+ * last, each on the same part when that bar has it and on its bottom
+ * segment when not; Up and Down the segment above or below in the bar. A
+ * move past the end stays where it is (decided by the owner on 5 October
+ * 2026, issue #1).
+ *
+ * @throws A defect for `from` past the segments.
+ */
+export function movedSegment(segments: readonly Segment[], from: number, key: SegmentKey): number {
+  const now = segments[from];
+  if (now === undefined) {
+    throw defect(`the keyboard on segment ${String(from)} of ${String(segments.length)}`);
+  }
+  const bins = [...new Set(segments.map((segment) => segment.bin))];
+  const place = bins.indexOf(now.bin);
+  const inBin = (bin: number | undefined): number => {
+    if (bin === undefined) {
+      return from;
+    }
+    const same = segments.findIndex(
+      (segment) => segment.bin === bin && samePart(segment.part, now.part),
+    );
+    return same === -1 ? segments.findIndex((segment) => segment.bin === bin) : same;
+  };
+  const sameBar = (index: number): number => (segments[index]?.bin === now.bin ? index : from);
+  switch (key) {
+    case "left":
+      return inBin(bins[place - 1]);
+    case "right":
+      return inBin(bins[place + 1]);
+    case "first":
+      return inBin(bins[0]);
+    case "last":
+      return inBin(bins[bins.length - 1]);
+    case "up":
+      return sameBar(from + 1);
+    case "down":
+      return sameBar(from - 1);
+  }
+}
+
+/**
+ * The segment of `segments` the keyboard stays on after the bars changed
+ * under it, when it was on the part `at.part` of the bin `at.bin`: that
+ * segment when there still is one, or the bottom segment of the nearest
+ * bar, the lower of two as near; `null` with no segment.
+ */
+export function segmentNear(
+  segments: readonly Segment[],
+  at: { readonly bin: number; readonly part: Part },
+): number | null {
+  const same = segments.findIndex(
+    (segment) => segment.bin === at.bin && samePart(segment.part, at.part),
+  );
+  if (same !== -1) {
+    return same;
+  }
+  let nearest: number | null = null;
+  let distance = Infinity;
+  segments.forEach((segment, index) => {
+    const off = Math.abs(segment.bin - at.bin);
+    // The first of a bar is its bottom, and the lower bar comes first.
+    if (off < distance) {
+      nearest = index;
+      distance = off;
+    }
+  });
+  return nearest;
+}

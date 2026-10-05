@@ -120,6 +120,24 @@
   stroke: var(--color-text);
 }
 
+/* The ring round the segment the keyboard is on, as the focus ring. */
+.plot-histogram-cursor {
+  fill: none;
+  stroke: var(--color-focus);
+  pointer-events: none;
+}
+
+/* Read by a screen reader and not seen: the keys a plot takes, and the
+   words of what the keyboard reaches. */
+.plot-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* The 2D scatter (scatter2d.ts): a light grid at the ticks behind the
    points, the axes and their values as the histogram's, and the points with
    the point views' ring, marked in the text's colour when selected or

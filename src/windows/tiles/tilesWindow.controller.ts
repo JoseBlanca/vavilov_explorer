@@ -233,7 +233,8 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
       if (waiting === undefined) {
         return;
       }
-      if (event.key === "Enter") {
+      // An Enter a plot took, as the histogram's, selects there alone.
+      if (event.key === "Enter" && !event.defaultPrevented) {
         event.preventDefault();
         waiting.applyLasso();
       } else if (event.key === "Escape") {

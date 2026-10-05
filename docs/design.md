@@ -908,6 +908,21 @@ bins.
   it closes a 3D scatter's window.
 - In the second step, the individual under the pointer in another window
   is shown by a line around its bin.
+- The keyboard, decided by the owner on 5 October 2026 (issue #1): Tab
+  reaches the histogram, and the keyboard starts on the bottom segment of
+  the leftmost bar with individuals, with the focus ring round it. Left
+  and Right move to the previous or next bar with individuals, Home and
+  End to the first or the last, each on the same group when that bar has
+  it and on its bottom segment when not; Up and Down move between the
+  segments of a bar. Enter or Space selects as a click does, Cmd-Enter or
+  Ctrl-Enter as Cmd-click or Ctrl-click, Shift-Enter as Shift-click, and
+  with + or − pressed Enter puts the individuals in the group or takes
+  them out. Each move shows the segment's label beside it, as the
+  pointer's, and a screen reader says the same words; Escape hides the
+  label until the next key. A screen reader hears the plot's name and
+  "Left and Right move between the bars, Up and Down between their
+  groups, Enter selects." When the bars change, the keyboard stays on
+  its bin and group, or goes to the nearest bar's bottom segment.
 
 Bar plots select too: clicking a bar selects the individuals in it, and
 the selected share of each bar is drawn inside it. Each widget shows how

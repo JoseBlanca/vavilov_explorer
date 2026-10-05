@@ -174,8 +174,13 @@ for (const engine of Object.keys(ENGINES)) {
 
     // A click selects an individual alone; Cmd-click or Ctrl-click adds
     // another.
+    // A Cmd-click is made from the Plots window's copy of the selection,
+    // which the main window's table can show first: it waits for the
+    // window to have the click's change, one revision on.
+    const beforeClick = await plots.evaluate(() => globalThis.__vavilovRevision());
     await plots.mouse.click(p1.x, p1.y);
     await selectedAre(page, ["p1"]);
+    await plots.waitForFunction((at) => globalThis.__vavilovRevision() >= at, beforeClick + 1);
     await plots.keyboard.down("ControlOrMeta");
     await plots.mouse.click(p2.x, p2.y);
     await plots.keyboard.up("ControlOrMeta");
@@ -361,7 +366,9 @@ for (const engine of Object.keys(ENGINES)) {
     await histogramDialog.waitFor();
     await histogramDialog.getByRole("combobox", { name: "Column" }).selectOption("PC1");
     await histogramDialog.getByRole("button", { name: "Open" }).click();
-    await tile(plots, "Histogram of PC1").getByRole("img", { name: "Histogram of PC1" }).waitFor();
+    await tile(plots, "Histogram of PC1")
+      .getByRole("application", { name: "Histogram of PC1" })
+      .waitFor();
     assert.equal(await plots.locator("[data-tile]").count(), 2);
     assert.deepEqual(app.windows(), ["main", "plots-1"]);
     await shoot(plots, engine, "scatter2d-tiles");

@@ -112,7 +112,7 @@ for (const engine of Object.keys(ENGINES)) {
     await plots.setViewportSize({ width: 1000, height: 640 });
     await plots.waitForFunction(() => globalThis.document.title === "Plots");
     const first = tile(plots, "Histogram of height");
-    await first.getByRole("img", { name: "Histogram of height" }).waitFor();
+    await first.getByRole("application", { name: "Histogram of height" }).waitFor();
     await waitForText(first.getByRole("status"), "Drawing 5 of 6 individuals: 1 has no value.");
 
     // Every group in its colour, the unassigned in grey, bin by bin.
@@ -188,6 +188,64 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal(await label(plots).count(), 0);
     await hover(plots, 1, 3);
     await waitForText(label(plots), "Peru: 1 individual, 2.9 to 3");
+
+    // The keyboard (issue #1). Tab reaches the histogram, which a screen
+    // reader names and tells the keys of, and the keyboard starts on the
+    // first segment, with a ring round it, its label, and its words said.
+    await plots.mouse.move(1, 1);
+    await label(plots).waitFor({ state: "detached" });
+    const histogram = first.getByRole("application", { name: "Histogram of height" });
+    assert.equal(
+      await histogram.evaluate(
+        (svg) =>
+          globalThis.document.getElementById(svg.getAttribute("aria-describedby"))?.textContent,
+      ),
+      "Left and Right move between the bars, Up and Down between their groups, Enter selects.",
+    );
+    await first.getByRole("button", { name: "Close Histogram of height" }).focus();
+    await plots.keyboard.press("Tab");
+    const said = first.locator('.plot-hidden[role="status"]');
+    const reached = async (words) => {
+      await waitForText(label(plots), words);
+      await waitForText(said, words);
+      assert.equal(await first.locator(".plot-histogram-cursor").count(), 1);
+    };
+    await reached("Spain: 1 individual, 1 to 1.1");
+    // Right goes to the next bar with individuals: bin 2 has no Spain, so
+    // its bottom segment, Peru; then bin 10, past the empty bins, and End
+    // the last bar, whose bottom is Peru, and Up its unassigned above.
+    await plots.keyboard.press("ArrowRight");
+    await reached("Peru: 1 individual, 1.2 to 1.3");
+    await plots.keyboard.press("ArrowRight");
+    await reached("Spain: 1 individual, 2 to 2.1");
+    await plots.keyboard.press("End");
+    await reached("Peru: 1 individual, 2.9 to 3");
+    await plots.keyboard.press("ArrowUp");
+    await reached("Unassigned: 1 individual, 2.9 to 3");
+    // Enter selects as a click does, Cmd-Enter or Ctrl-Enter adds, and
+    // Shift-Enter selects the same group in every bin from the one last
+    // selected; each waits for the outlines, as a click does.
+    await plots.keyboard.press("Enter");
+    await selectedAre(page, ["p4"]);
+    await outlinedAre(plots, 1, [4]);
+    await plots.keyboard.press("Home");
+    await reached("Spain: 1 individual, 1 to 1.1");
+    await plots.keyboard.press("ControlOrMeta+Enter");
+    await selectedAre(page, ["p1", "p4"]);
+    await outlinedAre(plots, 1, [0, 4]);
+    await plots.keyboard.press("ArrowRight");
+    await plots.keyboard.press("ArrowRight");
+    await reached("Spain: 1 individual, 2 to 2.1");
+    await plots.keyboard.press("Shift+Enter");
+    await selectedAre(page, ["p1", "p3"]);
+    await shoot(plots, engine, "histogram-keyboard");
+    // Escape hides the label and clears the selection; leaving the plot
+    // takes the ring away.
+    await plots.keyboard.press("Escape");
+    await selectedAre(page, []);
+    await label(plots).waitFor({ state: "detached" });
+    await plots.keyboard.press("Shift+Tab");
+    await first.locator(".plot-histogram-cursor").waitFor({ state: "detached" });
 
     // The groups panel has + and − on the group selected, and no Add,
     // Edit or Delete group.
@@ -356,7 +414,7 @@ for (const engine of Object.keys(ENGINES)) {
     );
     // The tile left keeps its number, although the first copy is closed.
     await tile(plots, "Histogram of lat (2)")
-      .getByRole("img", { name: "Histogram of lat (2)" })
+      .getByRole("application", { name: "Histogram of lat (2)" })
       .waitFor();
     assert.deepEqual(app.windows(), ["main", "plots-1"]);
 
@@ -378,7 +436,7 @@ for (const engine of Object.keys(ENGINES)) {
     assert.equal(renumbered.ok, null, JSON.stringify(renumbered));
     assert.equal(reopened.ok, null, JSON.stringify(reopened));
     await tile(plots, "Histogram of height")
-      .getByRole("img", { name: "Histogram of height" })
+      .getByRole("application", { name: "Histogram of height" })
       .waitFor();
     await plots.getByRole("button", { name: "Close Histogram of height" }).click();
     await plots.waitForFunction(
@@ -395,7 +453,9 @@ for (const engine of Object.keys(ENGINES)) {
     assert.deepEqual(app.windows(), ["main"]);
     await openHistogram("lat");
     const again = await app.window("plots-2");
-    await tile(again, "Histogram of lat").getByRole("img", { name: "Histogram of lat" }).waitFor();
+    await tile(again, "Histogram of lat")
+      .getByRole("application", { name: "Histogram of lat" })
+      .waitFor();
     await app.closeWindow("plots-2");
 
     // With no column of numbers, the bar says so, and how to make one.

@@ -6,9 +6,11 @@ import {
   STARTING_BINS,
   binsOf,
   edgesOf,
+  movedSegment,
   roundedEdge,
   rowsOfPart,
   samePart,
+  segmentNear,
   segmentText,
   stackOf,
 } from "./histogram.ts";
@@ -278,5 +280,67 @@ describe("the label of a segment", () => {
     expect(roundedEdge(1.5333333, 0.5)).toBe(1.53);
     expect(roundedEdge(1234.5678, 10)).toBe(1235);
     expect(roundedEdge(0.0123456, 0.001)).toBe(0.0123);
+  });
+});
+
+describe("the segment the keyboard is on", () => {
+  const esp: Part = { kind: "row", row: { kind: "group", code: levelCode(0) } };
+  const per: Part = { kind: "row", row: { kind: "group", code: levelCode(1) } };
+  const unassigned: Part = { kind: "row", row: { kind: "unassigned" } };
+  const segment = (bin: number, part: Part, bottom: number): Segment => ({
+    bin,
+    part,
+    name: null,
+    colour: "#000000",
+    bottom,
+    count: 1,
+    selected: 0,
+  });
+  // Bar by bar, bottom to top: bin 0 ESP, PER; bin 1 PER; bin 2 empty; bin
+  // 3 ESP, unassigned.
+  const segments = [
+    segment(0, esp, 0),
+    segment(0, per, 1),
+    segment(1, per, 0),
+    segment(3, esp, 0),
+    segment(3, unassigned, 1),
+  ];
+
+  test("moves to the next bar with individuals, on the same group when it has one", () => {
+    expect(movedSegment(segments, 1, "right")).toBe(2);
+    // Bin 1 has no ESP: its bottom segment.
+    expect(movedSegment(segments, 0, "right")).toBe(2);
+    // The empty bin 2 is skipped.
+    expect(movedSegment(segments, 2, "right")).toBe(3);
+    expect(movedSegment(segments, 3, "left")).toBe(2);
+    expect(movedSegment(segments, 2, "left")).toBe(1);
+  });
+
+  test("stays at the last bar and at the first", () => {
+    expect(movedSegment(segments, 4, "right")).toBe(4);
+    expect(movedSegment(segments, 0, "left")).toBe(0);
+  });
+
+  test("moves up and down within its bar, and stays at its top and bottom", () => {
+    expect(movedSegment(segments, 0, "up")).toBe(1);
+    expect(movedSegment(segments, 1, "up")).toBe(1);
+    expect(movedSegment(segments, 4, "down")).toBe(3);
+    expect(movedSegment(segments, 3, "down")).toBe(3);
+  });
+
+  test("goes to the first and the last bar, on the same group when it has one", () => {
+    expect(movedSegment(segments, 4, "first")).toBe(0);
+    expect(movedSegment(segments, 1, "first")).toBe(1);
+    expect(movedSegment(segments, 0, "last")).toBe(3);
+    expect(movedSegment(segments, 1, "last")).toBe(3);
+  });
+
+  test("after the bars change, is the same bin and group, or the nearest bar's bottom", () => {
+    expect(segmentNear(segments, { bin: 1, part: per })).toBe(2);
+    expect(segmentNear(segments, { bin: 0, part: unassigned })).toBe(0);
+    // Bins 1 and 3 are as near to 2: the lower.
+    expect(segmentNear(segments, { bin: 2, part: esp })).toBe(2);
+    expect(segmentNear(segments, { bin: 9, part: esp })).toBe(3);
+    expect(segmentNear([], { bin: 0, part: esp })).toBeNull();
   });
 });

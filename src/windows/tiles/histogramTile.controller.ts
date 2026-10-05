@@ -16,7 +16,7 @@ import {
   segmentText,
   stackOf,
 } from "../../state/histogram.ts";
-import type { Bins, Part, Stack } from "../../state/histogram.ts";
+import type { Bins, Part, Segment, Stack } from "../../state/histogram.ts";
 import type { Widget } from "../../state/widget.ts";
 import { placedRows, placedText } from "../../state/placed.ts";
 import type { Placed } from "../../state/placed.ts";
@@ -82,8 +82,16 @@ export function createHistogramTile(
   let columnName = "";
   /** The segment last clicked without Shift, where a Shift-click's run starts. */
   let anchor: { readonly bin: number; readonly part: Part } | null = null;
-  /** The segment under the pointer, by its place in the bars, and where the pointer is. */
-  let hovered: { segment: number; place: { x: number; y: number } } | null = null;
+  /**
+   * The segment whose label shows, by its place in the bars, and where the
+   * label goes: under the pointer, or reached by the keyboard, whichever
+   * came last.
+   */
+  let hovered: {
+    segment: number;
+    place: { x: number; y: number };
+    by: "pointer" | "keyboard";
+  } | null = null;
   /** Whether the tile was closed: a column that arrives after is not drawn. */
   let destroyed = false;
 
@@ -106,24 +114,48 @@ export function createHistogramTile(
   /** A value of an edge or of the axis, with the decimal mark of the system's region. */
   const valueText = (value: number): string => numberText(value, context.decimalMark);
 
+  /** The words of `segment` of the bins `bins`: "ESP: 12 individuals, 1.5 to 2". */
+  const wordsOf = (bins: Bins, segment: Segment): string => {
+    const width = (bins.highest - bins.lowest) / bins.count;
+    const { low, high } = edgesOf(bins, segment.bin);
+    return segmentText(
+      segment,
+      valueText(roundedEdge(low, width)),
+      valueText(roundedEdge(high, width)),
+      countText,
+    );
+  };
+
   const showLabel = (): void => {
     const segment = hovered === null ? undefined : drawn?.stack.segments[hovered.segment];
     if (hovered === null || drawn === null || segment === undefined) {
       label.hide();
       return;
     }
-    const { bins } = drawn;
-    const width = (bins.highest - bins.lowest) / bins.count;
-    const { low, high } = edgesOf(bins, segment.bin);
-    label.show(
-      segmentText(
-        segment,
-        valueText(roundedEdge(low, width)),
-        valueText(roundedEdge(high, width)),
-        countText,
-      ),
-      hovered.place,
-    );
+    label.show(wordsOf(drawn.bins, segment), hovered.place);
+  };
+
+  /** The label of what `by` is on, `segment` at `place`, or of nothing. */
+  const labelFrom = (
+    by: "pointer" | "keyboard",
+    segment: number | null,
+    place: { x: number; y: number } | null,
+  ): void => {
+    const was = hovered;
+    if (segment === null || place === null) {
+      // The pointer leaving takes nothing from the keyboard, nor the other way.
+      if (hovered?.by !== by) {
+        return;
+      }
+      hovered = null;
+    } else {
+      hovered = { segment, place, by };
+    }
+    // The label is the window's: a tile the pointer did not leave keeps
+    // its hands off another tile's.
+    if (hovered !== null || was !== null) {
+      showLabel();
+    }
   };
 
   /**
@@ -169,15 +201,12 @@ export function createHistogramTile(
 
   const plot = createHistogram(slot(element, "plot"), {
     onHover: (segment, place) => {
-      const was = hovered;
-      hovered = segment === null || place === null ? null : { segment, place };
-      // The label is the window's: a tile the pointer did not leave keeps
-      // its hands off another tile's.
-      if (hovered !== null || was !== null) {
-        showLabel();
-      }
+      labelFrom("pointer", segment, place);
     },
     onClick: select,
+    onCursor: (segment, place) => {
+      labelFrom("keyboard", segment, place);
+    },
   });
 
   const count = createInfoBar(
@@ -235,6 +264,7 @@ export function createHistogramTile(
       highest: bins.highest,
       numBins: bins.count,
       segments: stack.segments,
+      segmentWords: stack.segments.map((segment) => wordsOf(bins, segment)),
       tallest: stack.tallest,
       valueText,
       countText,
