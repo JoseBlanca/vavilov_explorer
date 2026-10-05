@@ -11,6 +11,7 @@ import { pointClickOf } from "../state/pointClick.ts";
 import { platformOf } from "../state/undoKeys.ts";
 import "./plots.css";
 import { AXES_MARGIN as MARGIN, TICK_PX, svgElement } from "./svg.ts";
+import { roundTicks } from "./ticks.ts";
 
 /** The gap between two bars, in CSS pixels. */
 const GAP_PX = 1;
@@ -208,7 +209,7 @@ export function createHistogram(element: HTMLElement, events: HistogramEvents): 
       svgElement("line", { x1: MARGIN.left, x2: width - MARGIN.right, y1: bottom, y2: bottom }),
       svgElement("line", { x1: MARGIN.left, x2: MARGIN.left, y1: MARGIN.top, y2: bottom }),
     );
-    for (const value of x.ticks(Math.max(Math.floor((width - MARGIN.left) / 90), 2))) {
+    for (const value of roundTicks(x.ticks(Math.max(Math.floor((width - MARGIN.left) / 90), 2)))) {
       const at = x(value);
       const text = svgElement("text", { x: at, y: bottom + TICK_PX + 14, "text-anchor": "middle" });
       text.textContent = data.valueText(value);

@@ -69,6 +69,13 @@ describe("niceTicks", () => {
     expect(niceTicks(-19.9, -19.4)).toEqual([-19.9, -19.8, -19.7, -19.6, -19.5, -19.4]);
   });
 
+  test("keep every digit of values that need more than 12", () => {
+    expect(niceTicks(123456789.1234, 123456789.1239)).toEqual([
+      123456789.1234, 123456789.1235, 123456789.1236, 123456789.1237, 123456789.1238,
+      123456789.1239,
+    ]);
+  });
+
   test("stay within the range of values far from zero and close together", () => {
     expect(niceTicks(4500000.25, 4500000.75)).toEqual([
       4500000.3, 4500000.4, 4500000.5, 4500000.6, 4500000.7,

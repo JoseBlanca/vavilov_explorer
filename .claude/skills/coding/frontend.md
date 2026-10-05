@@ -213,6 +213,11 @@ or a map's tile, is one component (`src/windows/shared/pointView.controller.ts`)
   selection changes only the heights of the selected shares.
 - **Scales are rebuilt from the data and the size on every draw**; a scale
   kept from before is how a plot shows new data against an old axis.
+- **A tick's value is rounded to the digits its step needs**, by
+  `roundTicks` or `roundTick` of `src/plots/ticks.ts`, before it is
+  written: a tick is a multiple of its step, which in binary is off in its
+  last bits, and d3 gave 1.4999999999999999e23 for 1.5e23, while a fixed
+  12 digits wrote 123456789.1235 and 123456789.1236 alike (issue #10).
 - **D3 owns its plot's SVG**, and lit-html never renders inside it, so
   that no element is changed by both. Its classes start with `plot-` and
   are plain global classes of `src/plots/plots.css`, since D3 writes them

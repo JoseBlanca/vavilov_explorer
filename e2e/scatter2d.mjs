@@ -54,6 +54,22 @@ const APART = {
   activeClassification: null,
 };
 
+/**
+ * Three plants with values above 10^22, whose ticks d3 places off a round
+ * value in its last bits, at 1.4999999999999999e23 for 1.5e23 on 0 to 2e23
+ * and 5.9999999999999995e23 for 6e23 on 0 to 1e24, at any number of ticks
+ * from 4 to 12 (issue #10).
+ */
+const HUGE = {
+  header: "IndividualID",
+  names: ["p1", "p2", "p3"],
+  columns: [
+    { name: "count", numeric: [0, 5e23, 1e24] },
+    { name: "size", numeric: [0, 1e23, 2e23] },
+  ],
+  activeClassification: null,
+};
+
 /** Two plants with no column of numbers. */
 const NO_NUMBERS = {
   header: "IndividualID",
@@ -369,6 +385,33 @@ for (const engine of Object.keys(ENGINES)) {
     // The widgets are numbered across the tables: the scatter, the
     // histogram, and this one.
     await steadyPlace(plotsAgain, 0, 3);
+
+    // The ticks of values above 10^22 are written as round numbers, on the
+    // 2D scatter and on the histogram.
+    assert.equal((await backend.send({ command: "e2e:load", table: HUGE })).ok, null);
+    await grid.getByRole("combobox", { name: "Role of size", exact: true }).waitFor();
+    await choose("scatter2d");
+    await page
+      .getByRole("dialog", { name: "2D scatter" })
+      .getByRole("button", { name: "Open" })
+      .click();
+    const plotsHuge = await app.window("plots-3");
+    await plotsHuge.setViewportSize({ width: 1000, height: 640 });
+    await choose("histogram");
+    await page
+      .getByRole("dialog", { name: "Histogram" })
+      .getByRole("button", { name: "Open" })
+      .click();
+    for (const name of ["2D scatter of count and size", "Histogram of count"]) {
+      const ticks = tile(plotsHuge, name).locator(
+        ".plot-scatter2d-tick, .plot-histogram-axes text",
+      );
+      await ticks.first().waitFor();
+      const texts = await ticks.allTextContents();
+      assert.ok(texts.length >= 3, `${name}: ticks ${texts.join(", ")}`);
+      // Round values have a few digits; 1.4999999999999999e+23 has 16 decimals.
+      assert.ok(!texts.some((text) => /\.\d{4,}/.test(text)), `${name}: ticks ${texts.join(", ")}`);
+    }
 
     // With no column of numbers, the bar says so, and how to make one.
     assert.equal((await backend.send({ command: "e2e:load", table: NO_NUMBERS })).ok, null);

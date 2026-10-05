@@ -28,6 +28,7 @@ import type { View2d } from "./view2d.ts";
 import { KEY_PAN, KEY_ZOOM } from "./viewKeys.ts";
 import "./plots.css";
 import { AXES_MARGIN as MARGIN, TICK_PX, svgElement } from "./svg.ts";
+import { roundTicks } from "./ticks.ts";
 
 /** How far below its tick the baseline of an x tick's value is, in CSS pixels. */
 const X_TICK_TEXT_DROP_PX = 14;
@@ -354,14 +355,16 @@ export function createScatter2d(
       axes.append(drawn);
       return drawn;
     };
-    for (const value of x.ticks(Math.max(Math.floor((right - left) / X_TICK_SPACING_PX), 2))) {
+    const xTicks = x.ticks(Math.max(Math.floor((right - left) / X_TICK_SPACING_PX), 2));
+    for (const value of roundTicks(xTicks)) {
       const px = x(value);
       line(px, top, px, bottom, grid);
       line(px, bottom, px, bottom + TICK_PX, axes);
       const below = bottom + TICK_PX + X_TICK_TEXT_DROP_PX;
       text(tickText(value), { x: px, y: below }, "middle", "plot-scatter2d-tick");
     }
-    for (const value of y.ticks(Math.max(Math.floor((bottom - top) / Y_TICK_SPACING_PX), 2))) {
+    const yTicks = y.ticks(Math.max(Math.floor((bottom - top) / Y_TICK_SPACING_PX), 2));
+    for (const value of roundTicks(yTicks)) {
       const py = y(value);
       line(left, py, right, py, grid);
       line(left - TICK_PX, py, left, py, axes);

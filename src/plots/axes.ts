@@ -5,6 +5,7 @@
 import { defect } from "../state/defect.ts";
 import { at } from "../state/at.ts";
 import { hasRow } from "../state/rowSet.ts";
+import { roundTick } from "./ticks.ts";
 
 /** The smallest and the largest value drawn on an axis. */
 export interface AxisRange {
@@ -80,9 +81,15 @@ export function niceTicks(min: number, max: number, target = 5): number[] {
   // range off its round value, and is still a tick.
   const slack = (max - min) * F32_RELATIVE_PRECISION + step * 1e-9;
   const ticks: number[] = [];
-  for (let at = Math.ceil((min - slack) / step); at * step <= max + slack; at += 1) {
-    // Rounded so that 3 × 0.1 is 0.3, not 0.30000000000000004.
-    ticks.push(Number((at * step).toPrecision(12)));
+  // Rounded so that 3 × 0.1 is 0.3, not 0.30000000000000004, before it is
+  // compared with the end: a tick at the end is still one when its multiple
+  // of the step lands past it in the last bits.
+  for (
+    let at = Math.ceil((min - slack) / step), tick = roundTick(at * step, step);
+    tick <= max + slack;
+    at += 1, tick = roundTick(at * step, step)
+  ) {
+    ticks.push(tick);
   }
   return ticks;
 }
