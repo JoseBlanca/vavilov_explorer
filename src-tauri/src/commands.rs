@@ -602,6 +602,23 @@ pub async fn export_table<R: Runtime>(
     transfer::write(&path, &bytes)
 }
 
+/// Forgets the widgets of a window the user asked to close, which stays in
+/// Tauri's list until it is destroyed: a widget opened meanwhile would join
+/// it and go with it, and opens a window of its own instead (issue #6). Its
+/// subscriber stays until it is destroyed, since the main window's close
+/// may still be called off.
+pub(crate) fn close_requested(widgets: &Mutex<Widgets>, label: &str) {
+    match widgets.lock() {
+        Ok(mut widgets) => {
+            // The window's widgets go with it, as the user asked.
+            widgets.window_closed(&WindowLabel::new(label));
+        }
+        Err(_) => eprintln!(
+            "Vavilov Explorer defect: the widgets' lock is poisoned; window {label} was not forgotten"
+        ),
+    }
+}
+
 /// Forgets a window that was closed: its subscriber, and its widgets when
 /// it has any.
 pub(crate) fn window_closed(session: &Mutex<Session>, widgets: &Mutex<Widgets>, label: &str) {
@@ -613,7 +630,10 @@ pub(crate) fn window_closed(session: &Mutex<Session>, widgets: &Mutex<Widgets>, 
         ),
     }
     match widgets.lock() {
-        Ok(mut widgets) => widgets.window_closed(&label),
+        Ok(mut widgets) => {
+            // A window the user closed: its widgets go with it, as asked.
+            widgets.window_closed(&label);
+        }
         Err(_) => eprintln!(
             "Vavilov Explorer defect: the widgets' lock is poisoned; window {label} was not forgotten"
         ),

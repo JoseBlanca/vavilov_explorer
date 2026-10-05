@@ -97,7 +97,11 @@ follows:
   window, without Tauri, behind its own lock beside the session's; a
   command that takes both takes the session's first. A window the app
   forgets is unsubscribed from the session before it is closed, so that
-  it receives nothing more.
+  it receives nothing more. A window the user closes is forgotten with
+  its widgets on `CloseRequested`, not on `Destroyed`: Tauri keeps it in
+  its list until it is destroyed, and a plot opened in between joined it
+  and went with it (issue #6); its subscriber stays until `Destroyed`,
+  since the main window's close may still be called off.
 - **A window is never destroyed from inside its own call**: the close is
   queued with `run_on_main_thread`, as creating one from a synchronous
   command deadlocks on Windows, and a command that closes a window runs

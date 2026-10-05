@@ -28,6 +28,18 @@ describe("a refusal of the backend", () => {
     expect(isCommandError({ kind: "unknownWidget", label: "plots-1", widget: -2 })).toBe(false);
     // The JSON of the limits and of a window not raised in src-tauri/src/error/tests.rs.
     expect(isCommandError({ kind: "tooManyTiles", label: "plots-1", most: 6 })).toBe(true);
+    // As src-tauri/src/error/tests.rs serialises it.
+    expect(
+      isCommandError({
+        kind: "windowFailed",
+        label: "maps-3",
+        message: "no display",
+        othersNotOpened: 2,
+      }),
+    ).toBe(true);
+    expect(isCommandError({ kind: "windowFailed", label: "maps-3", message: "no display" })).toBe(
+      false,
+    );
     expect(isCommandError({ kind: "tooManyWebGlViews", most: 16 })).toBe(true);
     expect(isCommandError({ kind: "tooManyWebGlViews", most: "16" })).toBe(false);
     expect(isCommandError({ kind: "windowNotRaised", label: "maps-3", message: "no focus" })).toBe(

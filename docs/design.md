@@ -447,7 +447,13 @@ manage:
   the window to the front, the plot is added all the same, and the main
   window says so: "The histogram was added to the Plots window, which
   could not be brought to the front." (decided by the owner on 4 October
-  2026).
+  2026). If the system cannot make the window, the plot is not opened,
+  nor any other opened while the window was being made, and the main
+  window counts them: "No histogram was opened: the system could not
+  open its window, nor the 2 other plots that were to go in it. Closing
+  other windows may let it open." A plot opened while the user closes
+  the window opens a new window (both decided by the owner on 5 October
+  2026, issue #6).
 - A window holds 6 tiles at most, and a plot past them is not opened:
   "No histogram was opened: the Plots window holds 6 plots at most.
   Close one to open another.", "the Maps window holds 6 maps at most"

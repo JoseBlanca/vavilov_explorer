@@ -60,6 +60,15 @@ pub fn with_session<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>
         // command that asks for the dialogs without it panics.
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { .. } = event {
+                match window.try_state::<Mutex<Widgets>>() {
+                    Some(widgets) => commands::close_requested(&widgets, window.label()),
+                    None => eprintln!(
+                        "Vavilov Explorer defect: no widgets to forget window {}",
+                        window.label()
+                    ),
+                }
+            }
             if let WindowEvent::Destroyed = event {
                 match (
                     window.try_state::<Mutex<Session>>(),

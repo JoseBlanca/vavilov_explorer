@@ -7,6 +7,7 @@ use crate::error::{AppError, WindowError};
 use crate::widgets::{WidgetSpec, Widgets, WindowHost, WindowKind};
 
 const HEIGHT: ColumnId = ColumnId::new(1);
+const WEIGHT: ColumnId = ColumnId::new(2);
 
 /// The windows as the app makes them, where a load runs while the window
 /// is being made, as it can on the main thread while an `async` command
@@ -61,6 +62,7 @@ impl WindowHost for Failing {
         Err(WindowError::WindowFailed {
             label: label.clone(),
             message: "no window today".to_owned(),
+            others_not_opened: 0,
         }
         .into())
     }
@@ -84,6 +86,52 @@ fn a_window_that_could_not_be_made_is_forgotten_with_its_widgets() {
         Err(AppError::Window(WindowError::WindowFailed {
             label: WindowLabel::new("plots-1"),
             message: "no window today".to_owned(),
+            others_not_opened: 0,
+        }))
+    );
+    assert!(!widgets.lock().unwrap().is_open(&label));
+}
+
+/// The windows when the system cannot make one, and two more widgets
+/// join it while it is being made, as from a second and a third Plot item
+/// chosen meanwhile.
+struct FailingWhileOthersJoin<'a> {
+    widgets: &'a Mutex<Widgets>,
+}
+
+impl WindowHost for FailingWhileOthersJoin<'_> {
+    fn open(&mut self, label: &WindowLabel, _widget: &WidgetSpec) -> Result<(), AppError> {
+        let mut widgets = self.widgets.lock().unwrap();
+        widgets
+            .open(WidgetSpec::Histogram { column: WEIGHT })
+            .unwrap();
+        widgets
+            .open(WidgetSpec::Histogram { column: HEIGHT })
+            .unwrap();
+        Failing.open(label, _widget)
+    }
+
+    fn raise(&mut self, _label: &WindowLabel) -> Result<(), AppError> {
+        Ok(())
+    }
+
+    fn close(&mut self, _label: &WindowLabel) -> Result<(), AppError> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_window_that_could_not_be_made_counts_the_other_widgets_forgotten_with_it() {
+    let widgets = Mutex::new(Widgets::default());
+    let spec = WidgetSpec::Histogram { column: HEIGHT };
+    let label = widgets.lock().unwrap().open(spec.clone()).unwrap().window;
+    let mut host = FailingWhileOthersJoin { widgets: &widgets };
+    assert_eq!(
+        open_widget_window(&widgets, &mut host, &label, &spec),
+        Err(AppError::Window(WindowError::WindowFailed {
+            label: WindowLabel::new("plots-1"),
+            message: "no window today".to_owned(),
+            others_not_opened: 2,
         }))
     );
     assert!(!widgets.lock().unwrap().is_open(&label));

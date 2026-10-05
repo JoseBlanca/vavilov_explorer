@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 use vavilov_core::WindowLabel;
 
 use crate::commands::lock_widgets;
-use crate::error::{AppError, WindowError};
+use crate::error::{AppError, WindowError, defect};
 use crate::widgets::{WidgetSpec, Widgets, WindowHost, WindowKind};
 
 /// The size a widget's window opens at, in logical pixels, before the
@@ -35,6 +35,7 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
             AppError::from(WindowError::WindowFailed {
                 label: label.clone(),
                 message: error.to_string(),
+                others_not_opened: 0,
             })
         };
         let builder =
@@ -106,6 +107,7 @@ impl<R: Runtime> WindowHost for TauriWindows<'_, R> {
                 AppError::from(WindowError::WindowFailed {
                     label: label.clone(),
                     message: error.to_string(),
+                    others_not_opened: 0,
                 })
             })
     }
@@ -156,8 +158,8 @@ pub fn open_widget_window(
     let opened = host.open(label, spec);
     let mut widgets = lock_widgets(widgets)?;
     if let Err(error) = opened {
-        widgets.window_closed(label);
-        return Err(error);
+        let held = widgets.window_closed(label);
+        return Err(with_others_not_opened(error, held));
     }
     let closed_meanwhile = !widgets.is_open(label);
     drop(widgets);
@@ -165,6 +167,27 @@ pub fn open_widget_window(
         host.close(label)?;
     }
     Ok(())
+}
+
+/// `error`, of a window that could not be made and held `held` widgets,
+/// with the count of those beside the one whose call made it, which the
+/// main window says were not opened either.
+fn with_others_not_opened(error: AppError, held: usize) -> AppError {
+    match error {
+        AppError::Window(WindowError::WindowFailed { label, message, .. }) => {
+            // None when a load forgot the window meanwhile, with its widgets.
+            let others = held.saturating_sub(1);
+            match u32::try_from(others) {
+                Ok(others_not_opened) => AppError::Window(WindowError::WindowFailed {
+                    label,
+                    message,
+                    others_not_opened,
+                }),
+                Err(_) => defect(&format!("a window of {others} more widgets")),
+            }
+        }
+        other @ (AppError::Core(_) | AppError::Window(_)) => other,
+    }
 }
 
 #[cfg(test)]

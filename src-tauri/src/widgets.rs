@@ -428,9 +428,16 @@ impl Widgets {
     }
 
     /// Forgets the window `label`, which was closed or could not be
-    /// opened, with its widgets; nothing for a label of no such window.
-    pub fn window_closed(&mut self, label: &WindowLabel) {
+    /// opened, with its widgets, and gives how many widgets it held; 0 for
+    /// a label of no such window.
+    pub fn window_closed(&mut self, label: &WindowLabel) -> usize {
+        let held = self
+            .windows
+            .iter()
+            .find(|window| window.label == *label)
+            .map_or(0, |window| window.widgets.len());
         self.windows.retain(|window| window.label != *label);
+        held
     }
 
     /// Forgets every window of widgets, as another table loads, and gives

@@ -24,9 +24,15 @@ fn a_refusal_of_the_app_crosses_as_its_kind_and_its_fields_as_the_core_s_do() {
         serde_json::to_value(AppError::from(WindowError::WindowFailed {
             label: WindowLabel::new("maps-3"),
             message: "no display".to_owned(),
+            others_not_opened: 2,
         }))
         .unwrap(),
-        json!({ "kind": "windowFailed", "label": "maps-3", "message": "no display" })
+        json!({
+            "kind": "windowFailed",
+            "label": "maps-3",
+            "message": "no display",
+            "othersNotOpened": 2
+        })
     );
     // The core's, wrapped, cross as they did.
     assert_eq!(

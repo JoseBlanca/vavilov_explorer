@@ -37,7 +37,7 @@ const FIELDS = {
   unknownColumn: { column: isColumnIdField },
   notCategory: { column: isColumnIdField },
   notNumber: { column: isColumnIdField },
-  windowFailed: { label: isText, message: isText },
+  windowFailed: { label: isText, message: isText, othersNotOpened: isCount },
   windowNotRaised: { label: isText, message: isText },
   tooManyTiles: { label: isText, most: isCount },
   tooManyWebGlViews: { most: isCount },

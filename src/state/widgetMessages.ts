@@ -87,17 +87,24 @@ export function isWidgetRefused(error: CommandError): error is WidgetRefused {
   );
 }
 
-/** The window of tiles a widget of `kind` is drawn in, and what it holds, as a sentence says them. */
-function tilesWindowWords(kind: WidgetKind): { readonly window: string; readonly plots: string } {
+/**
+ * The window of tiles a widget of `kind` is drawn in, and what it holds,
+ * one and several, as a sentence says them.
+ */
+function tilesWindowWords(kind: WidgetKind): {
+  readonly window: string;
+  readonly plot: string;
+  readonly plots: string;
+} {
   switch (kind) {
     case "histogram":
     case "scatter2d":
-      return { window: "the Plots window", plots: "plots" };
+      return { window: "the Plots window", plot: "plot", plots: "plots" };
     case "map":
     case "countryMap":
-      return { window: "the Maps window", plots: "maps" };
+      return { window: "the Maps window", plot: "map", plots: "maps" };
     case "scatter3d":
-      return { window: "its window", plots: "plots" };
+      return { window: "its window", plot: "plot", plots: "plots" };
   }
 }
 
@@ -145,11 +152,21 @@ export function widgetRefusalMessage(
   switch (why.kind) {
     case "unfit":
       return noLonger(why.column, why.role);
-    case "windowFailed":
+    case "windowFailed": {
+      // The other widgets opened while the window was being made, which went
+      // with it (issue #6).
+      const { plot, plots } = tilesWindowWords(kind);
+      const others =
+        why.othersNotOpened === 0
+          ? ""
+          : why.othersNotOpened === 1
+            ? `, nor the other ${plot} that was to go in it`
+            : `, nor the ${String(why.othersNotOpened)} other ${plots} that were to go in it`;
       return {
         kind: "error",
-        text: `${opened}: the system could not open its window. Closing other windows may let it open.`,
+        text: `${opened}: the system could not open its window${others}. Closing other windows may let it open.`,
       };
+    }
     case "tooManyTiles": {
       const { window, plots } = tilesWindowWords(kind);
       return {

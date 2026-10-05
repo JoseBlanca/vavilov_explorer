@@ -55,6 +55,10 @@ pub enum WindowError {
         label: WindowLabel,
         /// The system's message, for the technical details.
         message: String,
+        /// How many other widgets, opened while the window was being made,
+        /// were to be drawn in it and were forgotten with it; 0 for a
+        /// window that could not be closed.
+        others_not_opened: u32,
     },
     /// A widget was added to the open window of its kind, which the system
     /// could not bring to the front: the widget is open, as a tile.

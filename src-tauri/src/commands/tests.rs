@@ -882,6 +882,40 @@ fn a_second_histogram_goes_into_the_plots_window_whose_tiles_close_one_by_one() 
 }
 
 #[test]
+fn a_plot_opened_while_its_window_closes_opens_in_a_new_window() {
+    let (app, main) = app();
+    load_places(&app);
+    open_widget(
+        &app,
+        &main,
+        json!({ "kind": "histogram", "column": 2 }),
+        "plots-1",
+    );
+    // The user closes the Plots window; until it is destroyed it is still
+    // in Tauri's list, and a histogram asked for meanwhile went with it
+    // (issue #6).
+    close_requested(&app.state::<Mutex<Widgets>>(), "plots-1");
+    open_widget(
+        &app,
+        &main,
+        json!({ "kind": "histogram", "column": 3 }),
+        "plots-2",
+    );
+    assert_eq!(
+        app.state::<Mutex<Widgets>>()
+            .lock()
+            .unwrap()
+            .widgets_of(&WindowLabel::new("plots-2")),
+        [Widget {
+            id: WidgetId::new(2),
+            spec: WidgetSpec::Histogram {
+                column: ColumnId::new(3)
+            }
+        }]
+    );
+}
+
+#[test]
 fn a_window_that_never_opened_cannot_ask_for_its_widgets() {
     let (app, _main) = app();
     load_places(&app);

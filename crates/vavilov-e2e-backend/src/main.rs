@@ -112,6 +112,7 @@ fn failed(label: &WindowLabel, error: &std::io::Error) -> AppError {
     WindowError::WindowFailed {
         label: label.clone(),
         message: error.to_string(),
+        others_not_opened: 0,
     }
     .into()
 }

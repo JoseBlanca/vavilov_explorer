@@ -40,7 +40,12 @@ describe("the words of a 3D scatter that was not opened", () => {
   test("say the system could not open the window, without its technical message", () => {
     const message = widgetRefusalMessage(
       "scatter3d",
-      { kind: "windowFailed", label: "scatter3d-1", message: "NSWindow failed" },
+      {
+        kind: "windowFailed",
+        label: "scatter3d-1",
+        message: "NSWindow failed",
+        othersNotOpened: 0,
+      },
       nameOf,
     );
     expect(message.kind).toBe("error");
@@ -159,11 +164,32 @@ describe("the words of a map that was not opened", () => {
     ).toBe("No map was opened: one of its columns is no longer a longitude column.");
   });
 
+  test("count the plots that were to go in a window the system could not open", () => {
+    expect(
+      widgetRefusalMessage(
+        "histogram",
+        { kind: "windowFailed", label: "plots-1", message: "no display", othersNotOpened: 2 },
+        nameOf,
+      ).text,
+    ).toBe(
+      "No histogram was opened: the system could not open its window, nor the 2 other plots that were to go in it. Closing other windows may let it open.",
+    );
+    expect(
+      widgetRefusalMessage(
+        "map",
+        { kind: "windowFailed", label: "maps-1", message: "no display", othersNotOpened: 1 },
+        nameOf,
+      ).text,
+    ).toBe(
+      "No map was opened: the system could not open its window, nor the other map that was to go in it. Closing other windows may let it open.",
+    );
+  });
+
   test("name its kind when the system could not open its window", () => {
     expect(
       widgetRefusalMessage(
         "countryMap",
-        { kind: "windowFailed", label: "countryMap-1", message: "no display" },
+        { kind: "windowFailed", label: "countryMap-1", message: "no display", othersNotOpened: 0 },
         nameOf,
       ).text,
     ).toBe(
