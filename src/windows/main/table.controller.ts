@@ -228,9 +228,14 @@ export function createTable(
       throw defect(`a change of role of column ${String(column)}, not in the table`);
     }
     const send = (): void => {
-      connection
-        .setRole(column, role)
-        .then(answered("changing the role of a column", schedule), report);
+      connection.setRole(column, role).then(
+        answered("changing the role of a column", schedule, report, {
+          action: { kind: "setRole", column, role },
+          tell,
+          columnName: (id) => table.columns.find((each) => each.id === id)?.name ?? null,
+        }),
+        report,
+      );
     };
     const question = roleChangeQuestion(described, role, state.active()?.column ?? null);
     if (question === null) {
@@ -282,7 +287,9 @@ export function createTable(
       const bits = clears
         ? new Uint8Array(now.length)
         : shownBetween(project.numRows, from, row, state.shown());
-      connection.setSelection(bits).then(answered("selecting rows", schedule), report);
+      connection
+        .setSelection(bits)
+        .then(answered("selecting rows", schedule, report, null), report);
     };
     const selection = state.selection();
     // A click on a row selected waits for a double-click, which opens its
@@ -368,7 +375,7 @@ export function createTable(
           tell(cellRefusalMessage(answer.error));
           return;
         }
-        answered("editing cells", schedule)(answer);
+        answered("editing cells", schedule, report, null)(answer);
       }, report);
   };
 

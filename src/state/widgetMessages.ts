@@ -116,7 +116,7 @@ function tilesWindowWords(kind: WidgetKind): {
 export type WidgetNotOpened = ({ readonly kind: "unfit" } & UnfitColumn) | WidgetRefused;
 
 /** A column of `role`, as a sentence says it. */
-function roleWords(role: Role): string {
+export function roleWords(role: Role): string {
   switch (role) {
     case "latitude":
       return "a latitude column";

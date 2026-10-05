@@ -39,9 +39,13 @@ for (const engine of Object.keys(ENGINES)) {
       assert.equal(sent.ok, null, JSON.stringify(sent));
     };
 
-    // With nothing to undo, Undo changes nothing.
+    // With nothing to undo, Undo changes nothing, and the bar says so; Redo
+    // the same.
     await choose("undo");
     await untilRole(height, "number");
+    await page.getByRole("status").filter({ hasText: "There is nothing to undo." }).waitFor();
+    await choose("redo");
+    await page.getByRole("status").filter({ hasText: "There is nothing to redo." }).waitFor();
 
     // A change of role, undone and redone from the menu.
     await height.selectOption("category");

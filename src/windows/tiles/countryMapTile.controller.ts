@@ -158,13 +158,19 @@ export function createCountryMapTile(
     }
     const bits = selectionAfterClick(now, rows, click);
     beforeClick = now;
-    connection.setSelection(bits).then(answered("selecting", draw)).catch(report);
+    connection
+      .setSelection(bits)
+      .then(answered("selecting", draw, report, null))
+      .catch(report);
   };
   const undoClick = (): void => {
     const before = beforeClick;
     beforeClick = null;
     if (before !== null) {
-      connection.setSelection(before).then(answered("selecting", draw)).catch(report);
+      connection
+        .setSelection(before)
+        .then(answered("selecting", draw, report, null))
+        .catch(report);
     }
   };
 

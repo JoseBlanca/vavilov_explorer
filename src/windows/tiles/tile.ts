@@ -5,6 +5,7 @@ import type { Connection } from "../../backend/connection.ts";
 import type { TableDescription } from "../../state/description.ts";
 import type { WidgetId } from "../../state/ids.ts";
 import type { Widget } from "../../state/widget.ts";
+import type { BarMessage } from "../../state/barMessages.ts";
 import type { DescribedTable } from "../shared/describedTable.ts";
 import type { HoverLabelComponent } from "../shared/hoverLabel.controller.ts";
 import type { HoverSender } from "../shared/pointView.controller.ts";
@@ -26,6 +27,8 @@ export interface TileContext {
   readonly hover: HoverSender;
   /** Shows a defect in the window's bar. */
   readonly report: (error: unknown) => void;
+  /** Shows a message in the window's information bar. */
+  readonly tell: (message: BarMessage) => void;
   /** The element whose tokens give the colours of the points with no group. */
   readonly tokens: HTMLElement;
   /** The tile `id` drew a lasso that waits for Enter: the window drops any other tile's. */

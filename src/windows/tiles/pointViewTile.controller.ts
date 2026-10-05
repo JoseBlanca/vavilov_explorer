@@ -56,6 +56,7 @@ export function createPointViewTile(
     hoverLabel: context.hoverLabel,
     hover: context.hover,
     report: context.report,
+    tell: context.tell,
     tokens: context.tokens,
     onLassoWaiting: () => {
       context.onLassoWaiting(id);

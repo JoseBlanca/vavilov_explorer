@@ -15,6 +15,7 @@ import type { PointStyle } from "../../state/pointStyle.ts";
 import { onlyRow, selectionAfterClick, toggledRow } from "../../state/rowSet.ts";
 import { singleOf } from "../../state/selectedGroups.ts";
 import type { LassoState, PointViewEvents } from "../../plots/pointerInput.ts";
+import type { BarMessage } from "../../state/barMessages.ts";
 import { answered } from "./answered.ts";
 import type { DescribedTable } from "./describedTable.ts";
 import { createFetchedColumns } from "./fetchedColumns.ts";
@@ -96,6 +97,8 @@ export interface PointViewContext {
   readonly hover: HoverSender;
   /** Shows a defect in the window's bar. */
   readonly report: (error: unknown) => void;
+  /** Shows a message in the window's information bar. */
+  readonly tell: (message: BarMessage) => void;
   /** The element whose tokens give the colours of the points with no group. */
   readonly tokens: HTMLElement;
   /** Its lasso was drawn and waits for Enter: the window drops one another view has waiting. */
@@ -176,7 +179,15 @@ export function createPointView(
           ? Promise.reject(defect("+ pressed with no one row selected"))
           : connection.assignRows(active.column, target, waiting.rows)
         : connection.unassignRows(active.column, active.selected, waiting.rows);
-    sent.then(answered("applying the lasso", draw)).catch(report);
+    sent
+      .then(
+        answered("applying the lasso", draw, report, {
+          action: { kind: "applyLasso" },
+          tell: context.tell,
+          columnName: () => null,
+        }),
+      )
+      .catch(report);
   };
 
   /** The selection before the last click that changed it, which a double click puts back. */
@@ -197,13 +208,19 @@ export function createPointView(
         ? toggledRow(now, row)
         : selectionAfterClick(now, onlyRow(project.numRows, row), "select");
     beforeClick = now;
-    connection.setSelection(bits).then(answered("selecting", draw)).catch(report);
+    connection
+      .setSelection(bits)
+      .then(answered("selecting", draw, report, null))
+      .catch(report);
   };
   const undoClick = (): void => {
     const before = beforeClick;
     beforeClick = null;
     if (before !== null) {
-      connection.setSelection(before).then(answered("selecting", draw)).catch(report);
+      connection
+        .setSelection(before)
+        .then(answered("selecting", draw, report, null))
+        .catch(report);
     }
   };
 
@@ -383,7 +400,7 @@ export function createHoverSender(
         sent = next;
         connection
           .setHover(next)
-          .then(answered("the hover", () => undefined))
+          .then(answered("the hover", () => undefined, report, null))
           .catch(report);
       });
     },

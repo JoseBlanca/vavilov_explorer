@@ -39,7 +39,7 @@ export function installSelectionKeys(
     }
     event.preventDefault();
     connection.setSelection(new Uint8Array(selection.length)).then(
-      answered("clearing the selection", () => undefined),
+      answered("clearing the selection", () => undefined, report, null),
       report,
     );
   };

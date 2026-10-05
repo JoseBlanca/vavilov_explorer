@@ -27,7 +27,9 @@ import type { TableDescription } from "../../state/description.ts";
 import type { WidgetSpec } from "../../state/widget.ts";
 import type { ExportFormat, MenuAction } from "../../state/transfer.ts";
 import { countText } from "../shared/numbers.ts";
+import type { RefusedAction } from "../../state/refusalMessage.ts";
 import { answered } from "../shared/answered.ts";
+import type { Telling } from "../shared/answered.ts";
 import { countRows } from "../../state/rowSet.ts";
 import { undoOrRedoField } from "../shared/fieldUndo.ts";
 import { canDrawWebGl } from "../shared/webgl.ts";
@@ -270,7 +272,7 @@ export function createMenuActions(
     }
     return connection
       .setSelection(new Uint8Array(now.length))
-      .then(answered("selecting none", ignore));
+      .then(answered("selecting none", ignore, report, null));
   };
 
   /** Says in the bar why an import or an export was refused, in the words of `message`. */
@@ -280,6 +282,14 @@ export function createMenuActions(
     }
     infoBar.tell(message(error, countText));
   };
+
+  /** How a refusal of `action`, which another window can cause, is told in the bar. */
+  const telling = (action: RefusedAction): Telling => ({
+    action,
+    tell: infoBar.tell,
+    // Undo and Redo name no column.
+    columnName: () => null,
+  });
 
   const run = (action: MenuAction): Promise<void> => {
     switch (action) {
@@ -294,11 +304,11 @@ export function createMenuActions(
       case "undo":
         return undoOrRedoField("undo")
           ? Promise.resolve()
-          : connection.undo().then(answered("undoing", ignore));
+          : connection.undo().then(answered("undoing", ignore, report, telling({ kind: "undo" })));
       case "redo":
         return undoOrRedoField("redo")
           ? Promise.resolve()
-          : connection.redo().then(answered("redoing", ignore));
+          : connection.redo().then(answered("redoing", ignore, report, telling({ kind: "redo" })));
       case "scatter3d":
         return openScatter3d();
       case "scatter2d":

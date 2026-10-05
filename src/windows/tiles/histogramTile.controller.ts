@@ -161,7 +161,10 @@ export function createHistogramTile(
       throw defect(`a click on segment ${String(index)}, which holds no individual`);
     }
     const bits = click === "range" ? rows : selectionAfterClick(now, rows, click);
-    connection.setSelection(bits).then(answered("selecting", draw)).catch(report);
+    connection
+      .setSelection(bits)
+      .then(answered("selecting", draw, report, null))
+      .catch(report);
   };
 
   const plot = createHistogram(slot(element, "plot"), {

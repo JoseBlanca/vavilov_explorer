@@ -3,6 +3,7 @@ import { nothing, render } from "lit-html";
 import type { Answer, Connection } from "../../backend/connection.ts";
 import type { BarMessage } from "../../state/barMessages.ts";
 import { defect } from "../../state/defect.ts";
+import { columnNameIn } from "../../state/description.ts";
 import type { DescriptionNow } from "../../state/description.ts";
 import type { ColumnId, LevelCode, Revision } from "../../state/ids.ts";
 import type { EditMode, Selected } from "../../state/message.ts";
@@ -21,6 +22,8 @@ import type { TypedFor } from "../../state/groupMessages.ts";
 import { editTargetOf, groupsModel } from "../../state/groups.ts";
 import type { GroupRow, GroupsModel } from "../../state/groups.ts";
 import { answered } from "./answered.ts";
+import type { Telling } from "./answered.ts";
+import type { RefusedAction } from "../../state/refusalMessage.ts";
 import { takesEscape } from "./takesEscape.ts";
 import { countText } from "./numbers.ts";
 import { groupsPanelView } from "./groupsPanel.view.ts";
@@ -90,6 +93,13 @@ export function createGroupsPanel(
   /** Whether `destroy` ran, after which an answer that comes back draws nothing. */
   let destroyed = false;
 
+  /** How a refusal of `action`, which another window can cause, is told in the bar. */
+  const telling = (action: RefusedAction): Telling => ({
+    action,
+    tell,
+    columnName: (column) => columnNameIn(description(), column),
+  });
+
   const closeForm = (): void => {
     form = { kind: "closed" };
   };
@@ -125,7 +135,7 @@ export function createGroupsPanel(
     }
     connection
       .selectGroups(active.column, selected)
-      .then(answered("selecting groups", draw), report);
+      .then(answered("selecting groups", draw, report, telling({ kind: "selectGroups" })), report);
   };
 
   /** The active classification, the selection and its codes, or `null` with none active. */
@@ -159,7 +169,10 @@ export function createGroupsPanel(
     if (next === null) {
       connection
         .setEditMode(now.column, active.selected, null)
-        .then(answered("releasing a button", draw), report);
+        .then(
+          answered("releasing a button", draw, report, telling({ kind: "releaseButton" })),
+          report,
+        );
       return;
     }
     const target = editTargetOf(drawn);
@@ -181,7 +194,12 @@ export function createGroupsPanel(
         tell(pressedMessage(count, target, next, countText));
         return;
       }
-      answered("pressing a button", draw)(answer);
+      answered(
+        "pressing a button",
+        draw,
+        report,
+        telling({ kind: "pressButton", mode: next }),
+      )(answer);
     }, report);
   };
 
@@ -224,7 +242,10 @@ export function createGroupsPanel(
     event.preventDefault();
     connection
       .setEditMode(active.column, active.selected, null)
-      .then(answered("releasing a button", draw), report);
+      .then(
+        answered("releasing a button", draw, report, telling({ kind: "releaseButton" })),
+        report,
+      );
   };
 
   /** The name of the group of `code` as the panel shows it, or `null` when the copy has none. */
@@ -273,7 +294,12 @@ export function createGroupsPanel(
         tell(groupRefusalMessage(answer.error, groupName, countText, typedFor));
         return;
       }
-      answered(typedFor.kind === "add" ? "adding a group" : "editing a group", draw)(answer);
+      answered(
+        typedFor.kind === "add" ? "adding a group" : "editing a group",
+        draw,
+        report,
+        null,
+      )(answer);
     }, report);
   };
 
@@ -301,7 +327,7 @@ export function createGroupsPanel(
         draw();
         return;
       }
-      answered("deleting a group", draw)(answer);
+      answered("deleting a group", draw, report, telling({ kind: "deleteGroup" }))(answer);
     }, report);
   };
 
@@ -357,7 +383,15 @@ export function createGroupsPanel(
         onChooseClassification: (column) => {
           connection
             .setActiveClassification(column)
-            .then(answered("choosing the classification", draw), report);
+            .then(
+              answered(
+                "choosing the classification",
+                draw,
+                report,
+                column === null ? null : telling({ kind: "chooseClassification", column }),
+              ),
+              report,
+            );
         },
         onPress: press,
         onToggle: toggle,

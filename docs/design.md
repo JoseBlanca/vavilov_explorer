@@ -1558,14 +1558,21 @@ Open decisions:
   shown by size, and the colour may follow another column; separating
   the two is the guard against editing a trait by mistake that the
   merge of category and classification left (section 6).
-- How a window tells the user that the backend refused a command, which
-  today goes only to the console. The owner's direction, on 2 October
-  2026: nothing that takes over the window the user is looking at and
-  leaves them unsure what to do. A notice is acceptable when the user can
-  dismiss it with a ×; a refusal that matters enough is a pop-up that
-  says what happened; one that is only to be recorded goes to the app's
-  log, which a window of its own could show. Built with the first plot
-  window, when a second window makes refusals common.
+- How a window tells the user that the backend refused a command.
+  The owner's direction, on 2 October 2026: nothing that takes over the
+  window the user is looking at and leaves them unsure what to do. A
+  notice is acceptable when the user can dismiss it with a ×; a refusal
+  that matters enough is a pop-up that says what happened; one that is
+  only to be recorded goes to the app's log, which a window of its own
+  could show. Decided by the owner on 5 October 2026 (issue #4): a
+  refusal another window can cause, as a lasso whose group another
+  window deselected before Enter, is a warning in the information bar of
+  the window where the user acted, "The lasso was not applied: no group
+  is selected. Select a group, press + or −, and draw it again."; the
+  words are in `src/state/refusalMessage.ts`. A refusal only a defect of
+  the app could cause, a set of rows of the wrong length, shows the red
+  bar of a defect (below). A command made before another table loaded,
+  or before the groups it names changed, stays silent (section 3).
 
 Raised on 2 October 2026 while the skills of the project were written
 (`.claude/skills/`), and decided by the owner the same day:

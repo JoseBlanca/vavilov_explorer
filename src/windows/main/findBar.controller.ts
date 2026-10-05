@@ -139,7 +139,7 @@ export function createFindBar(
       .setFilter(asked.filter, decimalMark)
       .then(
         (answer: Answer) => {
-          answered("filtering the table", ignore)(answer);
+          answered("filtering the table", ignore, report, null)(answer);
           settle(answer.ok && answer.value === "applied" ? "applied" : "dropped");
         },
         (error: unknown) => {
@@ -163,7 +163,7 @@ export function createFindBar(
     }
     connection
       .setSelection(everyShown(project.numRows, state.shown()))
-      .then(answered("selecting the rows shown", ignore), report);
+      .then(answered("selecting the rows shown", ignore, report, null), report);
   };
 
   const draw = (): void => {

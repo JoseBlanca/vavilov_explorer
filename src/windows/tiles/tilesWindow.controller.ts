@@ -90,6 +90,10 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
       hoverLabel,
       hover: createHoverSender(connection, defectBar.show),
       report: defectBar.show,
+      // The bar is made below, before any answer comes back.
+      tell: (message) => {
+        infoBar.tell(message);
+      },
       tokens: root,
       onLassoWaiting: (id) => {
         for (const [each, tile] of tiles) {

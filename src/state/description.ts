@@ -136,6 +136,13 @@ export type DescriptionNow =
   | { readonly kind: "behind" }
   | { readonly kind: "current"; readonly description: TableDescription };
 
+/** The name of `column` in `now`, or `null` when the description is not current or has no such column. */
+export function columnNameIn(now: DescriptionNow, column: ColumnId): string | null {
+  return now.kind === "current"
+    ? (now.description.columns.find((each) => each.id === column)?.name ?? null)
+    : null;
+}
+
 /** Whether `column` holds codes into levels: a category, of countries or not. */
 export function isCategoricalColumn(
   column: ColumnDescription,

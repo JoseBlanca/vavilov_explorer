@@ -56,6 +56,10 @@ export async function startPointWindow(
       hoverLabel,
       hover: createHoverSender(connection, defectBar.show),
       report: defectBar.show,
+      // The bar is made below, before any answer comes back.
+      tell: (message) => {
+        infoBar.tell(message);
+      },
       tokens: root,
       // The window has one view, whose lasso is the only one.
       onLassoWaiting: () => undefined,

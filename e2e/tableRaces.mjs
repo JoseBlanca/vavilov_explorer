@@ -102,18 +102,29 @@ for (const engine of Object.keys(ENGINES)) {
     );
     await page.addStyleTag({ content: ":root { font-size: 16px; }" });
 
-    // 4. A refused change of role: the dropdown shows the role the column
-    // still has.
+    // 4. A change of role refused, as when another window changed one of
+    // its values meanwhile: the dropdown shows the role the column still
+    // has, and the bar says why.
     await load(backend, plants(20, "d"));
     await rowNamed(grid, "d1").waitFor();
     await page.evaluate(() =>
-      globalThis.__e2eRefuse.set("set_role", { kind: "unknownColumn", column: 2 }),
+      globalThis.__e2eRefuse.set("set_role", {
+        kind: "valueNotFor",
+        column: 2,
+        role: "category",
+        row: 4,
+      }),
     );
     await roleOf(grid, "note").selectOption("category");
     await waitValue(roleOf(grid, "note"), "text");
+    await page
+      .getByRole("status")
+      .filter({ hasText: "“note” was not made a category: one of its values no longer fits." })
+      .waitFor();
 
-    // 5. A refused choice of the classification column: the panel's dropdown
-    // shows the one still active.
+    // 5. A refused choice of the classification column, which only a
+    // defect of the app could cause: the panel's dropdown shows the one
+    // still active, and the window shows the defect.
     const panel = page.getByRole("region", { name: "Groups" });
     const classification = panel.getByRole("combobox", { name: "Classification column" });
     await page.evaluate(() =>
@@ -121,6 +132,14 @@ for (const engine of Object.keys(ENGINES)) {
     );
     await classification.selectOption({ label: "None" });
     await waitValue(classification, "3");
+    await page.getByText("Vavilov Explorer hit an internal error").waitFor();
+    // Chromium writes the stack after the message.
+    assert.deepEqual(
+      errors.splice(0).map((error) => error.split("\n")[0]),
+      [
+        'Error: Vavilov Explorer defect: choosing the classification was refused: {"kind":"notCategory","column":3}',
+      ],
+    );
     await page.evaluate(() => globalThis.__e2eRefuse.clear());
 
     // 6. The user chooses None; the backend, as from another window, sets
