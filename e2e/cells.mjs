@@ -163,10 +163,24 @@ for (const engine of Object.keys(ENGINES)) {
       ["p3", "missing", "Spain", "missing"],
       ["p4", "13", "Spain", "7"],
     ]);
-    // The double-click left the selection as it was, past the 500 ms after
-    // which a click alone would have narrowed it: a fixed wait, the one way
-    // to see that a timer did not fire.
-    await page.waitForTimeout(700);
+    // The double-click left the selection as it was.
+    assert.deepEqual(await selectedRows(page), ["p1", "p2", "p3"]);
+    // So does a slow one, from a user whose system's double-click time is
+    // longer than the 500 ms the table once waited: the pause is the user's
+    // own, between the two clicks the browser counts as one double-click
+    // (issue #3).
+    const slow = await cell(grid, "p2", 2).boundingBox();
+    const slowAt = { x: slow.x + slow.width / 2, y: slow.y + slow.height / 2 };
+    await page.mouse.click(slowAt.x, slowAt.y);
+    await page.waitForTimeout(800);
+    // The second press alone, as the browser counts it: Playwright's click
+    // with a count of 2 would press twice.
+    await page.mouse.down({ clickCount: 2 });
+    await page.mouse.up({ clickCount: 2 });
+    await grid.getByRole("combobox", { name: "origin of p2" }).waitFor();
+    await grid.getByRole("checkbox", { name: "Apply to all selected rows" }).waitFor();
+    await page.keyboard.press("Escape");
+    await grid.getByRole("combobox", { name: "origin of p2" }).waitFor({ state: "detached" });
     assert.deepEqual(await selectedRows(page), ["p1", "p2", "p3"]);
     // One undo gives back every row's.
     assert.equal((await backend.send({ command: "e2e:action", action: "undo" })).ok, null);

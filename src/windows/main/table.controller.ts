@@ -45,14 +45,6 @@ export interface Table {
 const MARGIN_ROWS = 30;
 /** Pages kept beyond those the rows drawn need, so that scrolling back does not fetch them again. */
 const PAGES_KEPT = 3;
-/**
- * How long a click on a row selected waits for a second click before it
- * selects that row alone, or clears the selection when it was the one
- * selected, in milliseconds: Windows' default double-click time, 500 ms,
- * so that a double-click that opens a cell keeps the selection "Apply to
- * all selected rows" applies to.
- */
-const DOUBLE_CLICK_MS = 500;
 
 /**
  * The table of the main window: it draws the rows on screen, fetches their
@@ -95,8 +87,13 @@ export function createTable(
   let editorOpened = false;
   /** The rows drawn last, from which a cell double-clicked is opened. */
   let drawnRows: readonly TableRow[] = [];
-  /** The click on a row of a selection of several that waits for a second one. */
-  let narrowing: number | null = null;
+  /**
+   * The selection before a click on one of its rows, with the table it was
+   * of, which the second click of a double-click puts back: the double-click
+   * opens a cell and keeps the selection "Apply to all selected rows"
+   * applies to (docs/design.md, section 2.1; issue #3).
+   */
+  let beforeClick: { readonly loadedAt: Revision; readonly selection: Uint8Array } | null = null;
   /** The question about a role being asked, and the load of the table it is about. */
   let asking: { readonly loadedAt: Revision; readonly withdraw: AbortController } | null = null;
   /**
@@ -264,7 +261,12 @@ export function createTable(
    * over a filtered table selects none of the rows the filter hides
    * between the two.
    */
-  const select = (row: RowIndex, extend: boolean, by: "mouse" | "keyboard" = "mouse"): void => {
+  const select = (
+    row: RowIndex,
+    extend: boolean,
+    by: "mouse" | "keyboard",
+    clicks: number,
+  ): void => {
     const project = state.project();
     if (project.kind !== "open") {
       return;
@@ -272,7 +274,19 @@ export function createTable(
     if (!extend) {
       extending = false;
     }
-    stopNarrowing();
+    // The browser counts the clicks of a double-click by the system's own
+    // double-click time: the second puts back the selection the first
+    // changed on a row of it, and does nothing else.
+    if (by === "mouse" && !extend && clicks >= 2) {
+      const before = beforeClick;
+      beforeClick = null;
+      if (before !== null && isLoaded(before.loadedAt)) {
+        connection
+          .setSelection(before.selection)
+          .then(answered("selecting rows", schedule, report, null), report);
+      }
+      return;
+    }
     const from = extend && anchor !== null ? anchor : row;
     if (!extend) {
       anchor = row;
@@ -292,31 +306,17 @@ export function createTable(
         .then(answered("selecting rows", schedule, report, null), report);
     };
     const selection = state.selection();
-    // A click on a row selected waits for a double-click, which opens its
-    // cell and must keep the selection: one of several would narrow it,
-    // the one selected would clear it.
-    if (by === "mouse" && !extend && selection !== null && hasRow(selection, row)) {
-      narrowing = window.setTimeout(() => {
-        narrowing = null;
-        if (isLoaded(project.loadedAt)) {
-          send();
-        }
-      }, DOUBLE_CLICK_MS);
-      return;
-    }
+    // A click on a row selected acts at once, and is taken back when it
+    // was the first of a double-click.
+    beforeClick =
+      by === "mouse" && !extend && selection !== null && hasRow(selection, row)
+        ? { loadedAt: project.loadedAt, selection }
+        : null;
     send();
-  };
-
-  const stopNarrowing = (): void => {
-    if (narrowing !== null) {
-      clearTimeout(narrowing);
-      narrowing = null;
-    }
   };
 
   /** Opens the cell of `row` in `column` for editing, when it is drawn with its values. */
   const openCell = (table: TableDescription, row: RowIndex, column: ColumnId): void => {
-    stopNarrowing();
     const index = tableColumns(table, decimalMark).findIndex((each) => each.id === column);
     const cell = drawnRows.find((each) => each.row === row)?.cells?.[index];
     if (cell === undefined) {
@@ -427,7 +427,7 @@ export function createTable(
         anchor = from;
         extending = true;
       }
-      select(active.row, true, "keyboard");
+      select(active.row, true, "keyboard", 1);
     } else {
       extending = false;
     }
@@ -519,7 +519,7 @@ export function createTable(
       anchor = null;
       editing = null;
       active = null;
-      stopNarrowing();
+      beforeClick = null;
       part("scroller")?.scrollTo({ top: 0 });
     }
     // A page ahead of the copy is kept, not drawn, until the message of
@@ -602,14 +602,14 @@ export function createTable(
         },
         onActiveSelect: (extend) => {
           if (active !== null) {
-            select(active.row, extend, "keyboard");
+            select(active.row, extend, "keyboard", 1);
           }
         },
         onCellClick: (row, column) => {
           active = { row, column };
         },
-        onRowClick: (row, extend) => {
-          select(row, extend);
+        onRowClick: (row, extend, clicks) => {
+          select(row, extend, "mouse", clicks);
         },
         onCellOpen: (row, column) => {
           openCell(table, row, column);
@@ -694,7 +694,6 @@ export function createTable(
     focus: focusGrid,
     destroy: () => {
       destroyed = true;
-      stopNarrowing();
       resized.disconnect();
       if (frame !== null) {
         cancelAnimationFrame(frame);

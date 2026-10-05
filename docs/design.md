@@ -141,11 +141,14 @@ it.
     once the one value that fits is the text typed (decided by the
     owner on 3 October 2026). A name that is none of them is refused: a
     new group is made another way, not by typing it in a cell.
-  - A click on a row of a selection of several waits 500 ms, Windows'
-    default double-click time, before it selects that row alone: the
-    first click of a double-click would otherwise leave that row the only
-    one selected, and "Apply to all selected rows" could not be used
-    with the mouse.
+  - A click on a row of a selection of several selects that row alone
+    at once; when it is the first click of a double-click, the second,
+    as the browser counts it by the system's double-click time, puts the
+    selection back before the cell opens, so that "Apply to all selected
+    rows" can be used with the mouse. The row shows as the only one
+    selected for a moment (decided by the owner on 5 October 2026, issue
+    #3, in the place of a wait of 500 ms, Windows' default double-click
+    time, which a slower setting outlasted).
 - Above the table, a find bar, which reads as a sentence, column first
   (decided by the owner on 4 October 2026, in the place of the bar of
   2 October): a Column dropdown, "Any column" first and then every column
@@ -254,9 +257,8 @@ it.
   - A second plain click on what holds exactly the individuals selected:
     the one point selected in the 3D scatter or the map of the
     individuals, the one row selected in the table, a country on the map
-    of countries or a segment of the histogram. On a row it waits the
-    500 ms of a double-click first, as a click on a row of several does,
-    so that a double-click to edit a cell does not clear the selection.
+    of countries or a segment of the histogram. On a row, a double-click
+    to edit a cell puts the selection back, as on a row of several.
   - Edit > Select None, with Shift-Cmd-A, Shift-Ctrl-A on Windows and
     Linux, the shortcut of GIMP and Illustrator; Finder's Option-Cmd-A
     would be Ctrl-Alt-A on Windows, where many keyboards type letters

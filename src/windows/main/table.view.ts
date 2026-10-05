@@ -42,8 +42,11 @@ export interface TableProps {
   readonly onActiveSelect: (extend: boolean) => void;
   /** The user clicked a cell, which the keyboard is then on. */
   readonly onCellClick: (row: RowIndex, column: ColumnId) => void;
-  /** The user clicked a row, with the shift key when `extend`. */
-  readonly onRowClick: (row: RowIndex, extend: boolean) => void;
+  /**
+   * The user clicked a row, with the shift key when `extend`; `clicks` is
+   * the browser's count, 2 for the second click of a double-click.
+   */
+  readonly onRowClick: (row: RowIndex, extend: boolean, clicks: number) => void;
   /** The user double-clicked a cell, to edit it. */
   readonly onCellOpen: (row: RowIndex, column: ColumnId) => void;
   /** The user typed in the field of the cell being edited. */
@@ -397,7 +400,7 @@ export function tableView(props: TableProps): TemplateResult {
                 }
               }}
               @click=${(event: MouseEvent) => {
-                props.onRowClick(row.row, event.shiftKey);
+                props.onRowClick(row.row, event.shiftKey, event.detail);
               }}
             >
               ${
