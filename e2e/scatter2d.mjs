@@ -181,6 +181,23 @@ for (const engine of Object.keys(ENGINES)) {
     await plots.keyboard.up("ControlOrMeta");
     await selectedAre(page, ["p1", "p2"]);
     await shoot(plots, engine, "scatter2d-selected");
+    // A double click on a point leaves the selection as it was: its first
+    // click selected p3 alone, and its second would have selected none. Its
+    // two changes, the first click's and the one that puts the selection
+    // back, have come back to the window when its revision is two more; a
+    // Cmd-click or Ctrl-click after them shows where they left it.
+    const revision = () => plots.evaluate(() => globalThis.__vavilovRevision());
+    const before = await revision();
+    await plots.mouse.dblclick(p3.x, p3.y);
+    await plots.waitForFunction((at) => globalThis.__vavilovRevision() >= at, before + 2);
+    await plots.keyboard.down("ControlOrMeta");
+    await plots.mouse.click(p4.x, p4.y);
+    await plots.keyboard.up("ControlOrMeta");
+    await selectedAre(page, ["p1", "p2", "p4"]);
+    await plots.keyboard.down("ControlOrMeta");
+    await plots.mouse.click(p4.x, p4.y);
+    await plots.keyboard.up("ControlOrMeta");
+    await selectedAre(page, ["p1", "p2"]);
 
     // With the keyboard's focus on it, an arrow pans and Home frames every
     // point again; + zooms in; a double click frames them too.

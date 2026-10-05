@@ -261,6 +261,9 @@ export async function startTilesWindow(root: HTMLElement, kind: TilesWindowKind)
         }
         return undefined;
       });
+      // The revision of the window's copy, by which a test waits for the
+      // changes its clicks made to come back before it clicks again.
+      Reflect.set(globalThis, "__vavilovRevision", () => Number(connection.state.revision()));
     }
     await connection.windowWidgets();
     await describe();

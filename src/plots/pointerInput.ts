@@ -28,6 +28,12 @@ export interface PointViewEvents {
   readonly onHover: (row: number | null, place: { x: number; y: number } | null) => void;
   /** A click on the point of `row`, which selects it alone or toggles it in the selection. */
   readonly onClick: (row: number, click: Exclude<Click, "range">) => void;
+  /**
+   * The click just given to {@link onClick} was the first of a double
+   * click, which frames the view and leaves the selection as it was: what
+   * that click changed is put back. The second click is given to nothing.
+   */
+  readonly onClickUndone: () => void;
   /** A lasso drawn and released, with the points drawn inside it, one bit per row. */
   readonly onLasso: (rows: Uint8Array) => void;
   /** The lasso that waited was dropped, since the view moved. */
@@ -123,6 +129,10 @@ export function createPointerInput(
   let lassoPath: number[] = [];
   let drawing = false;
   let press: { x: number; y: number } | null = null;
+  // The click on a point that the press just released makes, given when
+  // the browser counts it, and whether the last click counted 1 was given.
+  let pending: { row: number; click: Exclude<Click, "range"> } | null = null;
+  let lastGiven = false;
   const platform = platformOf(navigator.userAgent);
   // Where the pointer rests over the view with no button down, in CSS pixels
   // of the frame and of the window, or `null`; and whether the view moved
@@ -171,6 +181,7 @@ export function createPointerInput(
     }
     const place = local(event);
     press = place;
+    pending = null;
     if (lassoMode !== null) {
       lassoPath = [place.x, place.y];
       drawing = true;
@@ -219,7 +230,7 @@ export function createPointerInput(
       const row = hooks.pick(place.x, place.y);
       const click = pointClickOf(event, platform);
       if (row !== null && click !== "none") {
-        events.onClick(row, click);
+        pending = { row, click };
       }
       return;
     }
@@ -234,10 +245,31 @@ export function createPointerInput(
     }
   };
 
+  // The browser counts the clicks of a double click, 1 and then 2, in the
+  // click that follows each release: the first acts, and the second takes
+  // it back, so that a double click on a point leaves the selection as it
+  // was (decided by the owner on 5 October 2026).
+  const onClickCounted = (event: MouseEvent): void => {
+    const given = pending;
+    pending = null;
+    if (event.detail >= 2) {
+      if (lastGiven) {
+        lastGiven = false;
+        events.onClickUndone();
+      }
+      return;
+    }
+    lastGiven = given !== null;
+    if (given !== null) {
+      events.onClick(given.row, given.click);
+    }
+  };
+
   // The system took the pointer, as a web view does with a touch it reads
   // as a scroll: the lasso being drawn is dropped, and so is the press.
   const onPointerCancel = (): void => {
     press = null;
+    pending = null;
     if (drawing) {
       clearLasso();
     }
@@ -262,6 +294,7 @@ export function createPointerInput(
   frame.addEventListener("pointerup", onPointerUp);
   frame.addEventListener("pointerleave", onPointerLeave);
   frame.addEventListener("pointercancel", onPointerCancel);
+  frame.addEventListener("click", onClickCounted);
   window.addEventListener("blur", onWindowBlur);
 
   let destroyed = false;
@@ -313,6 +346,7 @@ export function createPointerInput(
       frame.removeEventListener("pointerup", onPointerUp);
       frame.removeEventListener("pointerleave", onPointerLeave);
       frame.removeEventListener("pointercancel", onPointerCancel);
+      frame.removeEventListener("click", onClickCounted);
       window.removeEventListener("blur", onWindowBlur);
       lassoCanvas.remove();
     },

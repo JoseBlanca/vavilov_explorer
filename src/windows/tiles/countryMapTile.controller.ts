@@ -139,7 +139,10 @@ export function createCountryMapTile(
    * of no individual changes nothing, as a click on empty space does in a
    * point view, since a selection cannot be undone.
    */
+  /** The selection before the last click that changed it, which a double click puts back. */
+  let beforeClick: Uint8Array | null = null;
   const select = (countryIndex: number, click: Exclude<Click, "range">): void => {
+    beforeClick = null;
     const { numeric } = shapeOf(countryIndex);
     const now = state.selection();
     // A shape with no ISO code holds no individual.
@@ -154,7 +157,15 @@ export function createCountryMapTile(
       return;
     }
     const bits = selectionAfterClick(now, rows, click);
+    beforeClick = now;
     connection.setSelection(bits).then(answered("selecting", draw)).catch(report);
+  };
+  const undoClick = (): void => {
+    const before = beforeClick;
+    beforeClick = null;
+    if (before !== null) {
+      connection.setSelection(before).then(answered("selecting", draw)).catch(report);
+    }
   };
 
   const map = createCountryMap(slot(element, "plot"), {
@@ -168,6 +179,7 @@ export function createCountryMapTile(
       }
     },
     onClick: select,
+    onClickUndone: undoClick,
     onThemeChange: () => {
       draw();
     },

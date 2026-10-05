@@ -198,6 +198,22 @@ for (const engine of Object.keys(ENGINES)) {
     await selectedAre(page, ["p3"]);
     // The line goes round Peru now, and no longer round Spain.
     await waitForColourNear(maps, peruCoast, TEXT, "the line round Peru");
+    // A double click on a country leaves the selection as it was: its first
+    // click selected Spain's alone, and its second would have selected none.
+    // Once the window has its two changes, a Cmd-click or Ctrl-click on
+    // Spain adds Spain's to p3, which it would not on either of those.
+    const revision = await maps.evaluate(() => globalThis.__vavilovRevision());
+    await maps.mouse.dblclick(madrid.x, madrid.y);
+    await maps.waitForFunction((at) => globalThis.__vavilovRevision() >= at, revision + 2);
+    await maps.keyboard.down("ControlOrMeta");
+    await maps.mouse.click(madrid.x, madrid.y);
+    await maps.keyboard.up("ControlOrMeta");
+    await selectedAre(page, ["p1", "p2", "p3", "p6"]);
+    await maps.keyboard.down("ControlOrMeta");
+    await maps.mouse.click(madrid.x, madrid.y);
+    await maps.keyboard.up("ControlOrMeta");
+    await selectedAre(page, ["p3"]);
+    await maps.mouse.move(lima.x, lima.y);
     assert.equal(
       await centreOfColour(maps, spainCoast.x, spainCoast.y, TEXT, 8),
       null,

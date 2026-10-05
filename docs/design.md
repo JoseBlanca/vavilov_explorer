@@ -623,7 +623,11 @@ slice, built the same day:
 - The box has the names of the columns and round values on its edges;
   where two axes meet, the values of their ends can overlap.
 - A drag rotates, the wheel zooms, a right drag pans, a double click
-  frames the box again. The plot takes the keyboard's focus too, and then
+  frames the box again. A double click on a point leaves the selection as
+  it was, here and in every plot a double click frames, a map of
+  countries included: its first click selects for a moment, as a click
+  does, and is taken back by the second (decided by the owner on
+  5 October 2026; before, the two clicks left the selection empty). The plot takes the keyboard's focus too, and then
   the arrows rotate, + and − zoom, and Home frames the box again (decided
   by the owner on 3 October 2026), since a drag is not something every
   user can make. While + or − is pressed a drag draws a lasso

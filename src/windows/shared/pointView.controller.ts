@@ -179,7 +179,10 @@ export function createPointView(
     sent.then(answered("applying the lasso", draw)).catch(report);
   };
 
+  /** The selection before the last click that changed it, which a double click puts back. */
+  let beforeClick: Uint8Array | null = null;
   const select = (point: number, click: Exclude<Click, "range">): void => {
+    beforeClick = null;
     const row = rowOf(point);
     const now = state.selection();
     const project = state.project();
@@ -193,7 +196,15 @@ export function createPointView(
       click === "toggle"
         ? toggledRow(now, row)
         : selectionAfterClick(now, onlyRow(project.numRows, row), "select");
+    beforeClick = now;
     connection.setSelection(bits).then(answered("selecting", draw)).catch(report);
+  };
+  const undoClick = (): void => {
+    const before = beforeClick;
+    beforeClick = null;
+    if (before !== null) {
+      connection.setSelection(before).then(answered("selecting", draw)).catch(report);
+    }
   };
 
   const plot = kind.createPlot(
@@ -210,6 +221,7 @@ export function createPointView(
         }
       },
       onClick: select,
+      onClickUndone: undoClick,
       onLasso: (rows) => {
         const mode = state.active()?.mode ?? null;
         if (mode !== null) {

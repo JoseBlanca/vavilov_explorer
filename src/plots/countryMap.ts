@@ -42,6 +42,8 @@ export interface CountryMapEvents {
   readonly onHover: (country: number | null, place: { x: number; y: number } | null) => void;
   /** A click on `country`, which selects its individuals alone or adds them to the selection. */
   readonly onClick: (country: number, click: Exclude<Click, "range">) => void;
+  /** The click just given was the first of a double click: what it changed is put back. */
+  readonly onClickUndone: () => void;
   /** The system changed between light and dark: the colours are read again. */
   readonly onThemeChange: () => void;
 }
@@ -171,6 +173,7 @@ export function createCountryMap(element: HTMLElement, events: CountryMapEvents)
     {
       onHover: events.onHover,
       onClick: events.onClick,
+      onClickUndone: events.onClickUndone,
       // The map of countries has no lasso.
       onLasso: () => undefined,
       onLassoDropped: () => undefined,
