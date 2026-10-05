@@ -124,7 +124,7 @@ export function createScatter3d(
   controls.enableDamping = true;
   controls.dampingFactor = DAMPING;
   const onChange = (): void => {
-    base.cameraMoved();
+    base.pointsMoved();
   };
   controls.addEventListener("change", onChange);
 
@@ -149,7 +149,7 @@ export function createScatter3d(
     framingDistance(camera, [x.half, y.half, z.half], FILL, placeCamera);
     controls.target.set(0, 0, 0);
     controls.update();
-    base.cameraMoved();
+    base.pointsMoved();
   };
 
   const onDoubleClick = (): void => {
@@ -177,7 +177,7 @@ export function createScatter3d(
     camera.position.copy(controls.target).add(offset);
     camera.lookAt(controls.target);
     controls.update();
-    base.cameraMoved();
+    base.pointsMoved();
   };
 
   made.onKey = (key) => {
@@ -234,6 +234,8 @@ export function createScatter3d(
       });
     });
     base.setPositions(positions);
+    // New values: the points moved under the lasso and the pointer.
+    base.pointsMoved();
     axes.setAxes(
       data.titles.map((title, axis) => ({ title, range: at(ranges, axis) })),
       next,

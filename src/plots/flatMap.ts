@@ -169,7 +169,7 @@ export function createFlatMap(
   controls.enableDamping = true;
   controls.dampingFactor = DAMPING;
   const onChange = (): void => {
-    base.cameraMoved();
+    base.pointsMoved();
   };
   controls.addEventListener("change", onChange);
 
@@ -193,7 +193,7 @@ export function createFlatMap(
     camera.updateProjectionMatrix();
     controls.update();
     framed = true;
-    base.cameraMoved();
+    base.pointsMoved();
   };
 
   const frameHome = (): void => {
@@ -211,14 +211,14 @@ export function createFlatMap(
     controls.target.x += x;
     controls.target.y += y;
     controls.update();
-    base.cameraMoved();
+    base.pointsMoved();
   };
 
   const zoom = (factor: number): void => {
     camera.zoom = THREE.MathUtils.clamp(camera.zoom * factor, MIN_ZOOM, MAX_ZOOM);
     camera.updateProjectionMatrix();
     controls.update();
-    base.cameraMoved();
+    base.pointsMoved();
   };
 
   made.onKey = (key) => {

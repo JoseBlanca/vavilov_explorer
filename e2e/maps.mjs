@@ -377,6 +377,14 @@ for (const engine of Object.keys(ENGINES)) {
     await maps.keyboard.press("Enter");
     await originSays(grid, "p4", "ESP");
     await originSays(grid, "p3", "PER");
+    // A lasso that waits goes when the map changes size, since it no
+    // longer fits the points (issue #8).
+    await lassoAround(maps, await steadyPlace(maps, POINTS, 2));
+    await maps.waitForFunction(lassoDrawn, true);
+    const size = maps.viewportSize();
+    await maps.setViewportSize({ width: size.width, height: size.height - 40 });
+    await maps.waitForFunction(lassoDrawn, false);
+    await maps.setViewportSize(size);
     // A lasso drawn around p3 in the second map, applied with Enter, puts
     // it in Spain.
     await lassoAround(maps, await steadyPlace(maps, POINTS, 2));
@@ -578,6 +586,15 @@ async function waitForNoColourNear(page, place, colour, what) {
     assert.ok(Date.now() < deadline, `${what}: still drawn near ${JSON.stringify(place)}`);
     await page.waitForTimeout(100);
   }
+}
+
+/** Whether the canvas of a lasso, of any tile, holds a pixel drawn, as `drawn` says it should. */
+function lassoDrawn(drawn) {
+  const any = [...globalThis.document.querySelectorAll("canvas.plot-lasso")].some((canvas) => {
+    const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    return pixels.some((value, index) => index % 4 === 3 && value > 0);
+  });
+  return any === drawn;
 }
 
 /** Draws a lasso of a square 40 pixels wide around `place`. */

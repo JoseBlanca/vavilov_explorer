@@ -56,8 +56,12 @@ export interface PointViewBase {
   readonly requestDraw: () => void;
   /** Names the view for a screen reader, which reads it as one image. */
   readonly setName: (name: string) => void;
-  /** Where the camera moved: the drawn lasso no longer fits the points, and goes. */
-  readonly cameraMoved: () => void;
+  /**
+   * The points moved on the screen, as the camera moved or their places
+   * changed: the drawn lasso no longer fits them, and goes, and the hover
+   * is picked again where the pointer rests.
+   */
+  readonly pointsMoved: () => void;
   /** A place of the scene in CSS pixels of the canvas, or `null` when it is behind the camera. */
   readonly toCanvas: (point: THREE.Vector3) => { x: number; y: number } | null;
   /** The place of a row's point in CSS pixels of the window, or `null` when it is not drawn. */
@@ -158,6 +162,7 @@ export function createPointView(
 
   const resize = (): void => {
     const rect = frame.getBoundingClientRect();
+    const moved = rect.width !== width || rect.height !== height;
     width = rect.width;
     height = rect.height;
     if (width === 0 || height === 0) {
@@ -170,6 +175,10 @@ export function createPointView(
     input.resize(width, height, ratio);
     hooks.onResize(width, height);
     screen = null;
+    if (moved) {
+      // The points moved on the screen, under the lasso and the pointer.
+      input.viewMoved();
+    }
     requestDraw();
   };
 
@@ -255,7 +264,7 @@ export function createPointView(
     setName: (name) => {
       canvas.setAttribute("aria-label", name);
     },
-    cameraMoved: () => {
+    pointsMoved: () => {
       screen = null;
       input.viewMoved();
       requestDraw();

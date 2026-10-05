@@ -121,6 +121,8 @@ export function createMap(element: HTMLElement, events: PointViewEvents): MapPlo
         places = { from: data, xy: found.xy };
         positions = new Float32Array(3 * data.placed.numRows);
         map.setHome(found.box);
+        // New places: the points moved under the lasso and the pointer.
+        map.base.pointsMoved();
       }
       const { xy } = places;
       const { sizes, marks } = data.style;
